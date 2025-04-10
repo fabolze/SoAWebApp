@@ -1,0 +1,30 @@
+{
+   "id": "string",
+   "name": "string",
+   "type": ["Armor", "Weapon", "Consumable", "Quest Item"], 
+   "equipment_slot": ["Head", "Shoulders", "Chest", "Legs", "Shoes", "Hands", "Neck", "Back", "Ring", "Trinket"],
+   "weapon_slot_type": ["One-Handed", "Two-Handed", "Offhand"],
+   "rarity": ["Common", "Uncommon", "Rare", "Epic", "Legendary"],
+   "description": "string",
+   "item_stats": {
+     "armor": "int",
+     "damage": "int",
+     "magic_resist": "int"
+   },
+   "attributes_bonus": {
+     "strength": "int",
+     "vitality": "int"
+   },
+   "effects": ["string"],
+   "value": "int",
+   "requirements": {
+     "level": "int",
+     "strength": "int"
+   },
+   "is_quest_item": "bool",
+   "is_consumable": "bool",
+   "is_material": "bool",
+   "tags": ["string"],
+   "image_path": "string"
+ }
+ 

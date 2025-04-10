@@ -1,0 +1,78 @@
+<div class="d-flex">
+    <div class="flex-shrink-0 p-3 text-bg-dark" style="width: 250px; min-height: 100vh;">
+      <a href="/" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none">
+        <span class="fs-4">Asset Manager</span>
+      </a>
+      <hr>
+      <ul class="nav nav-pills flex-column mb-auto">
+        <li>
+          <a href="/" class="nav-link text-white">
+            Home
+          </a>
+        </li>
+        <li>
+          <a href="/items" class="nav-link text-white">
+            Items
+          </a>
+        </li>
+        <li>
+          <a href="/effects" class="nav-link text-white">
+            Effects
+          </a>
+        </li>
+        <li>
+          <a href="/monsters" class="nav-link text-white">
+            Monsters
+          </a>
+        </li>
+        <li>
+          <a href="/npcs" class="nav-link text-white">
+            NPCs
+          </a>
+        </li>
+        <li>
+          <a href="/quests" class="nav-link text-white">
+            Quests
+          </a>
+        </li>
+        <li>
+          <a href="/locations" class="nav-link text-white">
+            Locations
+          </a>
+        </li>
+      </ul>
+      <hr>
+      <button class="btn btn-outline-light" id="sidebarToggle">Toggle Sidebar</button>
+    </div>
+  
+    <script>
+      document.getElementById('sidebarToggle').addEventListener('click', function() {
+        var sidebar = this.parentElement;
+        sidebar.classList.toggle('collapsed');
+        if(sidebar.classList.contains('collapsed')){
+          sidebar.style.width = '60px';
+        } else {
+          sidebar.style.width = '250px';
+        }
+      });
+    </script>
+  
+    <style>
+      .collapsed .nav-link span, .collapsed .fs-4 {
+        display: none;
+      }
+  
+      .collapsed ul.nav {
+        padding: 0;
+      }
+  
+      .collapsed ul.nav li {
+        display: flex;
+        justify-content: center;
+      }
+  
+      .collapsed ul.nav li a {
+        padding: 0.5rem;
+      }
+    </style>
+  </div>

@@ -1,0 +1,54 @@
+{
+    "type": "object",
+    "properties": {
+      "effect_name": {
+        "type": "string",
+        "description": "The name of the effect, e.g., 'Fireball', 'Heal', 'Poison'"
+      },
+      "description": {
+        "type": "string",
+        "description": "A brief description of what the effect does"
+      },
+      "magnitude": {
+        "type": "number",
+        "minimum": -100,
+        "maximum": 100,
+        "description": "The magnitude of the effect, positive values increase the effect, negative values decrease it"
+      },
+      "duration": {
+        "type": "number",
+        "minimum": 0,
+        "description": "The duration in turns or seconds for which the effect persists"
+      },
+      "target_type": {
+        "type": "string",
+        "enum": ["self", "enemy", "ally"],
+        "description": "Who the effect targets: self, enemy, or ally"
+      },
+      "effect_type": {
+        "type": "string",
+        "enum": ["buff", "debuff", "damage", "heal", "status"],
+        "description": "The category of effect, for example a buff or a status effect"
+      },
+      "stackable": {
+        "type": "boolean",
+        "description": "Whether the effect can stack if applied multiple times"
+      },
+      "icon_path": {
+        "type": "string",
+        "description": "Path to the icon representing the effect"
+      },
+      "related_items": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "IDs of items that grant this effect"
+      },
+      "set_bonus_group": {
+        "type": "string",
+        "description": "Optional group ID this effect belongs to for set bonus tracking"
+      }
+    },
+    "required": ["effect_name", "description", "magnitude", "duration", "target_type", "effect_type"],
+    "additionalProperties": false
+  }
+  

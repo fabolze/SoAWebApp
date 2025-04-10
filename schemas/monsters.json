@@ -1,0 +1,42 @@
+{
+    "id": "string",
+    "name": "string",
+    "type": [
+        "beast",
+        "dragon",
+        "humanoid",
+        "fey",
+        "undead",
+        "elemental",
+        "plant",
+        "aberration"
+    ],
+    "level": "int",
+    "description": "A small but aggressive goblin native to the woods.",
+    "combat_stats": {
+        "hp": 60,
+        "attack": 8,
+        "defense": 3,
+        "speed": 6,
+        "mana": 0,
+        "spell_power": 0
+    },
+    "ability_id": "string",
+    "loot_table": [
+        "string"
+    ],
+    "spawn_locations": [
+        "string"
+    ],
+    "aggression": "Hostile",
+    "faction": "Goblinoids",
+    "related_quests": [
+        "string"
+    ],
+    "image_path": "/images/monsters/forest_goblin.png",
+    "tags": [
+        "forest",
+        "small",
+        "fast"
+    ]
+}
