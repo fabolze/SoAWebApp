@@ -1,0 +1,30 @@
+
+
+ {
+                    "id": "location_003",
+                    "name": "Whispering Woods",
+                    "type": "Forest",
+                    "description": "A dense forest filled with danger and ancient ruins.",
+                    "monsters": [
+                        "monster_001",
+                        "monster_005"
+                    ],
+                    "npcs": [
+                        "npc_008",
+                        "npc_009"
+                    ],
+                    "connected_locations": [
+                        "location_001",
+                        "location_004"
+                    ],
+                    "discoverable_items": [
+                        "item_013",
+                        "item_020"
+                    ],
+                    "image_path": "/images/locations/whispering_woods.png",
+                    "tags": [
+                        "forest",
+                        "mysterious",
+                        "dangerous"
+                    ]
+                }   

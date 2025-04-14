@@ -1,0 +1,8 @@
+{
+    "faction_id": "string",
+    "faction_name": "string",
+    "quests_offered": ["quest_id"],
+    "faction_items_offered": ["item_id"],
+    "image_path": "/images/factions/xxx.png",   
+    "tags": ["string"] 
+}

@@ -1,0 +1,31 @@
+
+ {
+                    "id": "quest_001",
+                    "title": "Cleanse the Woods",
+                    "description": "Eliminate the goblins in the Whispering Woods.",
+                    "objectives": [
+                        {
+                            "type": "kill",
+                            "target": "monster_001",
+                            "amount": 5
+                        }
+                    ],
+                    "rewards": {
+                        "xp": 100,
+                        "items": [
+                            "item_007"
+                        ],
+                        "gold": 50
+                    },
+                    "prerequisites": [
+                        "quest_000"
+                    ],
+                    "repeatable": false,
+                    "giver": "npc_001",
+                    "location": "location_003",
+                    "tags": [
+                        "combat",
+                        "starter",
+                        "forest"
+                    ]
+                }  

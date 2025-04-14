@@ -1,0 +1,20 @@
+{
+    "id": "npc_001",
+    "name": "Elder Tharn",
+    "role": ["Questgiver","trader","lore","companion"],
+    "type": [
+        "beast",
+        "dragon",
+        "humanoid",
+        "fey",
+        "undead",
+        "elemental",
+        "plant",
+        "aberration"
+    ],
+    "location": "location_id",
+    "dialogue_scripts": [
+        "dialogue_001",
+        "dialogue_002"
+    ]    
+}
