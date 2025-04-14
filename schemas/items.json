@@ -1,30 +1,150 @@
 {
-   "id": "string",
-   "name": "string",
-   "type": ["Armor", "Weapon", "Consumable", "Quest Item"], 
-   "equipment_slot": ["Head", "Shoulders", "Chest", "Legs", "Shoes", "Hands", "Neck", "Back", "Ring", "Trinket"],
-   "weapon_slot_type": ["One-Handed", "Two-Handed", "Offhand"],
-   "rarity": ["Common", "Uncommon", "Rare", "Epic", "Legendary"],
-   "description": "string",
-   "item_stats": {
-     "armor": "int",
-     "damage": "int",
-     "magic_resist": "int"
-   },
-   "attributes_bonus": {
-     "strength": "int",
-     "vitality": "int"
-   },
-   "effects": ["string"],
-   "value": "int",
-   "requirements": {
-     "level": "int",
-     "strength": "int"
-   },
-   "is_quest_item": "bool",
-   "is_consumable": "bool",
-   "is_material": "bool",
-   "tags": ["string"],
-   "image_path": "string"
- }
- 
+  "id": {
+    "type": "string",
+    "ui": "hidden"
+  },
+  "name": {
+    "type": "string",
+    "ui": "text"
+  },
+  "type": {
+    "type": "enum",
+    "values": [
+      "Armor",
+      "Weapon",
+      "Consumable",
+      "Quest Item"
+    ],
+    "ui": "dropdown"
+  },
+  "equipment_slot": {
+    "type": "enum",
+    "values": [
+      "Head",
+      "Shoulders",
+      "Chest",
+      "Legs",
+      "Shoes",
+      "Hands",
+      "Neck",
+      "Back",
+      "Ring",
+      "Trinket"
+    ],
+    "ui": "dropdown",
+    "optional": true
+  },
+  "weapon_slot_type": {
+    "type": "enum",
+    "values": [
+      "One-Handed",
+      "Two-Handed",
+      "Offhand"
+    ],
+    "ui": "dropdown",
+    "optional": true
+  },
+  "rarity": {
+    "type": "enum",
+    "values": [
+      "Common",
+      "Uncommon",
+      "Rare",
+      "Epic",
+      "Legendary"
+    ],
+    "ui": "dropdown"
+  },
+  "description": {
+    "type": "string",
+    "ui": "textarea"
+  },
+  "item_stats": {
+    "type": "object",
+    "fields": {
+      "armor": {
+        "type": "int",
+        "ui": "number",
+        "optional": true
+      },
+      "damage": {
+        "type": "int",
+        "ui": "number",
+        "optional": true
+      },
+      "magic_resist": {
+        "type": "int",
+        "ui": "number",
+        "optional": true
+      }
+    }
+  },
+  "attributes_bonus": {
+    "type": "object",
+    "fields": {
+      "strength": {
+        "type": "int",
+        "ui": "number",
+        "optional": true
+      },
+      "vitality": {
+        "type": "int",
+        "ui": "number",
+        "optional": true
+      }
+    }
+  },
+  "effects": {
+    "type": "array",
+    "items": {
+      "type": "string",
+      "ui": "reference",
+      "reference": "effect"
+    },
+    "ui": "multi-select",
+    "optional": true
+  },
+  "value": {
+    "type": "int",
+    "ui": "number"
+  },
+  "requirements": {
+    "type": "object",
+    "fields": {
+      "level": {
+        "type": "int",
+        "ui": "number"
+      },
+      "strength": {
+        "type": "int",
+        "ui": "number",
+        "optional": true
+      }
+    }
+  },
+  "is_quest_item": {
+    "type": "bool",
+    "ui": "checkbox"
+  },
+  "is_consumable": {
+    "type": "bool",
+    "ui": "checkbox"
+  },
+  "is_material": {
+    "type": "bool",
+    "ui": "checkbox"
+  },
+  "tags": {
+    "type": "array",
+    "items": {
+      "type": "string"
+    },
+    "ui": "tag-input",
+    "optional": true
+  },
+  "image_path": {
+    "type": "string",
+    "ui": "filepicker",
+    "optional": true
+  }
+}
