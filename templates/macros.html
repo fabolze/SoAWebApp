@@ -1,0 +1,50 @@
+{# templates/macros.html #}
+{% macro render_field(name, definition, value='', prefix='') %}
+  {% set full_name = prefix ~ name %}
+  <div class="mb-3">
+    {% if definition.ui != 'hidden' %}
+      <label for="{{ full_name }}" class="form-label">{{ name.replace('_', ' ').title() }}</label>
+    {% endif %}
+
+    {% if definition.ui == 'text' %}
+      <input type="text" name="{{ full_name }}" id="{{ full_name }}" value="{{ value }}" class="form-control">
+
+    {% elif definition.ui == 'number' %}
+      <input type="number" name="{{ full_name }}" id="{{ full_name }}" value="{{ value }}" class="form-control">
+
+    {% elif definition.ui == 'textarea' %}
+      <textarea name="{{ full_name }}" id="{{ full_name }}" class="form-control">{{ value }}</textarea>
+
+    {% elif definition.ui == 'dropdown' and definition.type == 'enum' %}
+      {% set options = definition['values'] if 'values' in definition else [] %}
+      <select name="{{ full_name }}" id="{{ full_name }}" class="form-select">
+        {% for option in options %}
+          <option value="{{ option }}" {% if value == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+
+    {% elif definition.ui == 'checkbox' and definition.type == 'bool' %}
+      <input type="checkbox" name="{{ full_name }}" id="{{ full_name }}" class="form-check-input" {% if value %}checked{% endif %}>
+
+    {% elif definition.ui == 'filepicker' %}
+      <input type="file" name="{{ full_name }}" id="{{ full_name }}" class="form-control">
+
+    {% elif definition.ui == 'tag-input' or definition.ui == 'multi-select' %}
+      <input type="text" name="{{ full_name }}" id="{{ full_name }}" value="{{ value }}" class="form-control" placeholder="Comma-separated">
+
+    {% elif definition.type == 'object' and definition.fields %}
+      {% for subfield, subdef in definition.fields.items() %}
+        {{ render_field(subfield, subdef, '', full_name ~ '.') }}
+      {% endfor %}
+
+    {% elif definition.type == 'array' and definition.items %}
+      <input type="text" name="{{ full_name }}" id="{{ full_name }}" value="{{ value }}" class="form-control" placeholder="Comma-separated">
+
+    {% elif definition.ui == 'hidden' %}
+      <input type="hidden" name="{{ full_name }}" value="{{ value }}">
+
+    {% else %}
+      <input type="text" name="{{ full_name }}" id="{{ full_name }}" value="{{ value }}" class="form-control">
+    {% endif %}
+  </div>
+{% endmacro %}

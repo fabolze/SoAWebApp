@@ -74,7 +74,7 @@
       "All"
     ],
     "ui": "dropdown",
-    "optional": true,
+    "visible_if": "type in [Modifier, Shield]",
     "description": "Attribute affected, if any"
   },
   "scaling_stat": {

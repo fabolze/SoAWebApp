@@ -32,6 +32,7 @@
       "Trinket"
     ],
     "ui": "dropdown",
+    "visible_if": "type = Armor",
     "optional": true
   },
   "weapon_slot_type": {
@@ -42,6 +43,7 @@
       "Offhand"
     ],
     "ui": "dropdown",
+    "visible_if": "type = Weapon",
     "optional": true
   },
   "rarity": {
@@ -61,6 +63,7 @@
   },
   "item_stats": {
     "type": "object",
+    "visible_if": "type in [Armor, Weapon]",
     "fields": {
       "armor": {
         "type": "int",
@@ -81,6 +84,7 @@
   },
   "attributes_bonus": {
     "type": "object",
+    "visible_if": "type in [Armor, Weapon, Consumable]",
     "fields": {
       "strength": {
         "type": "int",
@@ -96,6 +100,7 @@
   },
   "effects": {
     "type": "array",
+    "visible_if": "type != Quest Item",
     "items": {
       "type": "string",
       "ui": "reference",
@@ -128,10 +133,12 @@
   },
   "is_consumable": {
     "type": "bool",
+    "visible_if": "type = Consumable",
     "ui": "checkbox"
   },
   "is_material": {
     "type": "bool",
+    "visible_if": "type = Material",
     "ui": "checkbox"
   },
   "tags": {
