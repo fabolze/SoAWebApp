@@ -20,7 +20,7 @@
           return true;
         };
       };
-  
+
       const updateVisibility = () => {
         document.querySelectorAll('[data-visible-if]').forEach(group => {
           const condition = group.getAttribute('data-visible-if');
@@ -28,15 +28,14 @@
           group.style.display = visible ? '' : 'none';
         });
       };
-  
+
       document.querySelectorAll('select, input').forEach(input => {
         input.addEventListener('change', updateVisibility);
       });
-  
+
       updateVisibility();
     });
   </script>
-  
 </head>
 <body class="p-4">
   <div class="d-flex">
@@ -47,10 +46,10 @@
       <form method="post" class="row g-3">
         {% for field, definition in schema.items() %}
           {% set condition = definition.visible_if if 'visible_if' in definition else None %}
-          <div class="col-md-6" {{ {'data-visible-if': condition} if condition else {} }}>
+          <div class="col-md-6" {% if condition %}data-visible-if="{{ condition | e }}"{% endif %}>
             {{ macros.render_field(field, definition, '', '') }}
           </div>
-        {% endfor %}      
+        {% endfor %}
         <div class="col-12">
           <button type="submit" class="btn btn-primary">Add Effect</button>
         </div>
