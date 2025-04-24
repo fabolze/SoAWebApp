@@ -1,157 +1,91 @@
 {
-  "id": {
-    "type": "string",
-    "ui": "hidden"
-  },
-  "name": {
-    "type": "string",
-    "ui": "text"
-  },
-  "type": {
-    "type": "enum",
-    "values": [
-      "Armor",
-      "Weapon",
-      "Consumable",
-      "Quest Item"
-    ],
-    "ui": "dropdown"
-  },
-  "equipment_slot": {
-    "type": "enum",
-    "values": [
-      "Head",
-      "Shoulders",
-      "Chest",
-      "Legs",
-      "Shoes",
-      "Hands",
-      "Neck",
-      "Back",
-      "Ring",
-      "Trinket"
-    ],
-    "ui": "dropdown",
-    "visible_if": "type = Armor",
-    "optional": true
-  },
-  "weapon_slot_type": {
-    "type": "enum",
-    "values": [
-      "One-Handed",
-      "Two-Handed",
-      "Offhand"
-    ],
-    "ui": "dropdown",
-    "visible_if": "type = Weapon",
-    "optional": true
-  },
-  "rarity": {
-    "type": "enum",
-    "values": [
-      "Common",
-      "Uncommon",
-      "Rare",
-      "Epic",
-      "Legendary"
-    ],
-    "ui": "dropdown"
-  },
-  "description": {
-    "type": "string",
-    "ui": "textarea"
-  },
-  "item_stats": {
-    "type": "object",
-    "visible_if": "type in [Armor, Weapon]",
-    "fields": {
-      "armor": {
-        "type": "int",
-        "ui": "number",
-        "optional": true
-      },
-      "damage": {
-        "type": "int",
-        "ui": "number",
-        "optional": true
-      },
-      "magic_resist": {
-        "type": "int",
-        "ui": "number",
-        "optional": true
-      }
-    }
-  },
-  "attributes_bonus": {
-    "type": "object",
-    "visible_if": "type in [Armor, Weapon, Consumable]",
-    "fields": {
-      "strength": {
-        "type": "int",
-        "ui": "number",
-        "optional": true
-      },
-      "vitality": {
-        "type": "int",
-        "ui": "number",
-        "optional": true
-      }
-    }
-  },
-  "effects": {
-    "type": "array",
-    "visible_if": "type != Quest Item",
-    "items": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Item",
+  "type": "object",
+  "properties": {
+    "id": {
       "type": "string",
-      "ui": "reference",
-      "reference": "effect"
+      "ui": { "widget": "hidden" }
     },
-    "ui": "multi-select",
-    "optional": true
-  },
-  "value": {
-    "type": "int",
-    "ui": "number"
-  },
-  "requirements": {
-    "type": "object",
-    "fields": {
-      "level": {
-        "type": "int",
-        "ui": "number"
-      },
-      "strength": {
-        "type": "int",
-        "ui": "number",
-        "optional": true
+    "name": {
+      "type": "string",
+      "ui": { "widget": "text", "label": "Item Name" }
+    },
+    "type": {
+      "type": "string",
+      "enum": ["Weapon", "Armor", "Consumable", "Misc"],
+      "ui": {
+        "widget": "select",
+        "label": "Item Type",
+        "options": ["Weapon", "Armor", "Consumable", "Misc"]
+      }
+    },
+    "rarity": {
+      "type": "string",
+      "enum": ["Common", "Uncommon", "Rare", "Epic", "Legendary"],
+      "ui": {
+        "widget": "select",
+        "label": "Rarity"
+      }
+    },
+    "description": {
+      "type": "string",
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      }
+    },
+    "equipment_slot": {
+      "type": "string",
+      "enum": ["head", "chest", "legs", "feet", "main_hand", "off_hand", "accessory"],
+      "ui": {
+        "widget": "select",
+        "label": "Equipment Slot",
+        "visible_if": { "type": ["Weapon", "Armor"] }
+      }
+    },
+    "weapon_type": {
+      "type": "string",
+      "enum": ["Sword", "Axe", "Bow", "Staff", "Dagger", "Mace"],
+      "ui": {
+        "widget": "select",
+        "label": "Weapon Type",
+        "visible_if": { "type": ["Weapon"] }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "damage": { "type": "number", "ui": { "widget": "number", "label": "Damage" } },
+        "defense": { "type": "number", "ui": { "widget": "number", "label": "Defense" } },
+        "crit_chance": { "type": "number", "ui": { "widget": "number", "label": "Crit Chance (%)" } },
+        "weight": { "type": "number", "ui": { "widget": "number", "label": "Weight" } }
+      }
+    },
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "strength": { "type": "number", "ui": { "widget": "number", "label": "Strength" } },
+        "dexterity": { "type": "number", "ui": { "widget": "number", "label": "Dexterity" } },
+        "vitality": { "type": "number", "ui": { "widget": "number", "label": "Vitality" } },
+        "intelligence": { "type": "number", "ui": { "widget": "number", "label": "Intelligence" } }
+      }
+    },
+    "effects": {
+      "type": "array",
+      "items": { "type": "string" },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Effects",
+        "options_source": "schemas/effects.json"
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "properties": {
+        "level": { "type": "number", "ui": { "widget": "number", "label": "Required Level" } }        
       }
     }
   },
-  "is_quest_item": {
-    "type": "bool",
-    "ui": "checkbox"
-  },
-  "is_consumable": {
-    "type": "bool",
-    "visible_if": "type = Consumable",
-    "ui": "checkbox"
-  },
-  "is_material": {
-    "type": "bool",
-    "visible_if": "type = Material",
-    "ui": "checkbox"
-  },
-  "tags": {
-    "type": "array",
-    "items": {
-      "type": "string"
-    },
-    "ui": "tag-input",
-    "optional": true
-  },
-  "image_path": {
-    "type": "string",
-    "ui": "filepicker",
-    "optional": true
-  }
+  "required": ["id", "name", "type"]
 }

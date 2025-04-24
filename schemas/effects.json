@@ -1,136 +1,155 @@
 {
-  "effect_id": {
-    "type": "string",
-    "ui": "hidden"
-  },
-  "name": {
-    "type": "string",
-    "ui": "text",
-    "description": "Human-readable name of the effect, e.g., 'Stun', 'Heal %'"
-  },
-  "type": {
-    "type": "enum",
-    "values": [
-      "Status",
-      "Damage",
-      "Heal",
-      "Modifier",
-      "Reflect",
-      "Summon",
-      "Shield",
-      "Control"
-    ],
-    "ui": "dropdown",
-    "description": "Category of effect"
-  },
-  "description": {
-    "type": "string",
-    "ui": "textarea",
-    "description": "In-game UI description of what the effect does"
-  },
-  "target": {
-    "type": "enum",
-    "values": [
-      "Self",
-      "Enemy",
-      "Ally",
-      "All",
-      "Area"
-    ],
-    "ui": "dropdown",
-    "description": "Who the effect applies to"
-  },
-  "duration": {
-    "type": "float",
-    "ui": "number",
-    "description": "Duration in seconds; 0 = instant, -1 = permanent"
-  },
-  "value_type": {
-    "type": "enum",
-    "values": [
-      "Flat",
-      "Percentage",
-      "None"
-    ],
-    "ui": "dropdown",
-    "description": "How to interpret the value (flat number or percent)"
-  },
-  "value": {
-    "type": "float",
-    "ui": "number",
-    "description": "Numerical effect amount (e.g. 50 HP or 20% if value_type is 'Percentage')"
-  },
-  "attribute": {
-    "type": "enum",
-    "values": [
-      "Attack",
-      "Defense",
-      "Speed",
-      "Vitality",
-      "Strength",
-      "Magic Power",
-      "Armor",
-      "Mana",
-      "All"
-    ],
-    "ui": "dropdown",
-    "visible_if": "type in [Modifier, Shield]",
-    "description": "Attribute affected, if any"
-  },
-  "scaling_stat": {
-    "type": "enum",
-    "values": [
-      "Attack",
-      "Magic Power",
-      "Speed",
-      "Vitality",
-      "Strength",
-      "None"
-    ],
-    "ui": "dropdown",
-    "optional": true,
-    "description": "Stat that determines effect scaling"
-  },
-  "trigger_condition": {
-    "type": "enum",
-    "values": [
-      "None",
-      "On Hit",
-      "When Damaged",
-      "On Kill",
-      "On Cast",
-      "Passive"
-    ],
-    "ui": "dropdown",
-    "optional": true,
-    "description": "Optional: trigger condition for this effect"
-  },
-  "stackable": {
-    "type": "bool",
-    "ui": "checkbox",
-    "description": "Whether this effect can stack multiple times"
-  },
-  "set_bonus_group": {
-    "type": "string",
-    "ui": "text",
-    "optional": true,
-    "description": "Optional: Set group identifier for tracking combined effects"
-  },
-  "icon_path": {
-    "type": "string",
-    "ui": "filepicker",
-    "optional": true,
-    "description": "Path to icon representing this effect"
-  },
-  "related_items": {
-    "type": "array",
-    "items": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Effect",
+  "type": "object",
+  "properties": {
+    "effect_id": {
       "type": "string",
-      "ui": "reference",
-      "reference": "item"
+      "ui": {
+        "widget": "hidden"
+      }
     },
-    "ui": "multi-select",
-    "optional": true,
-    "description": "List of item IDs that apply this effect"
-  }
+    "name": {
+      "type": "string",
+      "description": "Human-readable name of the effect, e.g., 'Stun', 'Heal %'",
+      "ui": {
+        "widget": "text",
+        "label": "Effect Name"
+      }
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "Status", "Damage", "Heal", "Modifier", "Reflect", "Summon", "Shield", "Control"
+      ],
+      "description": "Category of effect",
+      "ui": {
+        "widget": "select",
+        "label": "Effect Type",
+        "options": [
+          "Status", "Damage", "Heal", "Modifier", "Reflect", "Summon", "Shield", "Control"
+        ]
+      }
+    },
+    "description": {
+      "type": "string",
+      "description": "In-game UI description of what the effect does",
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      }
+    },
+    "target": {
+      "type": "string",
+      "enum": [
+        "Self", "Enemy", "Ally", "All", "Area"
+      ],
+      "description": "Who the effect applies to",
+      "ui": {
+        "widget": "select",
+        "label": "Target",
+        "options": ["Self", "Enemy", "Ally", "All", "Area"]
+      }
+    },
+    "duration": {
+      "type": "number",
+      "description": "Duration in seconds; 0 = instant, -1 = permanent",
+      "ui": {
+        "widget": "number",
+        "label": "Duration"
+      }
+    },
+    "value_type": {
+      "type": "string",
+      "enum": ["Flat", "Percentage", "None"],
+      "description": "How to interpret the value (flat number or percent)",
+      "ui": {
+        "widget": "select",
+        "label": "Value Type",
+        "options": ["Flat", "Percentage", "None"]
+      }
+    },
+    "value": {
+      "type": "number",
+      "description": "Numerical effect amount (e.g. 50 HP or 20% if value_type is 'Percentage')",
+      "ui": {
+        "widget": "number",
+        "label": "Effect Value"
+      }
+    },
+    "attribute": {
+      "type": "string",
+      "enum": [
+        "Attack", "Defense", "Speed", "Vitality", "Strength", "Magic Power", "Armor", "Mana", "All"
+      ],
+      "description": "Attribute affected, if any",
+      "ui": {
+        "widget": "select",
+        "label": "Affected Attribute",
+        "options": [
+          "Attack", "Defense", "Speed", "Vitality", "Strength", "Magic Power", "Armor", "Mana", "All"
+        ],
+        "visible_if": {
+          "type": ["Modifier", "Shield"]
+        }
+      }
+    },
+    "scaling_stat": {
+      "type": "string",
+      "enum": ["Attack", "Magic Power", "Speed", "Vitality", "Strength", "None"],
+      "description": "Stat that determines effect scaling",
+      "ui": {
+        "widget": "select",
+        "label": "Scaling Stat",
+        "options": ["Attack", "Magic Power", "Speed", "Vitality", "Strength", "None"]
+      }
+    },
+    "trigger_condition": {
+      "type": "string",
+      "enum": ["None", "On Hit", "When Damaged", "On Kill", "On Cast", "Passive"],
+      "description": "Trigger condition for this effect",
+      "ui": {
+        "widget": "select",
+        "label": "Trigger Condition",
+        "options": ["None", "On Hit", "When Damaged", "On Kill", "On Cast", "Passive"]
+      }
+    },
+    "stackable": {
+      "type": "boolean",
+      "description": "Whether this effect can stack multiple times",
+      "ui": {
+        "widget": "checkbox",
+        "label": "Stackable"
+      }
+    },
+    "set_bonus_group": {
+      "type": "string",
+      "description": "Set group identifier for tracking combined effects",
+      "ui": {
+        "widget": "text",
+        "label": "Set Bonus Group"
+      }
+    },
+    "icon_path": {
+      "type": "string",
+      "description": "Path to icon representing this effect",
+      "ui": {
+        "widget": "filepicker",
+        "label": "Icon Path"
+      }
+    },
+    "related_items": {
+      "type": "array",
+      "description": "List of item IDs that apply this effect",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Related Items",
+        "reference": "items"
+      }
+    }
+  },
+  "required": ["effect_id", "name", "type", "target"]
 }

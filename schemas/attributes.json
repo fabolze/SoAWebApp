@@ -1,0 +1,95 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Character Attribute",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "ui": { "widget": "hidden" }
+      },
+      "name": {
+        "type": "string",
+        "ui": { "widget": "text", "label": "Attribute Name" }
+      },
+      "description": {
+        "type": "string",
+        "ui": { "widget": "textarea", "label": "Description" }
+      },
+      "value_type": {
+        "type": "string",
+        "enum": ["int", "float"],
+        "ui": {
+          "widget": "select",
+          "label": "Value Type",
+          "options": ["int", "float"]
+        }
+      },
+      "default_value": {
+        "type": "number",
+        "ui": { "widget": "number", "label": "Default Value" }
+      },
+      "min_value": {
+        "type": "number",
+        "ui": { "widget": "number", "label": "Min Value" }
+      },
+      "max_value": {
+        "type": "number",
+        "ui": { "widget": "number", "label": "Max Value" }
+      },
+      "scaling": {
+        "type": "string",
+        "enum": ["None", "Linear", "Exponential", "Logarithmic"],
+        "ui": {
+          "widget": "select",
+          "label": "Scaling Type",
+          "options": ["None", "Linear", "Exponential", "Logarithmic"]
+        }
+      },
+      "results_in": {
+        "type": "array",
+        "description": "Which stats this attribute contributes to, and how",
+        "items": {
+          "type": "object",
+          "properties": {
+            "stat_id": {
+              "type": "string",
+              "description": "ID of the affected stat (referencing stats.json)"
+            },
+            "scale": {
+              "type": "string",
+              "enum": ["Linear", "Exponential", "Custom"],
+              "description": "Scaling model",
+              "ui": {
+                "widget": "select",
+                "label": "Scale Type",
+                "options": ["Linear", "Exponential", "Custom"]
+              }
+            },
+            "multiplier": {
+              "type": "number",
+              "description": "How much 1 point of this attribute adds to the stat",
+              "ui": {
+                "widget": "number",
+                "label": "Multiplier"
+              }
+            }
+          },
+          "required": ["stat_id", "scale", "multiplier"]
+        }
+      },
+      "used_in": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": ["Character", "Item", "Effect", "Ability", "Class"]
+        },
+        "ui": { "widget": "multiselect", "label": "Used In" }
+      },
+      "icon_path": {
+        "type": "string",
+        "ui": { "widget": "filepicker", "label": "Icon" }
+      }
+    },
+    "required": ["id", "name", "value_type"]
+  }
+  

@@ -1,3 +1,106 @@
 {
-    
-}
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Game Stat",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Unique stat ID used internally (e.g., 'damage', 'strength')",
+        "ui": {
+          "widget": "hidden"
+        }
+      },
+      "name": {
+        "type": "string",
+        "description": "Display name shown in UI (e.g., 'Damage', 'Vitality')",
+        "ui": {
+          "widget": "text",
+          "label": "Stat Name"
+        }
+      },
+      "category": {
+        "type": "string",
+        "enum": ["Attribute", "Combat", "Defense", "Magic", "Support"],
+        "description": "Logical grouping of this stat for UI or gameplay purposes",
+        "ui": {
+          "widget": "select",
+          "label": "Category",
+          "options": ["Attribute", "Combat", "Defense", "Magic", "Support"]
+        }
+      },
+      "description": {
+        "type": "string",
+        "description": "In-game help or tooltip",
+        "ui": {
+          "widget": "textarea",
+          "label": "Description"
+        }
+      },
+      "value_type": {
+        "type": "string",
+        "enum": ["int", "float", "percentage"],
+        "description": "Expected data format",
+        "ui": {
+          "widget": "select",
+          "label": "Value Type",
+          "options": ["int", "float", "percentage"]
+        }
+      },
+      "default_value": {
+        "type": "number",
+        "description": "Base/default value for characters or items",
+        "ui": {
+          "widget": "number",
+          "label": "Default Value"
+        }
+      },
+      "min_value": {
+        "type": "number",
+        "description": "Minimum allowed value",
+        "ui": {
+          "widget": "number",
+          "label": "Min Value"
+        }
+      },
+      "max_value": {
+        "type": "number",
+        "description": "Maximum allowed value",
+        "ui": {
+          "widget": "number",
+          "label": "Max Value"
+        }
+      },
+      "scaling_behavior": {
+        "type": "string",
+        "enum": ["None", "Linear", "Exponential", "Custom Curve"],
+        "description": "How the stat scales, if applicable",
+        "ui": {
+          "widget": "select",
+          "label": "Scaling Behavior",
+          "options": ["None", "Linear", "Exponential", "Custom Curve"]
+        }
+      },
+      "applies_to": {
+        "type": "array",
+        "description": "List of systems this stat affects (e.g., characters, effects, items)",
+        "items": {
+          "type": "string",
+          "enum": ["Character", "Item", "Effect", "Ability"]
+        },
+        "ui": {
+          "widget": "multiselect",
+          "label": "Used In"
+        }
+      },
+      "icon_path": {
+        "type": "string",
+        "description": "Optional icon path for the stat",
+        "ui": {
+          "widget": "filepicker",
+          "label": "Icon"
+        }
+      }
+    },
+    "required": ["id", "name", "category", "value_type"]
+  }
+  

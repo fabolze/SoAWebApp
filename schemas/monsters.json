@@ -1,38 +1,128 @@
 {
-    "monster_id": "string",
-    "name": "string",
-    "type": [
-        "beast",
-        "dragon",
-        "humanoid",
-        "fey",
-        "undead",
-        "elemental",
-        "plant",
-        "aberration"
-    ],
-    "level": "int",
-    "description": "string",
-    "combat_stats": {
-        "hp": "float",
-        "attack": "float",
-        "defense": "float",
-        "speed": "float",
-        "mana": "float",
-        "spell_power": "float"
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Monster",
+    "type": "object",
+    "properties": {
+      "monster_id": {
+        "type": "string",
+        "description": "Internal unique ID of the monster",
+        "ui": { "widget": "hidden" }
+      },
+      "name": {
+        "type": "string",
+        "description": "Display name of the monster",
+        "ui": { "widget": "text", "label": "Monster Name" }
+      },
+      "type": {
+        "type": "string",
+        "enum": ["beast", "dragon", "humanoid", "fey", "undead", "elemental", "plant", "aberration"],
+        "description": "Monster category",
+        "ui": {
+          "widget": "select",
+          "label": "Monster Type",
+          "options": ["beast", "dragon", "humanoid", "fey", "undead", "elemental", "plant", "aberration"]
+        }
+      },
+      "level": {
+        "type": "number",
+        "description": "Base level of the monster",
+        "ui": { "widget": "number", "label": "Level" }
+      },
+      "description": {
+        "type": "string",
+        "description": "Lore or combat description",
+        "ui": { "widget": "textarea", "label": "Description" }
+      },
+      "image_path": {
+        "type": "string",
+        "description": "Image for the monster",
+        "ui": { "widget": "filepicker", "label": "Image Path" }
+      },
+      "combat_stats": {
+        "type": "object",
+        "description": "Stat block for battle",
+        "properties": {
+          "hp": { "type": "number" },
+          "attack": { "type": "number" },
+          "defense": { "type": "number" },
+          "speed": { "type": "number" },
+          "mana": { "type": "number" },
+          "spell_power": { "type": "number" }
+        }
+      },
+      "aggression": {
+        "type": "string",
+        "enum": ["Hostile", "Friendly", "Neutral"],
+        "ui": {
+          "widget": "select",
+          "label": "Aggression"
+        }
+      },
+      "faction": {
+        "type": "string",
+        "description": "Faction ID the monster belongs to",
+        "ui": {
+          "widget": "reference",
+          "label": "Faction",
+          "reference": "factions"
+        }
+      },
+      "tags": {
+        "type": "array",
+        "description": "Tags for filtering/classification",
+        "items": { "type": "string" },
+        "ui": {
+          "widget": "tags",
+          "label": "Tags"
+        }
+      },
+      "spawn_locations": {
+        "type": "array",
+        "description": "Location IDs this monster can appear in",
+        "items": { "type": "string" },
+        "ui": {
+          "widget": "multiselect",
+          "label": "Spawn Locations",
+          "reference": "locations"
+        }
+      },
+      "ability_ids": {
+        "type": "array",
+        "description": "Abilities this monster can use",
+        "items": { "type": "string" },
+        "ui": {
+          "widget": "multiselect",
+          "label": "Abilities",
+          "reference": "abilities"
+        }
+      },
+      "loot_table": {
+        "type": "array",
+        "description": "Item IDs this monster can drop",
+        "items": {
+          "type": "object",
+          "properties": {
+            "item_id": { "type": "string" },
+            "drop_chance": { "type": "number" }
+          },
+          "required": ["item_id", "drop_chance"]
+        },
+        "ui": {
+          "widget": "item_drop_table",
+          "label": "Loot Table"
+        }
+      },
+      "related_quests": {
+        "type": "array",
+        "description": "Quest IDs this monster is part of",
+        "items": { "type": "string" },
+        "ui": {
+          "widget": "multiselect",
+          "label": "Related Quests",
+          "reference": "quests"
+        }
+      }
     },
-    "ability_id": "string",
-    "loot_table": [
-        "string"
-    ],
-    "spawn_locations": [
-        "location_id"
-    ],
-    "aggression": ["Hostile","Friendly","Neutral"],
-    "faction": "faction_id",
-    "related_quests": [
-        "quest_id"
-    ],
-    "image_path": "/images/monsters/xxx.png",
-    "tags": ["string"]
-}
+    "required": ["monster_id", "name", "type", "level"]
+  }
+  

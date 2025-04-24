@@ -1,0 +1,134 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Ability",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Unique identifier",
+        "ui": { "widget": "hidden" }
+      },
+      "name": {
+        "type": "string",
+        "description": "Display name of the ability",
+        "ui": { "widget": "text", "label": "Ability Name" }
+      },
+      "type": {
+        "type": "string",
+        "enum": ["Active", "Passive", "Toggle"],
+        "description": "Ability type",
+        "ui": {
+          "widget": "select",
+          "label": "Ability Type",
+          "options": ["Active", "Passive", "Toggle"]
+        }
+      },
+      "icon_path": {
+        "type": "string",
+        "description": "Icon representing this ability",
+        "ui": {
+          "widget": "filepicker",
+          "label": "Icon Path"
+        }
+      },
+      "description": {
+        "type": "string",
+        "description": "What this ability does, shown in the UI",
+        "ui": {
+          "widget": "textarea",
+          "label": "Description"
+        }
+      },
+      "resource_cost": {
+        "type": "number",
+        "description": "Mana or stamina required to use",
+        "ui": {
+          "widget": "number",
+          "label": "Cost"
+        }
+      },
+      "cooldown": {
+        "type": "number",
+        "description": "Cooldown time in turns or seconds",
+        "ui": {
+          "widget": "number",
+          "label": "Cooldown"
+        }
+      },      
+      "targeting": {
+        "type": "string",
+        "enum": ["Single", "Area", "Self", "Allies", "Enemies"],
+        "description": "Target type for the ability",
+        "ui": {
+          "widget": "select",
+          "label": "Targeting",
+          "options": ["Single", "Area", "Self", "Allies", "Enemies"]
+        }
+      },
+      "trigger_condition": {
+        "type": "string",
+        "enum": ["On Use", "Passive", "On Hit", "When Damaged", "On Kill"],
+        "description": "When the ability activates",
+        "ui": {
+          "widget": "select",
+          "label": "Trigger Condition",
+          "options": ["On Use", "Passive", "On Hit", "When Damaged", "On Kill"]
+        }
+      },
+      "effects": {
+        "type": "array",
+        "description": "List of effects applied by this ability",
+        "items": {
+          "type": "string"
+        },
+        "ui": {
+          "widget": "multiselect",
+          "label": "Effects",
+          "reference": "effects"
+        }
+      },
+      "scaling": {
+        "type": "array",
+        "description": "Scaling formulas for this ability (e.g. damage based on Strength)",
+        "items": {
+          "type": "object",
+          "properties": {
+            "attribute_id": {
+              "type": "string",
+              "description": "ID of the scaling attribute (from attributes.json)"
+            },
+            "multiplier": {
+              "type": "number",
+              "description": "How much the attribute contributes"
+            }
+          },
+          "required": ["attribute_id", "multiplier"]
+        }
+      },
+      "requirements": {
+        "type": "object",
+        "description": "Optional requirements to unlock/use",
+        "properties": {
+          "level": {
+            "type": "number",
+            "description": "Minimum level required",
+            "ui": {
+              "widget": "number",
+              "label": "Level Requirement"
+            }
+          },
+          "class": {
+            "type": "string",
+            "enum": ["Warrior", "Mage", "Rogue", "Cleric"],
+            "ui": {
+              "widget": "select",
+              "label": "Class Requirement",
+              "options": ["Warrior", "Mage", "Rogue", "Cleric"]
+            }
+          }
+        }
+      }
+    },
+    "required": ["id", "name", "type"]
+  }
+  
