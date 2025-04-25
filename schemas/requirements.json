@@ -1,0 +1,43 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Requirements",
+    "type": "object",
+    "description": "Shared logic for unlocking quests, items, events, shops, etc.",
+    "properties": {
+      "required_flags": {
+        "type": "array",
+        "description": "Flags the player must have",
+        "items": { "type": "string" },
+        "ui": { "widget": "multiselect", "label": "Required Flags" }
+      },
+      "forbidden_flags": {
+        "type": "array",
+        "description": "Flags that must NOT be set",
+        "items": { "type": "string" },
+        "ui": { "widget": "multiselect", "label": "Forbidden Flags" }
+      },
+      "min_faction_reputation": {
+        "type": "array",
+        "description": "Minimum reputation per faction",
+        "items": {
+          "type": "object",
+          "properties": {
+            "faction_id": {
+              "type": "string",
+              "ui": { "widget": "reference", "reference": "factions" }
+            },
+            "min": {
+              "type": "number",
+              "ui": { "widget": "number", "label": "Minimum Rep" }
+            }
+          },
+          "required": ["faction_id", "min"]
+        },
+        "ui": {
+          "widget": "table",
+          "label": "Faction Reputation"
+        }
+      }
+    }
+  }
+  

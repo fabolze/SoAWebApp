@@ -1,20 +1,219 @@
 {
-    "id": "npc_001",
-    "name": "Elder Tharn",
-    "role": ["Questgiver","trader","lore","companion"],
-    "type": [
-        "beast",
-        "dragon",
-        "humanoid",
-        "fey",
-        "undead",
-        "elemental",
-        "plant",
-        "aberration"
-    ],
-    "location": "location_id",
-    "dialogue_scripts": [
-        "dialogue_001",
-        "dialogue_002"
-    ]    
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "NPC",
+    "type": "object",
+    "properties": {
+        "npc_id": {
+            "type": "string",
+            "description": "Unique ID",
+            "ui": {
+                "widget": "hidden"
+            }
+        },
+        "name": {
+            "type": "string",
+            "description": "NPC display name",
+            "ui": {
+                "widget": "text",
+                "label": "Name"
+            }
+        },
+        "title": {
+            "type": "string",
+            "description": "Optional title or role (e.g., 'Blacksmith')",
+            "ui": {
+                "widget": "text",
+                "label": "Title"
+            }
+        },
+        "description": {
+            "type": "string",
+            "description": "Flavor or character summary",
+            "ui": {
+                "widget": "textarea",
+                "label": "Bio / Notes"
+            }
+        },
+        "location_id": {
+            "type": "string",
+            "description": "Where this NPC is usually found",
+            "ui": {
+                "widget": "reference",
+                "label": "Home Location",
+                "reference": "locations"
+            }
+        },
+        "image_path": {
+            "type": "string",
+            "description": "Portrait or sprite",
+            "ui": {
+                "widget": "filepicker",
+                "label": "Portrait"
+            }
+        },
+        "faction": {
+            "type": "string",
+            "description": "Optional faction ID",
+            "ui": {
+                "widget": "reference",
+                "label": "Faction",
+                "reference": "factions"
+            }
+        },
+        "role": {
+            "type": "string",
+            "enum": [
+                "Questgiver",
+                "Merchant",
+                "Trainer",
+                "Companion",
+                "Story",
+                "Background"
+            ],
+            "description": "Primary purpose in gameplay",
+            "ui": {
+                "widget": "select",
+                "label": "Role",
+                "options": [
+                    "Questgiver",
+                    "Merchant",
+                    "Trainer",
+                    "Companion",
+                    "Story",
+                    "Background"
+                ]
+            }
+        },
+        "available_quests": {
+            "type": "array",
+            "description": "Quests this NPC gives or is involved in",
+            "items": {
+                "type": "string"
+            },
+            "ui": {
+                "widget": "multiselect",
+                "label": "Quests",
+                "reference": "quests"
+            }
+        },
+        "inventory": {
+            "type": "array",
+            "description": "Items for sale if NPC is a merchant",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "item_id": {
+                        "type": "string"
+                    },
+                    "price": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "item_id",
+                    "price"
+                ]
+            },
+            "ui": {
+                "widget": "item_price_table",
+                "label": "Merchant Inventory"
+            }
+        },
+        "dialogue_tree_id": {
+            "type": "string",
+            "description": "Link to dialogue system (optional)",
+            "ui": {
+                "widget": "reference",
+                "label": "Dialogue Tree",
+                "reference": "dialogue"
+            }
+        },
+        "flags_set_on_interaction": {
+            "type": "array",
+            "description": "Flags to mark progress after speaking",
+            "items": {
+                "type": "string"
+            }
+        },
+        "companion_config": {
+            "type": "object",
+            "description": "Combat config for companion NPCs",
+            "ui": {
+                "visible_if": {
+                    "role": [
+                        "Companion"
+                    ]
+                }
+            },
+            "properties": {
+                "class_id": {
+                    "type": "string",
+                    "description": "References a combat class or template",
+                    "ui": {
+                        "widget": "reference",
+                        "label": "Combat Class",
+                        "reference": "classes"
+                    }
+                },
+                "level": {
+                    "type": "number",
+                    "description": "Starting level of the companion",
+                    "ui": {
+                        "widget": "number",
+                        "label": "Level"
+                    }
+                },
+                "custom_abilities": {
+                    "type": "array",
+                    "description": "If set, overrides class abilities",
+                    "items": {
+                        "type": "string"
+                    },
+                    "ui": {
+                        "widget": "multiselect",
+                        "label": "Abilities",
+                        "reference": "abilities"
+                    }
+                },
+                "custom_stats": {
+                    "type": "object",
+                    "description": "Override for base stats (optional)",
+                    "properties": {
+                        "hp": {
+                            "type": "number"
+                        },
+                        "attack": {
+                            "type": "number"
+                        },
+                        "defense": {
+                            "type": "number"
+                        },
+                        "speed": {
+                            "type": "number"
+                        },
+                        "mana": {
+                            "type": "number"
+                        },
+                        "spell_power": {
+                            "type": "number"
+                        }
+                    }
+                }
+            }
+        },
+        "tags": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "ui": {
+                "widget": "tags",
+                "label": "Tags"
+            }
+        }
+    },
+    "required": [
+        "npc_id",
+        "name"
+    ]
 }

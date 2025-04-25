@@ -1,0 +1,74 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Game Event",
+    "type": "object",
+    "properties": {
+      "event_id": {
+        "type": "string",
+        "description": "Unique internal identifier",
+        "ui": { "widget": "hidden" }
+      },
+      "name": {
+        "type": "string",
+        "description": "Display name (for dev/debugging)",
+        "ui": { "widget": "text", "label": "Event Name" }
+      },
+      "description": {
+        "type": "string",
+        "description": "What this event does (dev-facing)",
+        "ui": { "widget": "textarea", "label": "Description" }
+      },
+      "trigger": {
+        "type": "object",
+        "description": "Conditions that activate this event",
+        "properties": {
+          "on_enter_location": { "type": "string" },
+          "on_encounter_complete": { "type": "string" },
+          "on_quest_state": { "type": "string" },
+          "on_player_flag": { "type": "string" }
+        }
+      },
+      "actions": {
+        "type": "array",
+        "description": "Things this event does",
+        "items": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["Dialogue", "GiveItem", "SetFlag", "TriggerEncounter", "PlayCutscene", "UpdateQuest", "ModifyWorld", "Teleport"],
+              "ui": {
+                "widget": "select",
+                "label": "Action Type",
+                "options": ["Dialogue", "GiveItem", "SetFlag", "TriggerEncounter", "PlayCutscene", "UpdateQuest", "ModifyWorld", "Teleport"]
+              }
+            },
+            "ref_id": {
+              "type": "string",
+              "description": "ID of item/encounter/quest/etc."
+            },
+            "params": {
+              "type": "object",
+              "description": "Additional parameters for the action"
+            }
+          },
+          "required": ["type"]
+        }
+      },
+      "repeatable": {
+        "type": "boolean",
+        "description": "Can this event happen more than once?",
+        "ui": { "widget": "checkbox", "label": "Repeatable" }
+      },
+      "tags": {
+        "type": "array",
+        "items": { "type": "string" },
+        "ui": {
+          "widget": "tags",
+          "label": "Tags"
+        }
+      }
+    },
+    "required": ["event_id", "name", "actions"]
+  }
+  

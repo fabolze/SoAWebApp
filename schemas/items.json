@@ -81,11 +81,8 @@
       }
     },
     "requirements": {
-      "type": "object",
-      "properties": {
-        "level": { "type": "number", "ui": { "widget": "number", "label": "Required Level" } }        
-      }
-    }
+      "$ref": "requirements.json"
+  }
   },
   "required": ["id", "name", "type"]
 }

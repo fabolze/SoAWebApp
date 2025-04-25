@@ -1,0 +1,99 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Character Class",
+    "type": "object",
+    "properties": {
+      "class_id": {
+        "type": "string",
+        "description": "Unique identifier for this class",
+        "ui": { "widget": "hidden" }
+      },
+      "name": {
+        "type": "string",
+        "description": "Class name (e.g., Knight, Mage)",
+        "ui": { "widget": "text", "label": "Class Name" }
+      },
+      "description": {
+        "type": "string",
+        "description": "Summary of class role and flavor",
+        "ui": { "widget": "textarea", "label": "Description" }
+      },
+      "role": {
+        "type": "string",
+        "enum": ["Tank", "Damage", "Healer", "Support", "Hybrid"],
+        "ui": {
+          "widget": "select",
+          "label": "Combat Role",
+          "options": ["Tank", "Damage", "Healer", "Support", "Hybrid"]
+        }
+      },
+      "base_stats": {
+        "type": "object",
+        "description": "Initial combat stats at level 1",
+        "properties": {
+          "hp": { "type": "number" },
+          "mana": { "type": "number" },
+          "attack": { "type": "number" },
+          "defense": { "type": "number" },
+          "speed": { "type": "number" },
+          "spell_power": { "type": "number" }
+        }
+      },
+      "stat_growth": {
+        "type": "object",
+        "description": "Per-level stat increase",
+        "properties": {
+          "hp": { "type": "number" },
+          "mana": { "type": "number" },
+          "attack": { "type": "number" },
+          "defense": { "type": "number" },
+          "speed": { "type": "number" },
+          "spell_power": { "type": "number" }
+        }
+      },
+      "starting_abilities": {
+        "type": "array",
+        "description": "Ability IDs available at level 1",
+        "items": { "type": "string" },
+        "ui": {
+          "widget": "multiselect",
+          "label": "Abilities",
+          "reference": "abilities"
+        }
+      },
+      "preferred_attributes": {
+        "type": "array",
+        "description": "Attributes this class scales well with",
+        "items": {
+          "type": "string"
+        },
+        "ui": {
+          "widget": "multiselect",
+          "label": "Preferred Attributes",
+          "reference": "attributes"
+        }
+      },
+      "starting_equipment": {
+        "type": "array",
+        "description": "Item IDs for gear given at class creation",
+        "items": {
+          "type": "string"
+        },
+        "ui": {
+          "widget": "multiselect",
+          "label": "Starting Gear",
+          "reference": "items"
+        }
+      },
+      "tags": {
+        "type": "array",
+        "items": { "type": "string" },
+        "ui": {
+          "widget": "tags",
+          "label": "Tags"
+        }
+      }
+    },
+    "required": ["class_id", "name", "role", "base_stats"]
+  }
+  

@@ -1,0 +1,101 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Encounter",
+    "type": "object",
+    "properties": {
+      "encounter_id": {
+        "type": "string",
+        "description": "Unique internal ID for this encounter",
+        "ui": { "widget": "hidden" }
+      },
+      "type": {
+        "type": "string",
+        "enum": ["Enemy", "NPC", "Quest", "Lore", "Event", "Shop", "Secret"],
+        "description": "What kind of thing this is",
+        "ui": {
+          "widget": "select",
+          "label": "Type",
+          "options": ["Enemy", "NPC", "Quest", "Lore", "Event", "Shop", "Secret"]
+        }
+      },
+      "ref_id": {
+        "type": "string",
+        "description": "ID of the linked entity (e.g., enemy_id, quest_id, npc_id)",
+        "ui": {
+          "widget": "reference",
+          "label": "Reference",
+          "reference_by_type": true 
+        }
+      },
+      "location_id": {
+        "type": "string",
+        "description": "Where this encounter is located",
+        "ui": {
+          "widget": "reference",
+          "label": "Location",
+          "reference": "locations"
+        }
+      },
+      "description": {
+        "type": "string",
+        "description": "Optional: flavor text or design notes",
+        "ui": {
+          "widget": "textarea",
+          "label": "Description"
+        }
+      },
+      "condition": {
+        "type": "object",
+        "description": "Optional trigger conditions for this encounter",
+        "properties": {
+          "time": {
+            "type": "string",
+            "enum": ["Day", "Night", "Always"],
+            "ui": {
+              "widget": "select",
+              "label": "Time",
+              "options": ["Day", "Night", "Always"]
+            }
+          },
+          "quest_state": {
+            "type": "string",
+            "description": "Required quest state (e.g. completed_q101)"
+          },
+          "player_flag": {
+            "type": "string",
+            "description": "Custom flag the player must have"
+          }
+        }
+      },
+      "unique": {
+        "type": "boolean",
+        "description": "Only appears once?",
+        "ui": {
+          "widget": "checkbox",
+          "label": "One-time Only"
+        }
+      },
+      "always_visible": {
+        "type": "boolean",
+        "description": "Visible to the player even before it's triggered?",
+        "ui": {
+          "widget": "checkbox",
+          "label": "Always Visible"
+        }
+      },
+      "tags": {
+        "type": "array",
+        "description": "For categorization or filtering",
+        "items": { "type": "string" },
+        "ui": {
+          "widget": "tags",
+          "label": "Tags"
+        }
+      },
+      "requirements": {
+        "$ref": "requirements.json"
+    }
+    },
+    "required": ["encounter_id", "type", "ref_id", "location_id"]
+  }
+  

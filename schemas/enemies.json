@@ -1,0 +1,113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Enemy Unit",
+  "type": "object",
+  "properties": {
+    "enemy_id": {
+      "type": "string",
+      "description": "Unique ID of this enemy",
+      "ui": { "widget": "hidden" }
+    },
+    "name": {
+      "type": "string",
+      "ui": { "widget": "text", "label": "Name" }
+    },
+    "type": {
+      "type": "string",
+      "enum": ["beast", "undead", "humanoid", "elemental", "machine", "boss"],
+      "ui": {
+        "widget": "select",
+        "label": "Enemy Type"
+      }
+    },
+    "level": {
+      "type": "number",
+      "ui": { "widget": "number", "label": "Level" }
+    },
+    "description": {
+      "type": "string",
+      "ui": { "widget": "textarea", "label": "Lore / Description" }
+    },
+    "image_path": {
+      "type": "string",
+      "ui": { "widget": "filepicker", "label": "Image" }
+    },
+    "class_id": {
+      "type": "string",
+      "description": "Base class template (optional)",
+      "ui": {
+        "widget": "reference",
+        "label": "Combat Class",
+        "reference": "classes"
+      }
+    },
+    "custom_stats": {
+      "type": "object",
+      "description": "Override class stats (optional)",
+      "properties": {
+        "hp": { "type": "number" },
+        "attack": { "type": "number" },
+        "defense": { "type": "number" },
+        "speed": { "type": "number" },
+        "mana": { "type": "number" },
+        "spell_power": { "type": "number" }
+      }
+    },
+    "custom_abilities": {
+      "type": "array",
+      "description": "Override or add abilities",
+      "items": { "type": "string" },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Abilities",
+        "reference": "abilities"
+      }
+    },
+    "faction": {
+      "type": "string",
+      "ui": {
+        "widget": "reference",
+        "label": "Faction",
+        "reference": "factions"
+      }
+    },
+    "aggression": {
+      "type": "string",
+      "enum": ["Hostile", "Neutral", "Friendly"],
+      "ui": {
+        "widget": "select",
+        "label": "Aggression"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "ui": { "widget": "tags", "label": "Tags" }
+    },
+    "loot_table": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": { "type": "string" },
+          "drop_chance": { "type": "number" }
+        },
+        "required": ["item_id", "drop_chance"]
+      },
+      "ui": {
+        "widget": "item_drop_table",
+        "label": "Loot"
+      }
+    },
+    "related_quests": {
+      "type": "array",
+      "items": { "type": "string" },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Related Quests",
+        "reference": "quests"
+      }
+    }
+  },
+  "required": ["enemy_id", "name", "level"]
+}

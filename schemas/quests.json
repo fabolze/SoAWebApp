@@ -1,31 +1,119 @@
-
- {
-                    "id": "quest_001",
-                    "title": "Cleanse the Woods",
-                    "description": "Eliminate the goblins in the Whispering Woods.",
-                    "objectives": [
-                        {
-                            "type": "kill",
-                            "target": "monster_001",
-                            "amount": 5
-                        }
-                    ],
-                    "rewards": {
-                        "xp": 100,
-                        "items": [
-                            "item_007"
-                        ],
-                        "gold": 50
-                    },
-                    "prerequisites": [
-                        "quest_000"
-                    ],
-                    "repeatable": false,
-                    "giver": "npc_001",
-                    "location": "location_003",
-                    "tags": [
-                        "combat",
-                        "starter",
-                        "forest"
-                    ]
-                }  
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Quest",
+    "type": "object",
+    "properties": {
+      "quest_id": {
+        "type": "string",
+        "description": "Unique internal identifier",
+        "ui": { "widget": "hidden" }
+      },
+      "name": {
+        "type": "string",
+        "description": "Display name of the quest",
+        "ui": { "widget": "text", "label": "Quest Title" }
+      },
+      "description": {
+        "type": "string",
+        "description": "Player-facing quest description",
+        "ui": { "widget": "textarea", "label": "Description" }
+      },
+      "type": {
+        "type": "string",
+        "enum": ["Main", "Side", "Faction", "Repeatable", "Secret"],
+        "ui": {
+          "widget": "select",
+          "label": "Quest Type",
+          "options": ["Main", "Side", "Faction", "Repeatable", "Secret"]
+        }
+      },
+      "giver": {
+        "type": "string",
+        "description": "NPC ID that gives the quest",
+        "ui": {
+          "widget": "reference",
+          "label": "Quest Giver",
+          "reference": "npcs"
+        }
+      },
+      "location_id": {
+        "type": "string",
+        "description": "Where the quest starts",
+        "ui": {
+          "widget": "reference",
+          "label": "Location",
+          "reference": "locations"
+        }
+      },
+      "prerequisites": {
+        "type": "object",
+        "description": "Conditions required before quest becomes available",
+        "properties": {
+          "required_quests": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "required_flags": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "steps": {
+        "type": "array",
+        "description": "Ordered steps to complete the quest",
+        "items": {
+          "type": "object",
+          "properties": {
+            "step_id": { "type": "string" },
+            "description": { "type": "string" },
+            "trigger_encounter": { "type": "string" },
+            "complete_event": { "type": "string" },
+            "required_flag": { "type": "string" },
+            "set_flag": { "type": "string" }
+          }
+        }
+      },
+      "rewards": {
+        "type": "object",
+        "description": "What the player receives on completion",
+        "properties": {
+          "xp": { "type": "number" },
+          "gold": { "type": "number" },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item_id": { "type": "string" },
+                "quantity": { "type": "number" }
+              }
+            }
+          },
+          "set_flags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "trigger_events": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "repeatable": {
+        "type": "boolean",
+        "description": "Can the quest be done more than once?",
+        "ui": { "widget": "checkbox", "label": "Repeatable" }
+      },
+      "tags": {
+        "type": "array",
+        "items": { "type": "string" },
+        "ui": { "widget": "tags", "label": "Tags" }
+      },
+      "requirements": {
+        "$ref": "requirements.json"
+    }
+    },
+    "required": ["quest_id", "name", "type"]
+  }
+  
