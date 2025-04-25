@@ -1,74 +1,99 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Game Event",
-    "type": "object",
-    "properties": {
-      "event_id": {
-        "type": "string",
-        "description": "Unique internal identifier",
-        "ui": { "widget": "hidden" }
-      },
-      "name": {
-        "type": "string",
-        "description": "Display name (for dev/debugging)",
-        "ui": { "widget": "text", "label": "Event Name" }
-      },
-      "description": {
-        "type": "string",
-        "description": "What this event does (dev-facing)",
-        "ui": { "widget": "textarea", "label": "Description" }
-      },
-      "trigger": {
-        "type": "object",
-        "description": "Conditions that activate this event",
-        "properties": {
-          "on_enter_location": { "type": "string" },
-          "on_encounter_complete": { "type": "string" },
-          "on_quest_state": { "type": "string" },
-          "on_player_flag": { "type": "string" }
-        }
-      },
-      "actions": {
-        "type": "array",
-        "description": "Things this event does",
-        "items": {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "enum": ["Dialogue", "GiveItem", "SetFlag", "TriggerEncounter", "PlayCutscene", "UpdateQuest", "ModifyWorld", "Teleport"],
-              "ui": {
-                "widget": "select",
-                "label": "Action Type",
-                "options": ["Dialogue", "GiveItem", "SetFlag", "TriggerEncounter", "PlayCutscene", "UpdateQuest", "ModifyWorld", "Teleport"]
-              }
-            },
-            "ref_id": {
-              "type": "string",
-              "description": "ID of item/encounter/quest/etc."
-            },
-            "params": {
-              "type": "object",
-              "description": "Additional parameters for the action"
-            }
-          },
-          "required": ["type"]
-        }
-      },
-      "repeatable": {
-        "type": "boolean",
-        "description": "Can this event happen more than once?",
-        "ui": { "widget": "checkbox", "label": "Repeatable" }
-      },
-      "tags": {
-        "type": "array",
-        "items": { "type": "string" },
-        "ui": {
-          "widget": "tags",
-          "label": "Tags"
-        }
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Event",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "description": "Unique ID for the event",
+      "ui": { "widget": "hidden" }
+    },
+    "title": {
+      "type": "string",
+      "description": "Internal title for the event",
+      "ui": { "widget": "text", "label": "Title" }
+    },
+    "type": {
+      "type": "string",
+      "description": "Type of event logic",
+      "enum": ["Encounter", "ItemReward", "LoreDiscovery", "Dialogue", "Teleport", "ScriptedScene"],
+      "ui": {
+        "widget": "select",
+        "label": "Event Type",
+        "options": ["Encounter", "ItemReward", "LoreDiscovery", "Dialogue", "Teleport", "ScriptedScene"]
       }
     },
-    "required": ["event_id", "name", "actions"]
-  }
-  
+    "requirements": {
+      "$ref": "requirements.json"
+    },
+    "location_id": {
+      "type": "string",
+      "description": "Optional: location where this event occurs",
+      "ui": {
+        "widget": "reference",
+        "reference": "locations",
+        "label": "Location"
+      }
+    },
+    "lore_id": {
+      "type": "string",
+      "description": "Required if type = LoreDiscovery",
+      "ui": {
+        "widget": "reference",
+        "reference": "lore_entries",
+        "label": "Lore Entry"
+      }
+    },
+    "dialogue_id": {
+      "type": "string",
+      "description": "Required if type = Dialogue",
+      "ui": {
+        "widget": "reference",
+        "reference": "dialogue_entries",
+        "label": "Dialogue"
+      }
+    },
+    "encounter_id": {
+      "type": "string",
+      "description": "Required if type = Encounter",
+      "ui": {
+        "widget": "reference",
+        "reference": "encounters",
+        "label": "Encounter"
+      }
+    },
+    "item_rewards": {
+      "type": "array",
+      "description": "If type = ItemReward, the items given",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": { "type": "string" },
+          "quantity": { "type": "number" }
+        },
+        "required": ["item_id", "quantity"]
+      }
+    },
+    "xp_reward": {
+      "type": "number",
+      "description": "XP granted after completing the event"
+    },
+    "flags_set": {
+      "type": "array",
+      "description": "Flags that will be set when the event completes",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Flags Set",
+        "reference": "flags"
+      }
+    },
+    "next_event_id": {
+      "type": "string",
+      "description": "Optional next event triggered automatically after this one"
+    }
+  },
+  "required": ["event_id", "title", "type"]
+}

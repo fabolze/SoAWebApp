@@ -1,0 +1,65 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Lore Entry",
+    "type": "object",
+    "properties": {
+      "lore_id": {
+        "type": "string",
+        "description": "Unique ID for this lore entry",
+        "ui": { "widget": "hidden" }
+      },
+      "title": {
+        "type": "string",
+        "description": "Title of the lore entry",
+        "ui": { "widget": "text", "label": "Title" }
+      },
+      "text": {
+        "type": "string",
+        "description": "Main text/content of the lore entry",
+        "ui": { "widget": "textarea", "label": "Lore Text" }
+      },
+      "location_id": {
+        "type": "string",
+        "description": "Optional: location where this lore is found",
+        "ui": {
+          "widget": "reference",
+          "reference": "locations",
+          "label": "Location"
+        }
+      },
+      "timeline_id": {
+        "type": "string",
+        "description": "Optional: timeline era this lore belongs to",
+        "ui": {
+          "widget": "reference",
+          "reference": "timelines",
+          "label": "Timeline Era"
+        }
+      },
+      "related_story_arcs": {
+        "type": "array",
+        "description": "Optional: related story arcs",
+        "items": {
+          "type": "string"
+        },
+        "ui": {
+          "widget": "multiselect",
+          "reference": "story_arcs",
+          "label": "Related Story Arcs"
+        }
+      },
+      "tags": {
+        "type": "array",
+        "description": "Optional tags for sorting/filtering",
+        "items": {
+          "type": "string"
+        },
+        "ui": {
+          "widget": "tags",
+          "label": "Tags"
+        }
+      }
+    },
+    "required": ["lore_id", "title", "text"]
+  }
+  

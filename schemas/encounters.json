@@ -1,101 +1,101 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Encounter",
-    "type": "object",
-    "properties": {
-      "encounter_id": {
-        "type": "string",
-        "description": "Unique internal ID for this encounter",
-        "ui": { "widget": "hidden" }
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Encounter",
+  "type": "object",
+  "properties": {
+    "encounter_id": {
+      "type": "string",
+      "description": "Unique ID for the encounter",
+      "ui": { "widget": "hidden" }
+    },
+    "name": {
+      "type": "string",
+      "description": "Name of the encounter (internal or for UI)",
+      "ui": { "widget": "text", "label": "Name" }
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional description of the encounter (for devs)",
+      "ui": { "widget": "textarea", "label": "Description" }
+    },
+    "encounter_type": {
+      "type": "string",
+      "description": "Type of encounter",
+      "enum": ["Combat", "Dialogue", "Event"],
+      "ui": {
+        "widget": "select",
+        "label": "Encounter Type",
+        "options": ["Combat", "Dialogue", "Event"]
+      }
+    },
+    "requirements": {
+      "$ref": "requirements.json"
+    },
+    "enemy_ids": {
+      "type": "array",
+      "description": "List of enemy IDs to spawn (if combat)",
+      "items": {
+        "type": "string"
       },
-      "type": {
-        "type": "string",
-        "enum": ["Enemy", "NPC", "Quest", "Lore", "Event", "Shop", "Secret"],
-        "description": "What kind of thing this is",
-        "ui": {
-          "widget": "select",
-          "label": "Type",
-          "options": ["Enemy", "NPC", "Quest", "Lore", "Event", "Shop", "Secret"]
-        }
+      "ui": {
+        "widget": "multiselect",
+        "label": "Enemies",
+        "reference": "enemies"
+      }
+    },
+    "npc_ids": {
+      "type": "array",
+      "description": "List of NPC IDs involved (optional)",
+      "items": {
+        "type": "string"
       },
-      "ref_id": {
-        "type": "string",
-        "description": "ID of the linked entity (e.g., enemy_id, quest_id, npc_id)",
-        "ui": {
-          "widget": "reference",
-          "label": "Reference",
-          "reference_by_type": true 
-        }
-      },
-      "location_id": {
-        "type": "string",
-        "description": "Where this encounter is located",
-        "ui": {
-          "widget": "reference",
-          "label": "Location",
-          "reference": "locations"
-        }
-      },
-      "description": {
-        "type": "string",
-        "description": "Optional: flavor text or design notes",
-        "ui": {
-          "widget": "textarea",
-          "label": "Description"
-        }
-      },
-      "condition": {
-        "type": "object",
-        "description": "Optional trigger conditions for this encounter",
-        "properties": {
-          "time": {
-            "type": "string",
-            "enum": ["Day", "Night", "Always"],
-            "ui": {
-              "widget": "select",
-              "label": "Time",
-              "options": ["Day", "Night", "Always"]
-            }
+      "ui": {
+        "widget": "multiselect",
+        "label": "NPCs",
+        "reference": "npcs"
+      }
+    },
+    "rewards": {
+      "type": "object",
+      "description": "Rewards given after encounter",
+      "properties": {
+        "xp": { "type": "number", "description": "XP granted" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "item_id": { "type": "string" },
+              "quantity": { "type": "number" }
+            },
+            "required": ["item_id", "quantity"]
+          }
+        },
+        "flags_set": {
+          "type": "array",
+          "description": "Flags set after completing the encounter",
+          "items": {
+            "type": "string"
           },
-          "quest_state": {
-            "type": "string",
-            "description": "Required quest state (e.g. completed_q101)"
-          },
-          "player_flag": {
-            "type": "string",
-            "description": "Custom flag the player must have"
+          "ui": {
+            "widget": "multiselect",
+            "label": "Flags Set",
+            "reference": "flags"
           }
         }
-      },
-      "unique": {
-        "type": "boolean",
-        "description": "Only appears once?",
-        "ui": {
-          "widget": "checkbox",
-          "label": "One-time Only"
-        }
-      },
-      "always_visible": {
-        "type": "boolean",
-        "description": "Visible to the player even before it's triggered?",
-        "ui": {
-          "widget": "checkbox",
-          "label": "Always Visible"
-        }
-      },
-      "tags": {
-        "type": "array",
-        "description": "For categorization or filtering",
-        "items": { "type": "string" },
-        "ui": {
-          "widget": "tags",
-          "label": "Tags"
-        }
-      },
-      "requirements": {
-        "$ref": "requirements.json"
-    }
+      }
     },
-    "required": ["encounter_id", "type", "ref_id", "location_id"]
-  }
-  
+    "tags": {
+      "type": "array",
+      "description": "Tags for categorization (optional)",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    }
+  },
+  "required": ["encounter_id", "name", "encounter_type"]
+}

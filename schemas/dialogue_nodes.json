@@ -1,0 +1,69 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Dialogue Node",
+    "type": "object",
+    "properties": {
+      "node_id": {
+        "type": "string",
+        "description": "Unique ID for this dialogue node",
+        "ui": { "widget": "hidden" }
+      },
+      "dialogue_id": {
+        "type": "string",
+        "description": "Which dialogue sequence this node belongs to",
+        "ui": {
+          "widget": "reference",
+          "reference": "dialogues",
+          "label": "Dialogue"
+        }
+      },
+      "speaker": {
+        "type": "string",
+        "description": "Who is speaking at this node",
+        "ui": { "widget": "text", "label": "Speaker" }
+      },
+      "text": {
+        "type": "string",
+        "description": "The dialogue text",
+        "ui": { "widget": "textarea", "label": "Dialogue Text" }
+      },
+      "choices": {
+        "type": "array",
+        "description": "List of choices or automatic next nodes",
+        "items": {
+          "type": "object",
+          "properties": {
+            "choice_text": { "type": "string", "description": "Text shown for this choice (optional for auto-continue)" },
+            "next_node_id": { "type": "string", "description": "ID of the next dialogue node" },
+            "requirements": {
+              "$ref": "requirements.json"
+            },
+            "set_flags": {
+              "type": "array",
+              "items": { "type": "string" },
+              "ui": {
+                "widget": "multiselect",
+                "reference": "flags",
+                "label": "Flags Set (Choice)"
+              }
+            }
+          },
+          "required": ["next_node_id"]
+        }
+      },
+      "requirements": {
+        "$ref": "requirements.json"
+      },
+      "set_flags": {
+        "type": "array",
+        "items": { "type": "string" },
+        "ui": {
+          "widget": "multiselect",
+          "reference": "flags",
+          "label": "Flags Set (Node)"
+        }
+      }
+    },
+    "required": ["node_id", "dialogue_id", "speaker", "text"]
+  }
+  

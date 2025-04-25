@@ -1,0 +1,135 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Shop",
+  "type": "object",
+  "properties": {
+    "shop_id": {
+      "type": "string",
+      "description": "Unique ID for the shop",
+      "ui": { "widget": "hidden" }
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name of the shop",
+      "ui": { "widget": "text", "label": "Shop Name" }
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional flavor text for the shop",
+      "ui": { "widget": "textarea", "label": "Description" }
+    },
+    "location_id": {
+      "type": "string",
+      "description": "Location where the shop exists",
+      "ui": {
+        "widget": "reference",
+        "label": "Location",
+        "reference": "locations"
+      }
+    },
+    "npc_id": {
+      "type": "string",
+      "description": "Optional: NPC running the shop",
+      "ui": {
+        "widget": "reference",
+        "label": "Shopkeeper (NPC)",
+        "reference": "npcs"
+      }
+    },
+    "requirements": {
+      "$ref": "requirements.json"
+    },
+    "inventory": {
+      "type": "array",
+      "description": "Items for sale",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "description": "Item being sold",
+            "ui": {
+              "widget": "reference",
+              "label": "Item",
+              "reference": "items"
+            }
+          },
+          "price": {
+            "type": "number",
+            "description": "Price of the item",
+            "ui": {
+              "widget": "number",
+              "label": "Price"
+            }
+          },
+          "stock": {
+            "type": "number",
+            "description": "Optional: stock limit (null = infinite)",
+            "ui": {
+              "widget": "number",
+              "label": "Stock"
+            }
+          },
+          "requirements": {
+            "$ref": "requirements.json"
+          }
+        },
+        "required": ["item_id", "price"]
+      },
+      "ui": {
+        "widget": "item_price_table",
+        "label": "Inventory"
+      }
+    },
+    "price_modifiers": {
+      "type": "array",
+      "description": "Dynamic pricing rules",
+      "items": {
+        "type": "object",
+        "properties": {
+          "modifier_type": {
+            "type": "string",
+            "enum": ["FactionReputation", "Flag", "QuestState"],
+            "ui": {
+              "widget": "select",
+              "label": "Modifier Type",
+              "options": ["FactionReputation", "Flag", "QuestState"]
+            }
+          },
+          "reference_id": {
+            "type": "string",
+            "description": "Reference flag ID (for Flag modifiers)",
+            "ui": {
+              "widget": "reference",
+              "reference": "flags",
+              "label": "Reference Flag"
+            }
+          },
+          "operator": {
+            "type": "string",
+            "enum": ["gte", "eq", "lte"],
+            "description": "Comparison operator"
+          },
+          "value": {
+            "type": "number",
+            "description": "Threshold value for triggering modifier"
+          },
+          "price_multiplier": {
+            "type": "number",
+            "description": "Price multiplier to apply"
+          }
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Optional tags for the shop",
+      "items": { "type": "string" },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    }
+  },
+  "required": ["shop_id", "name", "inventory"]
+}

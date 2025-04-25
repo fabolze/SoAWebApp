@@ -1,0 +1,93 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Game Flag",
+    "type": "object",
+    "properties": {
+      "flag_id": {
+        "type": "string",
+        "description": "Unique internal ID for the flag",
+        "ui": {
+          "widget": "hidden"
+        }
+      },
+      "name": {
+        "type": "string",
+        "description": "Short human-readable label for the flag",
+        "ui": {
+          "widget": "text",
+          "label": "Flag Name"
+        }
+      },
+      "description": {
+        "type": "string",
+        "description": "Longer explanation what this flag tracks or controls",
+        "ui": {
+          "widget": "textarea",
+          "label": "Description"
+        }
+      },
+      "flag_type": {
+        "type": "string",
+        "description": "Optional category to organize flags",
+        "enum": [
+          "Story Progress",
+          "Quest State",
+          "Lore Discovery",
+          "Item Unlock",
+          "NPC Relationship",
+          "Companion Progress",
+          "Secret Discovery",
+          "Shop Unlock",
+          "Event Trigger",
+          "Other"
+        ],
+        "ui": {
+          "widget": "select",
+          "label": "Flag Type",
+          "options": [
+            "Story Progress",
+            "Quest State",
+            "Lore Discovery",
+            "Item Unlock",
+            "NPC Relationship",
+            "Companion Progress",
+            "Secret Discovery",
+            "Shop Unlock",
+            "Event Trigger",
+            "Other"
+          ]
+        }
+      },
+      "default_value": {
+        "type": "boolean",
+        "description": "Does the flag start active (true) or inactive (false)? Defaults to false.",
+        "default": false,
+        "ui": {
+          "widget": "checkbox",
+          "label": "Default Active?"
+        }
+      },
+      "content_pack": {
+        "type": "string",
+        "description": "Which content pack or DLC this flag belongs to",
+        "ui": {
+          "widget": "select",
+          "label": "Content Pack",
+          "options": ["Base", "DLC1", "DLC2", "Expansion"]
+        }
+      },
+      "tags": {
+        "type": "array",
+        "description": "Optional tags for advanced filtering",
+        "items": {
+          "type": "string"
+        },
+        "ui": {
+          "widget": "tags",
+          "label": "Tags"
+        }
+      }
+    },
+    "required": ["flag_id", "name", "description"]
+  }
+  

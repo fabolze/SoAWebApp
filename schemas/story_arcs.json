@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Story Arc",
+  "type": "object",
+  "properties": {
+    "story_arc_id": {
+      "type": "string",
+      "description": "Unique ID for this story arc",
+      "ui": { "widget": "hidden" }
+    },
+    "title": {
+      "type": "string",
+      "description": "Title of the story arc",
+      "ui": { "widget": "text", "label": "Title" }
+    },
+    "summary": {
+      "type": "string",
+      "description": "Short summary of the story arc",
+      "ui": { "widget": "textarea", "label": "Summary" }
+    },
+    "type": {
+      "type": "string",
+      "description": "Type of arc",
+      "enum": ["Main Story", "Side Arc", "Faction Arc", "DLC Arc"],
+      "ui": {
+        "widget": "select",
+        "label": "Arc Type",
+        "options": ["Main Story", "Side Arc", "Faction Arc", "DLC Arc"]
+      }
+    },
+    "content_pack": {
+      "type": "string",
+      "description": "Which content pack this belongs to",
+      "ui": {
+        "widget": "select",
+        "label": "Content Pack",
+        "options": ["Base", "DLC1", "DLC2", "Expansion"]
+      }
+    },
+    "timeline_id": {
+      "type": "string",
+      "ui": {
+        "widget": "reference",
+        "reference": "timelines",
+        "label": "Timeline Era"
+      }
+    },
+    "related_quests": {
+      "type": "array",
+      "description": "Primary quest chain in this arc",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Related Quests",
+        "reference": "quests"
+      }
+    },
+    "branching": {
+      "type": "array",
+      "description": "Optional branching points based on flags",
+      "items": {
+        "type": "object",
+        "properties": {
+          "quest_id": { "type": "string", "description": "Quest where branching happens" },
+          "branches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "condition_flag": {
+                  "type": "string",
+                  "description": "Flag that determines this branch",
+                  "ui": {
+                    "widget": "reference",
+                    "reference": "flags",
+                    "label": "Branching Flag"
+                  }
+                },
+                "next_quest_id": { "type": "string", "description": "Next quest if flag condition is met" }
+              },
+              "required": ["condition_flag", "next_quest_id"]
+            }
+          }
+        }
+      }
+    },
+    "required_flags": {
+      "type": "array",
+      "description": "Flags needed to unlock this story arc",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Required Flags",
+        "reference": "flags"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Optional tags",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    }
+  },
+  "required": ["story_arc_id", "title", "summary", "type", "content_pack", "related_quests"]
+}

@@ -1,0 +1,49 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Timeline Era",
+    "type": "object",
+    "properties": {
+      "timeline_id": {
+        "type": "string",
+        "description": "Unique ID for the timeline era",
+        "ui": {
+          "widget": "hidden"
+        }
+      },
+      "name": {
+        "type": "string",
+        "description": "Name of the timeline as shown to the player",
+        "ui": {
+          "widget": "text",
+          "label": "Era Name"
+        }
+      },
+      "description": {
+        "type": "string",
+        "description": "Optional lore-rich description for the era",
+        "ui": {
+          "widget": "textarea",
+          "label": "Description"
+        }
+      },
+      "start_year": {
+        "type": "integer",
+        "description": "Optional: starting year (for chronological sorting)"
+      },
+      "end_year": {
+        "type": "integer",
+        "description": "Optional: ending year (null if ongoing or undefined)"
+      },
+      "tags": {
+        "type": "array",
+        "description": "Optional tags (e.g., 'dark', 'prosperity', 'chaos')",
+        "items": { "type": "string" },
+        "ui": {
+          "widget": "tags",
+          "label": "Tags"
+        }
+      }
+    },
+    "required": ["timeline_id", "name"]
+  }
+  

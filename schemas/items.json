@@ -82,7 +82,7 @@
     },
     "requirements": {
       "$ref": "requirements.json"
-  }
+    }
   },
   "required": ["id", "name", "type"]
 }
