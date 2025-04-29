@@ -1,6 +1,6 @@
 # seed.py  (put in project root)
 from app import app, db
-from models import Item, Effect
+from backend.app.models.m_items import Item, Effect
 
 with app.app_context():
     db.session.add_all([
