@@ -1,58 +1,38 @@
 # utils/schema_updater.py
-#Ensures that when you add fields in schemas/items.json, the database will auto-update columns.
-# utils/schema_updater.py
-import json
 import sqlite3
-from utils.db_schema import get_existing_columns
 
-def flatten_schema_properties(properties, parent_key=""):
-    fields = {}
+def map_json_type_to_sql(col_type):
+    return {
+        "string": "TEXT",
+        "number": "REAL",
+        "integer": "INTEGER",
+        "boolean": "INTEGER",  # SQLite has no real BOOLEAN type
+    }.get(col_type, "TEXT")
 
-    for key, config in properties.items():
-        full_key = f"{parent_key}_{key}" if parent_key else key
-
-        if config.get("type") == "object" and "properties" in config:
-            nested_fields = flatten_schema_properties(config["properties"], parent_key=full_key)
-            fields.update(nested_fields)
-        else:
-            fields[full_key] = config
-
-    return fields
-
-def update_items_table(db_path, schema_path, table_name="item"):
-    conn = sqlite3.connect(db_path)
+def update_table_from_schema(db, table_name, schema):
+    conn = sqlite3.connect(db.engine.url.database)
     cursor = conn.cursor()
 
-    with open(schema_path, "r", encoding="utf-8") as f:
-        schema = json.load(f)
+    # Load existing columns
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    existing_columns = {col[1] for col in cursor.fetchall()}
 
-    existing_columns = get_existing_columns(db_path, table_name)
-
-    type_map = {
-        "string": "TEXT",
-        "text": "TEXT",
-        "int": "INTEGER",
-        "integer": "INTEGER",
-        "float": "REAL",
-        "number": "REAL",
-        "bool": "BOOLEAN",
-        "boolean": "BOOLEAN",
-        "array": "TEXT",  # comma-separated
-    }
-
-    flat_fields = flatten_schema_properties(schema["properties"])
-
-    for field_name, config in flat_fields.items():
-        if field_name in existing_columns:
+    # Walk schema and add missing columns
+    for col_name, config in schema.get("properties", {}).items():
+        if col_name in existing_columns:
             continue
 
-        # Check 'type' normally or inside ui
-        field_type = config.get("type", "string")
-        sqlite_type = type_map.get(field_type, "TEXT")
+        # Simple flat fields only for now (no nested objects/arrays)
+        if "type" not in config:
+            continue
 
-        alter_stmt = f"ALTER TABLE {table_name} ADD COLUMN {field_name} {sqlite_type};"
-        print(f"Updating DB: {alter_stmt}")
-        cursor.execute(alter_stmt)
+        col_type = map_json_type_to_sql(config["type"])
+        sql = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"
+        try:
+            cursor.execute(sql)
+            print(f"Added column '{col_name}' to '{table_name}'")
+        except sqlite3.OperationalError as e:
+            print(f"⚠️ Error altering table {table_name}: {e}")
 
     conn.commit()
     conn.close()

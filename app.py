@@ -2,12 +2,20 @@
 
 import os
 import json
-from flask import Flask, render_template, redirect, url_for
+import uuid
+from flask import Flask, render_template, redirect, url_for, abort
 from models import db, Item
-from utils.schema_updater import update_items_table
+from utils.schema_updater import update_table_from_schema
 from utils.form_builder import generate_form_class
 from utils.payload_builder import build_payload
-import uuid
+from utils.db_helpers import get_fresh_table
+
+# HELPER 
+def load_schema(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
 
 app = Flask(__name__)
 
@@ -21,8 +29,10 @@ db.init_app(app)
 
 
 # Paths
+
 DB_PATH = "instance/SoA.db"
 ITEM_SCHEMA_PATH = "schemas/items.json"
+EFFECT_SCHEMA_PATH = "schemas/effects.json"
 
 # Schema
 with open(ITEM_SCHEMA_PATH, "r", encoding="utf-8") as f:
@@ -31,7 +41,8 @@ with open(ITEM_SCHEMA_PATH, "r", encoding="utf-8") as f:
 @app.before_request
 def setup():
     db.create_all()
-    update_items_table(DB_PATH, ITEM_SCHEMA_PATH)
+    update_table_from_schema(db, "item", load_schema(EFFECT_SCHEMA_PATH))
+    update_table_from_schema(db, "effect", load_schema(EFFECT_SCHEMA_PATH))
 
 @app.route("/")
 def index():
@@ -80,5 +91,60 @@ def delete_item(id):
     db.session.commit()
     return redirect(url_for("index"))
 
+
+# ========== EFFECTS ==========
+@app.route("/effects")
+def list_effects():
+    table = db.metadata.tables["effect"]
+    effects = db.session.execute(table.select()).fetchall()
+    return render_template("effects_list.html", effects=effects)
+
+@app.route("/effects/new", methods=["GET", "POST"])
+def create_effect():
+    schema = load_schema(EFFECT_SCHEMA_PATH)
+    FormClass = generate_form_class(schema)
+    form = FormClass()
+
+    if form.validate_on_submit():
+        payload = build_payload(form, schema)
+        table = db.metadata.tables["effect"]
+        db.session.execute(table.insert().values(**payload))
+        db.session.commit()
+        return redirect(url_for("list_effects"))
+
+    return render_template("generic_form.html", form=form, title="Create Effect")
+
+@app.route("/effects/<id>/edit", methods=["GET", "POST"])
+def edit_effect(id):
+    schema = load_schema(EFFECT_SCHEMA_PATH)
+    FormClass = generate_form_class(schema)
+    table = db.metadata.tables["effect"]
+
+    existing = db.session.execute(table.select().where(table.c["effect_id"]
+ == id)).fetchone()
+    if not existing:
+        abort(404)
+
+    form = FormClass(data=dict(existing._mapping))
+
+    if form.validate_on_submit():
+        payload = build_payload(form, schema)
+        db.session.execute(table.update().where(table.c["effect_id"]
+ == id).values(**payload))
+        db.session.commit()
+        return redirect(url_for("list_effects"))
+
+    return render_template("generic_form.html", form=form, title="Edit Effect")
+
+
+@app.route("/effects/<id>/delete", methods=["POST"])
+def delete_effect(id):
+    table = get_fresh_table("effect")
+    db.session.execute(table.delete().where(table.c["effect_id"] == id))
+    db.session.commit()
+    return redirect(url_for("list_effects"))
+
+
+# ========== MAIN ==========
 if __name__ == "__main__":
     app.run(debug=True)

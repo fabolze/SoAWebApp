@@ -10,3 +10,5 @@ class Item(db.Model):
     type = db.Column(db.String(50))
     rarity = db.Column(db.String(50))
     # Dynamic columns handled at runtime by schema updater
+
+
