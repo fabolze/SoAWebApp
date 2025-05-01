@@ -1,0 +1,25 @@
+from sqlalchemy import Column, String, Text, JSON, ForeignKey
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
+
+class Shop(Base):
+    __tablename__ = 'shops'
+
+    shop_id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+
+    location_id = Column(String, ForeignKey("locations.location_id"))
+    npc_id = Column(String, ForeignKey("npcs.id"))
+    requirements_id = Column(String, ForeignKey("requirements.id"))
+
+    price_modifiers = Column(JSON)  # Keep as JSON for now (optional structure)
+    tags = Column(JSON)
+
+    # Relationships
+    location = relationship("Location")
+    npc = relationship("NPC")
+    requirements = relationship("Requirement")
+    inventory = relationship("ShopInventory", back_populates="shop", cascade="all, delete-orphan")

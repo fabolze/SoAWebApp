@@ -1,0 +1,64 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Dialogue Sequence",
+    "type": "object",
+    "properties": {
+      "dialogue_id": {
+        "type": "string",
+        "description": "Unique ID for this dialogue sequence",
+        "ui": {
+          "widget": "hidden"
+        }
+      },
+      "title": {
+        "type": "string",
+        "description": "Internal label for developers/writers (e.g., 'Tharn Greeting')",
+        "ui": {
+          "widget": "text",
+          "label": "Dialogue Title"
+        }
+      },
+      "npc_id": {
+        "type": "string",
+        "description": "Optional: Which NPC this dialogue is associated with",
+        "ui": {
+          "widget": "reference",
+          "reference": "npcs",
+          "label": "NPC"
+        }
+      },
+      "location_id": {
+        "type": "string",
+        "description": "Optional: Where this dialogue happens",
+        "ui": {
+          "widget": "reference",
+          "reference": "locations",
+          "label": "Location"
+        }
+      },
+      "requirements": {
+        "$ref": "requirements.json"
+      },
+      "tags": {
+        "type": "array",
+        "description": "Optional tags for filtering/searching",
+        "items": {
+          "type": "string"
+        },
+        "ui": {
+          "widget": "tags",
+          "label": "Tags"
+        }
+      },
+      "description": {
+        "type": "string",
+        "description": "Optional notes or writing context",
+        "ui": {
+          "widget": "textarea",
+          "label": "Notes"
+        }
+      }
+    },
+    "required": ["dialogue_id", "title"]
+  }
+  
