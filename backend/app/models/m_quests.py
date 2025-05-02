@@ -9,7 +9,7 @@ from backend.app.models.base import Base
 class Quest(Base):
     __tablename__ = 'quests'
 
-    quest_id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=False)
 

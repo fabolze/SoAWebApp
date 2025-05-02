@@ -15,7 +15,7 @@ class EncounterType(enum.Enum):
 class Encounter(Base):
     __tablename__ = 'encounters'
 
-    encounter_id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
     description = Column(Text)
 

@@ -13,7 +13,7 @@ class LoreEntry(Base):
     title = Column(String, nullable=False)
     text = Column(Text, nullable=False)
 
-    location_id = Column(String, ForeignKey("locations.location_id"))
+    location_id = Column(String, ForeignKey("locations.id"))
     timeline_id = Column(String, ForeignKey("timelines.id"))
 
     related_story_arcs = Column(JSON)  # list of story_arc_ids

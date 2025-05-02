@@ -39,7 +39,7 @@ class TriggerCondition(enum.Enum):
 class Effect(Base):
     __tablename__ = 'effects'
 
-    effect_id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
     type = Column(Enum(EffectType), nullable=False)
     description = Column(Text)

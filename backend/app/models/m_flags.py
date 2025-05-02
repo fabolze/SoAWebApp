@@ -27,7 +27,7 @@ class ContentPack(enum.Enum):
 class Flag(Base):
     __tablename__ = 'flags'
 
-    flag_id = Column(String, primary_key=True)  # Unique ID
+    id = Column(String, primary_key=True)  # Unique ID
     name = Column(String, nullable=False)
     description = Column(Text, nullable=False)
 

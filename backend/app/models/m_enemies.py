@@ -23,14 +23,14 @@ class Aggression(enum.Enum):
 class Enemy(Base):
     __tablename__ = 'enemies'
 
-    enemy_id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
     type = Column(Enum(EnemyType))
     level = Column(Integer, nullable=False)
     description = Column(Text)
     image_path = Column(String)
 
-    class_id = Column(String, ForeignKey('classes.class_id'))
+    class_id = Column(String, ForeignKey('classes.id'))
     faction_id = Column(String, ForeignKey('factions.id'))
 
     aggression = Column(Enum(Aggression))

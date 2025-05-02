@@ -1,19 +1,23 @@
-# File: backend/app/__init__.py
+# backend/app/__init__.py
+
 from flask import Flask
-from .config import SQLALCHEMY_DATABASE_URI, SECRET_KEY
-from .extensions import db, migrate
-from .api.api_items import items_bp  # example blueprint
+
+from backend.app.db.init_db import init_db
+from backend.app.db.schema_sync import sync_schema
+from backend.app.db.validate_schema import validate_models
 
 def create_app():
-    app = Flask(__name__, instance_relative_config=True)
-    app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
-    app.config["SECRET_KEY"] = SECRET_KEY
+    app = Flask(__name__)
 
-    # Initialize extensions
-    db.init_app(app)
-    migrate.init_app(app, db)
+    # Bootstrapping pipeline
+    print("🔧 Initializing database...")
+    init_db()
+    print("🔄 Syncing schema...")
+    sync_schema()
+    print("🔍 Validating schema alignment...")
+    validate_models(quiet=True)
 
-    # Register blueprints
-    app.register_blueprint(items_bp, url_prefix="/api/items")
+    # Register blueprints, CLI commands, etc. here
+    # app.register_blueprint(...)
 
     return app

@@ -18,21 +18,21 @@ class EventType(enum.Enum):
 class Event(Base):
     __tablename__ = 'events'
 
-    event_id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True)
     title = Column(String, nullable=False)
     type = Column(Enum(EventType), nullable=False)
 
     requirements_id = Column(String, ForeignKey("requirements.id"))
-    location_id = Column(String, ForeignKey("locations.location_id"))
+    location_id = Column(String, ForeignKey("locations.id"))
     lore_id = Column(String, ForeignKey("lore_entries.id"))
-    dialogue_id = Column(String, ForeignKey("dialogues.dialogue_id"))
-    encounter_id = Column(String, ForeignKey("encounters.encounter_id"))
+    dialogue_id = Column(String, ForeignKey("dialogues.id"))
+    encounter_id = Column(String, ForeignKey("encounters.id"))
 
     item_rewards = Column(JSON)     # [{ item_id, quantity }]
     xp_reward = Column(Float)
     flags_set = Column(JSON)        # [flag_id, ...]
 
-    next_event_id = Column(String, ForeignKey("events.event_id"))  # Self-referential FK
+    next_event_id = Column(String, ForeignKey("events.id"))  # Self-referential FK
 
     # Relationships
     requirements = relationship("Requirement")
@@ -40,4 +40,4 @@ class Event(Base):
     lore = relationship("LoreEntry")
     dialogue = relationship("Dialogue")
     encounter = relationship("Encounter")
-    next_event = relationship("Event", remote_side=[event_id])
+    next_event = relationship("Event", remote_side=[id])

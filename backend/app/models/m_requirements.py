@@ -22,7 +22,7 @@ class RequirementRequiredFlag(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     requirement_id = Column(String, ForeignKey('requirements.id'), nullable=False)
-    flag_id = Column(String, ForeignKey('flags.flag_id'), nullable=False)
+    flag_id = Column(String, ForeignKey('flags.id'), nullable=False)
 
 
     requirement = relationship("Requirement", back_populates="required_flags")
@@ -33,7 +33,7 @@ class RequirementForbiddenFlag(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     requirement_id = Column(String, ForeignKey('requirements.id'), nullable=False)
-    flag_id = Column(String, ForeignKey('flags.flag_id'), nullable=False)
+    flag_id = Column(String, ForeignKey('flags.id'), nullable=False)
 
 
     requirement = relationship("Requirement", back_populates="forbidden_flags")

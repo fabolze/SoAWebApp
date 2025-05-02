@@ -9,7 +9,7 @@ from backend.app.models.base import Base
 class DialogueNode(Base):
     __tablename__ = 'dialogue_nodes'
 
-    node_id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True)
     dialogue_id = Column(String, ForeignKey('dialogues.id'), nullable=False)  # FK to dialogue group/flow
     speaker = Column(String, nullable=False)
     text = Column(Text, nullable=False)

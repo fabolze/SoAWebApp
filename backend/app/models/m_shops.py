@@ -7,11 +7,11 @@ from backend.app.models.base import Base
 class Shop(Base):
     __tablename__ = 'shops'
 
-    shop_id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
     description = Column(Text)
 
-    location_id = Column(String, ForeignKey("locations.location_id"))
+    location_id = Column(String, ForeignKey("locations.id"))
     npc_id = Column(String, ForeignKey("npcs.id"))
     requirements_id = Column(String, ForeignKey("requirements.id"))
 

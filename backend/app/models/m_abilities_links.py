@@ -10,7 +10,7 @@ class AbilityEffectLink(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     ability_id = Column(String, ForeignKey('abilities.id'), nullable=False)
-    effect_id = Column(String, ForeignKey('effects.effect_id'), nullable=False)
+    effect_id = Column(String, ForeignKey('effects.id'), nullable=False)
 
     ability = relationship("Ability", back_populates="effects")
     effect = relationship("Effect")

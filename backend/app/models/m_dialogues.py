@@ -9,11 +9,11 @@ from backend.app.models.base import Base
 class Dialogue(Base):
     __tablename__ = 'dialogues'
 
-    dialogue_id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True)
     title = Column(String, nullable=False)  # Internal dev-facing label
 
     npc_id = Column(String, ForeignKey("npcs.id"))
-    location_id = Column(String, ForeignKey("locations.location_id"))
+    location_id = Column(String, ForeignKey("locations.id"))
     requirements_id = Column(String, ForeignKey("requirements.id"))
 
     description = Column(Text)  # Notes or context for writers

@@ -22,7 +22,7 @@ class ContentPack(enum.Enum):
 class StoryArc(Base):
     __tablename__ = 'story_arcs'
 
-    story_arc_id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True)
     title = Column(String, nullable=False)
     summary = Column(Text, nullable=False)
     type = Column(Enum(ArcType), nullable=False)

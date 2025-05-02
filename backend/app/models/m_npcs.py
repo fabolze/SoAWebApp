@@ -18,14 +18,14 @@ class NPCRole(enum.Enum):
 class NPC(Base):
     __tablename__ = 'npcs'
 
-    npc_id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
     title = Column(String)
     description = Column(Text)
 
-    location_id = Column(String, ForeignKey("locations.location_id"))
-    faction_id = Column(String, ForeignKey("factions.faction_id"))
-    dialogue_tree_id = Column(String, ForeignKey("dialogues.dialogue_id"))
+    location_id = Column(String, ForeignKey("locations.id"))
+    faction_id = Column(String, ForeignKey("factions.id"))
+    dialogue_tree_id = Column(String, ForeignKey("dialogues.id"))
 
     image_path = Column(String)
     role = Column(Enum(NPCRole))
