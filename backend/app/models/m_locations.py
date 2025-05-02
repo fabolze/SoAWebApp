@@ -1,10 +1,10 @@
 # backend/app/models/m_locations.py
 
-from sqlalchemy import Column, String, Float, Boolean, Enum, Text, JSON
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, String, Boolean, Enum, Text, JSON
+from backend.app.models.base import Base
 import enum
 
-Base = declarative_base()
+
 
 class Biome(enum.Enum):
     Forest = "Forest"

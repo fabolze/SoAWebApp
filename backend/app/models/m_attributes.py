@@ -1,11 +1,11 @@
 # backend/app/models/m_attributes.py
 
 from sqlalchemy import Column, String, Float, Enum, Text, JSON
-from sqlalchemy.ext.declarative import declarative_base
+from backend.app.models.base import Base
 from sqlalchemy.orm import relationship
 import enum
 
-Base = declarative_base()
+
 
 class AttrValueType(enum.Enum):
     Int = "int"

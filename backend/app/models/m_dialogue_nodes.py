@@ -2,9 +2,9 @@
 
 from sqlalchemy import Column, String, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+from backend.app.models.base import Base
 
-Base = declarative_base()
+
 
 class DialogueNode(Base):
     __tablename__ = 'dialogue_nodes'

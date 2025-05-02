@@ -2,10 +2,10 @@
 
 from sqlalchemy import Column, String, Integer, Float, Enum, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+from backend.app.models.base import Base
 import enum
 
-Base = declarative_base()
+
 
 class EnemyType(enum.Enum):
     Beast = "beast"

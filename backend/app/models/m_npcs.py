@@ -2,10 +2,10 @@
 
 from sqlalchemy import Column, String, Text, Enum, JSON, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+from backend.app.models.base import Base
 import enum
 
-Base = declarative_base()
+
 
 class NPCRole(enum.Enum):
     Questgiver = "Questgiver"

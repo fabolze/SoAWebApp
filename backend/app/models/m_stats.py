@@ -1,10 +1,10 @@
 # backend/app/models/m_stats.py
 
 from sqlalchemy import Column, String, Float, Enum, Text, JSON
-from sqlalchemy.ext.declarative import declarative_base
+from backend.app.models.base import Base
 import enum
 
-Base = declarative_base()
+
 
 class StatCategory(enum.Enum):
     Attribute = "Attribute"

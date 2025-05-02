@@ -2,9 +2,9 @@
 
 from sqlalchemy import Column, String, Integer, Float, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+from backend.app.models.base import Base
 
-Base = declarative_base()
+
 
 # Main Requirement object — reusable across items, quests, events, etc.
 class Requirement(Base):

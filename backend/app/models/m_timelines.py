@@ -1,9 +1,9 @@
 # backend/app/models/m_timelines.py
 
 from sqlalchemy import Column, String, Text, Integer, JSON
-from sqlalchemy.ext.declarative import declarative_base
+from backend.app.models.base import Base
 
-Base = declarative_base()
+
 
 class Timeline(Base):
     __tablename__ = 'timelines'

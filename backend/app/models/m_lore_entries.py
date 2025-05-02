@@ -2,9 +2,9 @@
 
 from sqlalchemy import Column, String, Text, ForeignKey, JSON
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+from backend.app.models.base import Base
 
-Base = declarative_base()
+
 
 class LoreEntry(Base):
     __tablename__ = 'lore_entries'

@@ -1,10 +1,10 @@
 # backend/app/models/m_factions.py
 
 from sqlalchemy import Column, String, Text, Enum, JSON
-from sqlalchemy.ext.declarative import declarative_base
+from backend.app.models.base import Base
 import enum
 
-Base = declarative_base()
+
 
 class Alignment(enum.Enum):
     Hostile = "Hostile"

@@ -1,8 +1,8 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+from backend.app.models.base import Base
 
-Base = declarative_base()
+
 
 class ShopInventory(Base):
     __tablename__ = 'shop_inventory'

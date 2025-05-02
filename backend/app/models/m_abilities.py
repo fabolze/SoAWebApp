@@ -1,11 +1,11 @@
 # backend/app/models/m_abilities.py
 
-from sqlalchemy import Column, String, Float, Enum, Text, JSON, ForeignKey
+from sqlalchemy import Column, String, Float, Enum, Text, JSON
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+from backend.app.models.base import Base
 import enum
 
-Base = declarative_base()
+
 
 class AbilityType(enum.Enum):
     Active = "Active"

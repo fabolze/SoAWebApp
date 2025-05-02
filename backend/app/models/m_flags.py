@@ -1,10 +1,10 @@
 # backend/app/models/m_flags.py
 
 from sqlalchemy import Column, String, Boolean, Enum, Text, JSON
-from sqlalchemy.ext.declarative import declarative_base
+from backend.app.models.base import Base
 import enum
 
-Base = declarative_base()
+
 
 class FlagType(enum.Enum):
     StoryProgress = "Story Progress"
