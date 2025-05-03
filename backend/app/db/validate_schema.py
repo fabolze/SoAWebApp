@@ -29,11 +29,11 @@ def validate_models(quiet = False):
 
         missing_in_model = {
             field for field in schema_fields - model_fields
-            if not should_ignore_mismatch(field, model_fields)
+            if not should_ignore_mismatch(field, model_fields, table_name)
         }
         missing_in_schema = {
             field for field in model_fields - schema_fields
-            if not should_ignore_mismatch(field, schema_fields)
+            if not should_ignore_mismatch(field, model_fields, table_name)
         }
 
         if missing_in_model or missing_in_schema:
@@ -44,9 +44,13 @@ def validate_models(quiet = False):
                 print(f"  Model has fields not in schema: {missing_in_schema}")
 
 
+IGNORED_BY_DESIGN = {
+    "abilities": {"effects", "scaling"},  # UI fields stored in link tables
+}
 
-
-def should_ignore_mismatch(field: str, other_fields: set) -> bool:
+def should_ignore_mismatch(field: str, other_fields: set, table: str = "") -> bool:
+    if table in IGNORED_BY_DESIGN and field in IGNORED_BY_DESIGN[table]:
+        return True
     # 1. Common FK patterns: requirements → requirements_id
     if field + "_id" in other_fields:
         return True
