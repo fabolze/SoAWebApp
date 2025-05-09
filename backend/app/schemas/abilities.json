@@ -95,11 +95,20 @@
           "properties": {
             "attribute_id": {
               "type": "string",
-              "description": "ID of the scaling attribute (from attributes.json)"
+              "description": "ID of the scaling attribute",
+              "ui": {
+                "widget": "select",
+                "label": "Attribute",
+                "reference": "attributes"
+              }
             },
             "multiplier": {
               "type": "number",
-              "description": "How much the attribute contributes"
+              "description": "How much the attribute contributes",
+              "ui": {
+                "widget": "number",
+                "label": "Multiplier"
+              }
             }
           },
           "required": ["attribute_id", "multiplier"]

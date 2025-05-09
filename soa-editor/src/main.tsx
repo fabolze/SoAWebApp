@@ -1,11 +1,16 @@
-// src/main.tsx
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import './index.css';
-import AbilitiesEditor from './pages/AbilitiesEditor';
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import AbilitiesEditor from "./pages/AbilitiesEditor";
+import EffectEditorPage from "./pages/EffectsEditor"; // import your new page
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <AbilitiesEditor />
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<AbilitiesEditor />} />
+        <Route path="/effects" element={<EffectEditorPage />} />
+      </Routes>
+    </BrowserRouter>
   </React.StrictMode>
 );
