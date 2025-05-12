@@ -24,6 +24,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   }, [apiPath]);
 
   const handleSave = async () => {
+    console.log("Saving data:", data);
     const res = await fetch(`http://localhost:5000/api/${apiPath}`, {
       method: "POST",
       headers: {
@@ -31,6 +32,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
       },
       body: JSON.stringify(data),
     });
+    
 
     if (res.ok) {
       alert("Saved successfully ✅");

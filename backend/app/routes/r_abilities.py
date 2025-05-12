@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify
-from backend.app.models.m_abilities import Ability, AbilityEffectLink, AbilityScalingLink
+from backend.app.models.m_abilities import Ability
+from backend.app.models.m_abilities_links import AbilityEffectLink, AbilityScalingLink
 from backend.app.db.init_db import get_db_session
-from backend.app.models import Effect, Attribute
+
 
 bp = Blueprint('abilities', __name__)
 

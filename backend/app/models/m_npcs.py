@@ -3,6 +3,7 @@
 from sqlalchemy import Column, String, Text, Enum, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
+from backend.app.models.m_dialogues import Dialogue
 import enum
 
 
@@ -39,4 +40,5 @@ class NPC(Base):
 
     location = relationship("Location")
     faction = relationship("Faction")
-    dialogue = relationship("Dialogue")
+    dialogues = relationship("Dialogue", foreign_keys=[Dialogue.npc_id], back_populates="npc")
+    dialogue = relationship("Dialogue", foreign_keys=[dialogue_tree_id])

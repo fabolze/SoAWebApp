@@ -20,8 +20,9 @@ class Dialogue(Base):
     tags = Column(JSON)         # List of string tags
 
     # Relationships
-    npc = relationship("NPC")
-    location = relationship("Location")
-    requirements = relationship("Requirement")
+    npc = relationship("NPC", foreign_keys=[npc_id], back_populates="dialogues")
+    location = relationship("Location", foreign_keys=[location_id])
+    requirements = relationship("Requirement", foreign_keys=[requirements_id])
+
 
     nodes = relationship("DialogueNode", backref="dialogue", cascade="all, delete-orphan")
