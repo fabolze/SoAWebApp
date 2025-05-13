@@ -1,15 +1,53 @@
-import React from 'react';
+// /soa-editor/src/pages/IndexPageEditor.tsx
+// This file is responsible for rendering the index page of the application.
+// It contains links to all the other pages in the application.
 import { Link } from 'react-router-dom';
+import Sidebar from '../components/Sidebar';
+// import './IndexPage.css'; // Assuming you will add custom styles for the grid layout
 
 const IndexPage = () => {
+  const pages = [
+    { path: '/abilities', name: 'Abilities Editor' },
+    { path: '/effects', name: 'Effects Editor' },
+    { path: '/attributes', name: 'Attributes Editor' },
+    { path: '/classes', name: 'Classes Editor' },
+    { path: '/dialogue-nodes', name: 'Dialogue Nodes Editor' },
+    { path: '/dialogues', name: 'Dialogues Editor' },
+    { path: '/encounters', name: 'Encounters Editor' },
+    { path: '/enemies', name: 'Enemies Editor' },
+    { path: '/events', name: 'Events Editor' },
+    { path: '/factions', name: 'Factions Editor' },
+    { path: '/flags', name: 'Flags Editor' },
+    { path: '/items', name: 'Items Editor' },
+    { path: '/locations', name: 'Locations Editor' },
+    { path: '/lore-entries', name: 'Lore Entries Editor' },
+    { path: '/npcs', name: 'NPCs Editor' },
+    { path: '/quests', name: 'Quests Editor' },
+    { path: '/requirements', name: 'Requirements Editor' },
+    { path: '/shops', name: 'Shops Editor' },
+    { path: '/shops-inventory', name: 'Shops Inventory Editor' },
+    { path: '/stats', name: 'Stats Editor' },
+    { path: '/story-arcs', name: 'Story Arcs Editor' },
+    { path: '/timelines', name: 'Timelines Editor' },
+  ];
+
   return (
-    <div>
-      <h1>Index Page</h1>
-      <ul>
-        <li><Link to="/page1">Page 1</Link></li>
-        <li><Link to="/page2">Page 2</Link></li>
-        {/* Add more links as needed */}
-      </ul>
+    <div className="flex">
+      <Sidebar />
+      <main className="p-6 w-full">
+        <h1 className="text-3xl font-bold mb-6">Welcome to the SoA Editor</h1>
+        <div className="grid grid-cols-3 gap-4">
+          {pages.map((page) => (
+            <Link
+              key={page.path}
+              to={page.path}
+              className="block p-4 bg-blue-100 rounded shadow hover:bg-blue-200"
+            >
+              <h2 className="text-xl font-semibold text-center">{page.name}</h2>
+            </Link>
+          ))}
+        </div>
+      </main>
     </div>
   );
 };
