@@ -1,10 +1,10 @@
 import SchemaEditor from "../components/SchemaEditor";
 
-export default function EffectEditorPage() {
+export default function EffectsEditorPage() {
   return (
     <SchemaEditor
       schemaName="effects"
-      title="Effect Editor"
+      title="Effects Editor"
       apiPath="effects"
       idField="effect_id"
     />
