@@ -32,22 +32,26 @@ const IndexPage = () => {
   ];
 
   return (
-    <div className="flex">
+    <div className="app">
       <Sidebar />
-      <main className="p-6 w-full">
-        <h1 className="text-3xl font-bold mb-6">Welcome to the SoA Editor</h1>
-        <div className="grid grid-cols-3 gap-4">
-          {pages.map((page) => (
-            <Link
-              key={page.path}
-              to={page.path}
-              className="block p-4 bg-blue-100 rounded shadow hover:bg-blue-200"
-            >
-              <h2 className="text-xl font-semibold text-center">{page.name}</h2>
-            </Link>
-          ))}
+      <div className="editor-panel">
+        <div>
+          <h1>Welcome to the SoA Editor</h1>
         </div>
-      </main>
+        <div className="main-content">
+          <div className="grid">
+            {pages.map((page) => (
+              <Link
+                key={page.path}
+                to={page.path}
+                className="card"
+              >
+                <h2>{page.name}</h2>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

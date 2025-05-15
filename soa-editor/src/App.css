@@ -9,12 +9,18 @@ body {
 
 .main-content {
   flex: 1;
-  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  overflow-y: auto;
+  background-color: #f9f9f9; /* Match the body background */
+  width: 100%; /* Added to ensure it stretches fully */
 }
 
 #root {
   display: flex;
   height: 100vh;
+  width: 100vw; /* Added to ensure full width */
   overflow: hidden;
 }
 
@@ -112,25 +118,31 @@ body {
   padding: 20px;
 }
 
-.main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 20px;
-  overflow-y: auto;
+/* Adjust the layout for the save button and title */
+.editor-panel {
+  display: grid;
+  grid-template-columns: 1fr 3fr; /* Adjusted to reduce space for the left section */
+  gap: 20px;
 }
 
-.editor-panel {
-  width: 100%;
-  flex: 0 0 auto;
-  margin-bottom: 20px;
-  background-color: white;
-  padding: 20px;
+.editor-panel h1 {
+  font-size: 1.5rem; /* Reduce title size */
+  margin-bottom: 10px;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  padding: 8px 16px; /* Reduce button size */
   border-radius: 5px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
+  background-color: #3498db;
+  color: white;
+  font-size: 0.9rem;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #2980b9;
 }
 
 .query-bar {
@@ -169,26 +181,13 @@ h1 {
   margin-bottom: 20px;
 }
 
-button {
-  cursor: pointer;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
-  background-color: #3498db;
-  color: white;
-  font-size: 1rem;
-  transition: background-color 0.3s;
-}
-
-button:hover {
-  background-color: #2980b9;
-}
-
 /* Grid layout for index page cards */
 .grid {
+  flex: 1;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 20px;
+  width: 100%;
 }
 
 .card {
