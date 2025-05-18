@@ -152,7 +152,7 @@
                     "ui": {
                         "widget": "reference",
                         "label": "Combat Class",
-                        "reference": "classes"
+                        "reference": "characterclasses"
                     }
                 },
                 "level": {

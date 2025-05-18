@@ -10,7 +10,7 @@ const IndexPage = () => {
     { path: '/abilities', name: 'Abilities Editor' },
     { path: '/effects', name: 'Effects Editor' },
     { path: '/attributes', name: 'Attributes Editor' },
-    { path: '/classes', name: 'Classes Editor' },
+    { path: '/characterclasses', name: 'CharacterClasses Editor' },
     { path: '/dialogue-nodes', name: 'Dialogue Nodes Editor' },
     { path: '/dialogues', name: 'Dialogues Editor' },
     { path: '/encounters', name: 'Encounters Editor' },

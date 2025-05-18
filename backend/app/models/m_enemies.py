@@ -30,7 +30,7 @@ class Enemy(Base):
     description = Column(Text)
     image_path = Column(String)
 
-    class_id = Column(String, ForeignKey('classes.id'))
+    class_id = Column(String, ForeignKey('characterclasses.id'))
     faction_id = Column(String, ForeignKey('factions.id'))
 
     aggression = Column(Enum(Aggression))

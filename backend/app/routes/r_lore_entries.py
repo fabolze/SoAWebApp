@@ -1,0 +1,60 @@
+from backend.app.routes.base_route import BaseRoute
+from backend.app.models.m_lore_entries import LoreEntry
+from backend.app.models.m_locations import Location
+from backend.app.models.m_timelines import Timeline
+from backend.app.models.m_story_arcs import StoryArc
+from typing import Any, Dict, List
+from sqlalchemy.orm import Session
+
+class LoreEntryRoute(BaseRoute):
+    def __init__(self):
+        super().__init__(
+            model=LoreEntry,
+            blueprint_name='lore_entries',
+            route_prefix='/api/lore-entries'
+        )
+        
+    def get_required_fields(self) -> List[str]:
+        return ["lore_id", "title", "text"]
+        
+    def get_id_from_data(self, data: Dict[str, Any]) -> str:
+        return data["lore_id"]
+    
+    def process_input_data(self, db_session: Session, entry: LoreEntry, data: Dict[str, Any]) -> None:
+        # Validate relationships
+        self.validate_relationships(db_session, data, {
+            "location_id": Location,
+            "timeline_id": Timeline
+        })
+        
+        # Required fields
+        entry.title = data["title"]
+        entry.text = data["text"]
+        
+        # Optional relationships
+        entry.location_id = data.get("location_id")
+        entry.timeline_id = data.get("timeline_id")
+        
+        # Validate story arcs if present
+        if "related_story_arcs" in data:
+            for arc_id in data["related_story_arcs"]:
+                if not db_session.get(StoryArc, arc_id):
+                    raise ValueError(f"Invalid story_arc_id: {arc_id}")
+        
+        # JSON fields
+        entry.related_story_arcs = data.get("related_story_arcs", [])
+        entry.tags = data.get("tags", [])
+
+    def serialize_item(self, entry: LoreEntry) -> Dict[str, Any]:
+        return {
+            "id": entry.id,
+            "title": entry.title,
+            "text": entry.text,
+            "location_id": entry.location_id,
+            "timeline_id": entry.timeline_id,
+            "related_story_arcs": entry.related_story_arcs,
+            "tags": entry.tags
+        }
+
+# Create the route instance
+bp = LoreEntryRoute().bp

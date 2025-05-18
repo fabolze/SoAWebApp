@@ -1,26 +1,70 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, abort
+from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_shop_inventory import ShopInventory
+from backend.app.models.m_shops import Shop
+from backend.app.models.m_items import Item
+from backend.app.models.m_requirements import Requirement
 from backend.app.db.init_db import get_db_session
+from typing import Any, Dict, List
+from sqlalchemy.orm import Session
 
-bp = Blueprint('shop_inventory', __name__)
+class ShopInventoryRoute(BaseRoute):
+    def __init__(self):
+        super().__init__(
+            model=ShopInventory,
+            blueprint_name='shop_inventory',
+            route_prefix='/api/shop-inventory'
+        )
+        
+    def get_required_fields(self) -> List[str]:
+        return ["inventory_id", "shop_id", "item_id", "price"]
+        
+    def get_id_from_data(self, data: Dict[str, Any]) -> str:
+        return data["inventory_id"]
+        
+    def process_input_data(self, db_session: Session, inventory: ShopInventory, data: Dict[str, Any]) -> None:
+        # Validate relationships
+        self.validate_relationships(db_session, data, {
+            "shop_id": Shop,
+            "item_id": Item,
+            "requirements_id": Requirement
+        })
+        
+        # Required fields
+        inventory.shop_id = data["shop_id"]
+        inventory.item_id = data["item_id"]
+        inventory.price = float(data["price"])
+        
+        # Optional fields
+        inventory.stock = data.get("stock")  # Can be null for infinite stock
+        inventory.requirements_id = data.get("requirements_id")
+        
+        # JSON fields
+        inventory.tags = data.get("tags", [])
+        
+    def serialize_item(self, inventory: ShopInventory) -> Dict[str, Any]:
+        return {
+            "id": inventory.id,
+            "shop_id": inventory.shop_id,
+            "item_id": inventory.item_id,
+            "price": inventory.price,
+            "stock": inventory.stock,
+            "requirements_id": inventory.requirements_id,
+            "tags": inventory.tags
+        }
+        
+    def get_shop_inventory(self, shop_id: str):
+        """Get inventory for a specific shop."""
+        with get_db_session() as db_session:
+            # Validate shop exists
+            if not db_session.get(Shop, shop_id):
+                abort(404, description=f"Shop {shop_id} not found")
+            inventory = db_session.query(self.model).filter(self.model.shop_id == shop_id).all()
+            return jsonify(self.serialize_list(inventory))
 
-@bp.route("/api/shop_inventory", methods=["POST"])
-def upsert_shop_inventory():
-    db_session = get_db_session()
-    data = request.json
-    inventory_id = data.get("id")
-    
-    inventory = db_session.get(ShopInventory, inventory_id) or ShopInventory(id=inventory_id)
-    inventory.shop_id = data.get("shop_id")
-    inventory.item_id = data.get("item_id")
-    inventory.quantity = data.get("quantity")
-    
-    db_session.add(inventory)
-    db_session.commit()
-    return jsonify({"status": "ok"})
+# Create the route instance
+route_instance = ShopInventoryRoute()
+bp = route_instance.bp
 
-@bp.route("/api/shop_inventory", methods=["GET"])
-def list_shop_inventory():
-    db_session = get_db_session()
-    inventories = db_session.query(ShopInventory).all()
-    return jsonify([{"id": i.id, "shop_id": i.shop_id} for i in inventories])
+# Register additional routes
+bp.route("/api/shops/<shop_id>/inventory", methods=["GET"])(route_instance.get_shop_inventory)

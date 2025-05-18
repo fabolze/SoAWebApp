@@ -1,25 +1,54 @@
-from flask import Blueprint, request, jsonify
+from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_timelines import Timeline
-from backend.app.db.init_db import get_db_session
+from backend.app.models.m_story_arcs import StoryArc
+from typing import Any, Dict, List
+from sqlalchemy.orm import Session
 
-bp = Blueprint('timelines', __name__)
-
-@bp.route("/api/timelines", methods=["POST"])
-def upsert_timeline():
-    db_session = get_db_session()
-    data = request.json
-    timeline_id = data.get("id")
+class TimelineRoute(BaseRoute):
+    def __init__(self):
+        super().__init__(
+            model=Timeline,
+            blueprint_name='timelines',
+            route_prefix='/api/timelines'
+        )
+        
+    def get_required_fields(self) -> List[str]:
+        return ["timeline_id", "name"]
+        
+    def get_id_from_data(self, data: Dict[str, Any]) -> str:
+        return data["timeline_id"]
     
-    timeline = db_session.get(Timeline, timeline_id) or Timeline(id=timeline_id)
-    timeline.name = data.get("name")
-    timeline.description = data.get("description")
-    
-    db_session.add(timeline)
-    db_session.commit()
-    return jsonify({"status": "ok"})
+    def process_input_data(self, db_session: Session, timeline: Timeline, data: Dict[str, Any]) -> None:
+        # Required fields
+        timeline.name = data["name"]
+        
+        # Optional fields
+        timeline.description = data.get("description")
+        timeline.start_year = data.get("start_year")
+        timeline.end_year = data.get("end_year")
+        
+        # Story Arc validation if provided
+        if "story_arcs" in data:
+            for arc_id in data["story_arcs"]:
+                if not db_session.get(StoryArc, arc_id):
+                    raise ValueError(f"Invalid story_arc_id: {arc_id}")
+                    
+        # JSON fields
+        timeline.story_arcs = data.get("story_arcs", [])
+        timeline.events_order = data.get("events_order", [])
+        timeline.tags = data.get("tags", [])
 
-@bp.route("/api/timelines", methods=["GET"])
-def list_timelines():
-    db_session = get_db_session()
-    timelines = db_session.query(Timeline).all()
-    return jsonify([{"id": t.id, "name": t.name} for t in timelines])
+    def serialize_item(self, timeline: Timeline) -> Dict[str, Any]:
+        return {
+            "id": timeline.id,
+            "name": timeline.name,
+            "description": timeline.description,
+            "start_year": timeline.start_year,
+            "end_year": timeline.end_year,
+            "story_arcs": timeline.story_arcs,
+            "events_order": timeline.events_order,
+            "tags": timeline.tags
+        }
+
+# Create the route instance
+bp = TimelineRoute().bp

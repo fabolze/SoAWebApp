@@ -1,14 +1,80 @@
+import { useEffect, useState, useCallback } from 'react';
+import { generateId } from '../utils/generateId';
+
 interface SchemaFormProps {
   schema: any;
   data: any;
   onChange: (updated: any) => void;
+  referenceOptions?: Record<string, any[]>;
+  fetchReferenceOptions?: (refType: string) => void;
+  isValidCallback?: (valid: boolean) => void;
 }
 
-export default function SchemaForm({ schema, data, onChange }: SchemaFormProps) {
+export default function SchemaForm({ schema, data, onChange, referenceOptions: parentReferenceOptions, fetchReferenceOptions: parentFetchReferenceOptions, isValidCallback }: SchemaFormProps) {
   const fields = Object.entries(schema.properties || {}) as [string, any][];
 
+  // Determine the id field name (e.g. class_id, npc_id, etc.)
+  const idField = Object.keys(schema.properties || {}).find(
+    (k) => k.endsWith('_id') || k === 'id'
+  );
+  // Try to infer the type from the schema title or idField
+  const type = (schema.title || idField?.replace(/_id$/, '') || 'entity').toLowerCase();
+
+  // --- Reference dropdowns state ---
+  const [referenceOptions, setReferenceOptions] = useState<Record<string, any>>(parentReferenceOptions || {});
+
+  // Fetch reference options, but only if not provided by parent
+  const fetchReferenceOptions = useCallback((refType: string) => {
+    if (parentFetchReferenceOptions) {
+      parentFetchReferenceOptions(refType);
+      return;
+    }
+    if (!referenceOptions[refType]) {
+      fetch(`http://localhost:5000/api/${refType}`)
+        .then((res) => res.json())
+        .then((list) => {
+          setReferenceOptions((prev) => ({ ...prev, [refType]: list }));
+        })
+        .catch(() => {
+          setReferenceOptions((prev) => ({ ...prev, [refType]: [] }));
+        });
+    }
+  }, [parentFetchReferenceOptions, referenceOptions]);
+
+  useEffect(() => {
+    // For each field with ui.reference, fetch options from backend
+    const refs = fields.filter(([_, config]) => config.ui && config.ui.reference);
+    refs.forEach(([, config]) => {
+      const refType = config.ui.reference;
+      fetchReferenceOptions(refType);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema]);
+
+  // --- Required fields validation ---
+  const requiredFields: string[] = schema.required || [];
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const missingFields = requiredFields.filter((key) => {
+    // For nested/array fields, skip here (handled in subforms)
+    const config = schema.properties?.[key];
+    if (!config) return false;
+    if (config.type === 'array' || config.type === 'object') return false;
+    return !data[key] && data[key] !== 0;
+  });
+  const isValid = missingFields.length === 0;
+  useEffect(() => {
+    if (typeof isValidCallback === 'function') isValidCallback(isValid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isValid]);
+
+  // Auto-generate ID if name changes and id is empty
   const handleChange = (key: string, value: any) => {
-    onChange({ ...data, [key]: value });
+    setTouched((prev) => ({ ...prev, [key]: true }));
+    let updated = { ...data, [key]: value };
+    if (idField && key === 'name' && (!data[idField] || data[idField].startsWith('id_'))) {
+      updated[idField] = generateId(type, value);
+    }
+    onChange(updated);
   };
 
   const renderFieldLabel = (label: string, description?: string) => (
@@ -24,6 +90,11 @@ export default function SchemaForm({ schema, data, onChange }: SchemaFormProps) 
 
   return (
     <form className="space-y-6 bg-white rounded-lg shadow-sm p-6">
+      {missingFields.length > 0 && (
+        <div className="mb-4 p-2 bg-red-100 text-red-700 rounded border border-red-300">
+          Please fill all required fields: {missingFields.join(', ')}
+        </div>
+      )}
       {fields.map(([key, config]) => {
         const type = config.type;
         const ui = config.ui || {};
@@ -64,7 +135,8 @@ export default function SchemaForm({ schema, data, onChange }: SchemaFormProps) 
         }
 
         if (type === 'string' && ui.reference) {
-          const mockOptions = ['attr_strength', 'attr_dexterity', 'attr_intelligence'];
+          const refType = ui.reference;
+          const options = (parentReferenceOptions || referenceOptions)[refType] || [];
           return (
             <div key={key} className="form-field">
               {renderFieldLabel(label, description)}
@@ -73,11 +145,17 @@ export default function SchemaForm({ schema, data, onChange }: SchemaFormProps) 
                   className={inputBaseClass}
                   value={value || ''}
                   onChange={(e) => handleChange(key, e.target.value)}
+                  disabled={options.length === 0}
                 >
-                  <option value="">Select {label}</option>
-                  {mockOptions.map((opt) => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
+                  <option value="">{options.length === 0 ? 'No options available' : `Select ${label}`}</option>
+                  {(options as any[]).map((opt: any) => {
+                    // Try to show a human-friendly label
+                    const display = opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt);
+                    const val = opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
+                    return (
+                      <option key={val} value={val}>{display}</option>
+                    );
+                  })}
                 </select>
                 <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
                   <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -85,6 +163,23 @@ export default function SchemaForm({ schema, data, onChange }: SchemaFormProps) 
                   </svg>
                 </div>
               </div>
+            </div>
+          );
+        }
+
+        if (type === 'string' && (key === idField)) {
+          // Render the ID field as read-only and greyed out
+          return (
+            <div key={key} className="form-field">
+              {renderFieldLabel(label, description)}
+              <input
+                type="text"
+                className={inputBaseClass + ' bg-gray-100 text-gray-500 cursor-not-allowed'}
+                value={value || ''}
+                readOnly
+                tabIndex={-1}
+                style={{ pointerEvents: 'none' }}
+              />
             </div>
           );
         }
@@ -120,7 +215,17 @@ export default function SchemaForm({ schema, data, onChange }: SchemaFormProps) 
         }
 
         if (type === 'array' && config.items?.type === 'string' && ui.widget === 'multiselect') {
-          const options = ui.options || ['effect1', 'effect2', 'effect3'];
+          // If this is a reference multiselect, use referenceOptions
+          let options: string[] = [];
+          if (ui.reference) {
+            const refType = ui.reference;
+            const refList = (parentReferenceOptions || referenceOptions)[refType] || [];
+            options = (refList as any[]).map((opt: any) =>
+              opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt
+            );
+          } else if (ui.options) {
+            options = ui.options;
+          }
           return (
             <div key={key} className="form-field">
               {renderFieldLabel(label, description)}
@@ -152,10 +257,15 @@ export default function SchemaForm({ schema, data, onChange }: SchemaFormProps) 
                       Array.from(e.target.selectedOptions, (opt) => opt.value)
                     )
                   }
+                  disabled={options.length === 0}
                 >
-                  {options.map((opt: string) => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
+                  {options.length === 0 ? (
+                    <option value="">No options available</option>
+                  ) : (
+                    options.map((opt: string) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))
+                  )}
                 </select>
               </div>
             </div>
@@ -172,6 +282,8 @@ export default function SchemaForm({ schema, data, onChange }: SchemaFormProps) 
                   schema={{ properties: nestedProps }}
                   data={value || {}}
                   onChange={(val) => handleChange(key, val)}
+                  referenceOptions={parentReferenceOptions || referenceOptions}
+                  fetchReferenceOptions={fetchReferenceOptions}
                 />
               </div>
             </fieldset>
@@ -204,6 +316,8 @@ export default function SchemaForm({ schema, data, onChange }: SchemaFormProps) 
                         newArr[idx] = updatedItem;
                         handleChange(key, newArr);
                       }}
+                      referenceOptions={parentReferenceOptions || referenceOptions}
+                      fetchReferenceOptions={fetchReferenceOptions}
                     />
                   </div>
                 ))}

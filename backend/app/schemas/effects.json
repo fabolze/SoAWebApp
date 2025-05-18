@@ -79,16 +79,11 @@
     },
     "attribute": {
       "type": "string",
-      "enum": [
-        "Attack", "Defense", "Speed", "Vitality", "Strength", "Magic Power", "Armor", "Mana", "All"
-      ],
       "description": "Attribute affected, if any",
       "ui": {
         "widget": "select",
         "label": "Affected Attribute",
-        "options": [
-          "Attack", "Defense", "Speed", "Vitality", "Strength", "Magic Power", "Armor", "Mana", "All"
-        ],
+        "reference": "attributes",
         "visible_if": {
           "type": ["Modifier", "Shield"]
         }
@@ -96,12 +91,11 @@
     },
     "scaling_stat": {
       "type": "string",
-      "enum": ["Attack", "Magic Power", "Speed", "Vitality", "Strength", "None"],
       "description": "Stat that determines effect scaling",
       "ui": {
         "widget": "select",
         "label": "Scaling Stat",
-        "options": ["Attack", "Magic Power", "Speed", "Vitality", "Strength", "None"]
+        "reference": "stats"
       }
     },
     "trigger_condition": {

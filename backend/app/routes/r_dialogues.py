@@ -1,25 +1,57 @@
-from flask import Blueprint, request, jsonify
+from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_dialogues import Dialogue
-from backend.app.db.init_db import get_db_session
+from backend.app.models.m_npcs import NPC
+from backend.app.models.m_locations import Location
+from backend.app.models.m_requirements import Requirement
+from typing import Any, Dict, List
+from sqlalchemy.orm import Session
 
-bp = Blueprint('dialogues', __name__)
-
-@bp.route("/api/dialogues", methods=["POST"])
-def upsert_dialogue():
-    db_session = get_db_session()
-    data = request.json
-    dialogue_id = data.get("id")
+class DialogueRoute(BaseRoute):
+    def __init__(self):
+        super().__init__(
+            model=Dialogue,
+            blueprint_name='dialogues',
+            route_prefix='/api/dialogues'
+        )
+        
+    def get_required_fields(self) -> List[str]:
+        return ["dialogue_id", "title"]
+        
+    def get_id_from_data(self, data: Dict[str, Any]) -> str:
+        return data["dialogue_id"]
     
-    dialogue = db_session.get(Dialogue, dialogue_id) or Dialogue(id=dialogue_id)
-    dialogue.text = data.get("text")
-    dialogue.speaker = data.get("speaker")
-    
-    db_session.add(dialogue)
-    db_session.commit()
-    return jsonify({"status": "ok"})
+    def process_input_data(self, db_session: Session, dialogue: Dialogue, data: Dict[str, Any]) -> None:
+        # Required fields
+        dialogue.title = data["title"]
+        
+        # Optional fields
+        dialogue.description = data.get("description")
+        
+        # Relationship validation
+        self.validate_relationships(db_session, data, {
+            "npc_id": NPC,
+            "location_id": Location,
+            "requirements_id": Requirement
+        })
+        
+        # Optional relationships
+        dialogue.npc_id = data.get("npc_id")
+        dialogue.location_id = data.get("location_id")
+        dialogue.requirements_id = data.get("requirements_id")
+        
+        # JSON fields
+        dialogue.tags = data.get("tags", [])
 
-@bp.route("/api/dialogues", methods=["GET"])
-def list_dialogues():
-    db_session = get_db_session()
-    dialogues = db_session.query(Dialogue).all()
-    return jsonify([{"id": d.id, "text": d.text} for d in dialogues])
+    def serialize_item(self, dialogue: Dialogue) -> Dict[str, Any]:
+        return {
+            "id": dialogue.id,
+            "title": dialogue.title,
+            "description": dialogue.description,
+            "npc_id": dialogue.npc_id,
+            "location_id": dialogue.location_id,
+            "requirements_id": dialogue.requirements_id,
+            "tags": dialogue.tags
+        }
+
+# Create the route instance
+bp = DialogueRoute().bp

@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import AbilitiesEditorPage from "./pages/AbilitiesEditor";
 import EffectsEditorPage from "./pages/EffectsEditor";
 import AttributesEditorPage from "./pages/AttributesEditor";
-import ClassesEditorPage from "./pages/ClassesEditor";
+import CharacterClassesEditorPage from "./pages/CharacterClassesEditor";
 import DialogueNodesEditorPage from "./pages/DialogueNodesEditor";
 import DialoguesEditorPage from "./pages/DialoguesEditor";
 import EncountersEditorPage from "./pages/EncountersEditor";
@@ -36,7 +36,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <Route path="/abilities" element={<AbilitiesEditorPage />} />
         <Route path="/effects" element={<EffectsEditorPage />} />
         <Route path="/attributes" element={<AttributesEditorPage />} />
-        <Route path="/classes" element={<ClassesEditorPage />} />
+        <Route path="/characterclasses" element={<CharacterClassesEditorPage />} />
         <Route path="/dialogue-nodes" element={<DialogueNodesEditorPage />} />
         <Route path="/dialogues" element={<DialoguesEditorPage />} />
         <Route path="/encounters" element={<EncountersEditorPage />} />

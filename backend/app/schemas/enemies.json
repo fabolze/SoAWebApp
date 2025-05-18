@@ -38,7 +38,7 @@
       "ui": {
         "widget": "reference",
         "label": "Combat Class",
-        "reference": "classes"
+        "reference": "characterclasses"
       }
     },
     "custom_stats": {

@@ -20,7 +20,7 @@ const Sidebar = () => {
         <li><Link to="/abilities">Abilities Editor</Link></li>
         <li><Link to="/effects">Effects Editor</Link></li>
         <li><Link to="/attributes">Attributes Editor</Link></li>
-        <li><Link to="/classes">Classes Editor</Link></li>
+        <li><Link to="/characterclasses">CharacterClasses Editor</Link></li>
         <li><Link to="/dialogue-nodes">Dialogue Nodes Editor</Link></li>
         <li><Link to="/dialogues">Dialogues Editor</Link></li>
         <li><Link to="/encounters">Encounters Editor</Link></li>

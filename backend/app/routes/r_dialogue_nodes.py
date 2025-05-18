@@ -1,25 +1,91 @@
-from flask import Blueprint, request, jsonify
+from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_dialogue_nodes import DialogueNode
+from backend.app.models.m_dialogues import Dialogue
+from backend.app.models.m_requirements import Requirement
+from backend.app.models.m_flags import Flag
 from backend.app.db.init_db import get_db_session
+from flask import jsonify, abort
+from typing import Any, Dict, List
+from sqlalchemy.orm import Session
 
-bp = Blueprint('dialogue_nodes', __name__)
-
-@bp.route("/api/dialogue_nodes", methods=["POST"])
-def upsert_dialogue_node():
-    db_session = get_db_session()
-    data = request.json
-    node_id = data.get("id")
+class DialogueNodeRoute(BaseRoute):
+    def __init__(self):
+        super().__init__(
+            model=DialogueNode,
+            blueprint_name='dialogue_nodes',
+            route_prefix='/api/dialogue-nodes'
+        )
+        self.register_additional_routes()
+        
+    def register_additional_routes(self):
+        self.bp.route("/api/dialogues/<dialogue_id>/nodes", methods=["GET"])(self.get_dialogue_tree)
+        
+    def get_required_fields(self) -> List[str]:
+        return ["node_id", "dialogue_id", "speaker", "text"]
+        
+    def get_id_from_data(self, data: Dict[str, Any]) -> str:
+        return data["node_id"]
     
-    node = db_session.get(DialogueNode, node_id) or DialogueNode(id=node_id)
-    node.text = data.get("text")
-    node.next_node_id = data.get("next_node_id")
-    
-    db_session.add(node)
-    db_session.commit()
-    return jsonify({"status": "ok"})
+    def process_input_data(self, db_session: Session, node: DialogueNode, data: Dict[str, Any]) -> None:
+        # Validate relationships
+        self.validate_relationships(db_session, data, {
+            "dialogue_id": Dialogue,
+            "requirements_id": Requirement
+        })
+        
+        # Required fields
+        node.dialogue_id = data["dialogue_id"]
+        node.speaker = data["speaker"]
+        node.text = data["text"]
+        
+        # Optional relationship
+        node.requirements_id = data.get("requirements_id")
+        
+        # Validate flags if present
+        if "set_flags" in data:
+            for flag_id in data["set_flags"]:
+                if not db_session.get(Flag, flag_id):
+                    raise ValueError(f"Invalid flag_id: {flag_id}")
+        
+        # JSON fields with validation
+        choices = data.get("choices", [])
+        for choice in choices:
+            if not choice.get("next_node_id"):
+                raise ValueError("Choice missing required field: next_node_id")
+            
+            # Validate requirements in choices if present
+            if "requirements" in choice:
+                if not db_session.get(Requirement, choice["requirements"]):
+                    raise ValueError(f"Invalid requirements_id in choice: {choice['requirements']}")
+            
+            # Validate flags in choices if present
+            if "set_flags" in choice:
+                for flag_id in choice["set_flags"]:
+                    if not db_session.get(Flag, flag_id):
+                        raise ValueError(f"Invalid flag_id in choice: {flag_id}")
+        
+        node.choices = choices
+        node.set_flags = data.get("set_flags", [])
 
-@bp.route("/api/dialogue_nodes", methods=["GET"])
-def list_dialogue_nodes():
-    db_session = get_db_session()
-    nodes = db_session.query(DialogueNode).all()
-    return jsonify([{"id": n.id, "text": n.text} for n in nodes])
+    def serialize_item(self, node: DialogueNode) -> Dict[str, Any]:
+        return {
+            "id": node.id,
+            "dialogue_id": node.dialogue_id,
+            "speaker": node.speaker,
+            "text": node.text,
+            "requirements_id": node.requirements_id,
+            "choices": node.choices,
+            "set_flags": node.set_flags
+        }
+    
+    def get_dialogue_tree(self, dialogue_id: str):
+        """Get all nodes for a specific dialogue."""
+        with get_db_session() as db_session:
+            # Validate dialogue exists
+            if not db_session.get(Dialogue, dialogue_id):
+                abort(404, description=f"Dialogue {dialogue_id} not found")
+            nodes = db_session.query(DialogueNode).filter(DialogueNode.dialogue_id == dialogue_id).all()
+            return jsonify([self.serialize_item(node) for node in nodes])
+
+# Create the route instance
+bp = DialogueNodeRoute().bp

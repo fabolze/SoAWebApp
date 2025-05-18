@@ -1,26 +1,70 @@
-from flask import Blueprint, request, jsonify
-from backend.app.models.m_story_arcs import StoryArc
-from backend.app.db.init_db import get_db_session
+from backend.app.routes.base_route import BaseRoute
+from backend.app.models.m_story_arcs import StoryArc, ArcType, ContentPack
+from backend.app.models.m_flags import Flag
+from backend.app.models.m_timelines import Timeline
+from typing import Any, Dict, List
+from sqlalchemy.orm import Session
 
-bp = Blueprint('story_arcs', __name__)
-
-@bp.route("/api/story_arcs", methods=["POST"])
-def upsert_story_arc():
-    db_session = get_db_session()
-    data = request.json
-    story_arc_id = data.get("id")
+class StoryArcRoute(BaseRoute):
+    def __init__(self):
+        super().__init__(
+            model=StoryArc,
+            blueprint_name='story_arcs',
+            route_prefix='/api/story-arcs'
+        )
+        
+    def get_required_fields(self) -> List[str]:
+        return ["story_arc_id", "title", "summary", "type", "content_pack", "related_quests"]
+        
+    def get_id_from_data(self, data: Dict[str, Any]) -> str:
+        return data["story_arc_id"]
     
-    story_arc = db_session.get(StoryArc, story_arc_id) or StoryArc(id=story_arc_id)
-    story_arc.name = data.get("name")
-    story_arc.description = data.get("description")
-    story_arc.icon_path = data.get("icon_path")
-    
-    db_session.add(story_arc)
-    db_session.commit()
-    return jsonify({"status": "ok"})
+    def process_input_data(self, db_session: Session, story_arc: StoryArc, data: Dict[str, Any]) -> None:
+        # Validate enums
+        self.validate_enums(data, {
+            "type": ArcType,
+            "content_pack": ContentPack
+        })
+        
+        # Validate relationships
+        self.validate_relationships(db_session, data, {
+            "timeline_id": Timeline
+        })
+        
+        # Required fields
+        story_arc.title = data["title"]
+        story_arc.summary = data["summary"]
+        story_arc.type = data["type"]  # Already converted to enum
+        story_arc.content_pack = data["content_pack"]  # Already converted to enum
+        
+        # Optional relationship
+        story_arc.timeline_id = data.get("timeline_id")
+        
+        # Validate flags if present
+        if "required_flags" in data:
+            for flag_id in data["required_flags"]:
+                if not db_session.get(Flag, flag_id):
+                    raise ValueError(f"Invalid flag_id: {flag_id}")
+        
+        # JSON fields
+        story_arc.related_quests = data.get("related_quests", [])
+        story_arc.branching = data.get("branching", [])
+        story_arc.required_flags = data.get("required_flags", [])
+        story_arc.tags = data.get("tags", [])
 
-@bp.route("/api/story_arcs", methods=["GET"])
-def list_story_arcs():
-    db_session = get_db_session()
-    story_arcs = db_session.query(StoryArc).all()
-    return jsonify([{"id": sa.id, "name": sa.name} for sa in story_arcs])
+    def serialize_item(self, story_arc: StoryArc) -> Dict[str, Any]:
+        return {
+            "id": story_arc.id,
+            "title": story_arc.title,
+            "summary": story_arc.summary,
+            "type": story_arc.type.value if story_arc.type else None,
+            "content_pack": story_arc.content_pack.value if story_arc.content_pack else None,
+            "timeline_id": story_arc.timeline_id,
+            "related_quests": story_arc.related_quests,
+            "branching": story_arc.branching,
+            "required_flags": story_arc.required_flags,
+            "tags": story_arc.tags
+        }
+
+# Create the route instance
+bp = StoryArcRoute().bp

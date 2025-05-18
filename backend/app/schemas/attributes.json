@@ -53,7 +53,12 @@
           "properties": {
             "stat_id": {
               "type": "string",
-              "description": "ID of the affected stat (referencing stats.json)"
+              "description": "ID of the affected stat (referencing stats.json)",
+              "ui": {
+                "widget": "select",
+                "label": "Stat",
+                "reference": "stats"
+              }
             },
             "scale": {
               "type": "string",
@@ -92,4 +97,3 @@
     },
     "required": ["id", "name", "value_type"]
   }
-  
