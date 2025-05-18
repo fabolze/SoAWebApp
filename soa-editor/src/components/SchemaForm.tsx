@@ -42,12 +42,22 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
   }, [parentFetchReferenceOptions, referenceOptions]);
 
   useEffect(() => {
-    // For each field with ui.reference, fetch options from backend
-    const refs = fields.filter(([_, config]) => config.ui && config.ui.reference);
-    refs.forEach(([, config]) => {
-      const refType = config.ui.reference;
-      fetchReferenceOptions(refType);
-    });
+    // For each field with ui.reference, fetch options from backend (top-level and nested)
+    const collectReferences = (schemaObj: any): string[] => {
+      let refs: string[] = [];
+      if (!schemaObj || !schemaObj.properties) return refs;
+      for (const [_, configUnknown] of Object.entries(schemaObj.properties)) {
+        const config = configUnknown as any;
+        if (config.ui && config.ui.reference) refs.push(config.ui.reference);
+        // If array of objects, check nested
+        if (config.type === 'array' && config.items?.type === 'object') {
+          refs = refs.concat(collectReferences(config.items));
+        }
+      }
+      return refs;
+    };
+    const refs = collectReferences(schema);
+    refs.forEach((refType) => fetchReferenceOptions(refType));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema]);
 
@@ -291,6 +301,8 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
         }
 
         if (type === 'array' && config.items?.type === 'object') {
+          // Special handling for reference fields inside array of objects (e.g., results_in.stat_id)
+          const itemSchema = config.items;
           return (
             <fieldset key={key} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
               {renderFieldLabel(label, description)}
@@ -308,17 +320,79 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                     >
                       ×
                     </button>
-                    <SchemaForm
-                      schema={config.items}
-                      data={item}
-                      onChange={(updatedItem) => {
-                        const newArr = [...value];
-                        newArr[idx] = updatedItem;
-                        handleChange(key, newArr);
-                      }}
-                      referenceOptions={parentReferenceOptions || referenceOptions}
-                      fetchReferenceOptions={fetchReferenceOptions}
-                    />
+                    {/* Render each property in the object, with reference dropdown for stat_id if specified */}
+                    {Object.entries(itemSchema.properties || {}).map(([itemKey, itemConfig]: any) => {
+                      const itemUi = itemConfig.ui || {};
+                      const itemLabel = itemUi.label || itemKey;
+                      const itemValue = item[itemKey];
+                      if (itemUi.reference) {
+                        const refType = itemUi.reference;
+                        const options = (parentReferenceOptions || referenceOptions)[refType] || [];
+                        return (
+                          <div key={itemKey} className="form-field mb-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
+                            <select
+                              className={inputBaseClass}
+                              value={itemValue || ''}
+                              onChange={e => {
+                                const updatedItem = { ...item, [itemKey]: e.target.value };
+                                const newArr = [...value];
+                                newArr[idx] = updatedItem;
+                                handleChange(key, newArr);
+                              }}
+                              disabled={options.length === 0}
+                            >
+                              <option value="">{options.length === 0 ? 'No options available' : `Select ${itemLabel}`}</option>
+                              {options.map((opt: any) => {
+                                const display = opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt);
+                                const val = opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
+                                return (
+                                  <option key={val} value={val}>{display}</option>
+                                );
+                              })}
+                            </select>
+                          </div>
+                        );
+                      }
+                      // Fallback for other types
+                      if (itemConfig.type === 'number') {
+                        return (
+                          <div key={itemKey} className="form-field mb-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
+                            <input
+                              type="number"
+                              className={inputBaseClass}
+                              value={itemValue || ''}
+                              onChange={e => {
+                                const updatedItem = { ...item, [itemKey]: parseFloat(e.target.value) };
+                                const newArr = [...value];
+                                newArr[idx] = updatedItem;
+                                handleChange(key, newArr);
+                              }}
+                            />
+                          </div>
+                        );
+                      }
+                      if (itemConfig.type === 'string') {
+                        return (
+                          <div key={itemKey} className="form-field mb-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
+                            <input
+                              type="text"
+                              className={inputBaseClass}
+                              value={itemValue || ''}
+                              onChange={e => {
+                                const updatedItem = { ...item, [itemKey]: e.target.value };
+                                const newArr = [...value];
+                                newArr[idx] = updatedItem;
+                                handleChange(key, newArr);
+                              }}
+                            />
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
                   </div>
                 ))}
                 <button
