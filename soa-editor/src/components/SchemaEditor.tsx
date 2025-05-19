@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import SchemaForm from "../components/SchemaForm";
 import Sidebar from "./Sidebar";
+import VirtualizedTable from "./VirtualizedTable";
 
 interface SchemaEditorProps {
   schemaName: string;
@@ -17,6 +18,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   const [entries, setEntries] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [formValid, setFormValid] = useState(true);
+  const [referenceOptionsVersion, setReferenceOptionsVersion] = useState(0);
 
   useEffect(() => {
     import(`../../../backend/app/schemas/${schemaName}.json`).then(setSchema);
@@ -52,6 +54,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
       alert("Saved successfully ✅");
       const updated = await fetch(`http://localhost:5000/api/${apiPath}`).then((r) => r.json());
       setEntries(updated);
+      setReferenceOptionsVersion((v) => v + 1); // Trigger referenceOptions refresh in SchemaForm
     } else {
       let msg = "❌ Save failed";
       try {
@@ -64,6 +67,35 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
 
   // Get all field names from schema for table columns
   const fieldKeys = schema ? Object.keys(schema.properties || {}) : [];
+
+  // Determine which fields to display in the table
+  let listFields: string[] = [];
+  if (schema) {
+    listFields = Object.entries(schema.properties || {})
+      .filter(([_, config]: any) => config.ui && config.ui.list_display)
+      .map(([key]) => key);
+    // Fallback: if none marked, use idField, name/title, type, role if present
+    if (listFields.length === 0) {
+      const candidates = [idField, 'id', 'npc_id', 'name', 'title', 'type', 'role'];
+      listFields = candidates.filter(f => f && fieldKeys.includes(f as string)) as string[];
+      if (listFields.length === 0) listFields = fieldKeys.slice(0, 3); // fallback to first 3 fields
+    }
+  }
+
+  // Track which entry is being edited (by id)
+  const editingId = data && data[idField] ? data[idField] : null;
+
+  // Add New handler
+  const handleAddNew = () => setData({});
+  // Reset handler
+  const handleReset = () => setData({});
+  // Duplicate handler
+  const handleDuplicate = (entry: any) => {
+    const copy = { ...entry };
+    if (idField) copy[idField] = '';
+    setData(copy);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Edit entry handler
   const handleEdit = (entry: any) => {
@@ -94,7 +126,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   const filteredEntries = entries.filter((entry) => {
     if (!search.trim()) return true;
     const searchLower = search.toLowerCase();
-    return fieldKeys.some((key) =>
+    return fieldKeys.some((key: string) =>
       String(entry[key] ?? "").toLowerCase().includes(searchLower)
     );
   });
@@ -113,15 +145,21 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
       <div className="main-content">
         <div className="editor-panel">
           <h1>{title}</h1>
+          <div className="flex gap-2 mb-2">
+            <button className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700" onClick={handleAddNew}>+ Add New</button>
+            <button className="bg-gray-400 text-white px-3 py-1 rounded hover:bg-gray-500" onClick={handleReset}>Reset</button>
+            {editingId && (
+              <span className="ml-2 text-blue-700 font-semibold">Editing: {editingId}</span>
+            )}
+          </div>
           <SchemaForm 
             schema={schema} 
             data={data} 
             onChange={setData}
-            // Pass a callback to get validity from SchemaForm
             referenceOptions={undefined}
             fetchReferenceOptions={undefined}
-            // Add a prop to get validity
             isValidCallback={setFormValid}
+            key={referenceOptionsVersion} // This will remount SchemaForm and refetch reference data
           />
           <button
             className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -143,35 +181,63 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
         </div>
 
         <div className="entry-list overflow-x-auto mt-6">
-          <table className="min-w-full border text-sm">
-            <thead>
-              <tr>
-                {fieldKeys.map((key) => (
-                  <th key={key} className="px-3 py-2 border-b bg-gray-50 font-semibold text-gray-700 whitespace-nowrap">{key}</th>
-                ))}
-                <th className="px-3 py-2 border-b bg-gray-50 font-semibold text-gray-700">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedEntries.map((entry) => (
-                <tr key={entry[idField]} className="hover:bg-blue-50">
-                  {fieldKeys.map((key) => (
-                    <td key={key} className="px-3 py-2 border-b whitespace-nowrap max-w-xs overflow-x-auto">{String(entry[key] ?? '')}</td>
+          {sortedEntries.length > 100 ? (
+            <VirtualizedTable
+              entries={sortedEntries}
+              listFields={listFields}
+              idField={idField}
+              editingId={editingId}
+              onEdit={handleEdit}
+              onDuplicate={handleDuplicate}
+              onDelete={handleDelete}
+            />
+          ) : (
+            <table className="min-w-full border text-sm">
+              <thead>
+                <tr>
+                  {listFields.map((key) => (
+                    <th key={key} className="px-3 py-2 border-b bg-gray-50 font-semibold text-gray-700 whitespace-nowrap">{key}</th>
                   ))}
-                  <td className="px-3 py-2 border-b whitespace-nowrap">
-                    <button
-                      className="mr-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                      onClick={() => handleEdit(entry)}
-                    >Edit</button>
-                    <button
-                      className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                      onClick={() => handleDelete(entry)}
-                    >Delete</button>
-                  </td>
+                  <th className="px-3 py-2 border-b bg-gray-50 font-semibold text-gray-700">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sortedEntries.map((entry) => (
+                  <tr key={entry[idField]} className={editingId && entry[idField] === editingId ? "bg-yellow-100" : "hover:bg-blue-50"}>
+                    {listFields.map((key) => {
+                      const value = entry[key];
+                      // Simple check for image URL (http(s) or /assets/ and ends with image extension)
+                      const isImage = typeof value === 'string' &&
+                        (value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && (value.startsWith('http') || value.startsWith('/')));
+                      return (
+                        <td key={key} className="px-3 py-2 border-b whitespace-nowrap max-w-xs overflow-x-auto">
+                          {isImage ? (
+                            <img src={value} alt="asset" style={{ maxHeight: '40px', maxWidth: '80px', objectFit: 'contain' }} />
+                          ) : (
+                            String(value ?? '')
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="px-3 py-2 border-b whitespace-nowrap">
+                      <button
+                        className="mr-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                        onClick={() => handleEdit(entry)}
+                      >Edit</button>
+                      <button
+                        className="mr-2 px-2 py-1 bg-purple-500 text-white rounded hover:bg-purple-600"
+                        onClick={() => handleDuplicate(entry)}
+                      >Duplicate</button>
+                      <button
+                        className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                        onClick={() => handleDelete(entry)}
+                      >Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

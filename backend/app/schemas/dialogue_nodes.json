@@ -66,4 +66,3 @@
     },
     "required": ["node_id", "dialogue_id", "speaker", "text"]
   }
-  

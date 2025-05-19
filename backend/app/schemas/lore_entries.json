@@ -58,8 +58,15 @@
           "widget": "tags",
           "label": "Tags"
         }
+      },
+      "image_path": {
+        "type": "string",
+        "description": "Optional illustration or image for this lore entry",
+        "ui": {
+          "widget": "filepicker",
+          "label": "Image"
+        }
       }
     },
     "required": ["lore_id", "title", "text"]
   }
-  

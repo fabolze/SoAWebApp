@@ -108,7 +108,20 @@
         "widget": "tags",
         "label": "Tags"
       }
+    },
+    "banner_image": {
+      "type": "string",
+      "description": "Optional banner or illustration for this story arc",
+      "ui": {
+        "widget": "filepicker",
+        "label": "Banner Image"
+      }
     }
   },
-  "required": ["story_arc_id", "title", "summary", "type", "content_pack", "related_quests"]
+  "required": [
+    "story_arc_id",
+    "title",
+    "type",
+    "required_flags"
+  ]
 }

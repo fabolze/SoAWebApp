@@ -34,8 +34,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <Routes>
         <Route path="/" element={<IndexPageEditorPage />} />
         <Route path="/abilities" element={<AbilitiesEditorPage />} />
-        <Route path="/effects" element={<EffectsEditorPage />} />
         <Route path="/attributes" element={<AttributesEditorPage />} />
+        <Route path="/effects" element={<EffectsEditorPage />} />
         <Route path="/characterclasses" element={<CharacterClassesEditorPage />} />
         <Route path="/dialogue-nodes" element={<DialogueNodesEditorPage />} />
         <Route path="/dialogues" element={<DialoguesEditorPage />} />

@@ -82,6 +82,14 @@
     },
     "requirements": {
       "$ref": "requirements.json"
+    },
+    "icon_path": {
+      "type": "string",
+      "description": "Optional icon for this item",
+      "ui": {
+        "widget": "filepicker",
+        "label": "Icon"
+      }
     }
   },
   "required": ["id", "name", "type"]

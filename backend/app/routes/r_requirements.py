@@ -53,7 +53,7 @@ class RequirementRoute(BaseRoute):
             faction_req = RequirementMinFactionReputation(
                 requirement=requirement,
                 faction_id=rep_req["faction_id"],
-                min_reputation=float(rep_req["min"])
+                min_value=float(rep_req["min"])
             )
             db_session.add(faction_req)
 
@@ -64,7 +64,7 @@ class RequirementRoute(BaseRoute):
             "forbidden_flags": [ff.flag_id for ff in requirement.forbidden_flags],
             "min_faction_reputation": [{
                 "faction_id": fr.faction_id,
-                "min": fr.min_reputation
+                "min": fr.min_value
             } for fr in requirement.min_faction_reputation]
         }
 

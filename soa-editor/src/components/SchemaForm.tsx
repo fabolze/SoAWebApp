@@ -98,6 +98,9 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
 
   const inputBaseClass = "w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-white text-gray-800 transition-all duration-200 ease-in-out focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none hover:border-gray-400";
 
+  // --- Preview URLs state for file uploads ---
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
+
   return (
     <form className="space-y-6 bg-white rounded-lg shadow-sm p-6">
       {missingFields.length > 0 && (
@@ -112,7 +115,25 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
         const description = ui.description;
         const value = data[key];
 
+        // --- Conditional field display (ui.visible_if) ---
+        if (ui.visible_if) {
+          // visible_if: { field: value } or { field: [value1, value2] }
+          let shouldShow = true;
+          for (const depField in ui.visible_if) {
+            const expected = ui.visible_if[depField];
+            const actual = data[depField];
+            if (Array.isArray(expected)) {
+              if (!expected.includes(actual)) shouldShow = false;
+            } else {
+              if (actual !== expected) shouldShow = false;
+            }
+          }
+          if (!shouldShow) return null;
+        }
+
         if (type === 'string' && ui.widget === 'select') {
+          // Use ui.options if present, otherwise fallback to config.enum
+          const selectOptions = ui.options || config.enum || [];
           return (
             <div key={key} className="form-field">
               {renderFieldLabel(label, description)}
@@ -122,7 +143,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                 onChange={(e) => handleChange(key, e.target.value)}
               >
                 <option value="">Select {label}</option>
-                {ui.options?.map((opt: string) => (
+                {selectOptions.map((opt: string) => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
@@ -194,6 +215,68 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           );
         }
 
+        if (type === 'string' && ui.widget === 'filepicker') {
+          // File picker: store file name in data, show preview if image, allow removal
+          return (
+            <div key={key} className="form-field">
+              {renderFieldLabel(label, description)}
+              <input
+                type="file"
+                className={inputBaseClass}
+                accept="image/*"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleChange(key, file.name);
+                    const reader = new FileReader();
+                    reader.onload = ev => {
+                      const url = ev.target?.result as string;
+                      setPreviewUrls(prev => ({ ...prev, [key]: url }));
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              />
+              {/* Show preview if image */}
+              {value && value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && previewUrls[key] && (
+                <div className="mt-2 flex items-center gap-2">
+                  <img src={previewUrls[key]} alt="preview" style={{ maxHeight: '60px' }} />
+                  <button
+                    type="button"
+                    className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs"
+                    onClick={() => {
+                      handleChange(key, '');
+                      setPreviewUrls(prev => {
+                        const copy = { ...prev };
+                        delete copy[key];
+                        return copy;
+                      });
+                    }}
+                  >Remove</button>
+                </div>
+              )}
+              {/* Show file name if not image */}
+              {value && !value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-500">{value}</span>
+                  <button
+                    type="button"
+                    className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs"
+                    onClick={() => {
+                      handleChange(key, '');
+                      setPreviewUrls(prev => {
+                        const copy = { ...prev };
+                        delete copy[key];
+                        return copy;
+                      });
+                    }}
+                  >Remove</button>
+                </div>
+              )}
+            </div>
+          );
+        }
+
         if (type === 'string') {
           return (
             <div key={key} className="form-field">
@@ -226,55 +309,86 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
 
         if (type === 'array' && config.items?.type === 'string' && ui.widget === 'multiselect') {
           // If this is a reference multiselect, use referenceOptions
-          let options: string[] = [];
+          let options: any[] = [];
+          let refType = null;
           if (ui.reference) {
-            const refType = ui.reference;
+            refType = ui.reference;
             const refList = (parentReferenceOptions || referenceOptions)[refType] || [];
-            options = (refList as any[]).map((opt: any) =>
-              opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt
-            );
+            options = refList;
           } else if (ui.options) {
-            options = ui.options;
+            options = ui.options.map((opt: string) => ({ id: opt, name: opt }));
           }
+
+          // --- Type-ahead filter state ---
+          const [filter, setFilter] = useState<string>("");
+          // Filter options by name/title/id
+          const filteredOptions = options.filter((opt: any) => {
+            const display = opt.name || opt.title || opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
+            return display.toLowerCase().includes(filter.toLowerCase());
+          });
+
+          // Map selected values to display objects
+          const selectedObjs = (value || []).map((selected: string) =>
+            options.find((opt: any) => {
+              const val = opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
+              return val === selected;
+            }) || { id: selected, name: selected }
+          );
+
           return (
             <div key={key} className="form-field">
               {renderFieldLabel(label, description)}
               <div className="border border-gray-300 rounded-md p-2 bg-white">
+                <input
+                  type="text"
+                  className="mb-2 w-full border border-gray-200 rounded px-2 py-1 text-sm"
+                  placeholder={`Type to filter ${label}...`}
+                  value={filter}
+                  onChange={e => setFilter(e.target.value)}
+                />
                 <div className="flex flex-wrap gap-2 mb-2">
-                  {(value || []).map((selected: string) => (
-                    <span 
-                      key={selected} 
-                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
-                    >
-                      {selected}
-                      <button
-                        type="button"
-                        onClick={() => handleChange(key, value.filter((v: string) => v !== selected))}
-                        className="ml-1 inline-flex text-blue-600 hover:text-blue-800"
+                  {selectedObjs.map((opt: any) => {
+                    const display = opt.name || opt.title || opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
+                    const val = opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
+                    return (
+                      <span
+                        key={val}
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
                       >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+                        {display}
+                        <button
+                          type="button"
+                          onClick={() => handleChange(key, value.filter((v: string) => v !== val))}
+                          className="ml-1 inline-flex text-blue-600 hover:text-blue-800"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })}
                 </div>
                 <select
                   multiple
                   className={`${inputBaseClass} min-h-[100px]`}
                   value={value || []}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleChange(
                       key,
                       Array.from(e.target.selectedOptions, (opt) => opt.value)
                     )
                   }
-                  disabled={options.length === 0}
+                  disabled={filteredOptions.length === 0}
                 >
-                  {options.length === 0 ? (
+                  {filteredOptions.length === 0 ? (
                     <option value="">No options available</option>
                   ) : (
-                    options.map((opt: string) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))
+                    filteredOptions.map((opt: any) => {
+                      const display = opt.name || opt.title || opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
+                      const val = opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
+                      return (
+                        <option key={val} value={val}>{display}</option>
+                      );
+                    })
                   )}
                 </select>
               </div>
