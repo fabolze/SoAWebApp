@@ -1,0 +1,45 @@
+{
+    "type": "object",
+    "properties": {
+        "shop_inventory": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "price": {
+                        "type": "number"
+                    },
+                    "quantity": {
+                        "type": "integer"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "description": "Tags for filtering/searching/categorization",
+                        "items": {
+                            "type": "string"
+                        },
+                        "ui": {
+                            "widget": "tags",
+                            "label": "Tags"
+                        }
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "price",
+                    "quantity"
+                ]
+            }
+        }
+    }
+}

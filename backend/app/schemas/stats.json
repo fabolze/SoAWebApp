@@ -99,8 +99,13 @@
           "widget": "filepicker",
           "label": "Icon"
         }
+      },
+      "tags": {
+        "type": "array",
+        "description": "Tags for filtering/searching/categorization",
+        "items": { "type": "string" },
+        "ui": { "widget": "tags", "label": "Tags" }
       }
     },
     "required": ["id", "name", "category", "value_type"]
   }
-  

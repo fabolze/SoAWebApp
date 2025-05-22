@@ -3,6 +3,7 @@
 from sqlalchemy import Column, String, Integer, Float, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
+from sqlalchemy.dialects.postgresql import JSON
 
 
 
@@ -11,6 +12,7 @@ class Requirement(Base):
     __tablename__ = 'requirements'
 
     id = Column(String, primary_key=True)
+    tags = Column(JSON)  # List of string tags
 
     required_flags = relationship("RequirementRequiredFlag", back_populates="requirement", cascade="all, delete-orphan")
     forbidden_flags = relationship("RequirementForbiddenFlag", back_populates="requirement", cascade="all, delete-orphan")

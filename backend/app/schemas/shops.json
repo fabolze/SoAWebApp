@@ -123,12 +123,9 @@
     },
     "tags": {
       "type": "array",
-      "description": "Optional tags for the shop",
+      "description": "Tags for filtering/searching/categorization",
       "items": { "type": "string" },
-      "ui": {
-        "widget": "tags",
-        "label": "Tags"
-      }
+      "ui": { "widget": "tags", "label": "Tags" }
     }
   },
   "required": ["shop_id", "name", "inventory"]

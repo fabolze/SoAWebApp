@@ -4,6 +4,8 @@ from backend.app.models.m_attributes import Attribute
 from backend.app.models.m_stats import Stat
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
+from flask import request, jsonify
+from backend.app.db.init_db import get_db_session
 
 class EffectRoute(BaseRoute):
     def __init__(self):
@@ -74,6 +76,21 @@ class EffectRoute(BaseRoute):
             "icon_path": effect.icon_path,
             "related_items": effect.related_items
         }
+        
+    def get_all(self):
+        db_session = get_db_session()
+        try:
+            search = request.args.get('search', '').strip()
+            query = db_session.query(self.model)
+            if search:
+                query = query.filter(
+                    (self.model.name.ilike(f"%{search}%")) |
+                    (self.model.id.ilike(f"%{search}%"))
+                )
+            items = query.all()
+            return jsonify(self.serialize_list(items))
+        finally:
+            db_session.close()
 
 # Create the route instance
 bp = EffectRoute().bp

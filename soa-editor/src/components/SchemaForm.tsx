@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { generateId } from '../utils/generateId';
+import Autocomplete from './Autocomplete';
 
 interface SchemaFormProps {
   schema: any;
@@ -41,6 +42,16 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
     }
   }, [parentFetchReferenceOptions, referenceOptions]);
 
+  // --- Reference autocomplete fetcher ---
+  const fetchReferenceAutocomplete = useCallback(
+    async (refType: string, search: string) => {
+      const url = `http://localhost:5000/api/${refType}?search=${encodeURIComponent(search)}`;
+      const res = await fetch(url);
+      return res.json();
+    },
+    []
+  );
+
   useEffect(() => {
     // For each field with ui.reference, fetch options from backend (top-level and nested)
     const collectReferences = (schemaObj: any): string[] => {
@@ -63,7 +74,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
 
   // --- Required fields validation ---
   const requiredFields: string[] = schema.required || [];
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  // const [touched, setTouched] = useState<Record<string, boolean>>({});
   const missingFields = requiredFields.filter((key) => {
     // For nested/array fields, skip here (handled in subforms)
     const config = schema.properties?.[key];
@@ -79,7 +90,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
 
   // Auto-generate ID if name changes and id is empty
   const handleChange = (key: string, value: any) => {
-    setTouched((prev) => ({ ...prev, [key]: true }));
+    // setTouched((prev) => ({ ...prev, [key]: true }));
     let updated = { ...data, [key]: value };
     if (idField && key === 'name' && (!data[idField] || data[idField].startsWith('id_'))) {
       updated[idField] = generateId(type, value);
@@ -167,7 +178,29 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
 
         if (type === 'string' && ui.reference) {
           const refType = ui.reference;
-          const options = (parentReferenceOptions || referenceOptions)[refType] || [];
+          // Use Autocomplete for large lists, fallback to dropdown for small lists
+          const refOptions = (parentReferenceOptions || referenceOptions)[refType] || [];
+          const useAutocomplete = !ui.options && (!refOptions || refOptions.length > 50);
+          if (useAutocomplete) {
+            return (
+              <div key={key} className="form-field">
+                {renderFieldLabel(label, description)}
+                <Autocomplete
+                  label={label}
+                  value={value || ''}
+                  onChange={(val) => handleChange(key, val)}
+                  fetchOptions={(search) => fetchReferenceAutocomplete(refType, search)}
+                  getOptionLabel={(opt) => opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt)}
+                  getOptionValue={(opt) => opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt}
+                  placeholder={`Search ${label}...`}
+                  disabled={false}
+                  description={description}
+                />
+              </div>
+            );
+          }
+          // fallback to dropdown for small lists
+          const options = refOptions;
           return (
             <div key={key} className="form-field">
               {renderFieldLabel(label, description)}

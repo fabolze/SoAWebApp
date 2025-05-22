@@ -9,6 +9,7 @@ from backend.app.models.m_encounters import Encounter
 from backend.app.models.m_flags import Flag
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
+from backend.app.db.init_db import get_db_session
 
 class EventRoute(BaseRoute):
     def __init__(self):
@@ -78,6 +79,21 @@ class EventRoute(BaseRoute):
             "flags_set": event.flags_set,
             "next_event_id": event.next_event_id
         }
+    
+    def get_all(self):
+        db_session = get_db_session()
+        try:
+            search = request.args.get('search', '').strip()
+            query = db_session.query(self.model)
+            if search:
+                query = query.filter(
+                    (self.model.title.ilike(f"%{search}%")) |
+                    (self.model.id.ilike(f"%{search}%"))
+                )
+            items = query.all()
+            return jsonify(self.serialize_list(items))
+        finally:
+            db_session.close()
 
 # Create the route instance
 bp = EventRoute().bp

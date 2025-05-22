@@ -69,9 +69,9 @@
           }
         }
       },
-      "tag": {
+      "tags": {
         "type": "array",
-        "description": "Optional tags for filtering/categorization",
+        "description": "Tags for filtering/searching/categorization",
         "items": { "type": "string" },
         "ui": {
           "widget": "tags",
@@ -89,4 +89,3 @@
     },
     "required": ["faction_id", "name", "alignment"]
   }
-  

@@ -30,5 +30,6 @@ class Attribute(Base):
     scaling = Column(Enum(AttrScalingType))
     used_in = Column(JSON)  # ["Item", "Character", ...]
     icon_path = Column(String)
+    tags = Column(JSON)  # List of string tags
 
     scaling_links = relationship("AttributeStatLink", back_populates="attribute", cascade="all, delete-orphan")

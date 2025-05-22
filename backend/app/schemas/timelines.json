@@ -36,14 +36,10 @@
       },
       "tags": {
         "type": "array",
-        "description": "Optional tags (e.g., 'dark', 'prosperity', 'chaos')",
+        "description": "Tags for filtering/searching/categorization",
         "items": { "type": "string" },
-        "ui": {
-          "widget": "tags",
-          "label": "Tags"
-        }
+        "ui": { "widget": "tags", "label": "Tags" }
       }
     },
     "required": ["timeline_id", "name"]
   }
-  

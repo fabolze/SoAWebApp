@@ -78,16 +78,10 @@
       },
       "tags": {
         "type": "array",
-        "description": "Optional tags for advanced filtering",
-        "items": {
-          "type": "string"
-        },
-        "ui": {
-          "widget": "tags",
-          "label": "Tags"
-        }
+        "description": "Tags for filtering/searching/categorization",
+        "items": { "type": "string" },
+        "ui": { "widget": "tags", "label": "Tags" }
       }
     },
     "required": ["flag_id", "name", "description"]
   }
-  

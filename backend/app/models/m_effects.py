@@ -63,3 +63,4 @@ class Effect(Base):
 
     icon_path = Column(String)
     related_items = Column(JSON)
+    tags = Column(JSON)  # List of string tags

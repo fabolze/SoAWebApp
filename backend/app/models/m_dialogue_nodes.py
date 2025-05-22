@@ -18,6 +18,7 @@ class DialogueNode(Base):
 
     choices = Column(JSON)     # List of { choice_text?, next_node_id, requirements?, set_flags? }
     set_flags = Column(JSON)   # List of flag IDs set by this node
+    tags = Column(JSON)  # List of string tags
 
     # Relationships
     requirements = relationship("Requirement")

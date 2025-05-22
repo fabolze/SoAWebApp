@@ -1,8 +1,10 @@
+from flask import request, jsonify
 from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_dialogues import Dialogue
 from backend.app.models.m_npcs import NPC
 from backend.app.models.m_locations import Location
 from backend.app.models.m_requirements import Requirement
+from backend.app.db.init_db import get_db_session
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 
@@ -52,6 +54,21 @@ class DialogueRoute(BaseRoute):
             "requirements_id": dialogue.requirements_id,
             "tags": dialogue.tags
         }
+    
+    def get_all(self):
+        db_session = get_db_session()
+        try:
+            search = request.args.get('search', '').strip()
+            query = db_session.query(self.model)
+            if search:
+                query = query.filter(
+                    (self.model.title.ilike(f"%{search}%")) |
+                    (self.model.id.ilike(f"%{search}%"))
+                )
+            items = query.all()
+            return jsonify(self.serialize_list(items))
+        finally:
+            db_session.close()
 
 # Create the route instance
 bp = DialogueRoute().bp

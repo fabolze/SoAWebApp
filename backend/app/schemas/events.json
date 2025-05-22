@@ -93,6 +93,12 @@
     "next_event_id": {
       "type": "string",
       "description": "Optional next event triggered automatically after this one"
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching/categorization",
+      "items": { "type": "string" },
+      "ui": { "widget": "tags", "label": "Tags" }
     }
   },
   "required": ["event_id", "title", "type"]

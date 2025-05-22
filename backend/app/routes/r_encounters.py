@@ -7,6 +7,7 @@ from backend.app.models.m_flags import Flag
 from backend.app.models.m_npcs import NPC
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
+from backend.app.db.init_db import get_db_session
 
 class EncounterRoute(BaseRoute):
     def __init__(self):
@@ -77,6 +78,21 @@ class EncounterRoute(BaseRoute):
             "rewards": encounter.rewards,
             "tags": encounter.tags
         }
+    
+    def get_all(self):
+        db_session = get_db_session()
+        try:
+            search = request.args.get('search', '').strip()
+            query = db_session.query(self.model)
+            if search:
+                query = query.filter(
+                    (self.model.name.ilike(f"%{search}%")) |
+                    (self.model.id.ilike(f"%{search}%"))
+                )
+            items = query.all()
+            return jsonify(self.serialize_list(items))
+        finally:
+            db_session.close()
 
 # Create the route instance
 bp = EncounterRoute().bp

@@ -2,6 +2,8 @@ from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_characterclasses import CharacterClass, ClassRole
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
+from flask import request, jsonify
+from backend.app.db.init_db import get_db_session
 
 class ClassRoute(BaseRoute):
        def __init__(self):
@@ -49,6 +51,21 @@ class ClassRoute(BaseRoute):
                "starting_equipment": char_class.starting_equipment,
                "tags": char_class.tags
            }
+
+       def get_all(self):
+           db_session = get_db_session()
+           try:
+               search = request.args.get('search', '').strip()
+               query = db_session.query(self.model)
+               if search:
+                   query = query.filter(
+                       (self.model.name.ilike(f"%{search}%")) |
+                       (self.model.id.ilike(f"%{search}%"))
+                   )
+               items = query.all()
+               return jsonify(self.serialize_list(items))
+           finally:
+               db_session.close()
 
 # Create the route instance
 bp = ClassRoute().bp

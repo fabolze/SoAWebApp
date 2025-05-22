@@ -100,14 +100,9 @@
     },
     "tags": {
       "type": "array",
-      "description": "Optional tags",
-      "items": {
-        "type": "string"
-      },
-      "ui": {
-        "widget": "tags",
-        "label": "Tags"
-      }
+      "description": "Tags for filtering/searching/categorization",
+      "items": { "type": "string" },
+      "ui": { "widget": "tags", "label": "Tags" }
     },
     "banner_image": {
       "type": "string",

@@ -87,14 +87,9 @@
     },
     "tags": {
       "type": "array",
-      "description": "Tags for categorization (optional)",
-      "items": {
-        "type": "string"
-      },
-      "ui": {
-        "widget": "tags",
-        "label": "Tags"
-      }
+      "description": "Tags for filtering/searching/categorization",
+      "items": { "type": "string" },
+      "ui": { "widget": "tags", "label": "Tags" }
     }
   },
   "required": ["encounter_id", "name", "encounter_type"]

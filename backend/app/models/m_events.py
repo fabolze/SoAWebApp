@@ -31,6 +31,7 @@ class Event(Base):
     item_rewards = Column(JSON)     # [{ item_id, quantity }]
     xp_reward = Column(Float)
     flags_set = Column(JSON)        # [flag_id, ...]
+    tags = Column(JSON)  # List of string tags
 
     next_event_id = Column(String, ForeignKey("events.id"))  # Self-referential FK
 

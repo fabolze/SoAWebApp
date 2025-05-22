@@ -62,6 +62,12 @@
           "reference": "flags",
           "label": "Flags Set (Node)"
         }
+      },
+      "tags": {
+        "type": "array",
+        "description": "Tags for filtering/searching/categorization",
+        "items": { "type": "string" },
+        "ui": { "widget": "tags", "label": "Tags" }
       }
     },
     "required": ["node_id", "dialogue_id", "speaker", "text"]

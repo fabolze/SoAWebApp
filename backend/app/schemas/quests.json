@@ -91,14 +91,9 @@
     },
     "tags": {
       "type": "array",
-      "description": "Quest tags for filtering (optional)",
-      "items": {
-        "type": "string"
-      },
-      "ui": {
-        "widget": "tags",
-        "label": "Tags"
-      }
+      "description": "Tags for filtering/searching/categorization",
+      "items": { "type": "string" },
+      "ui": { "widget": "tags", "label": "Tags" }
     }
   },
   "required": ["quest_id", "title", "description"]

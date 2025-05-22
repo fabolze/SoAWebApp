@@ -38,3 +38,4 @@ class Stat(Base):
     scaling_behavior = Column(Enum(ScalingBehavior))
     applies_to = Column(JSON)  # List of strings: ["Item", "Character", ...]
     icon_path = Column(String)
+    tags = Column(JSON)  # List of string tags

@@ -5,6 +5,8 @@ from backend.app.models.m_npcs import NPC
 from backend.app.models.m_requirements import Requirement
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
+from flask import request, jsonify
+from backend.app.db.init_db import get_db_session
 
 class ShopRoute(BaseRoute):
     def __init__(self):
@@ -54,6 +56,30 @@ class ShopRoute(BaseRoute):
             "price_modifiers": shop.price_modifiers,
             "tags": shop.tags
         }
+        
+    def get_all(self):
+        db_session = get_db_session()
+        try:
+            search = request.args.get('search', '').strip()
+            tags = request.args.get('tags', '').strip().lower().split(',') if request.args.get('tags') else []
+            query = db_session.query(self.model)
+            if search:
+                query = query.filter(
+                    (self.model.name.ilike(f"%{search}%")) |
+                    (self.model.id.ilike(f"%{search}%"))
+                )
+            if tags:
+                query = query.filter(self.model.tags != None)
+                for tag in tags:
+                    tag = tag.strip()
+                    if tag:
+                        query = query.filter(
+                            self.model.tags.any(lambda t: t.ilike(f"%{tag}%"))
+                        )
+            items = query.all()
+            return jsonify(self.serialize_list(items))
+        finally:
+            db_session.close()
 
 # Create the route instance
 bp = ShopRoute().bp

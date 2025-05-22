@@ -23,5 +23,5 @@ class Faction(Base):
     relationships = Column(JSON)        # { faction_id: "Hostile" | "Neutral" | "Friendly" }
     reputation_config = Column(JSON)    # { min, max, thresholds: { friendly, trusted, ally } }
 
-    tag = Column(JSON)                  # List of tags
+    tags = Column(JSON)                  # Standardize to 'tags' instead of 'tag'
     icon_path = Column(String)

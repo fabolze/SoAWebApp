@@ -143,6 +143,12 @@
         "label": "Related Items",
         "reference": "items"
       }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching/categorization",
+      "items": { "type": "string" },
+      "ui": { "widget": "tags", "label": "Tags" }
     }
   },
   "required": ["effect_id", "name", "type", "target"]

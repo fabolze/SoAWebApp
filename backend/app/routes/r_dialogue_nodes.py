@@ -4,7 +4,7 @@ from backend.app.models.m_dialogues import Dialogue
 from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_flags import Flag
 from backend.app.db.init_db import get_db_session
-from flask import jsonify, abort
+from flask import jsonify, abort, request
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 
@@ -86,6 +86,22 @@ class DialogueNodeRoute(BaseRoute):
                 abort(404, description=f"Dialogue {dialogue_id} not found")
             nodes = db_session.query(DialogueNode).filter(DialogueNode.dialogue_id == dialogue_id).all()
             return jsonify([self.serialize_item(node) for node in nodes])
+
+    def get_all(self):
+        db_session = get_db_session()
+        try:
+            search = request.args.get('search', '').strip()
+            query = db_session.query(self.model)
+            if search:
+                query = query.filter(
+                    (self.model.speaker.ilike(f"%{search}%")) |
+                    (self.model.text.ilike(f"%{search}%")) |
+                    (self.model.id.ilike(f"%{search}%"))
+                )
+            items = query.all()
+            return jsonify(self.serialize_list(items))
+        finally:
+            db_session.close()
 
 # Create the route instance
 bp = DialogueNodeRoute().bp

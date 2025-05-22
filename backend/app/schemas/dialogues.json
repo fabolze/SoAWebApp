@@ -41,14 +41,9 @@
       },
       "tags": {
         "type": "array",
-        "description": "Optional tags for filtering/searching",
-        "items": {
-          "type": "string"
-        },
-        "ui": {
-          "widget": "tags",
-          "label": "Tags"
-        }
+        "description": "Tags for filtering/searching/categorization",
+        "items": { "type": "string" },
+        "ui": { "widget": "tags", "label": "Tags" }
       },
       "description": {
         "type": "string",

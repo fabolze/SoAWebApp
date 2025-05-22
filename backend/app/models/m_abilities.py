@@ -40,6 +40,7 @@ class Ability(Base):
     cooldown = Column(Float)
     targeting = Column(Enum(Targeting))
     trigger_condition = Column(Enum(TriggerCondition))
+    tags = Column(JSON)  # List of string tags
 
     requirements = Column(JSON)  # Keep as JSON for now (simple, rarely queried)
 
