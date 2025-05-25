@@ -42,6 +42,7 @@ class AttributeRoute(BaseRoute):
         
         # JSON fields
         attribute.used_in = data.get("used_in", [])
+        attribute.tags = data.get("tags", [])
         
         # Clear and reset scaling links
         attribute.scaling_links.clear()
@@ -80,7 +81,8 @@ class AttributeRoute(BaseRoute):
             "scaling": attribute.scaling.value if attribute.scaling else None,
             "results_in": results_in,
             "used_in": attribute.used_in,
-            "icon_path": attribute.icon_path
+            "icon_path": attribute.icon_path,
+            "tags": attribute.tags
         }
     
     def get_all(self):

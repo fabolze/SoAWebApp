@@ -61,6 +61,30 @@ class ShopInventoryRoute(BaseRoute):
                 abort(404, description=f"Shop {shop_id} not found")
             inventory = db_session.query(self.model).filter(self.model.shop_id == shop_id).all()
             return jsonify(self.serialize_list(inventory))
+        
+    def get_all(self):
+        db_session = get_db_session()
+        try:
+            search = request.args.get('search', '').strip()
+            tags = request.args.get('tags', '').strip().lower().split(',') if request.args.get('tags') else []
+            query = db_session.query(self.model)
+            if search:
+                query = query.filter(
+                    (self.model.shop_id.ilike(f"%{search}%")) |
+                    (self.model.item_id.ilike(f"%{search}%"))
+                )
+            if tags:
+                query = query.filter(self.model.tags != None)
+                for tag in tags:
+                    tag = tag.strip()
+                    if tag:
+                        query = query.filter(
+                            self.model.tags.any(lambda t: t.ilike(f"%{tag}%"))
+                        )
+            items = query.all()
+            return jsonify(self.serialize_list(items))
+        finally:
+            db_session.close()
 
 # Create the route instance
 route_instance = ShopInventoryRoute()

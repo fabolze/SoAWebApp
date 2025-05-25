@@ -26,6 +26,6 @@ class Encounter(Base):
     npc_ids = Column(JSON)       # List of NPC IDs
 
     rewards = Column(JSON)       # { xp, items, flags_set }
-    tags = Column(JSON)
+    tags = Column(JSON)  # List of string tags
 
     requirements = relationship("Requirement")  # optional: add back_populates

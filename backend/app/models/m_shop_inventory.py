@@ -14,7 +14,7 @@ class ShopInventory(Base):
     price = Column(Float, nullable=False)
     stock = Column(Integer)  # null = unlimited
     requirements_id = Column(String, ForeignKey('requirements.id'))
-    tags = Column(JSON)
+    tags = Column(JSON)  # List of string tags
 
     shop = relationship("Shop", back_populates="inventory")
     item = relationship("Item")

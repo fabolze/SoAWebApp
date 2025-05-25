@@ -16,7 +16,7 @@ class Shop(Base):
     requirements_id = Column(String, ForeignKey("requirements.id"))
 
     price_modifiers = Column(JSON)  # Keep as JSON for now (optional structure)
-    tags = Column(JSON)
+    tags = Column(JSON)  # List of string tags
 
     # Relationships
     location = relationship("Location")

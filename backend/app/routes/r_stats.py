@@ -42,6 +42,7 @@ class StatRoute(BaseRoute):
         
         # JSON fields
         stat.applies_to = data.get("applies_to", [])
+        stat.tags = data.get("tags", [])
 
     def serialize_item(self, stat: Stat) -> Dict[str, Any]:
         return {
@@ -55,7 +56,8 @@ class StatRoute(BaseRoute):
             "max_value": stat.max_value,
             "scaling_behavior": stat.scaling_behavior.value if stat.scaling_behavior else None,
             "applies_to": stat.applies_to,
-            "icon_path": stat.icon_path
+            "icon_path": stat.icon_path,
+            "tags": stat.tags
         }
 
     def get_all(self):

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { generateId } from '../utils/generateId';
 import Autocomplete from './Autocomplete';
+import TagInput from './TagInput';
 
 interface SchemaFormProps {
   schema: any;
@@ -201,6 +202,8 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           }
           // fallback to dropdown for small lists
           const options = refOptions;
+          // Defensive: ensure options is always an array
+          const safeOptions = Array.isArray(options) ? options : [];
           return (
             <div key={key} className="form-field">
               {renderFieldLabel(label, description)}
@@ -209,10 +212,10 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                   className={inputBaseClass}
                   value={value || ''}
                   onChange={(e) => handleChange(key, e.target.value)}
-                  disabled={options.length === 0}
+                  disabled={safeOptions.length === 0}
                 >
-                  <option value="">{options.length === 0 ? 'No options available' : `Select ${label}`}</option>
-                  {(options as any[]).map((opt: any) => {
+                  <option value="">{safeOptions.length === 0 ? 'No options available' : `Select ${label}`}</option>
+                  {(safeOptions as any[]).map((opt: any) => {
                     // Try to show a human-friendly label
                     const display = opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt);
                     const val = opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
@@ -429,6 +432,19 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           );
         }
 
+        if (type === 'array' && config.items?.type === 'string' && ui.widget === 'tags') {
+          return (
+            <TagInput
+              key={key}
+              value={value || []}
+              onChange={(tags) => handleChange(key, tags)}
+              label={label}
+              placeholder={description || 'Add a tag...'}
+              disabled={ui.disabled}
+            />
+          );
+        }
+
         if (type === 'object') {
           const nestedProps = config.properties || {};
           return (
@@ -475,6 +491,8 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                       if (itemUi.reference) {
                         const refType = itemUi.reference;
                         const options = (parentReferenceOptions || referenceOptions)[refType] || [];
+                        // Defensive: ensure options is always an array
+                        const safeOptions = Array.isArray(options) ? options : [];
                         return (
                           <div key={itemKey} className="form-field mb-2">
                             <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
@@ -487,10 +505,10 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                                 newArr[idx] = updatedItem;
                                 handleChange(key, newArr);
                               }}
-                              disabled={options.length === 0}
+                              disabled={safeOptions.length === 0}
                             >
-                              <option value="">{options.length === 0 ? 'No options available' : `Select ${itemLabel}`}</option>
-                              {options.map((opt: any) => {
+                              <option value="">{safeOptions.length === 0 ? 'No options available' : `Select ${itemLabel}`}</option>
+                              {safeOptions.map((opt: any) => {
                                 const display = opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt);
                                 const val = opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
                                 return (

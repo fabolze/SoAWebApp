@@ -27,4 +27,4 @@ class CharacterClass(Base):
     starting_abilities = Column(JSON)         # List of ability IDs
     preferred_attributes = Column(JSON)       # List of attribute IDs
     starting_equipment = Column(JSON)         # List of item IDs
-    tags = Column(JSON)
+    tags = Column(JSON)  # List of string tags

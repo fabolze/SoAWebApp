@@ -15,4 +15,4 @@ class Timeline(Base):
     start_year = Column(Integer)
     end_year = Column(Integer)
 
-    tags = Column(JSON)  # list of strings
+    tags = Column(JSON)  # List of string tags

@@ -23,7 +23,7 @@
       "description": "Which story arc this quest belongs to",
       "ui": {
         "widget": "reference",
-        "reference": "story_arcs",
+        "reference": "story-arcs",
         "label": "Story Arc"
       }
     },

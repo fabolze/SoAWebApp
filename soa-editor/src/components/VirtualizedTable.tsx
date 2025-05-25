@@ -15,6 +15,12 @@ interface VirtualizedTableProps {
 const ROW_HEIGHT = 40;
 
 const VirtualizedTable: React.FC<VirtualizedTableProps> = ({ entries, listFields, idField, editingId, onEdit, onDuplicate, onDelete }) => {
+  // Defensive: ensure entries is always an array
+  if (!Array.isArray(entries)) {
+    console.warn("VirtualizedTable: 'entries' is not an array:", entries);
+    entries = [];
+  }
+
   const Row = ({ index, style }: ListChildComponentProps) => {
     const entry = entries[index];
     return (

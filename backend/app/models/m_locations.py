@@ -36,4 +36,4 @@ class Location(Base):
     is_fast_travel_point = Column(Boolean, default=False)
     has_respawn_point = Column(Boolean, default=False)
 
-    tags = Column(JSON)               # List of strings
+    tags = Column(JSON)               # List of string tags

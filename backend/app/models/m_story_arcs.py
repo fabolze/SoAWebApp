@@ -33,6 +33,6 @@ class StoryArc(Base):
     related_quests = Column(JSON)      # List of quest IDs
     branching = Column(JSON)           # List of { quest_id, branches: [{ flag, next_quest_id }] }
     required_flags = Column(JSON)      # List of flag IDs
-    tags = Column(JSON)
+    tags = Column(JSON)  # List of string tags
 
     timeline = relationship("Timeline")

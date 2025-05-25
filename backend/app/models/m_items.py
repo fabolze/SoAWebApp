@@ -65,5 +65,5 @@ class Item(Base):
 
     requirements_id = Column(String, ForeignKey('requirements.id'))  # FK to shared requirements
     requirements = relationship("Requirement")  # Optional: back_populates if needed
-    
-    
+
+

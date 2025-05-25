@@ -17,7 +17,7 @@ class LoreEntry(Base):
     timeline_id = Column(String, ForeignKey("timelines.id"))
 
     related_story_arcs = Column(JSON)  # list of story_arc_ids
-    tags = Column(JSON)
+    tags = Column(JSON)  # List of string tags
 
     location = relationship("Location")
     timeline = relationship("Timeline")

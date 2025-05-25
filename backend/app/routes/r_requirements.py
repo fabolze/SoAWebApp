@@ -7,6 +7,8 @@ from backend.app.models.m_flags import Flag
 from backend.app.models.m_factions import Faction
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
+from flask import request, jsonify
+from backend.app.db.init_db import get_db_session
 
 class RequirementRoute(BaseRoute):
     def __init__(self):
@@ -56,6 +58,8 @@ class RequirementRoute(BaseRoute):
                 min_value=float(rep_req["min"])
             )
             db_session.add(faction_req)
+        
+        requirement.tags = data.get("tags", [])
 
     def serialize_item(self, requirement: Requirement) -> Dict[str, Any]:
         return {
@@ -65,8 +69,32 @@ class RequirementRoute(BaseRoute):
             "min_faction_reputation": [{
                 "faction_id": fr.faction_id,
                 "min": fr.min_value
-            } for fr in requirement.min_faction_reputation]
+            } for fr in requirement.min_faction_reputation],
+            "tags": requirement.tags
         }
+
+    def get_all(self):
+        db_session = get_db_session()
+        try:
+            search = request.args.get('search', '').strip()
+            tags = request.args.get('tags', '').strip().lower().split(',') if request.args.get('tags') else []
+            query = db_session.query(self.model)
+            if search:
+                query = query.filter(
+                    self.model.id.ilike(f"%{search}%")
+                )
+            if tags:
+                query = query.filter(self.model.tags != None)
+                for tag in tags:
+                    tag = tag.strip()
+                    if tag:
+                        query = query.filter(
+                            self.model.tags.any(lambda t: t.ilike(f"%{tag}%"))
+                        )
+            items = query.all()
+            return jsonify(self.serialize_list(items))
+        finally:
+            db_session.close()
 
 # Create the route instance
 bp = RequirementRoute().bp

@@ -27,7 +27,14 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   useEffect(() => {
     fetch(`http://localhost:5000/api/${apiPath}`)
       .then((res) => res.json())
-      .then(setEntries);
+      .then((result) => {
+        if (!Array.isArray(result)) {
+          console.warn("API did not return an array for entries:", result);
+          setEntries([]);
+        } else {
+          setEntries(result);
+        }
+      });
   }, [apiPath]);
 
   const handleSave = async () => {
@@ -122,13 +129,28 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     }
   };
 
+  // Field selection for search
+  const [searchField, setSearchField] = useState<string>("__all__");
+
   // Filtered and sorted entries
   const filteredEntries = entries.filter((entry) => {
     if (!search.trim()) return true;
     const searchLower = search.toLowerCase();
-    return fieldKeys.some((key: string) =>
-      String(entry[key] ?? "").toLowerCase().includes(searchLower)
-    );
+    if (searchField === "__all__") {
+      return fieldKeys.some((key: string) => {
+        const val = entry[key];
+        if (Array.isArray(val)) {
+          return val.some((v) => String(v ?? "").toLowerCase().includes(searchLower));
+        }
+        return String(val ?? "").toLowerCase().includes(searchLower);
+      });
+    } else {
+      const val = entry[searchField];
+      if (Array.isArray(val)) {
+        return val.some((v) => String(v ?? "").toLowerCase().includes(searchLower));
+      }
+      return String(val ?? "").toLowerCase().includes(searchLower);
+    }
   });
   // Sort alphabetically by name, fallback to id
   const sortedEntries = [...filteredEntries].sort((a, b) => {
@@ -170,10 +192,20 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
           </button>
         </div>
 
-        <div className="query-bar">
+        <div className="query-bar flex gap-2 items-center">
+          <select
+            className="border rounded p-2 text-sm"
+            value={searchField}
+            onChange={e => setSearchField(e.target.value)}
+          >
+            <option value="__all__">All Fields</option>
+            {fieldKeys.map((key) => (
+              <option key={key} value={key}>{key}</option>
+            ))}
+          </select>
           <input
             type="text"
-            placeholder="Search or filter..."
+            placeholder={searchField === "__all__" ? "Search all fields..." : `Search ${searchField}...`}
             className="w-full p-2 border rounded"
             value={search}
             onChange={e => setSearch(e.target.value)}
