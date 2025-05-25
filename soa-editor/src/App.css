@@ -294,3 +294,51 @@ h1 {
 .read-the-docs {
   color: #888;
 }
+
+/* Two-column editor layout overrides */
+.editor-2col {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  height: 100vh;
+  min-width: 0;
+}
+.entry-list-panel {
+  min-width: 0;
+  max-width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-right: 1px solid #e5e7eb;
+  background: #f9f9f9;
+  display: flex;
+  flex-direction: column;
+}
+.entry-list-panel .entry-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+  padding-bottom: 2rem;
+}
+.form-panel {
+  min-width: 0;
+  max-width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+.form-panel .overflow-y-auto {
+  min-height: 0;
+}
+@media (max-width: 900px) {
+  .editor-2col {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+  }
+  .entry-list-panel, .form-panel {
+    max-height: 50vh;
+    min-height: 0;
+    height: 50vh;
+  }
+}
