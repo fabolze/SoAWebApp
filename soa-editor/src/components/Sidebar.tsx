@@ -93,7 +93,14 @@ const Sidebar = () => {
       <nav
         className={`sidebar${collapsed ? ' collapsed' : ''} ${mobileOpen ? ' mobile-open' : ' md:block'} md:relative fixed top-0 left-0 h-full z-40 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 shadow-md rounded-md`}
         style={{ display: mobileOpen || window.innerWidth >= 768 ? undefined : 'none' }}
+        aria-label="Sidebar navigation"
       >
+        {!collapsed && (
+          <div className="flex items-center gap-2 px-4 py-4 mb-2 border-b border-gray-200 dark:border-gray-800">
+            <img src="/vite.svg" alt="SoA" className="w-8 h-8" />
+            <span className="text-xl font-bold text-primary tracking-tight">SoA Editor</span>
+          </div>
+        )}
         <button className="toggle-button bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-md p-2 hover:bg-primary hover:text-white transition" onClick={toggleSidebar} aria-label="Collapse sidebar">
           {collapsed ? '➡️' : '⬅️'}
         </button>
@@ -107,11 +114,12 @@ const Sidebar = () => {
         </button>
         <input
           type="text"
-          className="sidebar-filter mb-4 w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 text-black dark:text-white bg-white dark:bg-gray-800"
+          className="sidebar-filter mb-4 w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 text-black dark:text-white bg-white dark:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
           placeholder="Filter..."
           value={filter}
           onChange={e => setFilter(e.target.value)}
           style={{ display: collapsed ? 'none' : undefined }}
+          aria-label="Filter sidebar items"
         />
         <div className="sidebar-groups flex-1 overflow-y-auto">
           {MENU_GROUPS.map(group => {
@@ -122,18 +130,20 @@ const Sidebar = () => {
             return (
               <div key={group.label} className="sidebar-group mb-6">
                 {!collapsed && <div className="sidebar-group-label text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2 pl-2 font-semibold">{group.label}</div>}
-                <ul>
+                <ul className="space-y-1">
                   {filteredItems.map(({ to, label, icon: Icon }) => (
                     <li key={to} className="sidebar-item group relative">
                       <NavLink
                         to={to}
                         className={({ isActive }) =>
-                          `flex items-center gap-3 px-4 py-2 rounded-md transition-colors duration-200 ${collapsed ? 'justify-center' : ''} ${isActive ? 'bg-primary text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-700'} sidebar-link font-medium`
+                          `flex items-center gap-3 px-4 py-2 rounded-md transition-colors duration-200 ${collapsed ? 'justify-center' : ''} ${isActive ? 'bg-primary text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-700'} sidebar-link font-medium focus:outline-none focus:ring-2 focus:ring-primary/40`
                         }
                         title={collapsed ? label : undefined}
                         end={to === '/'}
+                        tabIndex={0}
+                        aria-current={undefined}
                       >
-                        <Icon className="h-6 w-6 flex-shrink-0" />
+                        <Icon className={`flex-shrink-0 transition-all duration-200 ${collapsed ? 'h-5 w-5' : 'h-6 w-6'}`} />
                         {!collapsed && <span className="sidebar-label">{label}</span>}
                       </NavLink>
                       {collapsed && (

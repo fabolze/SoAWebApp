@@ -44,6 +44,8 @@ const VirtualizedTable: React.FC<VirtualizedTableProps> = ({ entries, listFields
           <button
             className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
             onClick={() => onDelete(entry)}
+            type="button"
+            aria-label="Delete entry"
           >Delete</button>
         </td>
       </tr>
@@ -51,19 +53,19 @@ const VirtualizedTable: React.FC<VirtualizedTableProps> = ({ entries, listFields
   };
 
   return (
-    <div style={{ height: Math.min(400, entries.length * ROW_HEIGHT), width: '100%' }}>
-      <table className="min-w-full border text-sm">
+    <div style={{ height: Math.min(400, entries.length * ROW_HEIGHT), width: '100%' }} className="rounded-xl shadow-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 overflow-hidden">
+      <table className="min-w-full text-sm">
         <thead>
           <tr>
             {listFields.map((key) => (
-              <th key={key} className="px-3 py-2 border-b bg-gray-50 font-semibold text-gray-700 whitespace-nowrap">{key}</th>
+              <th key={key} className="px-3 py-2 border-b bg-gray-50 dark:bg-gray-800 font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap text-left uppercase tracking-wider text-xs">{key}</th>
             ))}
-            <th className="px-3 py-2 border-b bg-gray-50 font-semibold text-gray-700">Actions</th>
+            <th className="px-3 py-2 border-b bg-gray-50 dark:bg-gray-800 font-semibold text-gray-700 dark:text-gray-200 text-left uppercase tracking-wider text-xs">Actions</th>
           </tr>
         </thead>
       </table>
       <div style={{ height: Math.min(400, entries.length * ROW_HEIGHT), overflow: 'auto' }}>
-        <table className="min-w-full border text-sm">
+        <table className="min-w-full text-sm">
           <tbody>
             <List
               height={Math.min(400, entries.length * ROW_HEIGHT)}

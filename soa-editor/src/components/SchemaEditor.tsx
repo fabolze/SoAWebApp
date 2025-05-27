@@ -1,6 +1,7 @@
 // soa-editor/src/components/SchemaEditor.tsx
 // This file acts as a template for the other pages
 import { useState, useEffect } from "react";
+import { useRef } from "react";
 import SchemaForm from "../components/SchemaForm";
 import Sidebar from "./Sidebar";
 import VirtualizedTable from "./VirtualizedTable";
@@ -19,6 +20,11 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   const [search, setSearch] = useState("");
   const [formValid, setFormValid] = useState(true);
   const [referenceOptionsVersion, setReferenceOptionsVersion] = useState(0);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<any>(null);
+  const confirmRef = useRef<HTMLDialogElement>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     import(`../../../backend/app/schemas/${schemaName}.json`).then(setSchema);
@@ -58,18 +64,20 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     
 
     if (res.ok) {
-      alert("Saved successfully ✅");
+      setToast({ type: 'success', message: 'Saved successfully ✅' });
       const updated = await fetch(`http://localhost:5000/api/${apiPath}`).then((r) => r.json());
       setEntries(updated);
       setReferenceOptionsVersion((v) => v + 1); // Trigger referenceOptions refresh in SchemaForm
     } else {
-      let msg = "❌ Save failed";
+      let msg = '❌ Save failed';
       try {
         const err = await res.json();
         if (err && err.message) msg += `: ${err.message}`;
       } catch {}
-      alert(msg);
+      setToast({ type: 'error', message: msg });
     }
+    if (toastTimeout.current) clearTimeout(toastTimeout.current);
+    toastTimeout.current = setTimeout(() => setToast(null), 3000);
   };
 
   // Get all field names from schema for table columns
@@ -110,21 +118,40 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
 
   // Delete entry handler
   const handleDelete = async (entry: any) => {
-    if (!window.confirm('Are you sure you want to delete this entry?')) return;
+    setPendingDelete(entry);
+    setShowConfirm(true);
+    setTimeout(() => confirmRef.current?.showModal(), 0);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const entry = pendingDelete;
+    setShowConfirm(false);
+    confirmRef.current?.close();
+    setPendingDelete(null);
     const res = await fetch(`http://localhost:5000/api/${apiPath}/${entry[idField]}`, {
       method: 'DELETE',
     });
     if (res.ok) {
       setEntries(entries.filter((e) => e[idField] !== entry[idField]));
       if (data[idField] === entry[idField]) setData({});
+      setToast({ type: 'success', message: 'Deleted successfully 🗑️' });
     } else {
       let msg = '❌ Delete failed';
       try {
         const err = await res.json();
         if (err && err.message) msg += `: ${err.message}`;
       } catch {}
-      alert(msg);
+      setToast({ type: 'error', message: msg });
     }
+    if (toastTimeout.current) clearTimeout(toastTimeout.current);
+    toastTimeout.current = setTimeout(() => setToast(null), 3000);
+  };
+
+  const cancelDelete = () => {
+    setShowConfirm(false);
+    setPendingDelete(null);
+    confirmRef.current?.close();
   };
 
   // Field selection for search
@@ -166,6 +193,24 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   return (
     <div id="root">
       <Sidebar />
+      {/* DaisyUI modal for delete confirmation */}
+      <dialog ref={confirmRef} className="modal">
+        <form method="dialog" className="modal-box">
+          <h3 className="font-bold text-lg">Confirm Delete</h3>
+          <p className="py-4">Are you sure you want to delete this entry?</p>
+          <div className="modal-action">
+            <button type="button" className="btn btn-error" onClick={confirmDelete}>Delete</button>
+            <button type="button" className="btn" onClick={cancelDelete}>Cancel</button>
+          </div>
+        </form>
+      </dialog>
+      {toast && (
+        <div className={`toast toast-top toast-end z-50 fixed right-4 top-4`}> 
+          <div className={`alert ${toast.type === 'success' ? 'alert-success' : 'alert-error'} shadow-lg`}>
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
       <div className="main-content p-0">
         <div className="editor-2col grid md:grid-cols-2 gap-0 h-[calc(100vh-0px)]" style={{height: '100vh'}}>
           {/* Left: Entry List Panel */}

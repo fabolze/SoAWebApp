@@ -2,10 +2,12 @@
 // This file is responsible for rendering the index page of the application.
 // It contains links to all the other pages in the application.
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 // import './IndexPage.css'; // Assuming you will add custom styles for the grid layout
 
 const IndexPage = () => {
+  const [dark, setDark] = useState(false);
   const pages = [
     { path: '/abilities', name: 'Abilities Editor' },
     { path: '/effects', name: 'Effects Editor' },
@@ -31,19 +33,48 @@ const IndexPage = () => {
     { path: '/timelines', name: 'Timelines Editor' },
   ];
 
+  // Toggle dark mode by toggling the 'dark' class on html
+  const handleToggleDark = () => {
+    setDark((d) => {
+      const html = document.documentElement;
+      if (!d) {
+        html.setAttribute('data-theme', 'dark');
+        html.classList.add('dark');
+      } else {
+        html.setAttribute('data-theme', 'corporate');
+        html.classList.remove('dark');
+      }
+      return !d;
+    });
+  };
+
   return (
     <div className="min-h-screen flex bg-gray-100 font-sans">
       <Sidebar />
       <main className="flex-1 p-8">
-        <h1 className="text-3xl font-semibold mb-8 text-primary">Welcome to the SoA Editor</h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-semibold text-primary">Welcome to the SoA Editor</h1>
+          <button
+            className="btn btn-sm btn-outline btn-primary"
+            onClick={handleToggleDark}
+            aria-label="Toggle dark mode"
+          >
+            {dark ? '☀️ Light' : '🌙 Dark'}
+          </button>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           {pages.map((page) => (
             <Link
               key={page.path}
               to={page.path}
-              className="card bg-white rounded-md shadow hover:shadow-lg transition p-6 flex items-center justify-center text-lg font-medium text-gray-800 border border-gray-200 hover:border-primary"
+              className="card bg-white rounded-xl shadow-lg hover:shadow-xl transition transform hover:-translate-y-1 p-8 flex flex-col items-center justify-center text-lg font-medium text-gray-800 border border-gray-200 hover:border-primary dark:bg-gray-900 dark:text-white dark:border-gray-700 group focus:outline-none focus:ring-2 focus:ring-primary/40"
+              tabIndex={0}
+              aria-label={page.name}
             >
-              <h2 className="text-xl font-semibold text-primary mb-0">{page.name}</h2>
+              <span className="mb-3 w-12 h-12 flex items-center justify-center rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition text-2xl">
+                <img src="/vite.svg" alt="icon" className="w-8 h-8" />
+              </span>
+              <h2 className="text-xl font-semibold text-primary mb-0 dark:text-primary-content text-center group-hover:text-white transition">{page.name}</h2>
             </Link>
           ))}
         </div>

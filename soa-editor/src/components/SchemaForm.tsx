@@ -116,8 +116,8 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
   return (
     <form className="space-y-6 bg-white rounded-lg shadow-sm p-6">
       {missingFields.length > 0 && (
-        <div className="mb-4 p-2 bg-red-100 text-red-700 rounded border border-red-300">
-          Please fill all required fields: {missingFields.join(', ')}
+        <div className="mb-4 alert alert-error shadow-sm">
+          <span>Please fill all required fields: {missingFields.join(', ')}</span>
         </div>
       )}
       {fields.map(([key, config]) => {
@@ -448,7 +448,8 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
         if (type === 'object') {
           const nestedProps = config.properties || {};
           return (
-            <fieldset key={key} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+            <fieldset key={key} className="border border-gray-200 rounded-lg p-4 bg-gray-50 mb-6 shadow-sm">
+              <legend className="px-2 text-base font-semibold text-primary mb-2">{label}</legend>
               {renderFieldLabel(label, description)}
               <div className="mt-3">
                 <SchemaForm
@@ -467,7 +468,8 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           // Special handling for reference fields inside array of objects (e.g., results_in.stat_id)
           const itemSchema = config.items;
           return (
-            <fieldset key={key} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+            <fieldset key={key} className="border border-gray-200 rounded-lg p-4 bg-gray-50 mb-6 shadow-sm">
+              <legend className="px-2 text-base font-semibold text-primary mb-2">{label}</legend>
               {renderFieldLabel(label, description)}
               <div className="space-y-4">
                 {(value || []).map((item: any, idx: number) => (
@@ -480,6 +482,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                         handleChange(key, newArr);
                       }}
                       className="absolute top-2 right-2 text-gray-400 hover:text-red-500"
+                      aria-label={`Remove ${label} item`}
                     >
                       ×
                     </button>
@@ -562,8 +565,9 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                 ))}
                 <button
                   type="button"
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
                   onClick={() => handleChange(key, [...(value || []), {}])}
+                  aria-label={`Add ${label.slice(0, -1)}`}
                 >
                   <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
