@@ -36,8 +36,14 @@
           "label": "Location"
         }
       },
-      "requirements": {
-        "$ref": "requirements.json"
+      "requirements_id": {
+        "type": "string",
+        "description": "Requirement to unlock this dialogue",
+        "ui": {
+          "widget": "reference",
+          "reference": "requirements",
+          "label": "Requirements"
+        }
       },
       "tags": {
         "type": "array",

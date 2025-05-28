@@ -73,17 +73,19 @@ const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [filter, setFilter] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [groupOpen, setGroupOpen] = useState(() =>
+    Object.fromEntries(MENU_GROUPS.map(g => [g.label, true]))
+  );
 
   const toggleSidebar = () => setCollapsed((c) => !c);
   const toggleMobile = () => setMobileOpen((m) => !m);
-
-  // Responsive: hide sidebar on mobile, show hamburger
-  // (You may want to add a CSS media query for .sidebar.mobile-hidden)
+  const toggleGroup = (label: string) =>
+    setGroupOpen((prev) => ({ ...prev, [label]: !prev[label] }));
 
   return (
     <>
       <button
-        className="sidebar-hamburger md:hidden fixed top-4 left-4 z-50 bg-[#2c3e50] text-white p-2 rounded"
+        className="md:hidden fixed top-4 left-4 z-50 bg-slate-800 text-white p-2 rounded"
         onClick={toggleMobile}
         aria-label="Open sidebar"
         style={{ display: mobileOpen ? 'none' : undefined }}
@@ -91,21 +93,21 @@ const Sidebar = () => {
         <svg width="24" height="24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
       </button>
       <nav
-        className={`sidebar${collapsed ? ' collapsed' : ''} ${mobileOpen ? ' mobile-open' : ' md:block'} md:relative fixed top-0 left-0 h-full z-40 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 shadow-md rounded-md`}
-        style={{ display: mobileOpen || window.innerWidth >= 768 ? undefined : 'none' }}
+        className={`transition-all duration-300 flex flex-col h-full z-40 bg-slate-800 text-white border-r border-slate-700 shadow-md ${collapsed ? 'w-16' : 'w-64'} ${mobileOpen ? 'fixed top-0 left-0 mobile-open' : 'hidden md:flex md:relative'}`}
         aria-label="Sidebar navigation"
+        style={{ minWidth: collapsed ? '4rem' : '16rem' }}
       >
         {!collapsed && (
-          <div className="flex items-center gap-2 px-4 py-4 mb-2 border-b border-gray-200 dark:border-gray-800">
+          <div className="flex items-center gap-2 px-4 py-4 mb-2 border-b border-slate-700">
             <img src="/vite.svg" alt="SoA" className="w-8 h-8" />
             <span className="text-xl font-bold text-primary tracking-tight">SoA Editor</span>
           </div>
         )}
-        <button className="toggle-button bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-md p-2 hover:bg-primary hover:text-white transition" onClick={toggleSidebar} aria-label="Collapse sidebar">
+        <button className="bg-slate-700 text-white rounded-md p-2 hover:bg-primary hover:text-white transition self-end mx-2 mb-2" onClick={toggleSidebar} aria-label="Collapse sidebar">
           {collapsed ? '➡️' : '⬅️'}
         </button>
         <button
-          className="sidebar-close md:hidden absolute top-4 right-4 bg-[#2c3e50] text-white p-2 rounded"
+          className="md:hidden absolute top-4 right-4 bg-slate-800 text-white p-2 rounded"
           onClick={toggleMobile}
           aria-label="Close sidebar"
           style={{ display: mobileOpen ? undefined : 'none' }}
@@ -114,29 +116,37 @@ const Sidebar = () => {
         </button>
         <input
           type="text"
-          className="sidebar-filter mb-4 w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 text-black dark:text-white bg-white dark:bg-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+          className={`mb-4 w-full px-3 py-2 rounded-md border border-slate-600 text-black dark:text-white bg-white dark:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none ${collapsed ? 'hidden' : ''}`}
           placeholder="Filter..."
           value={filter}
           onChange={e => setFilter(e.target.value)}
-          style={{ display: collapsed ? 'none' : undefined }}
           aria-label="Filter sidebar items"
         />
-        <div className="sidebar-groups flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto">
           {MENU_GROUPS.map(group => {
             const filteredItems = group.items.filter(item =>
               item.label.toLowerCase().includes(filter.toLowerCase())
             );
             if (filteredItems.length === 0) return null;
             return (
-              <div key={group.label} className="sidebar-group mb-6">
-                {!collapsed && <div className="sidebar-group-label text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2 pl-2 font-semibold">{group.label}</div>}
+              <div key={group.label} className="mb-6">
+                {!collapsed && (
+                  <button
+                    className="flex items-center w-full text-xs uppercase tracking-wider text-slate-400 mb-2 pl-2 font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    onClick={() => toggleGroup(group.label)}
+                    aria-expanded={groupOpen[group.label]}
+                  >
+                    <span className={`mr-2 transition-transform ${groupOpen[group.label] ? 'rotate-90' : ''}`}>▶</span>
+                    {group.label}
+                  </button>
+                )}
                 <ul className="space-y-1">
-                  {filteredItems.map(({ to, label, icon: Icon }) => (
-                    <li key={to} className="sidebar-item group relative">
+                  {groupOpen[group.label] && filteredItems.map(({ to, label, icon: Icon }) => (
+                    <li key={to} className="group relative">
                       <NavLink
                         to={to}
                         className={({ isActive }) =>
-                          `flex items-center gap-3 px-4 py-2 rounded-md transition-colors duration-200 ${collapsed ? 'justify-center' : ''} ${isActive ? 'bg-primary text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-700'} sidebar-link font-medium focus:outline-none focus:ring-2 focus:ring-primary/40`
+                          `flex items-center gap-3 px-4 py-2 rounded-md transition-colors duration-200 ${collapsed ? 'justify-center' : ''} ${isActive ? 'bg-primary text-white' : 'hover:bg-slate-700'} font-medium focus:outline-none focus:ring-2 focus:ring-primary/40`
                         }
                         title={collapsed ? label : undefined}
                         end={to === '/'}
@@ -144,10 +154,10 @@ const Sidebar = () => {
                         aria-current={undefined}
                       >
                         <Icon className={`flex-shrink-0 transition-all duration-200 ${collapsed ? 'h-5 w-5' : 'h-6 w-6'}`} />
-                        {!collapsed && <span className="sidebar-label">{label}</span>}
+                        {!collapsed && <span>{label}</span>}
                       </NavLink>
                       {collapsed && (
-                        <span className="sidebar-tooltip absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
+                        <span className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-black text-white text-xs rounded opacity-100 pointer-events-none whitespace-nowrap z-50">
                           {label}
                         </span>
                       )}

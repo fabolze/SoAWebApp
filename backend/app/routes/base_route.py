@@ -33,15 +33,36 @@ class BaseRoute:
         # Delete
         self.bp.route(f"{self.route_prefix}/<item_id>", methods=["DELETE"])(self.delete)
     
-    def get_schema_required_fields(self, schema_name: str) -> List[str]:
+    def get_schema_required_fields(self, schema_name: str = None) -> List[str]:
         """Load the required fields from the JSON schema file for this resource."""
-        schema_path = os.path.join(os.path.dirname(__file__), '../schemas', f'{schema_name}.json')
-        try:
-            with open(schema_path, 'r', encoding='utf-8') as f:
-                schema = json.load(f)
-            return schema.get('required', [])
-        except Exception:
-            return []
+        import glob
+        # Try both singular (model name) and plural (blueprint name) schema file names
+        schema_names = []
+        if schema_name:
+            schema_names.append(schema_name)
+        # Try to use the blueprint name if available
+        if hasattr(self, 'bp') and hasattr(self.bp, 'name'):
+            if self.bp.name not in schema_names:
+                schema_names.append(self.bp.name)
+        # Fallback: try both singular and plural
+        if hasattr(self, 'model'):
+            model_name = self.model.__name__.replace('Model', '').lower()
+            if model_name not in schema_names:
+                schema_names.append(model_name)
+            plural_name = model_name + 's'
+            if plural_name not in schema_names:
+                schema_names.append(plural_name)
+        schemas_dir = os.path.join(os.path.dirname(__file__), '../schemas')
+        for name in schema_names:
+            schema_path = os.path.join(schemas_dir, f'{name}.json')
+            if os.path.exists(schema_path):
+                try:
+                    with open(schema_path, 'r', encoding='utf-8') as f:
+                        schema = json.load(f)
+                    return schema.get('required', [])
+                except Exception:
+                    continue
+        return []
 
     def validate_required_fields(self, data: Dict[str, Any], required_fields: List[str]) -> None:
         """Validate that all required fields are present in the data."""

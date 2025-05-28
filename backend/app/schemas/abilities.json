@@ -114,30 +114,15 @@
           "required": ["attribute_id", "multiplier"]
         }
       },
-      "requirements": {
-        "type": "object",
-        "description": "Optional requirements to unlock/use",
-        "properties": {
-          "level": {
-            "type": "number",
-            "description": "Minimum level required",
-            "ui": {
-              "widget": "number",
-              "label": "Level Requirement"
-            }
-          },
-          "class": {
-            "type": "string",
-            "enum": ["Warrior", "Mage", "Rogue", "Cleric"],
-            "ui": {
-              "widget": "select",
-              "label": "Class Requirement",
-              "options": ["Warrior", "Mage", "Rogue", "Cleric"]
-            }
-          }
+      "requirements_id": {
+        "type": "string",
+        "description": "Requirement to unlock/use this ability",
+        "ui": {
+          "widget": "reference",
+          "reference": "requirements",
+          "label": "Requirements"
         }
       }
     },
     "required": ["id", "name", "type"]
   }
-  

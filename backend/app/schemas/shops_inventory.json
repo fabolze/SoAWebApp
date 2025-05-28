@@ -42,8 +42,14 @@
           "label": "Stock"
         }
       },
-      "requirements": {
-        "$ref": "requirements.json"
+      "requirements_id": {
+        "type": "string",
+        "description": "Requirement to purchase this inventory item",
+        "ui": {
+          "widget": "reference",
+          "reference": "requirements",
+          "label": "Requirements"
+        }
       },
       "tags": {
         "type": "array",
@@ -56,4 +62,3 @@
     },
     "required": ["inventory_id", "shop_id", "item_id", "price"]
   }
-  

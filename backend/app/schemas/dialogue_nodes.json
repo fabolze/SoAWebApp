@@ -3,19 +3,15 @@
     "title": "Dialogue Node",
     "type": "object",
     "properties": {
-      "node_id": {
+      "dialogue_node_id": {
         "type": "string",
         "description": "Unique ID for this dialogue node",
         "ui": { "widget": "hidden" }
       },
       "dialogue_id": {
         "type": "string",
-        "description": "Which dialogue sequence this node belongs to",
-        "ui": {
-          "widget": "reference",
-          "reference": "dialogues",
-          "label": "Dialogue"
-        }
+        "description": "Parent dialogue this node belongs to",
+        "ui": { "widget": "reference", "reference": "dialogues", "label": "Dialogue" }
       },
       "speaker": {
         "type": "string",
@@ -35,8 +31,14 @@
           "properties": {
             "choice_text": { "type": "string", "description": "Text shown for this choice (optional for auto-continue)" },
             "next_node_id": { "type": "string", "description": "ID of the next dialogue node" },
-            "requirements": {
-              "$ref": "requirements.json"
+            "requirements_id": {
+              "type": "string",
+              "description": "Requirement to unlock this choice",
+              "ui": {
+                "widget": "reference",
+                "reference": "requirements",
+                "label": "Requirements"
+              }
             },
             "set_flags": {
               "type": "array",
@@ -51,8 +53,14 @@
           "required": ["next_node_id"]
         }
       },
-      "requirements": {
-        "$ref": "requirements.json"
+      "requirements_id": {
+        "type": "string",
+        "description": "Requirement to unlock this node",
+        "ui": {
+          "widget": "reference",
+          "reference": "requirements",
+          "label": "Requirements"
+        }
       },
       "set_flags": {
         "type": "array",
@@ -70,5 +78,5 @@
         "ui": { "widget": "tags", "label": "Tags" }
       }
     },
-    "required": ["node_id", "dialogue_id", "speaker", "text"]
+    "required": ["dialogue_node_id", "dialogue_id", "speaker", "text"]
   }

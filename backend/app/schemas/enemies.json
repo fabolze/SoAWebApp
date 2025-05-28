@@ -63,7 +63,7 @@
         "reference": "abilities"
       }
     },
-    "faction": {
+    "faction_id": {
       "type": "string",
       "ui": {
         "widget": "reference",

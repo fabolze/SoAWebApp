@@ -51,7 +51,7 @@
                 "label": "Portrait"
             }
         },
-        "faction": {
+        "faction_id": {
             "type": "string",
             "description": "Optional faction ID",
             "ui": {

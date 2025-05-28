@@ -21,7 +21,7 @@ class CharacterClass(Base):
     description = Column(Text)
     role = Column(Enum(ClassRole), nullable=False)
 
-    base_stats = Column(JSON)
+    base_stats = Column(JSON, nullable=False)
     stat_growth = Column(JSON)
 
     starting_abilities = Column(JSON)         # List of ability IDs

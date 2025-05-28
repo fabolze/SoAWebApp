@@ -28,8 +28,14 @@
         "options": ["Combat", "Dialogue", "Event"]
       }
     },
-    "requirements": {
-      "$ref": "requirements.json"
+    "requirements_id": {
+      "type": "string",
+      "description": "Requirement to unlock this encounter",
+      "ui": {
+        "widget": "reference",
+        "reference": "requirements",
+        "label": "Requirements"
+      }
     },
     "enemy_ids": {
       "type": "array",

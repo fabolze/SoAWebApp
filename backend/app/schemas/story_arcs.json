@@ -116,7 +116,9 @@
   "required": [
     "story_arc_id",
     "title",
+    "summary",
     "type",
+    "content_pack",
     "required_flags"
   ]
 }

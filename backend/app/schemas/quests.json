@@ -27,8 +27,14 @@
         "label": "Story Arc"
       }
     },
-    "requirements": {
-      "$ref": "requirements.json"
+    "requirements_id": {
+      "type": "string",
+      "description": "Requirement to unlock this quest",
+      "ui": {
+        "widget": "reference",
+        "reference": "requirements",
+        "label": "Requirements"
+      }
     },
     "objectives": {
       "type": "array",
@@ -38,8 +44,14 @@
         "properties": {
           "objective_id": { "type": "string", "description": "Internal ID for this objective" },
           "description": { "type": "string", "description": "Player-facing description of this objective" },
-          "requirements": {
-            "$ref": "requirements.json"
+          "requirements_id": {
+            "type": "string",
+            "description": "Requirement to unlock this objective",
+            "ui": {
+              "widget": "reference",
+              "reference": "requirements",
+              "label": "Requirements"
+            }
           },
           "flags_set": {
             "type": "array",

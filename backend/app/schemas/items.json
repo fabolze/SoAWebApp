@@ -80,8 +80,14 @@
         "options_source": "schemas/effects.json"
       }
     },
-    "requirements": {
-      "$ref": "requirements.json"
+    "requirements_id": {
+      "type": "string",
+      "description": "Requirement to use this item",
+      "ui": {
+        "widget": "reference",
+        "reference": "requirements",
+        "label": "Requirements"
+      }
     },
     "icon_path": {
       "type": "string",

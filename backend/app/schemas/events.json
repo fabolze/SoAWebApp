@@ -23,8 +23,14 @@
         "options": ["Encounter", "ItemReward", "LoreDiscovery", "Dialogue", "Teleport", "ScriptedScene"]
       }
     },
-    "requirements": {
-      "$ref": "requirements.json"
+    "requirements_id": {
+      "type": "string",
+      "description": "Requirement to unlock this event",
+      "ui": {
+        "widget": "reference",
+        "reference": "requirements",
+        "label": "Requirements"
+      }
     },
     "location_id": {
       "type": "string",

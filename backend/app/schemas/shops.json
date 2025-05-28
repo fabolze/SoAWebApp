@@ -36,8 +36,14 @@
         "reference": "npcs"
       }
     },
-    "requirements": {
-      "$ref": "requirements.json"
+    "requirements_id": {
+      "type": "string",
+      "description": "Requirement to unlock this shop",
+      "ui": {
+        "widget": "reference",
+        "reference": "requirements",
+        "label": "Requirements"
+      }
     },
     "inventory": {
       "type": "array",
@@ -70,8 +76,14 @@
               "label": "Stock"
             }
           },
-          "requirements": {
-            "$ref": "requirements.json"
+          "requirements_id": {
+            "type": "string",
+            "description": "Requirement to purchase this item",
+            "ui": {
+              "widget": "reference",
+              "reference": "requirements",
+              "label": "Requirements"
+            }
           }
         },
         "required": ["item_id", "price"]
