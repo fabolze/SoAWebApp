@@ -1,5 +1,5 @@
 # backend/app/routes/base_route.py
-from flask import Blueprint, request, jsonify, abort
+from flask import Blueprint, request, jsonify, abort, make_response
 from typing import Any, Dict, List, Optional
 from backend.app.db.init_db import get_db_session
 from backend.app.models.base import Base
@@ -68,7 +68,7 @@ class BaseRoute:
         """Validate that all required fields are present in the data."""
         missing = [key for key in required_fields if key not in data or data[key] in (None, "")]
         if missing:
-            abort(jsonify({"error": "Missing required fields", "fields": missing}), 400)
+            abort(make_response(jsonify({"error": "Missing required fields", "fields": missing}), 400))
     
     def validate_enums(self, data: Dict[str, Any], enum_fields: Dict[str, Any]) -> None:
         """Validate enum fields in the data."""
