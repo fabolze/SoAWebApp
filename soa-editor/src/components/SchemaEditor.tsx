@@ -2,9 +2,9 @@
 // This file acts as a template for the other pages
 import { useState, useEffect } from "react";
 import { useRef } from "react";
-import SchemaForm from "../components/SchemaForm";
 import Sidebar from "./Sidebar";
-import VirtualizedTable from "./VirtualizedTable";
+import EntryListPanel from "./EntryListPanel";
+import EntryFormPanel from "./EntryFormPanel";
 
 interface SchemaEditorProps {
   schemaName: string;
@@ -20,11 +20,10 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   const [search, setSearch] = useState("");
   const [formValid, setFormValid] = useState(true);
   const [referenceOptionsVersion, setReferenceOptionsVersion] = useState(0);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<any>(null);
-  const confirmRef = useRef<HTMLDialogElement>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const confirmRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     import(`../../../backend/app/schemas/${schemaName}.json`).then(setSchema);
@@ -117,18 +116,16 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   };
 
   // Delete entry handler
-  const handleDelete = async (entry: any) => {
-    setPendingDelete(entry);
-    setShowConfirm(true);
+  const confirmDelete = useRef<any>(null);
+  const handleDelete = (entry: any) => {
+    confirmDelete.current = entry;
     setTimeout(() => confirmRef.current?.showModal(), 0);
   };
-
-  const confirmDelete = async () => {
-    if (!pendingDelete) return;
-    const entry = pendingDelete;
-    setShowConfirm(false);
+  const confirmDeleteAction = async () => {
+    const entry = confirmDelete.current;
+    if (!entry) return;
     confirmRef.current?.close();
-    setPendingDelete(null);
+    confirmDelete.current = null;
     const res = await fetch(`http://localhost:5000/api/${apiPath}/${entry[idField]}`, {
       method: 'DELETE',
     });
@@ -147,11 +144,9 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     if (toastTimeout.current) clearTimeout(toastTimeout.current);
     toastTimeout.current = setTimeout(() => setToast(null), 3000);
   };
-
   const cancelDelete = () => {
-    setShowConfirm(false);
-    setPendingDelete(null);
     confirmRef.current?.close();
+    confirmDelete.current = null;
   };
 
   // Field selection for search
@@ -191,153 +186,55 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   const formHeader = isNew ? `New ${title.replace(/ Editor$/, '')}` : `Edit ${title.replace(/ Editor$/, '')}`;
 
   return (
-    <div id="root">
-      <Sidebar />
+    <div className="min-h-screen flex flex-row bg-gray-100 font-sans">
+      <Sidebar collapsed={collapsed} onToggleCollapse={() => setCollapsed((c) => !c)} />
+      <div className="flex flex-1 flex-row h-screen">
+        <EntryListPanel
+          entries={sortedEntries}
+          listFields={listFields}
+          idField={idField}
+          editingId={editingId}
+          onEdit={handleEdit}
+          onDuplicate={handleDuplicate}
+          onDelete={handleDelete}
+          onAddNew={handleAddNew}
+          search={search}
+          setSearch={setSearch}
+          searchField={searchField}
+          setSearchField={setSearchField}
+          fieldKeys={fieldKeys}
+        />
+        <EntryFormPanel
+          schema={schema}
+          data={data}
+          onChange={setData}
+          onSave={handleSave}
+          onCancel={handleAddNew}
+          formHeader={formHeader}
+          formValid={formValid}
+          setFormValid={setFormValid}
+          isNew={isNew}
+          referenceOptionsVersion={referenceOptionsVersion}
+        />
+      </div>
       {/* DaisyUI modal for delete confirmation */}
       <dialog ref={confirmRef} className="modal">
         <form method="dialog" className="modal-box">
           <h3 className="font-bold text-lg">Confirm Delete</h3>
           <p className="py-4">Are you sure you want to delete this entry?</p>
           <div className="modal-action">
-            <button type="button" className="btn btn-error" onClick={confirmDelete}>Delete</button>
+            <button type="button" className="btn btn-error" onClick={confirmDeleteAction}>Delete</button>
             <button type="button" className="btn" onClick={cancelDelete}>Cancel</button>
           </div>
         </form>
       </dialog>
       {toast && (
-        <div className={`toast toast-top toast-end z-50 fixed right-4 top-4`}> 
+        <div className={`toast toast-top toast-end z-50 fixed right-4 top-4`}>
           <div className={`alert ${toast.type === 'success' ? 'alert-success' : 'alert-error'} shadow-lg`}>
             <span>{toast.message}</span>
           </div>
         </div>
       )}
-      <div className="main-content p-0">
-        <div className="editor-2col grid md:grid-cols-2 gap-0 h-[calc(100vh-0px)]" style={{height: '100vh'}}>
-          {/* Left: Entry List Panel */}
-          <div className="entry-list-panel flex flex-col border-r bg-gray-50 h-full max-h-full" style={{minWidth: 0, overflow: 'hidden'}}>
-            <div className="flex flex-col gap-2 p-4 border-b bg-white sticky top-0 z-10">
-              <div className="flex gap-2 items-center mb-2">
-                <button className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700" onClick={handleAddNew}>+ New {title.replace(/ Editor$/, '')}</button>
-              </div>
-              <div className="query-bar flex gap-2 items-center">
-                <select
-                  className="border rounded p-2 text-sm"
-                  value={searchField}
-                  onChange={e => setSearchField(e.target.value)}
-                >
-                  <option value="__all__">All Fields</option>
-                  {fieldKeys.map((key) => (
-                    <option key={key} value={key}>{key}</option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  placeholder={searchField === "__all__" ? `Search all fields...` : `Search ${searchField}...`}
-                  className="w-full p-2 border rounded"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto min-h-0">
-              <div className="entry-list">
-                {sortedEntries.length > 100 ? (
-                  <VirtualizedTable
-                    entries={sortedEntries}
-                    listFields={listFields}
-                    idField={idField}
-                    editingId={editingId}
-                    onEdit={handleEdit}
-                    onDuplicate={handleDuplicate}
-                    onDelete={handleDelete}
-                  />
-                ) : (
-                  <table className="min-w-full border text-sm">
-                    <thead>
-                      <tr>
-                        {listFields.map((key) => (
-                          <th key={key} className="px-3 py-2 border-b bg-gray-50 font-semibold text-gray-700 whitespace-nowrap">{key}</th>
-                        ))}
-                        <th className="px-3 py-2 border-b bg-gray-50 font-semibold text-gray-700">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedEntries.map((entry) => (
-                        <tr key={entry[idField]} className={editingId && entry[idField] === editingId ? "bg-yellow-100" : "hover:bg-blue-50"}>
-                          {listFields.map((key) => {
-                            const value = entry[key];
-                            const isImage = typeof value === 'string' && (value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && (value.startsWith('http') || value.startsWith('/')));
-                            return (
-                              <td key={key} className="px-3 py-2 border-b whitespace-nowrap max-w-xs overflow-x-auto">
-                                {isImage ? (
-                                  <img src={value} alt="asset" style={{ maxHeight: '40px', maxWidth: '80px', objectFit: 'contain' }} />
-                                ) : (
-                                  String(value ?? '')
-                                )}
-                              </td>
-                            );
-                          })}
-                          <td className="px-3 py-2 border-b whitespace-nowrap">
-                            <button
-                              className="mr-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                              onClick={() => handleEdit(entry)}
-                            >Edit</button>
-                            <button
-                              className="mr-2 px-2 py-1 bg-purple-500 text-white rounded hover:bg-purple-600"
-                              onClick={() => handleDuplicate(entry)}
-                            >Duplicate</button>
-                            <button
-                              className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                              onClick={() => handleDelete(entry)}
-                            >Delete</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          </div>
-          {/* Right: Form Panel */}
-          <div className="form-panel flex flex-col h-full max-h-full bg-white" style={{minWidth: 0, overflow: 'hidden'}}>
-            <div className="sticky top-0 z-10 bg-white p-4 border-b">
-              <h1 className="text-xl font-bold mb-2">{formHeader}</h1>
-              {!isNew && editingId && (
-                <span className="ml-2 text-blue-700 font-semibold">Editing: {editingId}</span>
-              )}
-            </div>
-            <div className="flex-1 overflow-y-auto min-h-0 p-4">
-              <SchemaForm 
-                schema={schema} 
-                data={data} 
-                onChange={setData}
-                referenceOptions={undefined}
-                fetchReferenceOptions={undefined}
-                isValidCallback={setFormValid}
-                key={referenceOptionsVersion}
-              />
-              <div className="flex gap-2 mt-4">
-                <button
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={handleSave}
-                  disabled={!formValid}
-                >
-                  💾 Save
-                </button>
-                {!isNew && (
-                  <button
-                    className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
-                    onClick={handleAddNew}
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

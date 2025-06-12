@@ -358,7 +358,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           // --- Type-ahead filter state ---
           const [filter, setFilter] = useState<string>("");
           // Filter options by name/title/id
-          const filteredOptions = options.filter((opt: any) => {
+          const filteredOptions = (Array.isArray(options) ? options : []).filter((opt: any) => {
             const display = opt.name || opt.title || opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
             return display.toLowerCase().includes(filter.toLowerCase());
           });

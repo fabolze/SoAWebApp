@@ -69,107 +69,93 @@ const MENU_GROUPS = [
   },
 ];
 
-const Sidebar = () => {
-  const [collapsed, setCollapsed] = useState(false);
+const Sidebar = ({ collapsed, onToggleCollapse }: { collapsed: boolean, onToggleCollapse: () => void }) => {
   const [filter, setFilter] = useState('');
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [groupOpen, setGroupOpen] = useState(() =>
     Object.fromEntries(MENU_GROUPS.map(g => [g.label, true]))
   );
 
-  const toggleSidebar = () => setCollapsed((c) => !c);
-  const toggleMobile = () => setMobileOpen((m) => !m);
   const toggleGroup = (label: string) =>
     setGroupOpen((prev) => ({ ...prev, [label]: !prev[label] }));
 
   return (
-    <>
+    <nav
+      className={`flex flex-col h-screen ${collapsed ? 'w-16' : 'w-64'} bg-slate-800 text-white border-r border-slate-700 shadow-md transition-all duration-300`}
+      aria-label="Sidebar navigation"
+    >
+      <div className={`flex items-center gap-2 px-4 py-4 mb-2 border-b border-slate-700 ${collapsed ? 'justify-center' : ''}`}>
+        <img src="/vite.svg" alt="SoA" className="w-8 h-8" />
+        {!collapsed && <span className="text-xl font-bold text-primary tracking-tight">SoA Editor</span>}
+      </div>
       <button
-        className="md:hidden fixed top-4 left-4 z-50 bg-slate-800 text-white p-2 rounded"
-        onClick={toggleMobile}
-        aria-label="Open sidebar"
-        style={{ display: mobileOpen ? 'none' : undefined }}
+        className="bg-slate-700 text-white rounded-md p-2 hover:bg-primary hover:text-white transition self-end mx-2 mb-2"
+        onClick={onToggleCollapse}
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
-        <svg width="24" height="24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        {collapsed ? '➡️' : '⬅️'}
       </button>
-      <nav
-        className={`transition-all duration-300 flex flex-col h-full z-40 bg-slate-800 text-white border-r border-slate-700 shadow-md ${collapsed ? 'w-16' : 'w-64'} ${mobileOpen ? 'fixed top-0 left-0 mobile-open' : 'hidden md:flex md:relative'}`}
-        aria-label="Sidebar navigation"
-        style={{ minWidth: collapsed ? '4rem' : '16rem' }}
-      >
-        {!collapsed && (
-          <div className="flex items-center gap-2 px-4 py-4 mb-2 border-b border-slate-700">
-            <img src="/vite.svg" alt="SoA" className="w-8 h-8" />
-            <span className="text-xl font-bold text-primary tracking-tight">SoA Editor</span>
-          </div>
-        )}
-        <button className="bg-slate-700 text-white rounded-md p-2 hover:bg-primary hover:text-white transition self-end mx-2 mb-2" onClick={toggleSidebar} aria-label="Collapse sidebar">
-          {collapsed ? '➡️' : '⬅️'}
-        </button>
-        <button
-          className="md:hidden absolute top-4 right-4 bg-slate-800 text-white p-2 rounded"
-          onClick={toggleMobile}
-          aria-label="Close sidebar"
-          style={{ display: mobileOpen ? undefined : 'none' }}
-        >
-          <svg width="24" height="24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-        </button>
+      {/* Filter input */}
+      {!collapsed && (
         <input
           type="text"
-          className={`mb-4 w-full px-3 py-2 rounded-md border border-slate-600 text-black dark:text-white bg-white dark:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none ${collapsed ? 'hidden' : ''}`}
+          className="mb-4 w-full px-3 py-2 rounded-md border border-slate-600 text-black dark:text-white bg-white dark:bg-slate-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
           placeholder="Filter..."
           value={filter}
           onChange={e => setFilter(e.target.value)}
           aria-label="Filter sidebar items"
         />
-        <div className="flex-1 overflow-y-auto">
-          {MENU_GROUPS.map(group => {
-            const filteredItems = group.items.filter(item =>
-              item.label.toLowerCase().includes(filter.toLowerCase())
-            );
-            if (filteredItems.length === 0) return null;
-            return (
-              <div key={group.label} className="mb-6">
-                {!collapsed && (
-                  <button
-                    className="flex items-center w-full text-xs uppercase tracking-wider text-slate-400 mb-2 pl-2 font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    onClick={() => toggleGroup(group.label)}
-                    aria-expanded={groupOpen[group.label]}
-                  >
-                    <span className={`mr-2 transition-transform ${groupOpen[group.label] ? 'rotate-90' : ''}`}>▶</span>
-                    {group.label}
-                  </button>
-                )}
-                <ul className="space-y-1">
-                  {groupOpen[group.label] && filteredItems.map(({ to, label, icon: Icon }) => (
-                    <li key={to} className="group relative">
-                      <NavLink
-                        to={to}
-                        className={({ isActive }) =>
-                          `flex items-center gap-3 px-4 py-2 rounded-md transition-colors duration-200 ${collapsed ? 'justify-center' : ''} ${isActive ? 'bg-primary text-white' : 'hover:bg-slate-700'} font-medium focus:outline-none focus:ring-2 focus:ring-primary/40`
-                        }
-                        title={collapsed ? label : undefined}
-                        end={to === '/'}
-                        tabIndex={0}
-                        aria-current={undefined}
-                      >
-                        <Icon className={`flex-shrink-0 transition-all duration-200 ${collapsed ? 'h-5 w-5' : 'h-6 w-6'}`} />
-                        {!collapsed && <span>{label}</span>}
-                      </NavLink>
-                      {collapsed && (
-                        <span className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-black text-white text-xs rounded opacity-100 pointer-events-none whitespace-nowrap z-50">
-                          {label}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            );
-          })}
-        </div>
-      </nav>
-    </>
+      )}
+      <div className="flex-1 overflow-y-auto">
+        {MENU_GROUPS.map(group => {
+          const filteredItems = group.items.filter(item =>
+            item.label.toLowerCase().includes(filter.toLowerCase())
+          );
+          if (filteredItems.length === 0) return null;
+          return (
+            <div key={group.label} className="mb-6">
+              {!collapsed && (
+                <button
+                  className="flex items-center w-full text-xs uppercase tracking-wider text-slate-400 mb-2 pl-2 font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  onClick={() => toggleGroup(group.label)}
+                  aria-expanded={groupOpen[group.label]}
+                  tabIndex={0}
+                >
+                  <span className={`mr-2 transition-transform ${groupOpen[group.label] ? 'rotate-90' : ''}`}>▶</span>
+                  {group.label}
+                </button>
+              )}
+              <ul className="space-y-1">
+                {groupOpen[group.label] && filteredItems.map(({ to, label, icon: Icon }) => (
+                  <li key={to} className="group relative">
+                    <NavLink
+                      to={to}
+                      className={({ isActive }) =>
+                        `flex items-center ${collapsed ? 'justify-center' : 'gap-3'} py-2 rounded-md transition-colors duration-200 ${isActive ? 'bg-primary text-white' : 'hover:bg-slate-700'} font-medium focus:outline-none focus:ring-2 focus:ring-primary/40`
+                      }
+                      title={label}
+                      end={to === '/'}
+                      tabIndex={0}
+                      aria-current={undefined}
+                      style={{ minHeight: '48px' }}
+                    >
+                      {Icon && typeof Icon === 'function' ? (
+                        <Icon className={collapsed ? "w-5 h-5 text-primary" : "w-4 h-4 text-primary mr-2"} />
+                      ) : null}
+                      {!collapsed && <span className="text-xs font-medium">{label}</span>}
+                    </NavLink>
+                    {collapsed && (
+                      <span className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-200">
+                        {label}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </nav>
   );
 };
 
