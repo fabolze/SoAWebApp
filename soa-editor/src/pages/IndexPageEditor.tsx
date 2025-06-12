@@ -5,6 +5,27 @@ import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import DarkModeToggle from '../components/DarkModeToggle';
+import {
+  HomeIcon,
+  SparklesIcon,
+  BeakerIcon,
+  ChartBarIcon,
+  UserGroupIcon,
+  ChatBubbleLeftRightIcon,
+  BookOpenIcon,
+  MapIcon,
+  UsersIcon,
+  FlagIcon,
+  CubeIcon,
+  BuildingStorefrontIcon,
+  ClipboardDocumentListIcon,
+  PuzzlePieceIcon,
+  AcademicCapIcon,
+  ClockIcon,
+  DocumentTextIcon,
+  Squares2X2Icon,
+} from '@heroicons/react/24/outline';
+
 
 const IndexPage = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -34,6 +55,32 @@ const IndexPage = () => {
     { path: '/timelines', name: 'Timelines Editor' },
   ];
 
+const pageIcons: Record<string, React.ElementType> = {
+  '/abilities': SparklesIcon,
+  '/effects': BeakerIcon,
+  '/attributes': ChartBarIcon,
+  '/characterclasses': AcademicCapIcon,
+  '/dialogue-nodes': ChatBubbleLeftRightIcon,
+  '/dialogues': ChatBubbleLeftRightIcon,
+  '/encounters': ClipboardDocumentListIcon,
+  '/enemies': FlagIcon,
+  '/events': ClipboardDocumentListIcon,
+  '/factions': UserGroupIcon,
+  '/flags': FlagIcon,
+  '/items': CubeIcon,
+  '/locations': MapIcon,
+  '/lore-entries': BookOpenIcon,
+  '/npcs': UsersIcon,
+  '/quests': DocumentTextIcon,
+  '/requirements': PuzzlePieceIcon,
+  '/shops': BuildingStorefrontIcon,
+  '/shops-inventory': ClipboardDocumentListIcon,
+  '/stats': ChartBarIcon,
+  '/story-arcs': Squares2X2Icon,
+  '/timelines': ClockIcon,
+};
+
+
   return (
     <div className="min-h-screen flex flex-row bg-gray-100 dark:bg-gray-900 font-sans">
       <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((c) => !c)} />
@@ -43,22 +90,28 @@ const IndexPage = () => {
           <DarkModeToggle />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {pages.map((page) => (
-            <Link
-              key={page.path}
-              to={page.path}
-              className="card w-full bg-base-100 shadow-xl hover:shadow-2xl transition-transform hover:-translate-y-1 rounded-xl border border-gray-200 dark:border-gray-700 group focus:outline-none focus:ring-2 focus:ring-primary/40"
-              tabIndex={0}
-              aria-label={page.name}
-            >
-              <div className="card-body flex flex-col items-center justify-center p-6">
-                <span className="mb-3 w-12 h-12 flex items-center justify-center rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition text-2xl">
-                  <img src="/vite.svg" alt="icon" className="w-8 h-8" />
-                </span>
-                <h2 className="text-xl font-semibold text-primary mb-0 dark:text-primary-content text-center group-hover:text-white transition">{page.name}</h2>
-              </div>
-            </Link>
-          ))}
+          {pages.map((page) => {
+            const Icon = pageIcons[page.path] || HomeIcon;
+            return (
+              <Link
+                key={page.path}
+                to={page.path}
+                className="card w-full bg-base-100 shadow-xl hover:shadow-2xl transition-transform hover:-translate-y-1 rounded-xl border border-gray-200 dark:border-gray-700 group focus:outline-none focus:ring-2 focus:ring-primary/40"
+                tabIndex={0}
+                aria-label={page.name}
+              >
+                <div className="card-body flex flex-col items-center justify-center p-6">
+                  <span className="mb-3 w-12 h-12 flex items-center justify-center rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition">
+                    <Icon className="w-8 h-8" />
+                  </span>
+                  <h2 className="text-xl font-semibold text-primary mb-0 dark:text-primary-content text-center group-hover:text-white transition">
+                    {page.name}
+                  </h2>
+                </div>
+              </Link>
+            );
+          })}
+
         </div>
       </main>
     </div>
