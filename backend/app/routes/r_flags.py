@@ -39,15 +39,7 @@ class FlagRoute(BaseRoute):
         flag.tags = data.get("tags", [])
 
     def serialize_item(self, flag: Flag) -> Dict[str, Any]:
-        return {
-            "id": flag.id,
-            "name": flag.name,
-            "description": flag.description,
-            "flag_type": flag.flag_type.value if flag.flag_type else None,
-            "default_value": flag.default_value,
-            "content_pack": flag.content_pack.value if flag.content_pack else None,
-            "tags": flag.tags
-        }
+        return self.serialize_model(flag)
     
     def get_all(self):
         db_session = get_db_session()

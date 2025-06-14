@@ -45,15 +45,7 @@ class DialogueRoute(BaseRoute):
         dialogue.tags = data.get("tags", [])
 
     def serialize_item(self, dialogue: Dialogue) -> Dict[str, Any]:
-        return {
-            "id": dialogue.id,
-            "title": dialogue.title,
-            "description": dialogue.description,
-            "npc_id": dialogue.npc_id,
-            "location_id": dialogue.location_id,
-            "requirements_id": dialogue.requirements_id,
-            "tags": dialogue.tags
-        }
+        return self.serialize_model(dialogue)
     
     def get_all(self):
         db_session = get_db_session()

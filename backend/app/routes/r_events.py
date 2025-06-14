@@ -65,20 +65,7 @@ class EventRoute(BaseRoute):
         event.xp_reward = data.get("xp_reward")
         
     def serialize_item(self, event: Event) -> Dict[str, Any]:
-        return {
-            "id": event.id,
-            "title": event.title,
-            "type": event.type.value if event.type else None,
-            "requirements_id": event.requirements_id,
-            "location_id": event.location_id,
-            "lore_id": event.lore_id,
-            "dialogue_id": event.dialogue_id,
-            "encounter_id": event.encounter_id,
-            "item_rewards": event.item_rewards,
-            "xp_reward": event.xp_reward,
-            "flags_set": event.flags_set,
-            "next_event_id": event.next_event_id
-        }
+        return self.serialize_model(event)
     
     def get_all(self):
         db_session = get_db_session()

@@ -55,18 +55,7 @@ class StoryArcRoute(BaseRoute):
         story_arc.tags = data.get("tags", [])
 
     def serialize_item(self, story_arc: StoryArc) -> Dict[str, Any]:
-        return {
-            "id": story_arc.id,
-            "title": story_arc.title,
-            "summary": story_arc.summary,
-            "type": story_arc.type.value if story_arc.type else None,
-            "content_pack": story_arc.content_pack.value if story_arc.content_pack else None,
-            "timeline_id": story_arc.timeline_id,
-            "related_quests": story_arc.related_quests,
-            "branching": story_arc.branching,
-            "required_flags": story_arc.required_flags,
-            "tags": story_arc.tags
-        }
+        return self.serialize_model(story_arc)
 
     def get_all(self):
         db_session = get_db_session()

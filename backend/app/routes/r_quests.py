@@ -58,18 +58,7 @@ class QuestRoute(BaseRoute):
         quest.tags = data.get("tags", [])
 
     def serialize_item(self, quest: Quest) -> Dict[str, Any]:
-        return {
-            "id": quest.id,
-            "title": quest.title,
-            "description": quest.description,
-            "story_arc_id": quest.story_arc_id,
-            "requirements_id": quest.requirements_id,
-            "objectives": quest.objectives,
-            "flags_set_on_completion": quest.flags_set_on_completion,
-            "xp_reward": quest.xp_reward,
-            "item_rewards": quest.item_rewards,
-            "tags": quest.tags
-        }
+        return self.serialize_model(quest)
 
     def get_all(self):
         db_session = get_db_session()

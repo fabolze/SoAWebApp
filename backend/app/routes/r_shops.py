@@ -46,16 +46,7 @@ class ShopRoute(BaseRoute):
         shop.tags = data.get("tags", [])
         
     def serialize_item(self, shop: Shop) -> Dict[str, Any]:
-        return {
-            "id": shop.id,
-            "name": shop.name,
-            "description": shop.description,
-            "location_id": shop.location_id,
-            "npc_id": shop.npc_id,
-            "requirements_id": shop.requirements_id,
-            "price_modifiers": shop.price_modifiers,
-            "tags": shop.tags
-        }
+        return self.serialize_model(shop)
         
     def get_all(self):
         db_session = get_db_session()

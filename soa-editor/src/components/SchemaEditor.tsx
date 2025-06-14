@@ -2,7 +2,6 @@
 // This file acts as a template for the other pages
 import { useState, useEffect } from "react";
 import { useRef } from "react";
-import Sidebar from "./Sidebar";
 import EntryListPanel from "./EntryListPanel";
 import EntryFormPanel from "./EntryFormPanel";
 
@@ -21,7 +20,6 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   const [formValid, setFormValid] = useState(true);
   const [referenceOptionsVersion, setReferenceOptionsVersion] = useState(0);
   const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confirmRef = useRef<HTMLDialogElement>(null);
 
@@ -187,7 +185,6 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
 
   return (
     <div className="min-h-screen flex flex-row bg-gray-100 font-sans">
-      <Sidebar collapsed={collapsed} onToggleCollapse={() => setCollapsed((c) => !c)} />
       <div className="flex flex-1 flex-row h-screen">
         <EntryListPanel
           entries={sortedEntries}

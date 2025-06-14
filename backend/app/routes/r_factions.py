@@ -46,16 +46,7 @@ class FactionRoute(BaseRoute):
         faction.tags = data.get("tags", [])
 
     def serialize_item(self, faction: Faction) -> Dict[str, Any]:
-        return {
-            "id": faction.id,
-            "name": faction.name,
-            "description": faction.description,
-            "alignment": faction.alignment.value if faction.alignment else None,
-            "relationships": faction.relationships,
-            "reputation_config": faction.reputation_config,
-            "tags": faction.tags,
-            "icon_path": faction.icon_path
-        }
+        return self.serialize_model(faction)
 
     def get_all(self):
         db_session = get_db_session()

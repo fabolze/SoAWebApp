@@ -61,22 +61,7 @@ class LocationRoute(BaseRoute):
         location.tags = data.get("tags", [])
         
     def serialize_item(self, location: Location) -> Dict[str, Any]:
-        return {
-            "id": location.id,
-            "name": location.name,
-            "description": location.description,
-            "biome": location.biome.value if location.biome else None,
-            "region": location.region,
-            "level_range": location.level_range,
-            "coordinates": location.coordinates,
-            "image_path": location.image_path,
-            "encounters": location.encounters,
-            "is_safe_zone": location.is_safe_zone,
-            "is_fast_travel_point": location.is_fast_travel_point,
-            "has_respawn_point": location.has_respawn_point,
-            "connected_locations": location.connected_locations,
-            "tags": location.tags
-        }
+        return self.serialize_model(location)
         
     def get_all(self):
         db_session = get_db_session()

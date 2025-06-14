@@ -62,6 +62,7 @@ class Item(Base):
 
     effects = Column(JSON)  # Array of strings
     tags = Column(JSON)  # List of string tags
+    icon_path = Column(String)
 
     requirements_id = Column(String, ForeignKey('requirements.id'))  # FK to shared requirements
     requirements = relationship("Requirement")  # Optional: back_populates if needed

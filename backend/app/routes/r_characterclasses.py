@@ -39,18 +39,7 @@ class ClassRoute(BaseRoute):
            char_class.tags = data.get("tags", [])
 
        def serialize_item(self, char_class: CharacterClass) -> Dict[str, Any]:  # CORRECTED HERE
-           return {
-               "id": char_class.id,
-               "name": char_class.name,
-               "description": char_class.description,
-               "role": char_class.role.value if char_class.role else None,
-               "base_stats": char_class.base_stats,
-               "stat_growth": char_class.stat_growth,
-               "starting_abilities": char_class.starting_abilities,
-               "preferred_attributes": char_class.preferred_attributes,
-               "starting_equipment": char_class.starting_equipment,
-               "tags": char_class.tags
-           }
+           return self.serialize_model(char_class)
 
        def get_all(self):
            db_session = get_db_session()

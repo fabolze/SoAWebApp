@@ -58,24 +58,12 @@ class EffectRoute(BaseRoute):
         # JSON fields
         effect.related_items = data.get("related_items", {})
         
+        # Tags field
+        if "tags" in data:
+            effect.tags = data["tags"]
+        
     def serialize_item(self, effect: Effect) -> Dict[str, Any]:
-        return {
-            "id": effect.id,
-            "name": effect.name,
-            "type": effect.type.value if effect.type else None,
-            "description": effect.description,
-            "target": effect.target.value if effect.target else None,
-            "duration": effect.duration,
-            "value_type": effect.value_type.value if effect.value_type else None,
-            "value": effect.value,
-            "attribute_id": effect.attribute_id,
-            "scaling_stat_id": effect.scaling_stat_id,
-            "trigger_condition": effect.trigger_condition.value if effect.trigger_condition else None,
-            "stackable": effect.stackable,
-            "set_bonus_group": effect.set_bonus_group,
-            "icon_path": effect.icon_path,
-            "related_items": effect.related_items
-        }
+        return self.serialize_model(effect)
         
     def get_all(self):
         db_session = get_db_session()

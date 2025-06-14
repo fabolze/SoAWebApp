@@ -68,15 +68,7 @@ class DialogueNodeRoute(BaseRoute):
         node.set_flags = data.get("set_flags", [])
 
     def serialize_item(self, node: DialogueNode) -> Dict[str, Any]:
-        return {
-            "id": node.id,
-            "dialogue_id": node.dialogue_id,
-            "speaker": node.speaker,
-            "text": node.text,
-            "requirements_id": node.requirements_id,
-            "choices": node.choices,
-            "set_flags": node.set_flags
-        }
+        return self.serialize_model(node)
     
     def get_dialogue_tree(self, dialogue_id: str):
         """Get all nodes for a specific dialogue."""

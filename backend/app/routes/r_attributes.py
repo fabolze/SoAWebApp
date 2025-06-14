@@ -63,27 +63,7 @@ class AttributeRoute(BaseRoute):
             db_session.add(link)
     
     def serialize_item(self, attribute: Attribute) -> Dict[str, Any]:
-        # Convert scaling links to expected format
-        results_in = [{
-            "stat_id": link.stat_id,
-            "scale": link.scale_type,
-            "multiplier": link.multiplier
-        } for link in attribute.scaling_links]
-        
-        return {
-            "id": attribute.id,
-            "name": attribute.name,
-            "description": attribute.description,
-            "value_type": attribute.value_type.value if attribute.value_type else None,
-            "default_value": attribute.default_value,
-            "min_value": attribute.min_value,
-            "max_value": attribute.max_value,
-            "scaling": attribute.scaling.value if attribute.scaling else None,
-            "results_in": results_in,
-            "used_in": attribute.used_in,
-            "icon_path": attribute.icon_path,
-            "tags": attribute.tags
-        }
+        return self.serialize_model(attribute)
     
     def get_all(self):
         db_session = get_db_session()

@@ -4,8 +4,10 @@ from typing import Any, Dict, List, Optional
 from backend.app.db.init_db import get_db_session
 from backend.app.models.base import Base
 from sqlalchemy.orm import Session
+from sqlalchemy.types import JSON, Enum
 import os
 import json
+import enum
 
 class BaseRoute:
     """Base class for route handlers that implements basic CRUD operations."""
@@ -156,13 +158,71 @@ class BaseRoute:
         """Extract the ID from the input data."""
         raise NotImplementedError
     
-    def process_input_data(self, db_session: Session, item: Any, data: Dict[str, Any]) -> None:
-        """Process and validate input data and update the item."""
-        raise NotImplementedError
-    
-    def serialize_item(self, item: Any) -> Dict[str, Any]:
-        """Convert a single item to a JSON-serializable dict."""
-        raise NotImplementedError
+    def serialize_model(self, model_instance: Any) -> Dict[str, Any]:
+        """Serialize any model instance dynamically, handling enums, JSON fields, relationships, and computed fields."""
+        serialized = {}
+        for column in model_instance.__table__.columns:
+            value = getattr(model_instance, column.name, None)
+            if isinstance(value, enum.Enum):
+                serialized[column.name] = value.value  # Convert enum to its string value
+            elif isinstance(value, list) or isinstance(value, dict):
+                serialized[column.name] = value  # Handle JSON fields
+            else:
+                serialized[column.name] = value
+
+        # Handle relationships
+        for relationship in model_instance.__mapper__.relationships:
+            related_value = getattr(model_instance, relationship.key, None)
+            if related_value is not None:
+                if isinstance(related_value, list):
+                    serialized[relationship.key] = [self.serialize_model(item) for item in related_value]
+                else:
+                    serialized[relationship.key] = self.serialize_model(related_value)
+
+        # Add computed fields if any
+        if hasattr(model_instance, "computed_fields"):
+            for field_name, compute_func in model_instance.computed_fields.items():
+                serialized[field_name] = compute_func(model_instance)
+
+        # Custom serialization for specific models
+        if hasattr(model_instance, "custom_serialization"):
+            serialized.update(model_instance.custom_serialization())
+
+        return serialized
+
+    def process_input_data(self, db_session: Session, model_instance: Any, data: Dict[str, Any]) -> None:
+        """Process input data for model instance, handling enums, relationships, and JSON fields."""
+        # Validate required fields
+        self.validate_required_fields(data, [column.name for column in model_instance.__table__.columns if not column.nullable])
+
+        # Validate enums
+        enum_fields = {column.name: column.type.enum_class for column in model_instance.__table__.columns if isinstance(column.type, Enum)}
+        self.validate_enums(data, enum_fields)
+
+        # Assign values to model instance
+        for column in model_instance.__table__.columns:
+            if column.name in data:
+                setattr(model_instance, column.name, data[column.name])
+
+        # Handle relationships
+        for relationship in model_instance.__mapper__.relationships:
+            if relationship.key in data:
+                related_data = data[relationship.key]
+                if isinstance(related_data, list):
+                    related_instances = [db_session.query(relationship.mapper.class_).get(item) for item in related_data]
+                    setattr(model_instance, relationship.key, related_instances)
+                else:
+                    related_instance = db_session.query(relationship.mapper.class_).get(related_data)
+                    setattr(model_instance, relationship.key, related_instance)
+
+        # Custom validation for specific models
+        if hasattr(model_instance, "custom_validation"):
+            model_instance.custom_validation(data)
+
+        # Update other fields
+        for key, value in data.items():
+            if hasattr(model_instance, key):
+                setattr(model_instance, key, value)
     
     def serialize_list(self, items: List[Any]) -> List[Dict[str, Any]]:
         """Convert a list of items to JSON-serializable dicts."""

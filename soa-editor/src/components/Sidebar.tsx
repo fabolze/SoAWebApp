@@ -15,13 +15,14 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   HomeIcon, SparklesIcon, BeakerIcon, ChartBarIcon, UserGroupIcon, ChatBubbleLeftRightIcon,
   BookOpenIcon, MapIcon, UsersIcon, FlagIcon, CubeIcon, BuildingStorefrontIcon,
   ClipboardDocumentListIcon, PuzzlePieceIcon, AcademicCapIcon, ClockIcon, DocumentTextIcon,
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
+import { Bars3Icon } from '@heroicons/react/24/outline';
 
 function SortableSidebarItem({ to, label, icon: Icon, collapsed, hidden, groupLabel }: {
   to: string;
@@ -37,36 +38,33 @@ function SortableSidebarItem({ to, label, icon: Icon, collapsed, hidden, groupLa
   });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
 
-  const dragStarted = useRef(false);
-
   return (
     <li
       ref={setNodeRef}
       style={style}
       className={`group relative ${hidden ? 'hidden' : ''}`}
       {...attributes}
-      {...listeners}
     >
-      <NavLink
-        to={to}
-        onMouseDown={() => { dragStarted.current = false; }}
-        onMouseMove={() => { dragStarted.current = true; }}
-        onClick={(e) => {
-          if (dragStarted.current) {
-            e.preventDefault();
-            e.stopPropagation();
-            dragStarted.current = false;
+      <div className="flex items-center gap-2">
+        <div
+          {...listeners}
+          className="cursor-grab p-1 focus:outline-none touch-action-none"
+          aria-label={`Drag item ${label}`}
+        >
+          <Bars3Icon className="w-4 h-4 text-slate-400" />
+        </div>
+        <NavLink
+          to={to}
+          className={({ isActive }) =>
+            `flex items-center ${collapsed ? 'justify-center' : 'gap-3'} py-2 px-2 rounded-md transition-colors duration-200 ${isActive ? 'bg-primary text-white' : 'hover:bg-slate-700'} font-medium ${isDragging ? 'pointer-events-none' : ''}`
           }
-        }}
-        className={({ isActive }) =>
-          `flex items-center ${collapsed ? 'justify-center' : 'gap-3'} py-2 px-2 rounded-md transition-colors duration-200 ${isActive ? 'bg-primary text-white' : 'hover:bg-slate-700'} font-medium`
-        }
-        title={label}
-        end={to === '/'}
-      >
-        <Icon className="w-5 h-5 text-white group-hover:text-primary transition-colors duration-200" />
-        {!collapsed && <span className="text-xs font-medium">{label}</span>}
-      </NavLink>
+          title={label}
+          end={to === '/'}
+        >
+          <Icon className="w-5 h-5 text-white group-hover:text-primary transition-colors duration-200" />
+          {!collapsed && <span className="text-xs font-medium">{label}</span>}
+        </NavLink>
+      </div>
       {collapsed && (
         <span className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-200">
           {label}
@@ -128,36 +126,62 @@ export default function Sidebar({ collapsed, onToggleCollapse }: { collapsed: bo
   const [menuGroups, setMenuGroups] = useState(DEFAULT_GROUPS);
 
   useEffect(() => {
+    console.log('Sidebar component mounted');
+
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return;
+      console.log('Loaded sidebar state:', stored);
+      if (!stored) {
+        console.log('No sidebar state found in localStorage, using defaults.');
+        setMenuGroups(DEFAULT_GROUPS);
+        setCollapsedGroups({});
+        return;
+      }
+
       const parsed = JSON.parse(stored);
-      const reordered = parsed.groupOrder.map((label: string) => {
-        const group = DEFAULT_GROUPS.find((g) => g.label === label);
-        if (!group) return null;
-        const itemOrder = parsed.itemOrder[label] || group.items.map((i) => i.to);
-        const sortedItems = itemOrder.map((id: string) => group.items.find((i) => i.to === id)).filter(Boolean);
-        return { ...group, items: sortedItems };
-      }).filter(Boolean);
+
+      const reordered = DEFAULT_GROUPS.map((defaultGroup) => {
+        const itemOrder = parsed.itemOrder[defaultGroup.label] || defaultGroup.items.map((i) => i.to);
+        const sortedItems = itemOrder.map((id: string) => defaultGroup.items.find((i) => i.to === id)).filter(Boolean);
+
+        return { ...defaultGroup, items: sortedItems };
+      });
+
       setMenuGroups(reordered);
       setCollapsedGroups(parsed.collapsedGroups || {});
-    } catch {
-      // Ignore localStorage parse errors
+    } catch (error) {
+      console.error('Failed to parse sidebar state from localStorage:', error);
+      setMenuGroups(DEFAULT_GROUPS);
+      setCollapsedGroups({});
     }
   }, []);
 
   useEffect(() => {
-    const state = {
-      groupOrder: menuGroups.map((g) => g.label),
-      itemOrder: Object.fromEntries(menuGroups.map((g) => [g.label, g.items.map((i) => i.to)])),
-      collapsedGroups,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    console.log('Sidebar state updated:', { menuGroups, collapsedGroups });
+
+    try {
+      const state = {
+        groupOrder: menuGroups.map((g) => g.label),
+        itemOrder: Object.fromEntries(menuGroups.map((g) => [g.label, g.items.map((i) => i.to)])),
+        collapsedGroups,
+      };
+      console.log('Saving sidebar state:', state);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (error) {
+      console.error('Failed to save sidebar state to localStorage:', error);
+    }
   }, [menuGroups, collapsedGroups]);
+
+  // Debugging: Log when the component mounts
+  useEffect(() => {
+    console.log('Sidebar component mounted');
+  }, []);
 
   const toggleGroup = (label: string) => setCollapsedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
 
-  const sensors = useSensors(useSensor(PointerSensor));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
 
   const handleDragStart = () => {};
 

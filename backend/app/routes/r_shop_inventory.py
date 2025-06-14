@@ -43,15 +43,7 @@ class ShopInventoryRoute(BaseRoute):
         inventory.tags = data.get("tags", [])
         
     def serialize_item(self, inventory: ShopInventory) -> Dict[str, Any]:
-        return {
-            "id": inventory.id,
-            "shop_id": inventory.shop_id,
-            "item_id": inventory.item_id,
-            "price": inventory.price,
-            "stock": inventory.stock,
-            "requirements_id": inventory.requirements_id,
-            "tags": inventory.tags
-        }
+        return self.serialize_model(inventory)
         
     def get_shop_inventory(self, shop_id: str):
         """Get inventory for a specific shop."""

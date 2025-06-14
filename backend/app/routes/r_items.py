@@ -76,30 +76,14 @@ class ItemRoute(BaseRoute):
         # JSON fields
         item.effects = data.get("effects", [])
         
+        # Additional fields
+        if "icon_path" in data:
+            item.icon_path = data["icon_path"]
+        if "tags" in data:
+            item.tags = data["tags"]
+            
     def serialize_item(self, item: Item) -> Dict[str, Any]:
-        return {
-            "id": item.id,
-            "name": item.name,
-            "type": item.type.value if item.type else None,
-            "rarity": item.rarity.value if item.rarity else None,
-            "description": item.description,
-            "equipment_slot": item.equipment_slot.value if item.equipment_slot else None,
-            "weapon_type": item.weapon_type.value if item.weapon_type else None,
-            "stats": {
-                "damage": item.stat_damage,
-                "defense": item.stat_defense,
-                "crit_chance": item.stat_crit_chance,
-                "weight": item.stat_weight
-            },
-            "attributes": {
-                "strength": item.attr_strength,
-                "dexterity": item.attr_dexterity,
-                "vitality": item.attr_vitality,
-                "intelligence": item.attr_intelligence
-            },
-            "effects": item.effects,
-            "requirements_id": item.requirements_id
-        }
+        return self.serialize_model(item)
     
     def get_all(self):
         db_session = get_db_session()

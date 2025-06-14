@@ -41,16 +41,7 @@ class TimelineRoute(BaseRoute):
         timeline.tags = data.get("tags", [])
 
     def serialize_item(self, timeline: Timeline) -> Dict[str, Any]:
-        return {
-            "id": timeline.id,
-            "name": timeline.name,
-            "description": timeline.description,
-            "start_year": timeline.start_year,
-            "end_year": timeline.end_year,
-            "story_arcs": timeline.story_arcs,
-            "events_order": timeline.events_order,
-            "tags": timeline.tags
-        }
+        return self.serialize_model(timeline)
 
     def get_all(self):
         db_session = get_db_session()

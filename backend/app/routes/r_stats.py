@@ -45,20 +45,7 @@ class StatRoute(BaseRoute):
         stat.tags = data.get("tags", [])
 
     def serialize_item(self, stat: Stat) -> Dict[str, Any]:
-        return {
-            "id": stat.id,
-            "name": stat.name,
-            "category": stat.category.value if stat.category else None,
-            "description": stat.description,
-            "value_type": stat.value_type.value if stat.value_type else None,
-            "default_value": stat.default_value,
-            "min_value": stat.min_value,
-            "max_value": stat.max_value,
-            "scaling_behavior": stat.scaling_behavior.value if stat.scaling_behavior else None,
-            "applies_to": stat.applies_to,
-            "icon_path": stat.icon_path,
-            "tags": stat.tags
-        }
+        return self.serialize_model(stat)
 
     def get_all(self):
         db_session = get_db_session()

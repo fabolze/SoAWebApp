@@ -56,22 +56,7 @@ class EnemyRoute(BaseRoute):
         enemy.related_quests = data.get("related_quests", [])
 
     def serialize_item(self, enemy: Enemy) -> Dict[str, Any]:
-        return {
-            "id": enemy.id,
-            "name": enemy.name,
-            "type": enemy.type.value if enemy.type else None,
-            "level": enemy.level,
-            "description": enemy.description,
-            "image_path": enemy.image_path,
-            "class_id": enemy.class_id,
-            "faction_id": enemy.faction_id,
-            "aggression": enemy.aggression.value if enemy.aggression else None,
-            "custom_stats": enemy.custom_stats,
-            "custom_abilities": enemy.custom_abilities,
-            "tags": enemy.tags,
-            "loot_table": enemy.loot_table,
-            "related_quests": enemy.related_quests
-        }
+        return self.serialize_model(enemy)
 
     def get_all(self):
         db_session = get_db_session()

@@ -62,16 +62,7 @@ class RequirementRoute(BaseRoute):
         requirement.tags = data.get("tags", [])
 
     def serialize_item(self, requirement: Requirement) -> Dict[str, Any]:
-        return {
-            "id": requirement.id,
-            "required_flags": [rf.flag_id for rf in requirement.required_flags],
-            "forbidden_flags": [ff.flag_id for ff in requirement.forbidden_flags],
-            "min_faction_reputation": [{
-                "faction_id": fr.faction_id,
-                "min": fr.min_value
-            } for fr in requirement.min_faction_reputation],
-            "tags": requirement.tags
-        }
+        return self.serialize_model(requirement)
 
     def get_all(self):
         db_session = get_db_session()

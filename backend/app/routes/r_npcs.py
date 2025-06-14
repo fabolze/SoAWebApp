@@ -85,22 +85,7 @@ class NPCRoute(BaseRoute):
         npc.tags = data.get("tags", [])
 
     def serialize_item(self, npc: NPC) -> Dict[str, Any]:
-        return {
-            "id": npc.id,
-            "name": npc.name,
-            "title": npc.title,
-            "description": npc.description,
-            "location_id": npc.location_id,
-            "faction_id": npc.faction_id,
-            "dialogue_tree_id": npc.dialogue_tree_id,
-            "image_path": npc.image_path,
-            "role": npc.role.value if npc.role else None,
-            "available_quests": npc.available_quests,
-            "inventory": npc.inventory,
-            "flags_set_on_interaction": npc.flags_set_on_interaction,
-            "companion_config": npc.companion_config,
-            "tags": npc.tags
-        }
+        return self.serialize_model(npc)
 
     def get_all(self):
         db_session = get_db_session()

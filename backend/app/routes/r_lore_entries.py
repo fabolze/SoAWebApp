@@ -48,15 +48,7 @@ class LoreEntryRoute(BaseRoute):
         entry.tags = data.get("tags", [])
 
     def serialize_item(self, entry: LoreEntry) -> Dict[str, Any]:
-        return {
-            "id": entry.id,
-            "title": entry.title,
-            "text": entry.text,
-            "location_id": entry.location_id,
-            "timeline_id": entry.timeline_id,
-            "related_story_arcs": entry.related_story_arcs,
-            "tags": entry.tags
-        }
+        return self.serialize_model(entry)
 
     def get_all(self):
         db_session = get_db_session()

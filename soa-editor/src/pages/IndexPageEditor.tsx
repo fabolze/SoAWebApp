@@ -2,8 +2,6 @@
 // This file is responsible for rendering the index page of the application.
 // It contains links to all the other pages in the application.
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
-import Sidebar from '../components/Sidebar';
 import DarkModeToggle from '../components/DarkModeToggle';
 import {
   HomeIcon,
@@ -28,8 +26,6 @@ import {
 
 
 const IndexPage = () => {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
   const pages = [
     { path: '/abilities', name: 'Abilities Editor' },
     { path: '/effects', name: 'Effects Editor' },
@@ -82,8 +78,7 @@ const pageIcons: Record<string, React.ElementType> = {
 
 
   return (
-    <div className="min-h-screen flex flex-row bg-gray-100 dark:bg-gray-900 font-sans">
-      <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed((c) => !c)} />
+    <div className="min-h-screen flex flex-col bg-gray-100 dark:bg-gray-900 font-sans">
       <main className="flex-1 p-8">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-semibold text-primary dark:text-primary-content">Welcome to the SoA Editor</h1>
