@@ -67,7 +67,9 @@ class EncounterRoute(BaseRoute):
         encounter.tags = data.get("tags", [])
         
     def serialize_item(self, encounter: Encounter) -> Dict[str, Any]:
-        return self.serialize_model(encounter)
+        serialized = self.serialize_model(encounter)
+        serialized['encounter_id'] = serialized.pop('id', None)  # Ensure encounter_id is used instead of id
+        return serialized
     
     def get_all(self):
         db_session = get_db_session()

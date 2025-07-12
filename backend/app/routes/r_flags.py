@@ -39,7 +39,9 @@ class FlagRoute(BaseRoute):
         flag.tags = data.get("tags", [])
 
     def serialize_item(self, flag: Flag) -> Dict[str, Any]:
-        return self.serialize_model(flag)
+        serialized = self.serialize_model(flag)
+        serialized['flag_id'] = serialized.pop('id', None)  # Ensure flag_id is used instead of id
+        return serialized
     
     def get_all(self):
         db_session = get_db_session()

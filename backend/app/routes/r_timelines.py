@@ -41,7 +41,9 @@ class TimelineRoute(BaseRoute):
         timeline.tags = data.get("tags", [])
 
     def serialize_item(self, timeline: Timeline) -> Dict[str, Any]:
-        return self.serialize_model(timeline)
+        serialized = self.serialize_model(timeline)
+        serialized['timeline_id'] = serialized.pop('id', None)  # Ensure timeline_id is used instead of id
+        return serialized
 
     def get_all(self):
         db_session = get_db_session()
