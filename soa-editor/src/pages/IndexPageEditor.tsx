@@ -49,6 +49,7 @@ const IndexPage = () => {
     { path: '/stats', name: 'Stats Editor' },
     { path: '/story-arcs', name: 'Story Arcs Editor' },
     { path: '/timelines', name: 'Timelines Editor' },
+    { path: '/db', name: 'Database Manager' },
   ];
 
 const pageIcons: Record<string, React.ElementType> = {
@@ -74,6 +75,7 @@ const pageIcons: Record<string, React.ElementType> = {
   '/stats': ChartBarIcon,
   '/story-arcs': Squares2X2Icon,
   '/timelines': ClockIcon,
+  '/db': BeakerIcon,
 };
 
 

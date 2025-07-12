@@ -77,7 +77,10 @@ function SortableSidebarItem({ to, label, icon: Icon, collapsed, hidden, groupLa
 const DEFAULT_GROUPS = [
   {
     label: 'System',
-    items: [ { to: '/', label: 'Home', icon: HomeIcon } ],
+    items: [
+      { to: '/', label: 'Home', icon: HomeIcon },
+      { to: '/db', label: 'Database Manager', icon: BeakerIcon }
+    ],
   },
   {
     label: 'Gameplay',

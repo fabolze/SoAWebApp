@@ -26,6 +26,7 @@ import ShopsInventoryEditorPage from "./pages/ShopsInventoryEditor";
 import StatsEditorPage from "./pages/StatsEditor";
 import StoryArcsEditorPage from "./pages/StoryArcsEditor";
 import TimelinesEditorPage from "./pages/TimelinesEditor";
+import DatabaseManagerPage from "./pages/DatabaseManagerPage";
 import './index.css';
 import './App.css';
 import Layout from './components/Layout';
@@ -68,6 +69,7 @@ const MainApp = () => {
             <Route path="stats" element={<StatsEditorPage />} />
             <Route path="story-arcs" element={<StoryArcsEditorPage />} />
             <Route path="timelines" element={<TimelinesEditorPage />} />
+            <Route path="db" element={<DatabaseManagerPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
