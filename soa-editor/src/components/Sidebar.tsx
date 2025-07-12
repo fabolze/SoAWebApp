@@ -20,7 +20,7 @@ import {
   HomeIcon, SparklesIcon, BeakerIcon, ChartBarIcon, UserGroupIcon, ChatBubbleLeftRightIcon,
   BookOpenIcon, MapIcon, UsersIcon, FlagIcon, CubeIcon, BuildingStorefrontIcon,
   ClipboardDocumentListIcon, PuzzlePieceIcon, AcademicCapIcon, ClockIcon, DocumentTextIcon,
-  Squares2X2Icon,
+  Squares2X2Icon, ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 
@@ -77,7 +77,10 @@ function SortableSidebarItem({ to, label, icon: Icon, collapsed, hidden, groupLa
 const DEFAULT_GROUPS = [
   {
     label: 'System',
-    items: [ { to: '/', label: 'Home', icon: HomeIcon } ],
+    items: [
+      { to: '/', label: 'Home', icon: HomeIcon },
+      { to: '/db-tools', label: 'Database Tools', icon: ArrowDownTrayIcon },
+    ],
   },
   {
     label: 'Gameplay',
