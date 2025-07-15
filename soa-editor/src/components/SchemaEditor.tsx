@@ -22,6 +22,8 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confirmRef = useRef<HTMLDialogElement>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importFileName, setImportFileName] = useState<string>("");
 
   useEffect(() => {
     import(`../../../backend/app/schemas/${schemaName}.json`).then(setSchema);
@@ -183,11 +185,86 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   const isNew = !editingId;
   const formHeader = isNew ? `New ${title.replace(/ Editor$/, '')}` : `Edit ${title.replace(/ Editor$/, '')}`;
 
+  // Import CSV handler
+  const handleImportCSV = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!importFile) return;
+    const formData = new FormData();
+    formData.append("file", importFile);
+    const res = await fetch(`http://localhost:5000/api/import/csv/${apiPath}`, {
+      method: "POST",
+      body: formData,
+    });
+    if (res.ok) {
+      setToast({ type: "success", message: "Imported successfully ✅" });
+      // Refresh entries
+      const updated = await fetch(`http://localhost:5000/api/${apiPath}`).then((r) => r.json());
+      setEntries(updated);
+    } else {
+      let msg = "❌ Import failed";
+      try {
+        const err = await res.json();
+        if (err && err.error) msg += `: ${err.error}`;
+      } catch {}
+      setToast({ type: "error", message: msg });
+    }
+    if (toastTimeout.current) clearTimeout(toastTimeout.current);
+    toastTimeout.current = setTimeout(() => setToast(null), 3000);
+    setImportFile(null);
+    setImportFileName("");
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files && e.target.files[0];
+    setImportFile(file || null);
+    setImportFileName(file ? file.name : "");
+  };
+
   return (
-    <div className="min-h-screen flex flex-row bg-gray-100 font-sans">
-      <div className="flex flex-1 flex-row h-screen">
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between p-6 pb-0">
+        <h2 className="text-2xl font-bold">{title}</h2>
+        <div className="flex gap-2 items-center">
+          <a
+            href={`http://localhost:5000/api/export/all-csv-zip`}
+            className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700"
+            download
+          >
+            Download All (ZIP)
+          </a>
+          <a
+            href={`http://localhost:5000/api/export/csv/${apiPath}`}
+            className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+            download
+          >
+            Download CSV
+          </a>
+          <form onSubmit={handleImportCSV} className="flex items-center gap-2">
+            <label htmlFor="csvFile" className="bg-gray-200 px-2 py-1 rounded cursor-pointer border border-gray-300 hover:bg-gray-300">
+              Choose CSV
+              <input
+                id="csvFile"
+                name="csvFile"
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </label>
+            <span className="text-xs text-gray-700 min-w-[80px] truncate" title={importFileName}>{importFileName || "No file chosen"}</span>
+            <button
+              type="submit"
+              className={`bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 ${!importFile ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={!importFile}
+            >
+              Import CSV
+            </button>
+          </form>
+        </div>
+      </div>
+      <div className="flex flex-row gap-6 flex-1 min-h-0">
         <EntryListPanel
-          entries={sortedEntries}
+          entries={filteredEntries}
           listFields={listFields}
           idField={idField}
           editingId={editingId}

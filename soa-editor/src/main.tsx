@@ -29,6 +29,7 @@ import TimelinesEditorPage from "./pages/TimelinesEditor";
 import './index.css';
 import './App.css';
 import Layout from './components/Layout';
+import SettingsPage from "./pages/SettingsPage";
 
 const MainApp = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -68,6 +69,7 @@ const MainApp = () => {
             <Route path="stats" element={<StatsEditorPage />} />
             <Route path="story-arcs" element={<StoryArcsEditorPage />} />
             <Route path="timelines" element={<TimelinesEditorPage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

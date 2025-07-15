@@ -27,6 +27,9 @@ from backend.app.routes.r_shop_inventory import bp as shop_inventory_bp
 from backend.app.routes.r_stats import bp as stats_bp
 from backend.app.routes.r_story_arcs import bp as story_arcs_bp
 from backend.app.routes.r_timelines import bp as timelines_bp
+from backend.app.routes.r_export import bp as export_bp
+from backend.app.routes.r_bulk_export import bp as bulk_export_bp
+from backend.app.routes.r_db_admin import bp as db_admin_bp
 
 def create_app() -> Flask:
     app = Flask(__name__)
@@ -72,7 +75,10 @@ def create_app() -> Flask:
         shop_inventory_bp,
         stats_bp,
         story_arcs_bp,
-        timelines_bp
+        timelines_bp,
+        export_bp,
+        bulk_export_bp,
+        db_admin_bp
     ]
     
     for blueprint in blueprints:
