@@ -264,7 +264,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
       </div>
       <div className="flex flex-row gap-6 flex-1 min-h-0">
         <EntryListPanel
-          entries={filteredEntries}
+          entries={sortedEntries}
           listFields={listFields}
           idField={idField}
           editingId={editingId}
