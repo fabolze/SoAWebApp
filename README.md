@@ -8,8 +8,6 @@ This repository contains a Flask backend and a React frontend.
 python -m venv .venv
 # On Windows
 .\.venv\Scripts\Activate.ps1
-# On macOS/Linux
-source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
