@@ -2,6 +2,7 @@
 
 from sqlalchemy import Column, String, Boolean, Enum, Text, JSON
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 import enum
 
 
@@ -27,7 +28,8 @@ class ContentPack(enum.Enum):
 class Flag(Base):
     __tablename__ = 'flags'
 
-    id = Column(String, primary_key=True)  # Unique ID
+    id = Column(String, primary_key=True, default=generate_ulid)  # Unique ID
+    slug = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=False)
 

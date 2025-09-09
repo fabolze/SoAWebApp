@@ -21,10 +21,10 @@ class DialogueNodeRoute(BaseRoute):
         self.bp.route("/api/dialogues/<dialogue_id>/nodes", methods=["GET"])(self.get_dialogue_tree)
         
     def get_required_fields(self) -> List[str]:
-        return ["node_id", "dialogue_id", "speaker", "text"]
+        return ["id", "slug", "dialogue_id", "speaker", "text"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["node_id"]
+        return data["id"]
     
     def process_input_data(self, db_session: Session, node: DialogueNode, data: Dict[str, Any]) -> None:
         # Validate relationships
@@ -34,6 +34,7 @@ class DialogueNodeRoute(BaseRoute):
         })
         
         # Required fields
+        node.slug = data["slug"]
         node.dialogue_id = data["dialogue_id"]
         node.speaker = data["speaker"]
         node.text = data["text"]

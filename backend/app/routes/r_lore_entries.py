@@ -17,10 +17,10 @@ class LoreEntryRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["lore_id", "title", "text"]
+        return ["id", "slug", "title", "text"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["lore_id"]
+        return data["id"]
     
     def process_input_data(self, db_session: Session, entry: LoreEntry, data: Dict[str, Any]) -> None:
         # Validate relationships
@@ -30,6 +30,7 @@ class LoreEntryRoute(BaseRoute):
         })
         
         # Required fields
+        entry.slug = data["slug"]
         entry.title = data["title"]
         entry.text = data["text"]
         

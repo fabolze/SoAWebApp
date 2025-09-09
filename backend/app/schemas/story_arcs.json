@@ -3,10 +3,14 @@
   "title": "Story Arc",
   "type": "object",
   "properties": {
-    "story_arc_id": {
+    "id": {
       "type": "string",
       "description": "Unique ID for this story arc",
       "ui": { "widget": "hidden" }
+    },
+    "slug": {
+      "type": "string",
+      "ui": { "widget": "text", "label": "ID/Slug" }
     },
     "title": {
       "type": "string",
@@ -114,7 +118,8 @@
     }
   },
   "required": [
-    "story_arc_id",
+    "id",
+    "slug",
     "title",
     "summary",
     "type",

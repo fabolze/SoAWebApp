@@ -3,11 +3,15 @@
   "title": "Effect",
   "type": "object",
   "properties": {
-    "effect_id": {
+    "id": {
       "type": "string",
       "ui": {
         "widget": "hidden"
       }
+    },
+    "slug": {
+      "type": "string",
+      "ui": { "widget": "text", "label": "ID/Slug" }
     },
     "name": {
       "type": "string",
@@ -151,5 +155,5 @@
       "ui": { "widget": "tags", "label": "Tags" }
     }
   },
-  "required": ["effect_id", "name", "type", "target"]
+  "required": ["id", "slug", "name", "type", "target"]
 }

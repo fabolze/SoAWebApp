@@ -14,10 +14,10 @@ class FlagRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["flag_id", "name", "description"]
+        return ["id", "slug", "name", "description"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["flag_id"]
+        return data["id"]
     
     def process_input_data(self, db_session: Session, flag: Flag, data: Dict[str, Any]) -> None:
         # Validate enums
@@ -27,6 +27,7 @@ class FlagRoute(BaseRoute):
         })
         
         # Required fields
+        flag.slug = data["slug"]
         flag.name = data["name"]
         flag.description = data["description"]
         
@@ -39,9 +40,7 @@ class FlagRoute(BaseRoute):
         flag.tags = data.get("tags", [])
 
     def serialize_item(self, flag: Flag) -> Dict[str, Any]:
-        serialized = self.serialize_model(flag)
-        serialized['flag_id'] = serialized.pop('id', None)  # Ensure flag_id is used instead of id
-        return serialized
+        return self.serialize_model(flag)
     
     def get_all(self):
         db_session = get_db_session()

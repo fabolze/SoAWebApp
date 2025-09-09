@@ -18,10 +18,10 @@ class EncounterRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["encounter_id", "name", "encounter_type"]
+        return ["id", "slug", "name", "encounter_type"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["encounter_id"]
+        return data["id"]
         
     def process_input_data(self, db_session: Session, encounter: Encounter, data: Dict[str, Any]) -> None:
         # Validate enums
@@ -35,6 +35,7 @@ class EncounterRoute(BaseRoute):
         })
         
         # Required fields
+        encounter.slug = data["slug"]
         encounter.name = data["name"]
         encounter.encounter_type = data["encounter_type"]  # Already converted to enum
         
@@ -67,9 +68,7 @@ class EncounterRoute(BaseRoute):
         encounter.tags = data.get("tags", [])
         
     def serialize_item(self, encounter: Encounter) -> Dict[str, Any]:
-        serialized = self.serialize_model(encounter)
-        serialized['encounter_id'] = serialized.pop('id', None)  # Ensure encounter_id is used instead of id
-        return serialized
+        return self.serialize_model(encounter)
     
     def get_all(self):
         db_session = get_db_session()

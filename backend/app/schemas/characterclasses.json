@@ -3,10 +3,14 @@
     "title": "Character Class",
     "type": "object",
     "properties": {
-      "class_id": {
+      "id": {
         "type": "string",
         "description": "Unique identifier for this class",
         "ui": { "widget": "hidden" }
+      },
+      "slug": {
+        "type": "string",
+        "ui": { "widget": "text", "label": "ID/Slug" }
       },
       "name": {
         "type": "string",
@@ -100,5 +104,5 @@
         }
       }
     },
-    "required": ["class_id", "name", "role", "base_stats"]
+    "required": ["id", "slug", "name", "role", "base_stats"]
   }

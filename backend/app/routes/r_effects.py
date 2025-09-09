@@ -16,10 +16,10 @@ class EffectRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["effect_id", "name", "type", "target"]
+        return ["id", "slug", "name", "type", "target"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["effect_id"]
+        return data["id"]
         
     def process_input_data(self, db_session: Session, effect: Effect, data: Dict[str, Any]) -> None:
         # Validate enums
@@ -37,6 +37,7 @@ class EffectRoute(BaseRoute):
         })
         
         # Required fields
+        effect.slug = data["slug"]
         effect.name = data["name"]
         effect.type = data["type"]  # Already converted to enum
         effect.target = data["target"]  # Already converted to enum

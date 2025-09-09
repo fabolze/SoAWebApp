@@ -16,10 +16,10 @@ class StoryArcRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["story_arc_id", "title", "summary", "type", "content_pack", "related_quests"]
+        return ["id", "slug", "title", "summary", "type", "content_pack", "related_quests"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["story_arc_id"]
+        return data["id"]
     
     def process_input_data(self, db_session: Session, story_arc: StoryArc, data: Dict[str, Any]) -> None:
         # Validate enums
@@ -34,6 +34,7 @@ class StoryArcRoute(BaseRoute):
         })
         
         # Required fields
+        story_arc.slug = data["slug"]
         story_arc.title = data["title"]
         story_arc.summary = data["summary"]
         story_arc.type = data["type"]  # Already converted to enum

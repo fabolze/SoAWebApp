@@ -3,12 +3,16 @@
     "title": "NPC",
     "type": "object",
     "properties": {
-        "npc_id": {
+        "id": {
             "type": "string",
             "description": "Unique ID",
             "ui": {
                 "widget": "hidden"
             }
+        },
+        "slug": {
+            "type": "string",
+            "ui": { "widget": "text", "label": "ID/Slug" }
         },
         "name": {
             "type": "string",
@@ -214,7 +218,8 @@
         }
     },
     "required": [
-        "npc_id",
+        "id",
+        "slug",
         "name"
     ]
 }

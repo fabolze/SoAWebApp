@@ -3,10 +3,14 @@
   "title": "Quest",
   "type": "object",
   "properties": {
-    "quest_id": {
+    "id": {
       "type": "string",
       "description": "Unique ID for the quest",
       "ui": { "widget": "hidden" }
+    },
+    "slug": {
+      "type": "string",
+      "ui": { "widget": "text", "label": "ID/Slug" }
     },
     "title": {
       "type": "string",
@@ -108,5 +112,5 @@
       "ui": { "widget": "tags", "label": "Tags" }
     }
   },
-  "required": ["quest_id", "title", "description"]
+  "required": ["id", "slug", "title", "description"]
 }

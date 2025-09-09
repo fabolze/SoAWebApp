@@ -8,6 +8,10 @@
         "description": "Unique identifier",
         "ui": { "widget": "hidden" }
       },
+      "slug": {
+        "type": "string",
+        "ui": { "widget": "text", "label": "ID/Slug" }
+      },
       "name": {
         "type": "string",
         "description": "Display name of the ability",
@@ -124,5 +128,5 @@
         }
       }
     },
-    "required": ["id", "name", "type"]
+    "required": ["id", "slug", "name", "type"]
   }

@@ -3,12 +3,16 @@
     "title": "Location",
     "type": "object",
     "properties": {
-      "location_id": {
+      "id": {
         "type": "string",
         "description": "Unique ID for the location",
         "ui": {
           "widget": "hidden"
         }
+      },
+      "slug": {
+        "type": "string",
+        "ui": { "widget": "text", "label": "ID/Slug" }
       },
       "name": {
         "type": "string",
@@ -113,6 +117,6 @@
         }
       }
     },
-    "required": ["location_id", "name", "biome"]
+    "required": ["id", "slug", "name", "biome"]
   }
   

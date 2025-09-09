@@ -16,10 +16,10 @@ class EnemyRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["enemy_id", "name", "type", "level"]
+        return ["id", "slug", "name", "type", "level"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["enemy_id"]
+        return data["id"]
     
     def process_input_data(self, db_session: Session, enemy: Enemy, data: Dict[str, Any]) -> None:
         # Validate enums
@@ -35,6 +35,7 @@ class EnemyRoute(BaseRoute):
         })
         
         # Required fields
+        enemy.slug = data["slug"]
         enemy.name = data["name"]
         enemy.type = data["type"]  # Already converted to enum
         enemy.level = data["level"]

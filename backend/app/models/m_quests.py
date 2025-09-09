@@ -3,13 +3,15 @@
 from sqlalchemy import Column, String, Float, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 
 
 
 class Quest(Base):
     __tablename__ = 'quests'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=False)
 

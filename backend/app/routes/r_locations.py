@@ -14,10 +14,10 @@ class LocationRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["location_id", "name", "biome"]
+        return ["id", "slug", "name", "biome"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["location_id"]
+        return data["id"]
         
     def process_input_data(self, db_session: Session, location: Location, data: Dict[str, Any]) -> None:
         # Validate enums
@@ -26,6 +26,7 @@ class LocationRoute(BaseRoute):
         })
         
         # Required fields
+        location.slug = data["slug"]
         location.name = data["name"]
         location.biome = data["biome"]  # Already converted to enum
         
@@ -61,9 +62,7 @@ class LocationRoute(BaseRoute):
         location.tags = data.get("tags", [])
         
     def serialize_item(self, location: Location) -> Dict[str, Any]:
-        serialized = self.serialize_model(location)
-        serialized['location_id'] = serialized.pop('id', None)  # Ensure location_id is used instead of id
-        return serialized
+        return self.serialize_model(location)
         
     def get_all(self):
         db_session = get_db_session()

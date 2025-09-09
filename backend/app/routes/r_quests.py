@@ -17,10 +17,10 @@ class QuestRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["quest_id", "title", "description"]
+        return ["id", "slug", "title", "description"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["quest_id"]
+        return data["id"]
     
     def process_input_data(self, db_session: Session, quest: Quest, data: Dict[str, Any]) -> None:
         # Validate relationships
@@ -30,6 +30,7 @@ class QuestRoute(BaseRoute):
         })
         
         # Required fields
+        quest.slug = data["slug"]
         quest.title = data["title"]
         quest.description = data["description"]
         

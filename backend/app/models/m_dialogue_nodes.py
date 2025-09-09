@@ -3,13 +3,15 @@
 from sqlalchemy import Column, String, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 
 
 
 class DialogueNode(Base):
     __tablename__ = 'dialogue_nodes'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
     dialogue_id = Column(String, ForeignKey('dialogues.id'), nullable=False)  # FK to dialogue group/flow
     speaker = Column(String, nullable=False)
     text = Column(Text, nullable=False)

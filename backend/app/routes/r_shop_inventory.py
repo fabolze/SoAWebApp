@@ -17,10 +17,10 @@ class ShopInventoryRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["inventory_id", "shop_id", "item_id", "price"]
+        return ["id", "slug", "shop_id", "item_id", "price"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["inventory_id"]
+        return data["id"]
         
     def process_input_data(self, db_session: Session, inventory: ShopInventory, data: Dict[str, Any]) -> None:
         # Validate relationships
@@ -31,6 +31,7 @@ class ShopInventoryRoute(BaseRoute):
         })
         
         # Required fields
+        inventory.slug = data["slug"]
         inventory.shop_id = data["shop_id"]
         inventory.item_id = data["item_id"]
         inventory.price = float(data["price"])

@@ -4,6 +4,7 @@ from sqlalchemy import Column, String, Integer, Float, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
 from sqlalchemy.dialects.postgresql import JSON
+from backend.app.utils.id import generate_ulid
 
 
 
@@ -11,7 +12,8 @@ from sqlalchemy.dialects.postgresql import JSON
 class Requirement(Base):
     __tablename__ = 'requirements'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
     tags = Column(JSON)  # List of string tags
 
     required_flags = relationship("RequirementRequiredFlag", back_populates="requirement", cascade="all, delete-orphan")
@@ -22,7 +24,7 @@ class Requirement(Base):
 class RequirementRequiredFlag(Base):
     __tablename__ = 'requirement_required_flags'
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
     requirement_id = Column(String, ForeignKey('requirements.id'), nullable=False)
     flag_id = Column(String, ForeignKey('flags.id'), nullable=False)
 
@@ -33,7 +35,7 @@ class RequirementRequiredFlag(Base):
 class RequirementForbiddenFlag(Base):
     __tablename__ = 'requirement_forbidden_flags'
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
     requirement_id = Column(String, ForeignKey('requirements.id'), nullable=False)
     flag_id = Column(String, ForeignKey('flags.id'), nullable=False)
 
@@ -44,7 +46,7 @@ class RequirementForbiddenFlag(Base):
 class RequirementMinFactionReputation(Base):
     __tablename__ = 'requirement_min_faction_reputation'
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
     requirement_id = Column(String, ForeignKey('requirements.id'), nullable=False)
     faction_id = Column(String, nullable=False)
     min_value = Column(Float, nullable=False)

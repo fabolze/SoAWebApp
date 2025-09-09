@@ -3,6 +3,7 @@
 from sqlalchemy import Column, Integer, String, Float, Enum, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 import enum
 
 
@@ -15,7 +16,7 @@ class ScaleType(enum.Enum):
 class AttributeStatLink(Base):
     __tablename__ = 'attribute_stat_links'
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
     attribute_id = Column(String, ForeignKey("attributes.id"), nullable=False)
     stat_id = Column(String, ForeignKey("stats.id"), nullable=False)
     scale = Column(Enum(ScaleType), nullable=False)

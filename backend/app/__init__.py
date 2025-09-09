@@ -3,6 +3,7 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 from backend.app.db.init_db import init_db
+from backend.app.utils.id import generate_ulid
 
 ########## Blueprints Import ##########
 from backend.app.routes.r_abilities import bp as abilities_bp
@@ -30,6 +31,9 @@ from backend.app.routes.r_timelines import bp as timelines_bp
 from backend.app.routes.r_export import bp as export_bp
 from backend.app.routes.r_bulk_export import bp as bulk_export_bp
 from backend.app.routes.r_db_admin import bp as db_admin_bp
+
+__all__ = ["create_app", "generate_ulid"]
+
 
 def create_app() -> Flask:
     app = Flask(__name__)

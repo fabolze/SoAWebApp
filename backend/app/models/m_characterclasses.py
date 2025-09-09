@@ -2,6 +2,7 @@
 
 from sqlalchemy import Column, String, Enum, Text, JSON
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 import enum
 
 
@@ -16,7 +17,8 @@ class ClassRole(enum.Enum):
 class CharacterClass(Base):
     __tablename__ = 'characterclasses'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
     description = Column(Text)
     role = Column(Enum(ClassRole), nullable=False)

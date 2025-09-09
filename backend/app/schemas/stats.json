@@ -10,6 +10,10 @@
           "widget": "hidden"
         }
       },
+      "slug": {
+        "type": "string",
+        "ui": { "widget": "text", "label": "ID/Slug" }
+      },
       "name": {
         "type": "string",
         "description": "Display name shown in UI (e.g., 'Damage', 'Vitality')",
@@ -107,5 +111,5 @@
         "ui": { "widget": "tags", "label": "Tags" }
       }
     },
-    "required": ["id", "name", "category", "value_type"]
+    "required": ["id", "slug", "name", "category", "value_type"]
   }

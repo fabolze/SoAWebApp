@@ -23,6 +23,9 @@ def export_all_csv_zip():
                 continue
             rows = session.query(model_class).all()
             columns = [c.name for c in model_class.__table__.columns]
+            # Ensure id and slug appear first if present
+            head = [c for c in ["id", "slug"] if c in columns]
+            columns = head + [c for c in columns if c not in head]
             csv_path = os.path.join(temp_dir, f"{table_name}.csv")
             with open(csv_path, "w", newline='', encoding="utf-8") as f:
                 writer = csv.writer(f)

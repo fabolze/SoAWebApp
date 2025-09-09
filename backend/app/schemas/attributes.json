@@ -7,6 +7,10 @@
         "type": "string",
         "ui": { "widget": "hidden" }
       },
+      "slug": {
+        "type": "string",
+        "ui": { "widget": "text", "label": "ID/Slug" }
+      },
       "name": {
         "type": "string",
         "ui": { "widget": "text", "label": "Attribute Name" }
@@ -101,5 +105,5 @@
         "ui": { "widget": "tags", "label": "Tags" }
       }
     },
-    "required": ["id", "name", "value_type"]
+    "required": ["id", "slug", "name", "value_type"]
   }

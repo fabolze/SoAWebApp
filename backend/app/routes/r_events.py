@@ -20,10 +20,10 @@ class EventRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["event_id", "title", "type"]
+        return ["id", "slug", "title", "type"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["event_id"]
+        return data["id"]
         
     def process_input_data(self, db_session: Session, event: Event, data: Dict[str, Any]) -> None:
         # Validate enums
@@ -42,6 +42,7 @@ class EventRoute(BaseRoute):
         })
         
         # Required fields
+        event.slug = data["slug"]
         event.title = data["title"]
         event.type = data["type"]  # Already converted to enum
         
@@ -63,11 +64,10 @@ class EventRoute(BaseRoute):
         # JSON fields
         event.item_rewards = data.get("item_rewards", [])
         event.xp_reward = data.get("xp_reward")
+        event.tags = data.get("tags", [])
         
     def serialize_item(self, event: Event) -> Dict[str, Any]:
-        serialized = self.serialize_model(event)
-        serialized['event_id'] = serialized.pop('id', None)  # Ensure event_id is used instead of id
-        return serialized
+        return self.serialize_model(event)
     
     def get_all(self):
         db_session = get_db_session()

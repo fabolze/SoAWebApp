@@ -6,7 +6,6 @@ export default function EffectsEditorPage() {
       schemaName="effects"
       title="Effects Editor"
       apiPath="effects"
-      idField="effect_id"
     />
   );
 }

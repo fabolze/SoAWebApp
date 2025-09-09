@@ -3,10 +3,14 @@
   "title": "Enemy Unit",
   "type": "object",
   "properties": {
-    "enemy_id": {
+    "id": {
       "type": "string",
       "description": "Unique ID of this enemy",
       "ui": { "widget": "hidden" }
+    },
+    "slug": {
+      "type": "string",
+      "ui": { "widget": "text", "label": "ID/Slug" }
     },
     "name": {
       "type": "string",
@@ -110,5 +114,5 @@
       }
     }
   },
-  "required": ["enemy_id", "name", "level"]
+  "required": ["id", "slug", "name", "level"]
 }

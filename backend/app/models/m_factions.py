@@ -2,6 +2,7 @@
 
 from sqlalchemy import Column, String, Text, Enum, JSON
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 import enum
 
 
@@ -14,7 +15,8 @@ class Alignment(enum.Enum):
 class Faction(Base):
     __tablename__ = 'factions'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
     description = Column(Text)
 

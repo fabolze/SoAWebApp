@@ -16,7 +16,7 @@ class ItemRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["id", "name", "type"]
+        return ["id", "slug", "name", "type"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
         return data["id"]
@@ -42,6 +42,7 @@ class ItemRoute(BaseRoute):
                     raise ValueError(f"Invalid effect_id: {effect_id}")
         
         # Update fields
+        item.slug = data["slug"]
         item.name = data["name"]
         item.type = data["type"]  # Already converted to enum
         

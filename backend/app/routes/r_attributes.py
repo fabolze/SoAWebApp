@@ -29,6 +29,7 @@ class AttributeRoute(BaseRoute):
         })
         
         # Required fields
+        attribute.slug = data["slug"]
         attribute.name = data["name"]
         attribute.value_type = data["value_type"]  # Already converted to enum
         

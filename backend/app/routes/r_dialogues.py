@@ -17,13 +17,14 @@ class DialogueRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["dialogue_id", "title"]
+        return ["id", "slug", "title"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["dialogue_id"]
+        return data["id"]
     
     def process_input_data(self, db_session: Session, dialogue: Dialogue, data: Dict[str, Any]) -> None:
         # Required fields
+        dialogue.slug = data["slug"]
         dialogue.title = data["title"]
         
         # Optional fields

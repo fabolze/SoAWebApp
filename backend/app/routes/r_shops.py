@@ -17,10 +17,10 @@ class ShopRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["shop_id", "name"]
+        return ["id", "slug", "name"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["shop_id"]
+        return data["id"]
         
     def process_input_data(self, db_session: Session, shop: Shop, data: Dict[str, Any]) -> None:
         # Validate relationships
@@ -31,6 +31,7 @@ class ShopRoute(BaseRoute):
         })
         
         # Required fields
+        shop.slug = data["slug"]
         shop.name = data["name"]
         
         # Optional fields

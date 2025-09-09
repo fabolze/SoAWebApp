@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRef } from "react";
 import EntryListPanel from "./EntryListPanel";
 import EntryFormPanel from "./EntryFormPanel";
+import { generateUlid, generateSlug } from "../utils/generateId";
 
 interface SchemaEditorProps {
   schemaName: string;
@@ -88,9 +89,9 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     listFields = Object.entries(schema.properties || {})
       .filter(([_, config]: any) => config.ui && config.ui.list_display)
       .map(([key]) => key);
-    // Fallback: if none marked, use idField, name/title, type, role if present
+    // Fallback: if none marked, use id/slug/name/title etc. if present
     if (listFields.length === 0) {
-      const candidates = [idField, 'id', 'npc_id', 'name', 'title', 'type', 'role'];
+      const candidates = [idField, 'id', 'slug', 'name', 'title', 'type', 'role'];
       listFields = candidates.filter(f => f && fieldKeys.includes(f as string)) as string[];
       if (listFields.length === 0) listFields = fieldKeys.slice(0, 3); // fallback to first 3 fields
     }
@@ -100,11 +101,27 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   const editingId = data && data[idField] ? data[idField] : null;
 
   // Add New handler
-  const handleAddNew = () => setData({});
+  const handleAddNew = () => setData({ id: generateUlid() });
   // Duplicate handler
   const handleDuplicate = (entry: any) => {
     const copy = { ...entry };
-    if (idField) copy[idField] = '';
+    if (idField) copy[idField] = generateUlid();
+    // Keep slug; if conflict, append suffix (-copy, -copy-2, ...). If missing, derive from name.
+    const existingSlugs = new Set((entries || []).map((e) => e?.slug).filter(Boolean));
+    const baseSlug = (copy.slug && String(copy.slug)) || (copy.name ? generateSlug(copy.name) : "");
+    let newSlug = baseSlug;
+    if (newSlug) {
+      if (existingSlugs.has(newSlug)) {
+        let i = 1;
+        let candidate = `${newSlug}-copy`;
+        while (existingSlugs.has(candidate)) {
+          i += 1;
+          candidate = `${newSlug}-copy-${i}`;
+        }
+        newSlug = candidate;
+      }
+      (copy as any).slug = newSlug;
+    }
     setData(copy);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };

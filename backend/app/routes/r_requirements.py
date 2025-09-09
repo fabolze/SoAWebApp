@@ -25,6 +25,8 @@ class RequirementRoute(BaseRoute):
         return data["id"]
     
     def process_input_data(self, db_session: Session, requirement: Requirement, data: Dict[str, Any]) -> None:
+        # Required
+        requirement.slug = data["slug"]
         # Clear existing relationships
         requirement.required_flags.clear()
         requirement.forbidden_flags.clear()

@@ -3,13 +3,15 @@
 from sqlalchemy import Column, String, Text, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 
 
 
 class LoreEntry(Base):
     __tablename__ = 'lore_entries'
 
-    id = Column(String, primary_key=True)  # lore_id
+    id = Column(String, primary_key=True, default=generate_ulid)  # lore_id
+    slug = Column(String, unique=True, nullable=False)
     title = Column(String, nullable=False)
     text = Column(Text, nullable=False)
 
