@@ -1,6 +1,6 @@
 # backend/app/models/m_ability_links.py
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
+from sqlalchemy import Column, String, Float, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
 from backend.app.utils.id import generate_ulid

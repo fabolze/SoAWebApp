@@ -1,6 +1,6 @@
 # backend/app/models/m_enemies.py
 
-from sqlalchemy import Column, String, Integer, Float, Enum, Text, JSON, ForeignKey
+from sqlalchemy import Column, String, Integer, Enum, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
 from backend.app.utils.id import generate_ulid
@@ -15,6 +15,11 @@ class EnemyType(enum.Enum):
     Elemental = "elemental"
     Machine = "machine"
     Boss = "boss"
+    Demon = "demon"
+    Dragon = "dragon"
+    Giant = "giant"
+    Spirit = "spirit"
+    Other = "other"
 
 class Aggression(enum.Enum):
     Hostile = "Hostile"

@@ -18,7 +18,7 @@
     },
     "type": {
       "type": "string",
-      "enum": ["beast", "undead", "humanoid", "elemental", "machine", "boss"],
+      "enum": ["beast", "undead", "humanoid", "elemental", "machine", "boss", "demon", "dragon", "giant", "spirit", "other"],
       "ui": {
         "widget": "select",
         "label": "Enemy Type"
