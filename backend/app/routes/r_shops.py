@@ -3,6 +3,7 @@ from backend.app.models.m_shops import Shop
 from backend.app.models.m_locations import Location
 from backend.app.models.m_npcs import NPC
 from backend.app.models.m_requirements import Requirement
+from backend.app.models.m_currencies import Currency
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -27,7 +28,8 @@ class ShopRoute(BaseRoute):
         self.validate_relationships(db_session, data, {
             "location_id": Location,
             "npc_id": NPC,
-            "requirements_id": Requirement
+            "requirements_id": Requirement,
+            "currency_id": Currency
         })
         
         # Required fields
@@ -36,7 +38,22 @@ class ShopRoute(BaseRoute):
         
         # Optional fields
         shop.description = data.get("description")
-        
+        if "price_modifier" in data:
+            value = data.get("price_modifier")
+            shop.price_modifier = float(value) if value not in (None, "") else 0.0
+        elif shop.price_modifier is None:
+            shop.price_modifier = 0.0
+        if "price_multiplier" in data:
+            value = data.get("price_multiplier")
+            shop.price_multiplier = float(value) if value not in (None, "") else 1.0
+        elif shop.price_multiplier is None:
+            shop.price_multiplier = 1.0
+        if "price_override" in data:
+            price_override = data.get("price_override")
+            shop.price_override = float(price_override) if price_override not in (None, "") else None
+        if "currency_id" in data:
+            shop.currency_id = data.get("currency_id")
+
         # Relationship fields
         shop.location_id = data.get("location_id")
         shop.npc_id = data.get("npc_id")

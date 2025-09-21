@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, JSON, ForeignKey
+from sqlalchemy import Column, String, Text, JSON, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
 from backend.app.utils.id import generate_ulid
@@ -13,6 +13,11 @@ class Shop(Base):
     name = Column(String, nullable=False)
     description = Column(Text)
 
+    price_modifier = Column(Float, default=0.0)
+    price_multiplier = Column(Float, default=1.0)
+    price_override = Column(Float)
+    currency_id = Column(String, ForeignKey('currencies.id'))
+
     location_id = Column(String, ForeignKey("locations.id"))
     npc_id = Column(String, ForeignKey("npcs.id"))
     requirements_id = Column(String, ForeignKey("requirements.id"))
@@ -23,5 +28,6 @@ class Shop(Base):
     # Relationships
     location = relationship("Location")
     npc = relationship("NPC")
+    currency = relationship("Currency")
     requirements = relationship("Requirement")
     inventory = relationship("ShopInventory", back_populates="shop", cascade="all, delete-orphan")

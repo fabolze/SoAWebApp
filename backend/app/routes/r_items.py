@@ -3,6 +3,7 @@ from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_items import Item, ItemType, Rarity, EquipmentSlot, WeaponType
 from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_effects import Effect
+from backend.app.models.m_currencies import Currency
 from backend.app.db.init_db import get_db_session
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
@@ -16,7 +17,7 @@ class ItemRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["id", "slug", "name", "type"]
+        return ["id", "slug", "name", "type", "base_price"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
         return data["id"]
@@ -32,7 +33,8 @@ class ItemRoute(BaseRoute):
         
         # Validate relationships
         self.validate_relationships(db_session, data, {
-            "requirements_id": Requirement
+            "requirements_id": Requirement,
+            "base_currency_id": Currency
         })
         
         # Effects validation if provided
@@ -45,6 +47,8 @@ class ItemRoute(BaseRoute):
         item.slug = data["slug"]
         item.name = data["name"]
         item.type = data["type"]  # Already converted to enum
+        item.base_price = float(data["base_price"])
+        item.base_currency_id = data.get("base_currency_id")
         
         # Optional enum fields (already validated)
         if "rarity" in data:

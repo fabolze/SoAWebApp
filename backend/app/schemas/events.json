@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Event",
   "type": "object",
@@ -59,7 +59,7 @@
       "description": "Required if type = Dialogue",
       "ui": {
         "widget": "reference",
-        "reference": "dialogue_entries",
+        "reference": "dialogues",
         "label": "Dialogue"
       }
     },
@@ -78,22 +78,76 @@
       "items": {
         "type": "object",
         "properties": {
-          "item_id": { "type": "string" },
-          "quantity": { "type": "number" }
+          "item_id": {
+            "type": "string",
+            "ui": {
+              "widget": "reference",
+              "reference": "items",
+              "label": "Item"
+            }
+          },
+          "quantity": {
+            "type": "number",
+            "ui": { "widget": "number", "label": "Quantity" }
+          }
         },
         "required": ["item_id", "quantity"]
       }
     },
     "xp_reward": {
       "type": "number",
-      "description": "XP granted after completing the event"
+      "description": "XP granted after completing the event",
+      "ui": { "widget": "number", "label": "Experience" }
+    },
+    "currency_rewards": {
+      "type": "array",
+      "description": "Currencies granted when the event resolves",
+      "items": {
+        "type": "object",
+        "properties": {
+          "currency_id": {
+            "type": "string",
+            "ui": {
+              "widget": "reference",
+              "reference": "currencies",
+              "label": "Currency"
+            }
+          },
+          "amount": {
+            "type": "number",
+            "ui": { "widget": "number", "label": "Amount" }
+          }
+        },
+        "required": ["currency_id", "amount"]
+      }
+    },
+    "reputation_rewards": {
+      "type": "array",
+      "description": "Faction reputation adjustments applied",
+      "items": {
+        "type": "object",
+        "properties": {
+          "faction_id": {
+            "type": "string",
+            "ui": {
+              "widget": "reference",
+              "reference": "factions",
+              "label": "Faction"
+            }
+          },
+          "amount": {
+            "type": "number",
+            "description": "Positive or negative reputation delta",
+            "ui": { "widget": "number", "label": "Delta" }
+          }
+        },
+        "required": ["faction_id", "amount"]
+      }
     },
     "flags_set": {
       "type": "array",
       "description": "Flags that will be set when the event completes",
-      "items": {
-        "type": "string"
-      },
+      "items": { "type": "string" },
       "ui": {
         "widget": "multiselect",
         "label": "Flags Set",
@@ -102,11 +156,16 @@
     },
     "next_event_id": {
       "type": "string",
-      "description": "Optional next event triggered automatically after this one"
+      "description": "Optional next event triggered automatically after this one",
+      "ui": {
+        "widget": "reference",
+        "reference": "events",
+        "label": "Next Event"
+      }
     },
     "tags": {
       "type": "array",
-      "description": "Tags for filtering/searching/categorization",
+      "description": "Tags for filtering/searching/categorisation",
       "items": { "type": "string" },
       "ui": { "widget": "tags", "label": "Tags" }
     }

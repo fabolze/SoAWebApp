@@ -32,6 +32,8 @@ class Event(Base):
 
     item_rewards = Column(JSON)     # [{ item_id, quantity }]
     xp_reward = Column(Float)
+    currency_rewards = Column(JSON)  # [{ currency_id, amount }]
+    reputation_rewards = Column(JSON)  # [{ faction_id, amount }]
     flags_set = Column(JSON)        # [flag_id, ...]
     tags = Column(JSON)  # List of string tags
 

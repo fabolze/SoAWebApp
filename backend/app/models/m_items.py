@@ -48,6 +48,9 @@ class Item(Base):
     rarity = Column(Enum(Rarity))
     description = Column(Text)
 
+    base_price = Column(Float, nullable=False, default=0.0)
+    base_currency_id = Column(String, ForeignKey('currencies.id'))
+
     equipment_slot = Column(Enum(EquipmentSlot))
     weapon_type = Column(Enum(WeaponType))
 
@@ -67,6 +70,7 @@ class Item(Base):
     icon_path = Column(String)
 
     requirements_id = Column(String, ForeignKey('requirements.id'))  # FK to shared requirements
+    base_currency = relationship("Currency")
     requirements = relationship("Requirement")  # Optional: back_populates if needed
 
 

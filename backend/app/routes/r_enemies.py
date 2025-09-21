@@ -2,6 +2,7 @@ from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_enemies import Enemy, EnemyType, Aggression
 from backend.app.models.m_characterclasses import CharacterClass
 from backend.app.models.m_factions import Faction
+from backend.app.models.m_currencies import Currency
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -54,6 +55,25 @@ class EnemyRoute(BaseRoute):
         enemy.custom_abilities = data.get("custom_abilities", [])
         enemy.tags = data.get("tags", [])
         enemy.loot_table = data.get("loot_table", [])
+        currency_rewards = data.get("currency_rewards", [])
+        for entry in currency_rewards:
+            if not isinstance(entry, dict):
+                raise ValueError("Currency rewards must be objects")
+            currency_id = entry.get("currency_id")
+            if currency_id and not db_session.get(Currency, currency_id):
+                raise ValueError(f"Invalid currency_id in rewards: {currency_id}")
+        enemy.currency_rewards = currency_rewards
+
+        reputation_rewards = data.get("reputation_rewards", [])
+        for entry in reputation_rewards:
+            if not isinstance(entry, dict):
+                raise ValueError("Reputation rewards must be objects")
+            faction_id = entry.get("faction_id")
+            if faction_id and not db_session.get(Faction, faction_id):
+                raise ValueError(f"Invalid faction_id in rewards: {faction_id}")
+        enemy.reputation_rewards = reputation_rewards
+
+        enemy.xp_reward = data.get("xp_reward")
         enemy.related_quests = data.get("related_quests", [])
 
     def serialize_item(self, enemy: Enemy) -> Dict[str, Any]:

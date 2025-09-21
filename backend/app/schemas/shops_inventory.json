@@ -1,68 +1,106 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Shop Inventory Entry",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "description": "Unique ID for this inventory row",
-        "ui": { "widget": "hidden" }
-      },
-      "slug": {
-        "type": "string",
-        "ui": { "widget": "text", "label": "ID/Slug" }
-      },
-      "shop_id": {
-        "type": "string",
-        "description": "Reference to the shop this item belongs to",
-        "ui": {
-          "widget": "reference",
-          "reference": "shops",
-          "label": "Shop"
-        }
-      },
-      "item_id": {
-        "type": "string",
-        "description": "Item being sold",
-        "ui": {
-          "widget": "reference",
-          "reference": "items",
-          "label": "Item"
-        }
-      },
-      "price": {
-        "type": "number",
-        "description": "Base price",
-        "ui": {
-          "widget": "number",
-          "label": "Price"
-        }
-      },
-      "stock": {
-        "type": "integer",
-        "description": "How many are available (null = infinite)",
-        "ui": {
-          "widget": "number",
-          "label": "Stock"
-        }
-      },
-      "requirements_id": {
-        "type": "string",
-        "description": "Requirement to purchase this inventory item",
-        "ui": {
-          "widget": "reference",
-          "reference": "requirements",
-          "label": "Requirements"
-        }
-      },
-      "tags": {
-        "type": "array",
-        "description": "Optional tags (e.g., 'rare', 'event_only')",
-        "items": { "type": "string" },
-        "ui": {
-          "widget": "tags"
-        }
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Shop Inventory Entry",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique ID for this inventory row",
+      "ui": {
+        "widget": "hidden"
       }
     },
-    "required": ["id", "slug", "shop_id", "item_id", "price"]
-  }
+    "slug": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      }
+    },
+    "shop_id": {
+      "type": "string",
+      "description": "Reference to the shop this item belongs to",
+      "ui": {
+        "widget": "reference",
+        "reference": "shops",
+        "label": "Shop"
+      }
+    },
+    "item_id": {
+      "type": "string",
+      "description": "Item being sold",
+      "ui": {
+        "widget": "reference",
+        "reference": "items",
+        "label": "Item"
+      }
+    },
+    "stock": {
+      "type": "integer",
+      "description": "How many are available (null = infinite)",
+      "ui": {
+        "widget": "number",
+        "label": "Stock"
+      }
+    },
+    "requirements_id": {
+      "type": "string",
+      "description": "Requirement to purchase this inventory item",
+      "ui": {
+        "widget": "reference",
+        "reference": "requirements",
+        "label": "Requirements"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Optional tags (e.g., 'rare', 'event_only')",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags"
+      }
+    },
+    "price_modifier": {
+      "type": "number",
+      "description": "Flat adjustment applied after shop-level pricing",
+      "ui": {
+        "widget": "number",
+        "label": "Price Modifier"
+      }
+    },
+    "price_multiplier": {
+      "type": "number",
+      "description": "Multiplier applied after shop-level pricing",
+      "ui": {
+        "widget": "number",
+        "label": "Price Multiplier",
+        "placeholder": "1.0"
+      }
+    },
+    "price_override": {
+      "type": "number",
+      "description": "Optional absolute price override for this entry",
+      "ui": {
+        "widget": "number",
+        "label": "Price Override"
+      }
+    },
+    "currency_id": {
+      "type": "string",
+      "description": "Optional currency override for this entry",
+      "ui": {
+        "widget": "reference",
+        "reference": "currencies",
+        "label": "Currency"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "slug",
+    "shop_id",
+    "item_id"
+  ]
+}

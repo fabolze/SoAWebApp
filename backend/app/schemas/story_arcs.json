@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Story Arc",
   "type": "object",
@@ -32,13 +32,13 @@
         "options": ["Main Story", "Side Arc", "Faction Arc", "DLC Arc"]
       }
     },
-    "content_pack": {
+    "content_pack_id": {
       "type": "string",
-      "description": "Which content pack this belongs to",
+      "description": "Content pack providing this story arc",
       "ui": {
-        "widget": "select",
-        "label": "Content Pack",
-        "options": ["Base", "DLC1", "DLC2", "Expansion"]
+        "widget": "reference",
+        "reference": "content-packs",
+        "label": "Content Pack"
       }
     },
     "timeline_id": {
@@ -123,7 +123,9 @@
     "title",
     "summary",
     "type",
-    "content_pack",
+    "content_pack_id",
     "required_flags"
   ]
 }
+
+

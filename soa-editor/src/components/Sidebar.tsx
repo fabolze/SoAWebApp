@@ -1,4 +1,4 @@
-// Sidebar.tsx (cleaned up: safe drag-and-drop, group+item sorting, persistent collapsed state)
+﻿// Sidebar.tsx (cleaned up: safe drag-and-drop, group+item sorting, persistent collapsed state)
 import { NavLink } from 'react-router-dom';
 import {
   DndContext,
@@ -18,9 +18,9 @@ import { CSS } from '@dnd-kit/utilities';
 import { useEffect, useState } from 'react';
 import {
   HomeIcon, SparklesIcon, BeakerIcon, ChartBarIcon, UserGroupIcon, ChatBubbleLeftRightIcon,
-  BookOpenIcon, MapIcon, UsersIcon, FlagIcon, CubeIcon, BuildingStorefrontIcon,
+  BookOpenIcon, MapIcon, UsersIcon, FlagIcon, CubeIcon, BuildingStorefrontIcon, BanknotesIcon,
   ClipboardDocumentListIcon, PuzzlePieceIcon, AcademicCapIcon, ClockIcon, DocumentTextIcon,
-  Squares2X2Icon, Cog6ToothIcon
+  Squares2X2Icon, Cog6ToothIcon, ArchiveBoxIcon
 } from '@heroicons/react/24/outline';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 
@@ -90,6 +90,7 @@ const DEFAULT_GROUPS = [
       { to: '/attributes', label: 'Attributes', icon: ChartBarIcon },
       { to: '/characterclasses', label: 'Character Classes', icon: AcademicCapIcon },
       { to: '/items', label: 'Items', icon: CubeIcon },
+      { to: '/currencies', label: 'Currencies', icon: BanknotesIcon },
       { to: '/stats', label: 'Stats', icon: ChartBarIcon },
       { to: '/shops', label: 'Shops', icon: BuildingStorefrontIcon },
       { to: '/shops-inventory', label: 'Shops Inventory', icon: ClipboardDocumentListIcon },
@@ -112,6 +113,7 @@ const DEFAULT_GROUPS = [
       { to: '/dialogue-nodes', label: 'Dialogue Nodes', icon: ChatBubbleLeftRightIcon },
       { to: '/dialogues', label: 'Dialogues', icon: ChatBubbleLeftRightIcon },
       { to: '/quests', label: 'Quests', icon: DocumentTextIcon },
+      { to: '/content-packs', label: 'Content Packs', icon: ArchiveBoxIcon },
       { to: '/story-arcs', label: 'Story Arcs', icon: Squares2X2Icon },
       { to: '/timelines', label: 'Timelines', icon: ClockIcon },
       { to: '/events', label: 'Events', icon: ClipboardDocumentListIcon },
@@ -219,7 +221,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }: { collapsed: bo
         {!collapsed && <span className="text-xl font-bold text-primary tracking-tight">SoA Editor</span>}
       </div>
       <button className="bg-slate-700 text-white rounded-md p-2 hover:bg-primary hover:text-white transition self-end mx-2 mb-2" onClick={onToggleCollapse}>
-        {collapsed ? '➡️' : '⬅️'}
+        {collapsed ? 'âž¡ï¸' : 'â¬…ï¸'}
       </button>
       {!collapsed && (
         <input
@@ -251,11 +253,11 @@ export default function Sidebar({ collapsed, onToggleCollapse }: { collapsed: bo
                   {!collapsed && (
                     <div className="flex items-center justify-between px-2 mb-2 text-xs uppercase tracking-wider text-slate-400 font-semibold">
                       <button onClick={() => toggleGroup(group.label)} className="flex items-center gap-1 focus:outline-none">
-                        <span className={`transition-transform ${collapsedGroups[group.label] ? '' : 'rotate-90'}`}>▶</span>
+                        <span className={`transition-transform ${collapsedGroups[group.label] ? '' : 'rotate-90'}`}>â–¶</span>
                         {group.label}
                       </button>
                       <div {...listeners} className="cursor-grab p-1 focus:outline-none" aria-label={`Drag group ${group.label}`}>
-                        ⠿
+                        â ¿
                       </div>
                     </div>
                   )}
@@ -283,3 +285,6 @@ export default function Sidebar({ collapsed, onToggleCollapse }: { collapsed: bo
     </nav>
   );
 }
+
+
+

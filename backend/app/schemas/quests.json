@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Quest",
   "type": "object",
@@ -60,9 +60,7 @@
           "flags_set": {
             "type": "array",
             "description": "Flags to set when this objective is completed",
-            "items": {
-              "type": "string"
-            },
+            "items": { "type": "string" },
             "ui": {
               "widget": "multiselect",
               "label": "Flags Set",
@@ -72,17 +70,12 @@
         },
         "required": ["objective_id", "description"]
       },
-      "ui": {
-        "widget": "objectives_editor",
-        "label": "Objectives"
-      }
+      "ui": { "widget": "objectives_editor", "label": "Objectives" }
     },
     "flags_set_on_completion": {
       "type": "array",
       "description": "Flags to set when the quest is fully completed",
-      "items": {
-        "type": "string"
-      },
+      "items": { "type": "string" },
       "ui": {
         "widget": "multiselect",
         "label": "Flags Set on Completion",
@@ -91,7 +84,53 @@
     },
     "xp_reward": {
       "type": "number",
-      "description": "XP granted when the quest is completed"
+      "description": "XP granted when the quest is completed",
+      "ui": { "widget": "number", "label": "Experience" }
+    },
+    "currency_rewards": {
+      "type": "array",
+      "description": "Currencies granted on completion",
+      "items": {
+        "type": "object",
+        "properties": {
+          "currency_id": {
+            "type": "string",
+            "ui": {
+              "widget": "reference",
+              "reference": "currencies",
+              "label": "Currency"
+            }
+          },
+          "amount": {
+            "type": "number",
+            "ui": { "widget": "number", "label": "Amount" }
+          }
+        },
+        "required": ["currency_id", "amount"]
+      }
+    },
+    "reputation_rewards": {
+      "type": "array",
+      "description": "Faction reputation adjustments",
+      "items": {
+        "type": "object",
+        "properties": {
+          "faction_id": {
+            "type": "string",
+            "ui": {
+              "widget": "reference",
+              "reference": "factions",
+              "label": "Faction"
+            }
+          },
+          "amount": {
+            "type": "number",
+            "description": "Positive or negative reputation delta",
+            "ui": { "widget": "number", "label": "Delta" }
+          }
+        },
+        "required": ["faction_id", "amount"]
+      }
     },
     "item_rewards": {
       "type": "array",
@@ -99,15 +138,25 @@
       "items": {
         "type": "object",
         "properties": {
-          "item_id": { "type": "string" },
-          "quantity": { "type": "number" }
+          "item_id": {
+            "type": "string",
+            "ui": {
+              "widget": "reference",
+              "reference": "items",
+              "label": "Item"
+            }
+          },
+          "quantity": {
+            "type": "number",
+            "ui": { "widget": "number", "label": "Quantity" }
+          }
         },
         "required": ["item_id", "quantity"]
       }
     },
     "tags": {
       "type": "array",
-      "description": "Tags for filtering/searching/categorization",
+      "description": "Tags for filtering/searching/categorisation",
       "items": { "type": "string" },
       "ui": { "widget": "tags", "label": "Tags" }
     }

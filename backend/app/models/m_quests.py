@@ -21,6 +21,8 @@ class Quest(Base):
     objectives = Column(JSON)                   # List of { objective_id, description, requirements, flags_set }
     flags_set_on_completion = Column(JSON)      # List of flag IDs
     xp_reward = Column(Float)
+    currency_rewards = Column(JSON)             # List of { currency_id, amount }
+    reputation_rewards = Column(JSON)           # List of { faction_id, amount }
     item_rewards = Column(JSON)                 # List of { item_id, quantity }
     tags = Column(JSON)
 

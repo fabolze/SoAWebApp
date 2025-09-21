@@ -1,4 +1,4 @@
-# Data Relationship Map
+﻿# Data Relationship Map
 
 A narrative-focused JRPG in UE5 lives and dies by clean data links. Keep this sheet nearby while wiring Blueprint lookups or chasing missing references.
 
@@ -19,6 +19,11 @@ A narrative-focused JRPG in UE5 lives and dies by clean data links. Keep this sh
 - **Key fields:** `attribute_id`, `stat_id`, `multiplier`
 - **Feeds:** Derived stat calculations, level-up previews
 - **Blueprint touchpoints:** Stat growth resolver, equipment preview widgets
+
+### Content Packs (`m_content_packs.py`)
+- **Key fields:** `slug`, `name`, `release_date`, `status`, `is_active`
+- **Feeds:** Flags (`content_pack_id`), Story Arcs (`content_pack_id`), future pack-scoped gating for quests, encounters, items
+- **Blueprint touchpoints:** Pack selection UI, DLC toggles, import validation for pack-assigned content
 
 ---
 
@@ -46,9 +51,15 @@ A narrative-focused JRPG in UE5 lives and dies by clean data links. Keep this sh
 ---
 
 ## Gear, Progression, and Economy
+### Currencies (`m_currencies.py`)
+- **Key fields:** `type`, `code`, `symbol`, `decimal_precision`, `is_premium`
+- **Feeds:** Events `currency_rewards`, Quests `currency_rewards`, Encounter reward bundles (`rewards.currencies`), Enemies `currency_rewards`, Item base pricing, Shop and ShopInventory currency overrides
+- **Blueprint touchpoints:** Player wallet/economy manager, reward pipelines, UI currency displays
+
 ### Items (`m_items.py`)
-- **Key fields:** `type`, `rarity`, `equipment_slot`, `requirements_id`
-- **References:** Requirements, effect payloads (JSON), stat overrides
+- **Key fields:** `type`, `rarity`, `equipment_slot`, `requirements_id`, `base_price`, `base_currency_id`
+- **References:** Requirements, Currency (base price), effect payloads (JSON), stat overrides
+- **Feeds:** Pricing helper derives canonical buy/sell values for every shop entry
 - **Blueprint touchpoints:** Inventory and equipment UI, loot generation, shop displays
 
 ### Character Classes (`m_characterclasses.py`)
@@ -57,14 +68,14 @@ A narrative-focused JRPG in UE5 lives and dies by clean data links. Keep this sh
 - **Blueprint touchpoints:** Player growth, enemy templates, companion setup
 
 ### Shops (`m_shops.py`)
-- **Key fields:** `location_id`, `npc_id`, `requirements_id`, `price_modifiers`
-- **References:** Locations, NPCs, Requirements
-- **Blueprint touchpoints:** Shop registry, availability gating
+- **Key fields:** `location_id`, `npc_id`, `requirements_id`, `price_modifier`, `price_multiplier`, `price_override`, `currency_id`
+- **References:** Locations, NPCs, Requirements, Currencies
+- **Blueprint touchpoints:** Shop registry, availability gating, pricing helper defaults
 
 ### Shop Inventory (`m_shop_inventory.py`)
-- **Key fields:** `shop_id`, `item_id`, `requirements_id`
-- **References:** Shops, Items, Requirements
-- **Blueprint touchpoints:** Shop UI item lists, restock logic
+- **Key fields:** `shop_id`, `item_id`, `requirements_id`, `price_modifier`, `price_multiplier`, `price_override`, `currency_id`
+- **References:** Shops, Items, Requirements, Currencies
+- **Blueprint touchpoints:** Shop UI item lists, pricing display, restock logic
 
 ---
 
@@ -93,19 +104,19 @@ A narrative-focused JRPG in UE5 lives and dies by clean data links. Keep this sh
 - **Blueprint touchpoints:** World map, encounter picker, location registry
 
 ### Enemies (`m_enemies.py`)
-- **Key fields:** `type`, `class_id`, `faction_id`, `loot_table`
-- **References:** CharacterClass, Faction, Abilities, Items, Quests
-- **Blueprint touchpoints:** Encounter builder, AI kits, loot drops
+- **Key fields:** `type`, `class_id`, `faction_id`, `loot_table`, `currency_rewards`, `reputation_rewards`, `xp_reward`
+- **References:** CharacterClass, Faction, Abilities, Items, Quests, Currencies
+- **Blueprint touchpoints:** Encounter builder, AI kits, loot and reward drops
 
 ### Encounters (`m_encounters.py`)
-- **Key fields:** `encounter_type`, `enemy_ids`, `npc_ids`, `rewards`
-- **References:** Enemies, NPCs, Requirements
-- **Blueprint touchpoints:** Encounter spawner, narrative event system
+- **Key fields:** `encounter_type`, `enemy_ids`, `npc_ids`, `rewards` (xp, currencies, reputation, items, flags)
+- **References:** Enemies, NPCs, Requirements, Currencies, Factions, Flags, Items
+- **Blueprint touchpoints:** Encounter spawner, reward resolver, narrative event system
 
 ### Events (`m_events.py`)
-- **Key fields:** `type`, `requirements_id`, `location_id`, `dialogue_id`, `encounter_id`, `next_event_id`
-- **References:** Requirements, Locations, Dialogues, Encounters, Lore, Items
-- **Blueprint touchpoints:** World event sequencer, cutscene coordinator
+- **Key fields:** `type`, `requirements_id`, `location_id`, `dialogue_id`, `encounter_id`, `item_rewards`, `xp_reward`, `currency_rewards`, `reputation_rewards`, `flags_set`, `next_event_id`
+- **References:** Requirements, Locations, Dialogues, Encounters, Lore, Items, Currencies, Factions, Flags
+- **Blueprint touchpoints:** World event sequencer, cutscene coordinator, reward dispatcher
 
 ### Lore Entries (`m_lore_entries.py`)
 - **Key fields:** `title`, `text`, `location_id`, `timeline_id`
@@ -118,14 +129,14 @@ A narrative-focused JRPG in UE5 lives and dies by clean data links. Keep this sh
 - **Blueprint touchpoints:** Timeline UI, narrative context
 
 ### Story Arcs (`m_story_arcs.py`)
-- **Key fields:** `type`, `content_pack`, `timeline_id`, `branching`, `required_flags`
-- **References:** Timelines, Quests, Flags
+- **Key fields:** `type`, `content_pack_id`, `timeline_id`, `branching`, `required_flags`
+- **References:** Content Packs, Timelines, Quests, Flags
 - **Blueprint touchpoints:** Story manager, chapter selection, branching logic
 
 ### Quests (`m_quests.py`)
-- **Key fields:** `story_arc_id`, `requirements_id`, `objectives`, `flags_set_on_completion`
-- **References:** Story Arcs, Requirements, Flags, Items
-- **Blueprint touchpoints:** Quest log, objective tracker, flag updates
+- **Key fields:** `story_arc_id`, `requirements_id`, `objectives`, `flags_set_on_completion`, `xp_reward`, `currency_rewards`, `reputation_rewards`, `item_rewards`
+- **References:** Story Arcs, Requirements, Flags, Items, Currencies, Factions
+- **Blueprint touchpoints:** Quest log, objective tracker, reward distribution
 
 ### Requirements (`m_requirements.py`)
 - **Key fields:** `tags`
@@ -138,8 +149,8 @@ A narrative-focused JRPG in UE5 lives and dies by clean data links. Keep this sh
 - **Blueprint touchpoints:** Requirement evaluator, faction reputation checks
 
 ### Flags (`m_flags.py`)
-- **Key fields:** `flag_type`, `default_value`, `content_pack`
-- **References:** Set or read by dialogues, quests, events, items
+- **Key fields:** `flag_type`, `default_value`, `content_pack_id`
+- **References:** Content Packs, set or read by dialogues, quests, events, items
 - **Blueprint touchpoints:** Global flag service, save and load system
 
 ### Factions (`m_factions.py`)
@@ -153,3 +164,4 @@ A narrative-focused JRPG in UE5 lives and dies by clean data links. Keep this sh
 - Cross-check this sheet with `Blueprint_Systems.md` to see which managers should own each data lookup.
 - Keep ULID-to-Struct helper maps handy inside Blueprints to avoid repeated DataTable queries.
 - When validation fails, start with Requirements and Flags; they sit at the center of most gating logic.
+

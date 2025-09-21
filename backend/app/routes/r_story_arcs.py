@@ -1,5 +1,6 @@
-from backend.app.routes.base_route import BaseRoute
-from backend.app.models.m_story_arcs import StoryArc, ArcType, ContentPack
+﻿from backend.app.routes.base_route import BaseRoute
+from backend.app.models.m_story_arcs import StoryArc, ArcType
+from backend.app.models.m_content_packs import ContentPack
 from backend.app.models.m_flags import Flag
 from backend.app.models.m_timelines import Timeline
 from typing import Any, Dict, List
@@ -16,7 +17,7 @@ class StoryArcRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["id", "slug", "title", "summary", "type", "content_pack", "related_quests"]
+        return ["id", "slug", "title", "summary", "type", "content_pack_id", "related_quests"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
         return data["id"]
@@ -24,13 +25,13 @@ class StoryArcRoute(BaseRoute):
     def process_input_data(self, db_session: Session, story_arc: StoryArc, data: Dict[str, Any]) -> None:
         # Validate enums
         self.validate_enums(data, {
-            "type": ArcType,
-            "content_pack": ContentPack
+            "type": ArcType
         })
         
         # Validate relationships
         self.validate_relationships(db_session, data, {
-            "timeline_id": Timeline
+            "timeline_id": Timeline,
+            "content_pack_id": ContentPack
         })
         
         # Required fields
@@ -38,7 +39,7 @@ class StoryArcRoute(BaseRoute):
         story_arc.title = data["title"]
         story_arc.summary = data["summary"]
         story_arc.type = data["type"]  # Already converted to enum
-        story_arc.content_pack = data["content_pack"]  # Already converted to enum
+        story_arc.content_pack_id = data["content_pack_id"]
         
         # Optional relationship
         story_arc.timeline_id = data.get("timeline_id")

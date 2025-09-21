@@ -6,21 +6,66 @@
     "id": {
       "type": "string",
       "description": "Unique ID for the shop",
-      "ui": { "widget": "hidden" }
+      "ui": {
+        "widget": "hidden"
+      }
     },
     "slug": {
       "type": "string",
-      "ui": { "widget": "text", "label": "ID/Slug" }
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      }
     },
     "name": {
       "type": "string",
       "description": "Display name of the shop",
-      "ui": { "widget": "text", "label": "Shop Name" }
+      "ui": {
+        "widget": "text",
+        "label": "Shop Name"
+      }
     },
     "description": {
       "type": "string",
       "description": "Optional flavor text for the shop",
-      "ui": { "widget": "textarea", "label": "Description" }
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      }
+    },
+    "price_modifier": {
+      "type": "number",
+      "description": "Flat price adjustment applied to every item in this shop",
+      "ui": {
+        "widget": "number",
+        "label": "Base Price Modifier"
+      }
+    },
+    "price_multiplier": {
+      "type": "number",
+      "description": "Multiplicative price adjustment applied to every item in this shop",
+      "ui": {
+        "widget": "number",
+        "label": "Base Price Multiplier",
+        "placeholder": "1.0"
+      }
+    },
+    "price_override": {
+      "type": "number",
+      "description": "Optional absolute price to charge for all items (applied before inventory overrides)",
+      "ui": {
+        "widget": "number",
+        "label": "Global Price Override"
+      }
+    },
+    "currency_id": {
+      "type": "string",
+      "description": "Optional override currency for this shop",
+      "ui": {
+        "widget": "reference",
+        "reference": "currencies",
+        "label": "Default Currency"
+      }
     },
     "location_id": {
       "type": "string",
@@ -64,14 +109,6 @@
               "reference": "items"
             }
           },
-          "price": {
-            "type": "number",
-            "description": "Price of the item",
-            "ui": {
-              "widget": "number",
-              "label": "Price"
-            }
-          },
           "stock": {
             "type": "number",
             "description": "Optional: stock limit (null = infinite)",
@@ -88,9 +125,45 @@
               "reference": "requirements",
               "label": "Requirements"
             }
+          },
+          "price_modifier": {
+            "type": "number",
+            "description": "Flat adjustment applied after shop-level math",
+            "ui": {
+              "widget": "number",
+              "label": "Entry Modifier"
+            }
+          },
+          "price_multiplier": {
+            "type": "number",
+            "description": "Multiplier applied after shop-level math",
+            "ui": {
+              "widget": "number",
+              "label": "Entry Multiplier",
+              "placeholder": "1.0"
+            }
+          },
+          "price_override": {
+            "type": "number",
+            "description": "Optional absolute price for this entry",
+            "ui": {
+              "widget": "number",
+              "label": "Entry Override"
+            }
+          },
+          "currency_id": {
+            "type": "string",
+            "description": "Optional currency override for this inventory entry",
+            "ui": {
+              "widget": "reference",
+              "reference": "currencies",
+              "label": "Entry Currency"
+            }
           }
         },
-        "required": ["item_id", "price"]
+        "required": [
+          "item_id"
+        ]
       },
       "ui": {
         "widget": "item_price_table",
@@ -105,11 +178,19 @@
         "properties": {
           "modifier_type": {
             "type": "string",
-            "enum": ["FactionReputation", "Flag", "QuestState"],
+            "enum": [
+              "FactionReputation",
+              "Flag",
+              "QuestState"
+            ],
             "ui": {
               "widget": "select",
               "label": "Modifier Type",
-              "options": ["FactionReputation", "Flag", "QuestState"]
+              "options": [
+                "FactionReputation",
+                "Flag",
+                "QuestState"
+              ]
             }
           },
           "reference_id": {
@@ -123,7 +204,11 @@
           },
           "operator": {
             "type": "string",
-            "enum": ["gte", "eq", "lte"],
+            "enum": [
+              "gte",
+              "eq",
+              "lte"
+            ],
             "description": "Comparison operator"
           },
           "value": {
@@ -140,9 +225,19 @@
     "tags": {
       "type": "array",
       "description": "Tags for filtering/searching/categorization",
-      "items": { "type": "string" },
-      "ui": { "widget": "tags", "label": "Tags" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
     }
   },
-  "required": ["id", "slug", "name", "inventory"]
+  "required": [
+    "id",
+    "slug",
+    "name",
+    "inventory"
+  ]
 }

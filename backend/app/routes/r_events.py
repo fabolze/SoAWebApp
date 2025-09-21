@@ -6,6 +6,8 @@ from backend.app.models.m_locations import Location
 from backend.app.models.m_lore_entries import LoreEntry
 from backend.app.models.m_dialogues import Dialogue
 from backend.app.models.m_encounters import Encounter
+from backend.app.models.m_currencies import Currency
+from backend.app.models.m_factions import Faction
 from backend.app.models.m_flags import Flag
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
@@ -64,6 +66,24 @@ class EventRoute(BaseRoute):
         # JSON fields
         event.item_rewards = data.get("item_rewards", [])
         event.xp_reward = data.get("xp_reward")
+        currency_rewards = data.get("currency_rewards", [])
+        for reward in currency_rewards:
+            if not isinstance(reward, dict):
+                raise ValueError("Currency reward entries must be objects")
+            currency_id = reward.get("currency_id")
+            if currency_id and not db_session.get(Currency, currency_id):
+                raise ValueError(f"Invalid currency_id in rewards: {currency_id}")
+        event.currency_rewards = currency_rewards
+
+        reputation_rewards = data.get("reputation_rewards", [])
+        for reward in reputation_rewards:
+            if not isinstance(reward, dict):
+                raise ValueError("Reputation reward entries must be objects")
+            faction_id = reward.get("faction_id")
+            if faction_id and not db_session.get(Faction, faction_id):
+                raise ValueError(f"Invalid faction_id in rewards: {faction_id}")
+        event.reputation_rewards = reputation_rewards
+
         event.tags = data.get("tags", [])
         
     def serialize_item(self, event: Event) -> Dict[str, Any]:

@@ -5,28 +5,52 @@
   "properties": {
     "id": {
       "type": "string",
-      "ui": { "widget": "hidden" }
+      "ui": {
+        "widget": "hidden"
+      }
     },
     "slug": {
       "type": "string",
-      "ui": { "widget": "text", "label": "ID/Slug" }
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      }
     },
     "name": {
       "type": "string",
-      "ui": { "widget": "text", "label": "Item Name" }
+      "ui": {
+        "widget": "text",
+        "label": "Item Name"
+      }
     },
     "type": {
       "type": "string",
-      "enum": ["Weapon", "Armor", "Consumable", "Misc"],
+      "enum": [
+        "Weapon",
+        "Armor",
+        "Consumable",
+        "Misc"
+      ],
       "ui": {
         "widget": "select",
         "label": "Item Type",
-        "options": ["Weapon", "Armor", "Consumable", "Misc"]
+        "options": [
+          "Weapon",
+          "Armor",
+          "Consumable",
+          "Misc"
+        ]
       }
     },
     "rarity": {
       "type": "string",
-      "enum": ["Common", "Uncommon", "Rare", "Epic", "Legendary"],
+      "enum": [
+        "Common",
+        "Uncommon",
+        "Rare",
+        "Epic",
+        "Legendary"
+      ],
       "ui": {
         "widget": "select",
         "label": "Rarity"
@@ -39,45 +63,136 @@
         "label": "Description"
       }
     },
+    "base_price": {
+      "type": "number",
+      "description": "Canonical value used as the baseline for shop pricing",
+      "ui": {
+        "widget": "number",
+        "label": "Base Price"
+      }
+    },
+    "base_currency_id": {
+      "type": "string",
+      "description": "Optional: currency for the base price (defaults to global currency if omitted)",
+      "ui": {
+        "widget": "reference",
+        "reference": "currencies",
+        "label": "Base Currency"
+      }
+    },
     "equipment_slot": {
       "type": "string",
-      "enum": ["head", "chest", "legs", "feet", "main_hand", "off_hand", "accessory"],
+      "enum": [
+        "head",
+        "chest",
+        "legs",
+        "feet",
+        "main_hand",
+        "off_hand",
+        "accessory"
+      ],
       "ui": {
         "widget": "select",
         "label": "Equipment Slot",
-        "visible_if": { "type": ["Weapon", "Armor"] }
+        "visible_if": {
+          "type": [
+            "Weapon",
+            "Armor"
+          ]
+        }
       }
     },
     "weapon_type": {
       "type": "string",
-      "enum": ["Sword", "Axe", "Bow", "Staff", "Dagger", "Mace"],
+      "enum": [
+        "Sword",
+        "Axe",
+        "Bow",
+        "Staff",
+        "Dagger",
+        "Mace"
+      ],
       "ui": {
         "widget": "select",
         "label": "Weapon Type",
-        "visible_if": { "type": ["Weapon"] }
+        "visible_if": {
+          "type": [
+            "Weapon"
+          ]
+        }
       }
     },
     "stats": {
       "type": "object",
       "properties": {
-        "damage": { "type": "number", "ui": { "widget": "number", "label": "Damage" } },
-        "defense": { "type": "number", "ui": { "widget": "number", "label": "Defense" } },
-        "crit_chance": { "type": "number", "ui": { "widget": "number", "label": "Crit Chance (%)" } },
-        "weight": { "type": "number", "ui": { "widget": "number", "label": "Weight" } }
+        "damage": {
+          "type": "number",
+          "ui": {
+            "widget": "number",
+            "label": "Damage"
+          }
+        },
+        "defense": {
+          "type": "number",
+          "ui": {
+            "widget": "number",
+            "label": "Defense"
+          }
+        },
+        "crit_chance": {
+          "type": "number",
+          "ui": {
+            "widget": "number",
+            "label": "Crit Chance (%)"
+          }
+        },
+        "weight": {
+          "type": "number",
+          "ui": {
+            "widget": "number",
+            "label": "Weight"
+          }
+        }
       }
     },
     "attributes": {
       "type": "object",
       "properties": {
-        "strength": { "type": "number", "ui": { "widget": "number", "label": "Strength" } },
-        "dexterity": { "type": "number", "ui": { "widget": "number", "label": "Dexterity" } },
-        "vitality": { "type": "number", "ui": { "widget": "number", "label": "Vitality" } },
-        "intelligence": { "type": "number", "ui": { "widget": "number", "label": "Intelligence" } }
+        "strength": {
+          "type": "number",
+          "ui": {
+            "widget": "number",
+            "label": "Strength"
+          }
+        },
+        "dexterity": {
+          "type": "number",
+          "ui": {
+            "widget": "number",
+            "label": "Dexterity"
+          }
+        },
+        "vitality": {
+          "type": "number",
+          "ui": {
+            "widget": "number",
+            "label": "Vitality"
+          }
+        },
+        "intelligence": {
+          "type": "number",
+          "ui": {
+            "widget": "number",
+            "label": "Intelligence"
+          }
+        }
       }
     },
     "effects": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "ui": {
         "widget": "multiselect",
         "label": "Effects",
@@ -104,9 +219,20 @@
     "tags": {
       "type": "array",
       "description": "Tags for filtering/searching/categorization",
-      "items": { "type": "string" },
-      "ui": { "widget": "tags", "label": "Tags" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
     }
   },
-  "required": ["id", "slug", "name", "type"]
+  "required": [
+    "id",
+    "slug",
+    "name",
+    "type",
+    "base_price"
+  ]
 }
