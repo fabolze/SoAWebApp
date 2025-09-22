@@ -1,4 +1,4 @@
-﻿# Data Relationship Map
+# Data Relationship Map
 
 A narrative-focused JRPG in UE5 lives and dies by clean data links. Keep this sheet nearby while wiring Blueprint lookups or chasing missing references.
 
@@ -7,12 +7,12 @@ A narrative-focused JRPG in UE5 lives and dies by clean data links. Keep this sh
 ## Core Foundations
 ### Stats (`backend/app/models/m_stats.py`)
 - **Key fields:** `id`, `slug`, `category`, `value_type`, `scaling_behavior`
-- **Feeds:** Attribute-to-Stat links, Effects (`scaling_stat_id`), Items (`stat_*`), CharacterClass `base_stats` and `stat_growth`
+- **Feeds:** Attribute-to-Stat links, Effects (`scaling_stat_id`), Item Stat Modifiers, CharacterClass `base_stats` and `stat_growth`
 - **Blueprint touchpoints:** Data subsystem cache, progression math, combat calculators
 
 ### Attributes (`m_attributes.py`)
 - **Key fields:** `id`, `slug`, `value_type`, `scaling`
-- **Feeds:** AttributeStatLink, AbilityScalingLink, Effects (`attribute_id`)
+- **Feeds:** AttributeStatLink, AbilityScalingLink, Item Attribute Modifiers, Effects (`attribute_id`)
 - **Blueprint touchpoints:** Attribute subsystem, ability math, character build UI
 
 ### Attribute-to-Stat Link (`m_attribute_stat_link.py`)
@@ -57,10 +57,20 @@ A narrative-focused JRPG in UE5 lives and dies by clean data links. Keep this sh
 - **Blueprint touchpoints:** Player wallet/economy manager, reward pipelines, UI currency displays
 
 ### Items (`m_items.py`)
-- **Key fields:** `type`, `rarity`, `equipment_slot`, `requirements_id`, `base_price`, `base_currency_id`
-- **References:** Requirements, Currency (base price), effect payloads (JSON), stat overrides
-- **Feeds:** Pricing helper derives canonical buy/sell values for every shop entry
+- **Key fields:** `type`, `rarity`, `equipment_slot`, `weapon_type`, `damage_type`, `weapon_range`, `requirements_id`, `base_price`, `base_currency_id`
+- **References:** Requirements, Currency (base price), effect payloads (JSON), Item Stat/Attribute modifiers
+- **Feeds:** Pricing helper derives canonical buy/sell values for every shop entry; Item Manager aggregates modifiers for character sheets
 - **Blueprint touchpoints:** Inventory and equipment UI, loot generation, shop displays
+
+### Item Stat Modifiers (`m_items.py`)
+- **Key fields:** `item_id`, `stat_id`, `value`, `value_type`, `scaling_behavior`
+- **References:** Items, Stats
+- **Blueprint touchpoints:** Equipment bonus resolver, tooltip breakdowns, combat calculators
+
+### Item Attribute Modifiers (`m_items.py`)
+- **Key fields:** `item_id`, `attribute_id`, `value`, `scaling`
+- **References:** Items, Attributes
+- **Blueprint touchpoints:** Attribute recalculations, build planners, loadout previews
 
 ### Character Classes (`m_characterclasses.py`)
 - **Key fields:** `role`, `base_stats`, `starting_abilities`

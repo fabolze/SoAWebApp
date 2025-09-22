@@ -1,9 +1,9 @@
-﻿# Blueprint Systems Overview
+# Blueprint Systems Overview
 
 This layout translates the SoA data into UE5 Blueprint-only systems tailored to a story-driven JRPG with a primary hero and optional companions.
 
 ## Data Foundation
-- **`BP_GameDataSubsystem` (Engine Subsystem)**: Loads every DataTable on Init from `Content/Data/Tables`. Provide lookup helpers for Stats, Attributes, Requirements, etc., returning structs by ULID or slug. Cache frequently used rows as `TMap<FString, FSoARow>` to avoid repeated DataTable calls.
+- **`BP_GameDataSubsystem` (Engine Subsystem)**: Loads every DataTable on Init from `Content/Data/Tables`. Provide lookup helpers for Stats, Attributes, Requirements, Items, and their modifier tables, returning structs by ULID or slug. Cache frequently used rows as `TMap<FString, FSoARow>` to avoid repeated DataTable calls.
 - **`BP_DataImportManager` (Editor Utility Widget)**: Batch re-imports CSV/JSON exports, validates enum strings, checks for dangling ULIDs (leveraging the relationship map), and logs issues. Run before packaging builds.
 - **`BP_ContentPackRegistry` (Game Instance Subsystem)**: Loads ContentPack rows, exposes active pack filters, and gates story/quest surfacing based on pack ownership.
 - **`BP_CurrencyManager` (Game Instance Subsystem)**: Loads the Currency table, tracks player balances across save/load, emits wallet change events, and exposes helper functions for reward pipelines.
@@ -14,8 +14,11 @@ BP_GameInstance
   +-- BP_GameDataSubsystem
         +-- DataTable: Stats
         +-- DataTable: Attributes
+        +-- DataTable: Attribute-to-Stat Links
         +-- DataTable: Abilities & links
         +-- DataTable: Items
+        +-- DataTable: Item Stat Modifiers
+        +-- DataTable: Item Attribute Modifiers
         +-- DataTable: Quests / StoryArcs / Flags
         +-- Helper Maps (ULID -> Struct)
 ```
@@ -25,7 +28,7 @@ BP_GameInstance
 - **`BP_StoryManager` (Actor Component on GameMode)**: Tracks current Story Arc, Story Beats, and calls into `BP_FlagManager`. Resolves `FStoryArcData.branching` to decide next quest once flags are set, and consults `BP_ContentPackRegistry` to ensure gated arcs stay hidden when packs are inactive.
 - **`BP_QuestLogComponent` (Actor Component on Player)**: Consumes `FQuestData` and manages objective states. Invokes `BP_FlagManager` when objectives complete (`flags_set_on_completion`) and pushes quest rewards into the currency/reputation systems. Provides UI data for quest journal.
 - **`BP_CompanionManager`**: Maintains active companions, reading `NPC.companion_config`, and spawns follower pawns. Handles temporary join/leave logic for narrative pacing.
-- **`BP_LevelProgressionComponent`**: Uses `CharacterClass.base_stats` / `stat_growth` and AttributeStat links to calculate derived stats on level up. Recomputes equipment bonuses by pulling Item definitions.
+- **`BP_LevelProgressionComponent`**: Uses `CharacterClass.base_stats` / `stat_growth` and AttributeStat links to calculate derived stats on level up. Recomputes equipment bonuses by pulling Item definitions and merging their stat/attribute modifier rows.
 
 ## Encounter & Combat Layer
 - **`BP_EncounterDirector` (World Subsystem)**: Builds encounters from `FEncounterData`, combining `enemy_ids`, `npc_ids`, and reward definitions. For Combat encounters, spawns battlers using `CharacterClass` templates, attaches ability sets from `Enemy.custom_abilities`, and funnels reward payloads (xp, currency, reputation, items) into the shared services.
@@ -43,12 +46,13 @@ BP_GameInstance
 - **`BP_LocationRegistry`**: Registers `FLocationData`, handles fast-travel availability and safe-zone logic. Ties into `BP_EventSequencer` to surface location-specific encounters.
 - **`BP_LoreCompendium`**: Pulls `FLoreEntryData`, unlocks entries when Flags fire. Supports timeline filtering by referencing `TimelineId`.
 - **`BP_ReputationSystem`**: Reads Faction definitions, updates reputations on turn-ins or dialogue outcomes, surfaces thresholds defined in `reputation_config`.
-- **`BP_ItemManager`**: Centralizes equipment and consumable usage, applying stat bonuses or triggering ability-like effects for items with JSON `effects` arrays.
+- **`BP_ItemManager`**: Centralizes equipment and consumable usage, combining `ItemStatModifier` and `ItemAttributeModifier` rows for active gear, then applying JSON `effects` arrays for triggered abilities.
 
 ## Tooling & Validation
 - Automated blueprint validation graph that iterates every Requirement node to ensure referenced Flags/Factions exist.
 - Playtest command (`CheatManager`) to fetch rows by slug for quick debugging: `DebugLookupRow(RowType, Slug)` prints relevant fields.
 - Unit-test style functional maps (using UE Automation Framework) to ensure DataTable imports match struct expectations before shipping.
+
 
 
 

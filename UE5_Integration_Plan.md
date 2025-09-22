@@ -1,9 +1,9 @@
-﻿# UE5 Integration Plan
+# UE5 Integration Plan
 
 A blueprint-only implementation roadmap that turns the SoA content repository into a narrative-focused JRPG inside Unreal Engine 5. This builds on `UE5_Integration/UE5_Blueprint_Integration_Guide.txt` and is backed by two new companion docs:
 
-- `UE5_Integration/Data_Relationship_Map.md` ï¿½ quick reference for which tables feed which systems.
-- `UE5_Integration/Blueprint_Systems.md` ï¿½ subsystem-level breakdown for data, narrative, combat, and tooling.
+- `UE5_Integration/Data_Relationship_Map.md` � quick reference for which tables feed which systems.
+- `UE5_Integration/Blueprint_Systems.md` � subsystem-level breakdown for data, narrative, combat, and tooling.
 
 ## Vision & Design North Star
 - Deliver an author-first experience: narrative tools must let you iterate on branching stories, evocative dialogue, and companion side tales rapidly.
@@ -13,7 +13,7 @@ A blueprint-only implementation roadmap that turns the SoA content repository in
 
 ## Current Content Coverage Snapshot
 - Core datasets: Stats, Attributes, Attribute-to-Stat links, Abilities, Effects, Items, Currencies, Content Packs, Character Classes, NPCs, Dialogues with Nodes, Quests, Story Arcs, Timelines, Locations, Encounters, Events, Enemies, Factions, Flags, Requirements (with flag/reputation links), Shops, Shop Inventory, Lore Entries.
-- Cross-link highlights: Abilities reference Effects and Attributes; Items reference Requirements and embed stat deltas; Quests feed Story Arcs, Flags, and reward packages (xp, currency, reputation); NPCs bridge Locations, Dialogues, Shops, and Companions; Events chain Encounters, Dialogues, and reward payloads; Content Packs scope which arcs/flags surface; Requirements unify gating across systems.
+- Cross-link highlights: Abilities reference Effects and Attributes; Items reference Requirements, Item stat/attribute modifier tables, and effect payloads; Quests feed Story Arcs, Flags, and reward packages (xp, currency, reputation); NPCs bridge Locations, Dialogues, Shops, and Companions; Events chain Encounters, Dialogues, and reward payloads; Content Packs scope which arcs/flags surface; Requirements unify gating across systems.
 - See the relationship map for exact field-level dependencies before wiring Blueprint lookups.
 
 ## Integration Pillars
@@ -33,7 +33,7 @@ A blueprint-only implementation roadmap that turns the SoA content repository in
 ### 3. Character Build, Combat, & Stats
 - Level progression calculates derived stats using Attribute-to-Stat links, CharacterClass growth curves, and Item bonuses.
 - Combat layer leverages `BP_EncounterDirector`, `BP_TurnManager`, and `BP_EffectResolver` to translate Abilities + Effects into turn-based actions reminiscent of Octopath Traveler (break systems, buffs, debuffs, etc.).
-- `BP_ItemManager` applies consumables/equipment, triggering stat recalculations and effect application.
+- `BP_ItemManager` applies consumables/equipment, aggregating ItemStatModifier / ItemAttributeModifier rows and triggering JSON effect payloads.
 - Design with extensibility for future multi-character parties; data already supports per-unit stats and abilities.
 
 ### 4. Dialogue, Events, & World Systems

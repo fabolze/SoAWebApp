@@ -28,7 +28,13 @@
       "enum": [
         "Weapon",
         "Armor",
+        "Accessory",
         "Consumable",
+        "Tool",
+        "Material",
+        "Upgrade",
+        "Quest",
+        "SetPiece",
         "Misc"
       ],
       "ui": {
@@ -37,7 +43,13 @@
         "options": [
           "Weapon",
           "Armor",
+          "Accessory",
           "Consumable",
+          "Tool",
+          "Material",
+          "Upgrade",
+          "Quest",
+          "SetPiece",
           "Misc"
         ]
       }
@@ -87,9 +99,17 @@
         "chest",
         "legs",
         "feet",
+        "hands",
+        "belt",
+        "ring",
+        "amulet",
+        "back",
         "main_hand",
         "off_hand",
-        "accessory"
+        "two_hand",
+        "accessory",
+        "mount",
+        "pet"
       ],
       "ui": {
         "widget": "select",
@@ -97,7 +117,10 @@
         "visible_if": {
           "type": [
             "Weapon",
-            "Armor"
+            "Armor",
+            "Accessory",
+            "SetPiece",
+            "Tool"
           ]
         }
       }
@@ -105,12 +128,29 @@
     "weapon_type": {
       "type": "string",
       "enum": [
-        "Sword",
-        "Axe",
-        "Bow",
-        "Staff",
+        "Greatsword",
+        "Longsword",
+        "Shortsword",
         "Dagger",
-        "Mace"
+        "Rapier",
+        "Axe",
+        "Greataxe",
+        "Hammer",
+        "Mace",
+        "Spear",
+        "Polearm",
+        "Halberd",
+        "Staff",
+        "Wand",
+        "Tome",
+        "Bow",
+        "Crossbow",
+        "Firearm",
+        "Thrown",
+        "Unarmed",
+        "Shield",
+        "Focus",
+        "Instrument"
       ],
       "ui": {
         "widget": "select",
@@ -122,70 +162,178 @@
         }
       }
     },
-    "stats": {
-      "type": "object",
-      "properties": {
-        "damage": {
-          "type": "number",
-          "ui": {
-            "widget": "number",
-            "label": "Damage"
-          }
-        },
-        "defense": {
-          "type": "number",
-          "ui": {
-            "widget": "number",
-            "label": "Defense"
-          }
-        },
-        "crit_chance": {
-          "type": "number",
-          "ui": {
-            "widget": "number",
-            "label": "Crit Chance (%)"
-          }
-        },
-        "weight": {
-          "type": "number",
-          "ui": {
-            "widget": "number",
-            "label": "Weight"
-          }
+    "damage_type": {
+      "type": "string",
+      "enum": [
+        "Slashing",
+        "Piercing",
+        "Blunt",
+        "Elemental",
+        "Poison",
+        "Psychic",
+        "Holy",
+        "Void"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Damage Type",
+        "visible_if": {
+          "type": [
+            "Weapon"
+          ]
         }
       }
     },
-    "attributes": {
-      "type": "object",
-      "properties": {
-        "strength": {
-          "type": "number",
-          "ui": {
-            "widget": "number",
-            "label": "Strength"
-          }
-        },
-        "dexterity": {
-          "type": "number",
-          "ui": {
-            "widget": "number",
-            "label": "Dexterity"
-          }
-        },
-        "vitality": {
-          "type": "number",
-          "ui": {
-            "widget": "number",
-            "label": "Vitality"
-          }
-        },
-        "intelligence": {
-          "type": "number",
-          "ui": {
-            "widget": "number",
-            "label": "Intelligence"
-          }
+    "weapon_range": {
+      "type": "string",
+      "enum": [
+        "Melee",
+        "Reach",
+        "Ranged",
+        "Siege"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Weapon Range",
+        "visible_if": {
+          "type": [
+            "Weapon"
+          ]
         }
+      }
+    },
+    "stat_modifiers": {
+      "type": "array",
+      "description": "List of stat bonuses or penalties applied while the item is equipped",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "ui": {
+              "widget": "hidden"
+            }
+          },
+          "stat_id": {
+            "type": "string",
+            "ui": {
+              "widget": "reference",
+              "reference": "stats",
+              "label": "Stat"
+            }
+          },
+          "value": {
+            "type": "number",
+            "ui": {
+              "widget": "number",
+              "label": "Value"
+            }
+          },
+          "value_type": {
+            "type": "string",
+            "enum": [
+              "Flat",
+              "Percentage",
+              "Multiplier"
+            ],
+            "ui": {
+              "widget": "select",
+              "label": "Value Type",
+              "description": "Flat applies raw value, Percentage multiplies current stat, Multiplier stacks multiplicatively"
+            }
+          },
+          "scaling_behavior": {
+            "type": "string",
+            "enum": [
+              "None",
+              "Linear",
+              "Exponential",
+              "Custom Curve"
+            ],
+            "ui": {
+              "widget": "select",
+              "label": "Scaling Behavior",
+              "options": [
+                "None",
+                "Linear",
+                "Exponential",
+                "Custom Curve"
+              ]
+            }
+          },
+          "notes": {
+            "type": "string",
+            "ui": {
+              "widget": "textarea",
+              "label": "Designer Notes"
+            }
+          }
+        },
+        "required": [
+          "stat_id",
+          "value"
+        ]
+      },
+      "ui": {
+        "label": "Stat Modifiers",
+        "description": "Define each stat this item modifies. Use value type and scaling to control how the bonus interacts with character growth."
+      }
+    },
+    "attribute_modifiers": {
+      "type": "array",
+      "description": "Attribute bonuses granted while equipped",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "ui": {
+              "widget": "hidden"
+            }
+          },
+          "attribute_id": {
+            "type": "string",
+            "ui": {
+              "widget": "reference",
+              "reference": "attributes",
+              "label": "Attribute"
+            }
+          },
+          "value": {
+            "type": "number",
+            "ui": {
+              "widget": "number",
+              "label": "Value"
+            }
+          },
+          "scaling": {
+            "type": "string",
+            "enum": [
+              "Linear",
+              "Exponential",
+              "Custom"
+            ],
+            "ui": {
+              "widget": "select",
+              "label": "Scaling"
+            }
+          },
+          "notes": {
+            "type": "string",
+            "ui": {
+              "widget": "textarea",
+              "label": "Designer Notes"
+            }
+          }
+        },
+        "required": [
+          "attribute_id",
+          "value"
+        ]
+      },
+      "ui": {
+        "label": "Attribute Modifiers",
+        "description": "Optional attribute bonuses that feed into downstream stat calculations."
       }
     },
     "effects": {
