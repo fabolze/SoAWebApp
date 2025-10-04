@@ -1,5 +1,5 @@
-from backend.app.routes.base_route import BaseRoute
-from backend.app.models.m_locations import Location, Biome
+﻿from backend.app.routes.base_route import BaseRoute
+from backend.app.models.m_locations import Location, Biome, BiomeModifier
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -22,13 +22,15 @@ class LocationRoute(BaseRoute):
     def process_input_data(self, db_session: Session, location: Location, data: Dict[str, Any]) -> None:
         # Validate enums
         self.validate_enums(data, {
-            "biome": Biome
+            "biome": Biome,
+            "biome_modifier": BiomeModifier
         })
         
         # Required fields
         location.slug = data["slug"]
         location.name = data["name"]
         location.biome = data["biome"]  # Already converted to enum
+        location.biome_modifier = data.get("biome_modifier")
         
         # Optional fields
         location.description = data.get("description")
@@ -90,3 +92,4 @@ class LocationRoute(BaseRoute):
 
 # Create the route instance
 bp = LocationRoute().bp
+

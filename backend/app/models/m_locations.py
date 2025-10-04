@@ -1,4 +1,4 @@
-# backend/app/models/m_locations.py
+﻿# backend/app/models/m_locations.py
 
 from sqlalchemy import Column, String, Boolean, Enum, Text, JSON
 from backend.app.models.base import Base
@@ -6,16 +6,40 @@ from backend.app.utils.id import generate_ulid
 import enum
 
 
-
 class Biome(enum.Enum):
+    # Core biomes
+    Plains = "Plains"
     Forest = "Forest"
     Cave = "Cave"
-    City = "City"
     Mountain = "Mountain"
-    Ruins = "Ruins"
     Desert = "Desert"
     Swamp = "Swamp"
-    Snowfield = "Snowfield"
+    Coast = "Coast"
+    Tundra = "Tundra"
+
+    # Urban biomes
+    City = "City"
+    Ruins = "Ruins"
+    Fortress = "Fortress"
+
+    # Air biomes
+    SkyIsles = "Sky Isles"
+    CloudSea = "Cloud Sea"
+
+    # Underground biomes
+    CrystalCaverns = "Crystal Caverns"
+    MagmaVeins = "Magma Veins"
+    FungalUndergrowth = "Fungal Undergrowth"
+    Abyss = "Abyss"
+
+
+class BiomeModifier(enum.Enum):
+    Arcane = "Arcane"
+    Corrupted = "Corrupted"
+    Divine = "Divine"
+    Shadowed = "Shadowed"
+    Dreamlike = "Dreamlike"
+
 
 class Location(Base):
     __tablename__ = 'locations'
@@ -26,6 +50,7 @@ class Location(Base):
     description = Column(Text)
 
     biome = Column(Enum(Biome), nullable=False)
+    biome_modifier = Column(Enum(BiomeModifier))
     region = Column(String)
 
     level_range = Column(JSON)        # { "min": 5, "max": 10 }
@@ -39,3 +64,4 @@ class Location(Base):
     has_respawn_point = Column(Boolean, default=False)
 
     tags = Column(JSON)               # List of string tags
+

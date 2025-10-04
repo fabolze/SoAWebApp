@@ -224,7 +224,8 @@ Struct FLocationData:
 - Slug (String) - Row Name.
 - Name (String).
 - Description (Text).
-- Biome (Enum/String) - Forest, Cave, City, Mountain, Ruins, Desert, Swamp, Snowfield; Blueprint-Enum `ELocationBiome` mit denselben Namen.
+- Biome (Enum/String) - Plains, Forest, Cave, Mountain, Desert, Swamp, Coast, Tundra, City, Ruins, Fortress, Sky Isles, Cloud Sea, Crystal Caverns, Magma Veins, Fungal Undergrowth, Abyss; Blueprint-Enum `ELocationBiome` mit denselben Namen.
+- BiomeModifier (Enum/String, optional) - Arcane, Corrupted, Divine, Shadowed, Dreamlike; Blueprint-Enum `ELocationBiomeModifier` ebenfalls exakt benennen.
 - Region (String) - freie Regionseinteilung.
 - LevelRange (Struct/JSON) - { Min, Max } als `FLevelRange`.
 - Coordinates (Struct/JSON) - { X, Y } fuer Karte oder Editor.
