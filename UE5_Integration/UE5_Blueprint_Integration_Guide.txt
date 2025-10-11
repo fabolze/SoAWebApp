@@ -236,6 +236,24 @@ Struct FLocationData:
 - HasRespawnPoint (Boolean).
 - Tags (Array<String>).
 
+Location Routes (LocationRoute Data Table) - neue Export-Tabelle fuer das Reisesystem
+Struct FLocationRouteData:
+- Id (String) - ULID.
+- Slug (String) - Row Name (z.B. `northpass_to_highridge`).
+- FromLocationId (String) - ULID der Quell-Location.
+- ToLocationId (String) - ULID der Ziel-Location.
+- TravelTime (Float) - Dauer in Spielstunden/-tagen.
+- Distance (Float) - Distanz oder Abstraktion fuer UI.
+- RequirementsId (String) - ULID eines Requirement-Satzes (Blockaden, Ruf, Story).
+- EncounterWeightModifier (Float) - Multiplikator fuer Zufallsbegegnungen auf dieser Route.
+- CostCurrencyId (String, optional) - ULID einer Waehrung fuer Reisekosten.
+- CostAmount (Float, optional) - Kostenbetrag.
+- FlagsUnlock (Array<String>) - Flag-ULIDs, die beim Freischalten gesetzt werden.
+- FlagsLock (Array<String>) - Flag-ULIDs, bei deren Setzen die Route gesperrt wird.
+- IsBidirectional (Boolean) - true, wenn dieselben Werte fuer Hin- und Rueckweg gelten; ansonsten zweite Zeile anlegen.
+- Tags (Array<String>) - Zusaetzliche Metadaten (z.B. `MountainPass`, `RequiresAirship`).
+Diese Tabelle ermoeglicht den Aufbau eines Graphen in UE5 (`BP_WorldGraphSubsystem`) und spiegelt die neuen Reise-Workflows aus dem Plan wider.
+
 Lore (Lore Entry Data Table) - Quelle: backend/app/models/m_lore_entries.py
 Struct FLoreEntryData:
 - Id (String) - ULID.

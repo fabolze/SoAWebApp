@@ -1,59 +1,138 @@
 # Blueprint Systems Overview
 
-This layout translates the SoA data into UE5 Blueprint-only systems tailored to a story-driven JRPG with a primary hero and optional companions.
-
-## Data Foundation
-- **`BP_GameDataSubsystem` (Engine Subsystem)**: Loads every DataTable on Init from `Content/Data/Tables`. Provide lookup helpers for Stats, Attributes, Requirements, Items, and their modifier tables, returning structs by ULID or slug. Cache frequently used rows as `TMap<FString, FSoARow>` to avoid repeated DataTable calls.
-- **`BP_DataImportManager` (Editor Utility Widget)**: Batch re-imports CSV/JSON exports, validates enum strings, checks for dangling ULIDs (leveraging the relationship map), and logs issues. Run before packaging builds.
-- **`BP_ContentPackRegistry` (Game Instance Subsystem)**: Loads ContentPack rows, exposes active pack filters, and gates story/quest surfacing based on pack ownership.
-- **`BP_CurrencyManager` (Game Instance Subsystem)**: Loads the Currency table, tracks player balances across save/load, emits wallet change events, and exposes helper functions for reward pipelines.
-- **`BP_SaveGame_SoA`**: Stores player stats, inventory, flags, quest states, companion roster, and active story arc context. Integrates with Flag Manager and Content Pack registry for serialization.
+Subsystem ownership for the UE5 blueprint-only JRPG build. Use this sheet to keep responsibilities clean and to know which blueprint should expose which API.
 
 ```
 BP_GameInstance
   +-- BP_GameDataSubsystem
-        +-- DataTable: Stats
-        +-- DataTable: Attributes
-        +-- DataTable: Attribute-to-Stat Links
-        +-- DataTable: Abilities & links
-        +-- DataTable: Items
-        +-- DataTable: Item Stat Modifiers
-        +-- DataTable: Item Attribute Modifiers
-        +-- DataTable: Quests / StoryArcs / Flags
-        +-- Helper Maps (ULID -> Struct)
+  +-- BP_ContentPackRegistry
+  +-- BP_CurrencyManager
+  +-- BP_FlagManager
+  +-- BP_CompanionManager
+  +-- BP_WorldGraphSubsystem
+  +-- BP_EncounterManager
+  +-- BP_PersistenceValidator
 ```
 
-## Narrative & Progression Layer
-- **`BP_FlagManager` (Game Instance Subsystem)**: Initializes all Flags to default, exposes `CheckRequirement(RequirementId)` that iterates Requirement link tables and faction reputation. Broadcasts `OnFlagChanged` events for UI and quests.
-- **`BP_StoryManager` (Actor Component on GameMode)**: Tracks current Story Arc, Story Beats, and calls into `BP_FlagManager`. Resolves `FStoryArcData.branching` to decide next quest once flags are set, and consults `BP_ContentPackRegistry` to ensure gated arcs stay hidden when packs are inactive.
-- **`BP_QuestLogComponent` (Actor Component on Player)**: Consumes `FQuestData` and manages objective states. Invokes `BP_FlagManager` when objectives complete (`flags_set_on_completion`) and pushes quest rewards into the currency/reputation systems. Provides UI data for quest journal.
-- **`BP_CompanionManager`**: Maintains active companions, reading `NPC.companion_config`, and spawns follower pawns. Handles temporary join/leave logic for narrative pacing.
-- **`BP_LevelProgressionComponent`**: Uses `CharacterClass.base_stats` / `stat_growth` and AttributeStat links to calculate derived stats on level up. Recomputes equipment bonuses by pulling Item definitions and merging their stat/attribute modifier rows.
+## Data Foundation
+- **`BP_GameDataSubsystem` (Engine Subsystem)**  
+  Loads every DataTable on Init, builds caches keyed by ULID and slug, exposes helper functions (`GetStatById`, `GetItemModifiers`, `FindEncountersForLocation`). Provides typed wrappers for JSON fields (e.g. quest objective arrays). Emits validation logs when lookups miss.
+
+- **`BP_DataImportManager` (Editor Utility Widget)**  
+  Batch re-imports CSV/JSON exports, validates enum strings, checks dangling ULIDs, and can trigger automation tests. Presents a summary panel grouped by severity (error/warning/info). Supports hot reload during PIE for dialogue/narrative iteration.
+
+- **`BP_ContentPackRegistry` (Game Instance Subsystem)**  
+  Stores active packs, exposes `IsPackActive`, `FilterRowsByPack`, and broadcast events when pack selection changes (allowing UI or story systems to refresh).
+
+- **`BP_CurrencyManager` (Game Instance Subsystem)**  
+  Mirrors currency definitions, tracks player balances per currency, and provides mutators (`AddCurrency`, `RemoveCurrency`, `GetBalance`). Integrates with rewards, shop purchases, and save/load.
+
+- **`BP_PersistenceValidator` (Auxiliary Subsystem)**  
+  Verifies SaveGame snapshots against current data revisions, warning if removed quests/items/flags exist. Invoked post-load and after re-imports.
+
+## Narrative & Game State
+- **`BP_FlagManager` (Game Instance Subsystem)**  
+  Initialises all flags to default values, exposes `CheckRequirement`, `SetFlag`, `GetFlagValue`, iterates link tables (required/forbidden flags, faction thresholds). Broadcasts `OnFlagChanged (FlagId, OldValue, NewValue)`; other systems subscribe.
+
+- **`BP_ReputationSystem` (Game Instance Subsystem)**  
+  Keeps faction reputation maps, applies modifiers from quests/events/encounters, and exposes threshold queries used by requirements.
+
+- **`BP_QuestLogComponent` (Actor Component on Player)`**  
+  Tracks quest states, objectives, timers. Subscribes to flag changes and updates UI. Calls into reward systems when objectives complete. Persists progress via SaveGame.
+
+- **`BP_StoryManager` (Actor Component on GameMode)**  
+  Drives story arc progression, timeline advancement, and event chains. Applies pack gating, requirement checks, and triggers new quests or events based on flag changes.
+
+- **`BP_CompanionManager` (Game Instance Subsystem)**  
+  Handles companion roster, spawns/despawns follower pawns, manages loyalty flags, communicates loadout/stats to combat setup. Supports rotating companions per story beat.
+
+- **`BP_SaveGame_SoA` (SaveGame Blueprint)**  
+  Serialises player stats, inventory, learned abilities, flags, quest states, companion roster, unlocked routes, content pack selection, travel seeds.
+
+## World Graph & Travel
+- **`BP_WorldGraphSubsystem` (World Subsystem)**  
+  Ingests Location + LocationRoute tables, builds adjacency lists and weighted graph metadata. Provides pathfinding (`FindBestRoute` / `FindAllRoutes`), caches results per travel mode, and reacts to flag/content pack changes to enable/disable edges.
+
+- **`BP_TravelPlanner` (Object Library / Blueprint Function Library)**  
+  Executes Dijkstra/A* using data from the world graph, returning `FTravelPlan` structs (segments, estimated time, stamina costs, encounter odds). Supports developer overrides (instant travel, ignore requirements).
+
+- **`BP_LocationRegistry` (World Subsystem)**  
+  Tracks current location, discovered nodes, fast-travel unlocks, respawn anchors, and exposure to safe zones. Offers `GetLocationData`, `IsLocationUnlocked`, `MarkDiscovered`.
+
+- **`BP_TravelOrchestrator` (World Subsystem or Component on Player Controller)**  
+  Manages travel execution: steps through travel plan segments, triggers pre-segment events, rolls for encounters, plays travel UI/VO, and resumes control after each segment. Works with `BP_EncounterManager` for encounter injection.
+
+- **`BP_WorldMapWidget` (UI)**  
+  Renders nodes/edges, colour-codes locked routes, shows encounter odds and travel costs. Integrates developer debug modes for graph visualisation.
+
+> Detailed travel architecture: `UE5_Integration/World_Travel_System.md`.
 
 ## Encounter & Combat Layer
-- **`BP_EncounterDirector` (World Subsystem)**: Builds encounters from `FEncounterData`, combining `enemy_ids`, `npc_ids`, and reward definitions. For Combat encounters, spawns battlers using `CharacterClass` templates, attaches ability sets from `Enemy.custom_abilities`, and funnels reward payloads (xp, currency, reputation, items) into the shared services.
-- **`BP_TurnManager`**: Orders participants by Speed stat, processes ability execution. For each ability, fetch linked `AbilityEffectLink` entries, then apply `Effect` rows using `BP_EffectResolver`.
-- **`BP_EffectResolver`**: Evaluates Effect value based on `value_type`, `attribute_id`, and `scaling_stat_id`. Requests current attribute/stat values from Player / Enemy components.
-- **`BP_StatusComponent`**: Applies lasting effects, handles stacking and expiration per `Effect.duration` and `Effect.stackable`.
+- **`BP_EncounterManager` (World Subsystem)**  
+  Receives context from travel/events, filters encounter candidates by requirement, content pack, and difficulty, seeds RNG for deterministic runs, and forwards selected encounters to the event sequencer or combat director.
 
-## Dialogue & Interaction Layer
-- **`BP_DialogueManager` (Widget + Actor Component)**: Loads `FDialogueData` for the selected NPC, then iterates `FDialogueNodeData` to present lines. Each node checks `requirements_id` via `BP_FlagManager`, triggers `set_flags`, and advances through `choices`.
-- **`BP_DialogueSpeaker`**: Maps `speaker` field to Character references (Player, NPC, Companion) and cues VO/subtitles.
-- **`BP_EventSequencer`**: Consumes `FEventData`, dispatches to appropriate handlers (Encounter, Dialogue, Teleport, ScriptedScene), and resolves reward bundles via `BP_CurrencyManager` and `BP_ReputationSystem`. Uses `next_event_id` for chains.
-- **`BP_ShopWidget` / `BP_ShopController`**: Uses Shop + ShopInventory tables, verifying requirements on open, applying `price_modifiers`, and cross-referencing Items for display.
+- **`BP_EncounterDirector` (World Subsystem)**  
+  Builds combat scenes: spawns player + companions, instantiates enemies using `FEnemyData` and `FCharacterClassData`, applies route/environment modifiers (weather, terrain), and packages `FCombatContext`.
 
-## World & Exploration Layer
-- **`BP_LocationRegistry`**: Registers `FLocationData`, handles fast-travel availability and safe-zone logic. Ties into `BP_EventSequencer` to surface location-specific encounters.
-- **`BP_LoreCompendium`**: Pulls `FLoreEntryData`, unlocks entries when Flags fire. Supports timeline filtering by referencing `TimelineId`.
-- **`BP_ReputationSystem`**: Reads Faction definitions, updates reputations on turn-ins or dialogue outcomes, surfaces thresholds defined in `reputation_config`.
-- **`BP_ItemManager`**: Centralizes equipment and consumable usage, combining `ItemStatModifier` and `ItemAttributeModifier` rows for active gear, then applying JSON `effects` arrays for triggered abilities.
+- **`BP_TurnManager` (Actor/Component inside Battle Level)**  
+  Orders combatants by Speed, handles initiative modifiers, queues actions, and drives the turn loop. Publishes turn order to UI and handles skip logic (stun, death).
 
-## Tooling & Validation
-- Automated blueprint validation graph that iterates every Requirement node to ensure referenced Flags/Factions exist.
-- Playtest command (`CheatManager`) to fetch rows by slug for quick debugging: `DebugLookupRow(RowType, Slug)` prints relevant fields.
-- Unit-test style functional maps (using UE Automation Framework) to ensure DataTable imports match struct expectations before shipping.
+- **`BP_ActionQueue` (Support Object)**  
+  Stores declared actions, allows preview/confirmation, supports reaction hooks (interrupts, counters) configured via data.
 
+- **`BP_EffectResolver` (Blueprint Function Library)**  
+  Applies damage/heal/buff/debuff effects using `value_type`, `attribute_id`, and `scaling_stat_id`. Interfaces with `BP_CombatFormulaLibrary` for calculations and `BP_StatusComponent` for persistent states.
 
+- **`BP_StatusComponent` (Actor Component on Battle Characters)**  
+  Manages timed effects, stacking, immunities, and tick-based damage. Emits events for UI/AI when states change.
 
+- **`BP_CombatFormulaLibrary` (Function Library)**  
+  Centralises formulas (damage, crit, resistance), pulling coefficients from DataTables so balancing can change without blueprint rewiring.
 
+- **`BP_BattleCharacter` / `BP_PlayerCharacter` / `BP_EnemyCharacter` / `BP_CompanionCharacter`**  
+  Base combatant class plus specialisations. Provide API for stats, abilities, item usage, AI hooks, animation triggers.
 
+- **`BP_EnemyBrain` (Actor Component)**  
+  Wraps AI behaviour for enemies. Consumes behaviour tags from enemy data, scores abilities against current battlefield state, and picks targets.
+
+- **`BP_RewardDistributor` (Function Library)**  
+  Routes XP, currency, items, reputation, and flags after combat or scripted events through `BP_CurrencyManager`, `BP_ItemManager`, `BP_ReputationSystem`, and `BP_FlagManager`.
+
+## Dialogue, Events & Interactions
+- **`BP_DialogueManager` (Widget + Actor Component)**  
+  Plays dialogues from `FDialogueData` + `FDialogueNodeData`, validates requirements per node using `BP_FlagManager`, pushes flags/rewards, and supports skip/debug options.
+
+- **`BP_DialogueSpeaker`**  
+  Maps speaker identifiers to character references (player, companion, NPC) and triggers VO/subtitles/emotes.
+
+- **`BP_EventSequencer` (Subsystem)**  
+  Reads `FEventData`, resolves requirements, fires target actions (encounter, dialogue, teleport, scripted scene), applies rewards, and follows `next_event_id` chains. Used by travel, story, and encounter systems.
+
+- **`BP_ShopController` / `BP_ShopWidget`**  
+  Validates access requirements, pulls inventory, calculates prices via pricing helper, processes purchases, updates currency manager.
+
+- **`BP_LoreCompendium` (Subsystem/UI)**  
+  Unlocks lore entries when flags/events trigger, references timelines for chronology filters.
+
+## Tooling, Debug & QA
+- **`BP_SoACheatManager`**  
+  Exposes commands (`SpawnEncounter`, `ToggleEncounters`, `SetFlag`, `GiveItem`, `DebugLookupRow`, `UnlockRoute`, `TravelTo`, etc.). Only active in Development builds.
+
+- **`BP_DebugOverlayWidget`**  
+  UI for toggling cheats, viewing travel graph, inspecting current requirements, visualising encounter odds and turn order predictions.
+
+- **Automation Tests (Blueprint-based)**  
+  - Data integrity suite (per-table row validation, dangling ULIDs, enum mismatches).  
+  - Requirement evaluation tests (required/forbidden flags, faction thresholds).  
+  - Travel graph tests (ensure every route endpoint exists, detect cycles/orphans, validate safe-zone exclusions).  
+  - Encounter seeding tests (consistent output for given seed + location).  
+
+- **`BP_TravelSimulator` (Editor Utility)**  
+  Runs Monte-Carlo simulations over travel paths to report encounter frequency, average cost/time, and edge cases (e.g. zero available routes). Helps tuning encounter chances.
+
+- **`BP_TestBattleMode`**  
+  Loads selected encounters, companions, equipment sets for rapid combat iteration; integrates with automation to catch regressions in formulas or AI.
+
+---
+
+Stick to these ownership boundaries to limit blueprint complexity. When in doubt, prefer adding data to the relevant table and letting the owning subsystem react, rather than special-casing logic in gameplay blueprints.
