@@ -15,13 +15,14 @@ class TimelineRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["timeline_id", "name"]
+        return ["id", "slug", "name"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["timeline_id"]
+        return data["id"]
     
     def process_input_data(self, db_session: Session, timeline: Timeline, data: Dict[str, Any]) -> None:
         # Required fields
+        timeline.slug = data["slug"]
         timeline.name = data["name"]
         
         # Optional fields
@@ -41,9 +42,7 @@ class TimelineRoute(BaseRoute):
         timeline.tags = data.get("tags", [])
 
     def serialize_item(self, timeline: Timeline) -> Dict[str, Any]:
-        serialized = self.serialize_model(timeline)
-        serialized['timeline_id'] = serialized.pop('id', None)  # Ensure timeline_id is used instead of id
-        return serialized
+        return self.serialize_model(timeline)
 
     def get_all(self):
         db_session = get_db_session()

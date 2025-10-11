@@ -1,14 +1,18 @@
-{
+﻿{
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Game Flag",
     "type": "object",
     "properties": {
-      "flag_id": {
+      "id": {
         "type": "string",
         "description": "Unique internal ID for the flag",
         "ui": {
           "widget": "hidden"
         }
+      },
+      "slug": {
+        "type": "string",
+        "ui": { "widget": "text", "label": "ID/Slug" }
       },
       "name": {
         "type": "string",
@@ -67,13 +71,13 @@
           "label": "Default Active?"
         }
       },
-      "content_pack": {
+      "content_pack_id": {
         "type": "string",
-        "description": "Which content pack or DLC this flag belongs to",
+        "description": "Optional content pack association",
         "ui": {
-          "widget": "select",
-          "label": "Content Pack",
-          "options": ["Base", "DLC1", "DLC2", "Expansion"]
+          "widget": "reference",
+          "reference": "content-packs",
+          "label": "Content Pack"
         }
       },
       "tags": {
@@ -83,5 +87,9 @@
         "ui": { "widget": "tags", "label": "Tags" }
       }
     },
-    "required": ["flag_id", "name", "description"]
+    "required": ["id", "slug", "name", "description"]
   }
+
+
+
+

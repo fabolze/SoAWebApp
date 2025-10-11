@@ -3,12 +3,16 @@
     "title": "Dialogue Sequence",
     "type": "object",
     "properties": {
-      "dialogue_id": {
+      "id": {
         "type": "string",
         "description": "Unique ID for this dialogue sequence",
         "ui": {
           "widget": "hidden"
         }
+      },
+      "slug": {
+        "type": "string",
+        "ui": { "widget": "text", "label": "ID/Slug" }
       },
       "title": {
         "type": "string",
@@ -60,5 +64,5 @@
         }
       }
     },
-    "required": ["dialogue_id", "title"]
+    "required": ["id", "slug", "title"]
   }

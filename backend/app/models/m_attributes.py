@@ -3,6 +3,7 @@
 from sqlalchemy import Column, String, Float, Enum, Text, JSON
 from backend.app.models.base import Base
 from sqlalchemy.orm import relationship
+from backend.app.utils.id import generate_ulid
 import enum
 
 
@@ -20,7 +21,8 @@ class AttrScalingType(enum.Enum):
 class Attribute(Base):
     __tablename__ = 'attributes'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
     description = Column(Text)
     value_type = Column(Enum(AttrValueType), nullable=False)

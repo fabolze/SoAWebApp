@@ -1,5 +1,5 @@
-from backend.app.routes.base_route import BaseRoute
-from backend.app.models.m_locations import Location, Biome
+﻿from backend.app.routes.base_route import BaseRoute
+from backend.app.models.m_locations import Location, Biome, BiomeModifier
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -14,20 +14,23 @@ class LocationRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["location_id", "name", "biome"]
+        return ["id", "slug", "name", "biome"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["location_id"]
+        return data["id"]
         
     def process_input_data(self, db_session: Session, location: Location, data: Dict[str, Any]) -> None:
         # Validate enums
         self.validate_enums(data, {
-            "biome": Biome
+            "biome": Biome,
+            "biome_modifier": BiomeModifier
         })
         
         # Required fields
+        location.slug = data["slug"]
         location.name = data["name"]
         location.biome = data["biome"]  # Already converted to enum
+        location.biome_modifier = data.get("biome_modifier")
         
         # Optional fields
         location.description = data.get("description")
@@ -61,9 +64,7 @@ class LocationRoute(BaseRoute):
         location.tags = data.get("tags", [])
         
     def serialize_item(self, location: Location) -> Dict[str, Any]:
-        serialized = self.serialize_model(location)
-        serialized['location_id'] = serialized.pop('id', None)  # Ensure location_id is used instead of id
-        return serialized
+        return self.serialize_model(location)
         
     def get_all(self):
         db_session = get_db_session()
@@ -91,3 +92,4 @@ class LocationRoute(BaseRoute):
 
 # Create the route instance
 bp = LocationRoute().bp
+

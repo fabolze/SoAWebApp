@@ -1,4 +1,4 @@
-// soa-editor/src/main.tsx
+﻿// soa-editor/src/main.tsx
 // This file is responsible for rendering the main application and setting up routing.
 import React, { useState } from "react";
 import ReactDOM from "react-dom/client";
@@ -12,10 +12,12 @@ import DialoguesEditorPage from "./pages/DialoguesEditor";
 import EncountersEditorPage from "./pages/EncountersEditor";
 import EnemiesEditorPage from "./pages/EnemiesEditor";
 import EventsEditorPage from "./pages/EventsEditor";
+import ContentPacksEditorPage from "./pages/ContentPacksEditor";
 import FactionsEditorPage from "./pages/FactionsEditor";
 import FlagsEditorPage from "./pages/FlagsEditor";
 import IndexPageEditorPage from "./pages/IndexPageEditor";
 import ItemsEditorPage from "./pages/ItemsEditor";
+import CurrenciesEditorPage from "./pages/CurrenciesEditor";
 import LocationsEditorPage from "./pages/LocationsEditor";
 import LoreEntriesEditorPage from "./pages/LoreEntriesEditor";
 import NpcsEditorPage from "./pages/NpcsEditor";
@@ -56,9 +58,11 @@ const MainApp = () => {
             <Route path="encounters" element={<EncountersEditorPage />} />
             <Route path="enemies" element={<EnemiesEditorPage />} />
             <Route path="events" element={<EventsEditorPage />} />
+            <Route path="content-packs" element={<ContentPacksEditorPage />} />
             <Route path="factions" element={<FactionsEditorPage />} />
             <Route path="flags" element={<FlagsEditorPage />} />
             <Route path="items" element={<ItemsEditorPage />} />
+            <Route path="currencies" element={<CurrenciesEditorPage />} />
             <Route path="locations" element={<LocationsEditorPage />} />
             <Route path="lore-entries" element={<LoreEntriesEditorPage />} />
             <Route path="npcs" element={<NpcsEditorPage />} />
@@ -78,3 +82,6 @@ const MainApp = () => {
 };
 
 ReactDOM.createRoot(document.getElementById("root")!).render(<MainApp />);
+
+
+

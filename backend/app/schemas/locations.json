@@ -1,118 +1,197 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Location",
-    "type": "object",
-    "properties": {
-      "location_id": {
-        "type": "string",
-        "description": "Unique ID for the location",
-        "ui": {
-          "widget": "hidden"
-        }
-      },
-      "name": {
-        "type": "string",
-        "description": "Display name of the location",
-        "ui": {
-          "widget": "text",
-          "label": "Location Name"
-        }
-      },
-      "description": {
-        "type": "string",
-        "description": "Description shown to player",
-        "ui": {
-          "widget": "textarea",
-          "label": "Description"
-        }
-      },
-      "biome": {
-        "type": "string",
-        "enum": ["Forest", "Cave", "City", "Mountain", "Ruins", "Desert", "Swamp", "Snowfield"],
-        "ui": {
-          "widget": "select",
-          "label": "Biome",
-          "options": ["Forest", "Cave", "City", "Mountain", "Ruins", "Desert", "Swamp", "Snowfield"]
-        }
-      },
-      "region": {
-        "type": "string",
-        "description": "Map region or continent",
-        "ui": {
-          "widget": "text",
-          "label": "Region"
-        }
-      },
-      "level_range": {
-        "type": "object",
-        "description": "Recommended level range for encounters",
-        "properties": {
-          "min": { "type": "number" },
-          "max": { "type": "number" }
-        }
-      },
-      "coordinates": {
-        "type": "object",
-        "description": "Position on world map",
-        "properties": {
-          "x": { "type": "number" },
-          "y": { "type": "number" }
-        }
-      },
-      "image_path": {
-        "type": "string",
-        "description": "Optional image or map segment",
-        "ui": {
-          "widget": "filepicker",
-          "label": "Image"
-        }
-      },
-      "encounters": {
-        "type": "array",
-        "description": "Encounters that can be triggered in this location",
-        "items": {
-          "type": "string"
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Location",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique ID for the location",
+      "ui": {
+        "widget": "hidden"
+      }
+    },
+    "slug": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      }
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name of the location",
+      "ui": {
+        "widget": "text",
+        "label": "Location Name"
+      }
+    },
+    "description": {
+      "type": "string",
+      "description": "Description shown to player",
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      }
+    },
+    "biome": {
+      "type": "string",
+      "enum": [
+        "Plains",
+        "Forest",
+        "Cave",
+        "Mountain",
+        "Desert",
+        "Swamp",
+        "Coast",
+        "Tundra",
+        "City",
+        "Ruins",
+        "Fortress",
+        "Sky Isles",
+        "Cloud Sea",
+        "Crystal Caverns",
+        "Magma Veins",
+        "Fungal Undergrowth",
+        "Abyss"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Biome",
+        "options": [
+          "Plains",
+          "Forest",
+          "Cave",
+          "Mountain",
+          "Desert",
+          "Swamp",
+          "Coast",
+          "Tundra",
+          "City",
+          "Ruins",
+          "Fortress",
+          "Sky Isles",
+          "Cloud Sea",
+          "Crystal Caverns",
+          "Magma Veins",
+          "Fungal Undergrowth",
+          "Abyss"
+        ]
+      }
+    },
+    "biome_modifier": {
+      "type": "string",
+      "description": "Optional magical layer that alters the base biome",
+      "enum": [
+        "Arcane",
+        "Corrupted",
+        "Divine",
+        "Shadowed",
+        "Dreamlike"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Biome Modifier",
+        "options": [
+          "Arcane",
+          "Corrupted",
+          "Divine",
+          "Shadowed",
+          "Dreamlike"
+        ]
+      }
+    },
+    "region": {
+      "type": "string",
+      "description": "Map region or continent",
+      "ui": {
+        "widget": "text",
+        "label": "Region"
+      }
+    },
+    "level_range": {
+      "type": "object",
+      "description": "Recommended level range for encounters",
+      "properties": {
+        "min": {
+          "type": "number"
         },
-        "ui": {
-          "widget": "multiselect",
-          "label": "Encounters",
-          "reference": "encounters"
-        }
-      },
-      "is_safe_zone": {
-        "type": "boolean",
-        "description": "True if this is a no-combat zone",
-        "ui": {
-          "widget": "checkbox",
-          "label": "Safe Zone"
-        }
-      },
-      "is_fast_travel_point": {
-        "type": "boolean",
-        "description": "Whether this location can be used for fast travel",
-        "ui": {
-          "widget": "checkbox",
-          "label": "Fast Travel"
-        }
-      },
-      "has_respawn_point": {
-        "type": "boolean",
-        "description": "If defeated, players respawn here",
-        "ui": {
-          "widget": "checkbox",
-          "label": "Respawn Point"
-        }
-      },
-      "tags": {
-        "type": "array",
-        "description": "Keywords for filtering or categorization",
-        "items": { "type": "string" },
-        "ui": {
-          "widget": "tags",
-          "label": "Tags"
+        "max": {
+          "type": "number"
         }
       }
     },
-    "required": ["location_id", "name", "biome"]
-  }
-  
+    "coordinates": {
+      "type": "object",
+      "description": "Position on world map",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      }
+    },
+    "image_path": {
+      "type": "string",
+      "description": "Optional image or map segment",
+      "ui": {
+        "widget": "filepicker",
+        "label": "Image"
+      }
+    },
+    "encounters": {
+      "type": "array",
+      "description": "Encounters that can be triggered in this location",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Encounters",
+        "reference": "encounters"
+      }
+    },
+    "is_safe_zone": {
+      "type": "boolean",
+      "description": "True if this is a no-combat zone",
+      "ui": {
+        "widget": "checkbox",
+        "label": "Safe Zone"
+      }
+    },
+    "is_fast_travel_point": {
+      "type": "boolean",
+      "description": "Whether this location can be used for fast travel",
+      "ui": {
+        "widget": "checkbox",
+        "label": "Fast Travel"
+      }
+    },
+    "has_respawn_point": {
+      "type": "boolean",
+      "description": "If defeated, players respawn here",
+      "ui": {
+        "widget": "checkbox",
+        "label": "Respawn Point"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Keywords for filtering or categorization",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "slug",
+    "name",
+    "biome"
+  ]
+}

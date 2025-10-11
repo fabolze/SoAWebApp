@@ -3,13 +3,15 @@
 from sqlalchemy import Column, String, Float, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 
 
 
 class Quest(Base):
     __tablename__ = 'quests'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=False)
 
@@ -19,6 +21,8 @@ class Quest(Base):
     objectives = Column(JSON)                   # List of { objective_id, description, requirements, flags_set }
     flags_set_on_completion = Column(JSON)      # List of flag IDs
     xp_reward = Column(Float)
+    currency_rewards = Column(JSON)             # List of { currency_id, amount }
+    reputation_rewards = Column(JSON)           # List of { faction_id, amount }
     item_rewards = Column(JSON)                 # List of { item_id, quantity }
     tags = Column(JSON)
 

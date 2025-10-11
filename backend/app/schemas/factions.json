@@ -3,12 +3,16 @@
     "title": "Faction",
     "type": "object",
     "properties": {
-      "faction_id": {
+      "id": {
         "type": "string",
         "description": "Internal unique ID for the faction",
         "ui": {
           "widget": "hidden"
         }
+      },
+      "slug": {
+        "type": "string",
+        "ui": { "widget": "text", "label": "ID/Slug" }
       },
       "name": {
         "type": "string",
@@ -87,5 +91,5 @@
         }
       }
     },
-    "required": ["faction_id", "name", "alignment"]
+    "required": ["id", "slug", "name", "alignment"]
   }

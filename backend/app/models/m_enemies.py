@@ -1,8 +1,9 @@
 # backend/app/models/m_enemies.py
 
-from sqlalchemy import Column, String, Integer, Float, Enum, Text, JSON, ForeignKey
+from sqlalchemy import Column, String, Integer, Enum, Text, JSON, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 import enum
 
 
@@ -14,6 +15,11 @@ class EnemyType(enum.Enum):
     Elemental = "elemental"
     Machine = "machine"
     Boss = "boss"
+    Demon = "demon"
+    Dragon = "dragon"
+    Giant = "giant"
+    Spirit = "spirit"
+    Other = "other"
 
 class Aggression(enum.Enum):
     Hostile = "Hostile"
@@ -23,7 +29,8 @@ class Aggression(enum.Enum):
 class Enemy(Base):
     __tablename__ = 'enemies'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
     type = Column(Enum(EnemyType))
     level = Column(Integer, nullable=False)
@@ -40,6 +47,9 @@ class Enemy(Base):
     tags = Column(JSON)
 
     loot_table = Column(JSON)                # [{ item_id, drop_chance }]
+    currency_rewards = Column(JSON)          # [{ currency_id, amount, drop_chance }]
+    reputation_rewards = Column(JSON)        # [{ faction_id, amount, drop_chance }]
+    xp_reward = Column(Float)
     related_quests = Column(JSON)            # List of quest IDs
 
     class_template = relationship("CharacterClass")

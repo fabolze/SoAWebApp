@@ -1,12 +1,16 @@
-{
+﻿{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Encounter",
   "type": "object",
   "properties": {
-    "encounter_id": {
+    "id": {
       "type": "string",
       "description": "Unique ID for the encounter",
       "ui": { "widget": "hidden" }
+    },
+    "slug": {
+      "type": "string",
+      "ui": { "widget": "text", "label": "ID/Slug" }
     },
     "name": {
       "type": "string",
@@ -40,9 +44,7 @@
     "enemy_ids": {
       "type": "array",
       "description": "List of enemy IDs to spawn (if combat)",
-      "items": {
-        "type": "string"
-      },
+      "items": { "type": "string" },
       "ui": {
         "widget": "multiselect",
         "label": "Enemies",
@@ -52,9 +54,7 @@
     "npc_ids": {
       "type": "array",
       "description": "List of NPC IDs involved (optional)",
-      "items": {
-        "type": "string"
-      },
+      "items": { "type": "string" },
       "ui": {
         "widget": "multiselect",
         "label": "NPCs",
@@ -63,26 +63,84 @@
     },
     "rewards": {
       "type": "object",
-      "description": "Rewards given after encounter",
+      "description": "Rewards granted after completing the encounter",
       "properties": {
-        "xp": { "type": "number", "description": "XP granted" },
+        "xp": {
+          "type": "number",
+          "description": "Experience points granted to the player",
+          "ui": { "widget": "number", "label": "Experience" }
+        },
         "items": {
           "type": "array",
+          "description": "Items granted with the reward",
           "items": {
             "type": "object",
             "properties": {
-              "item_id": { "type": "string" },
-              "quantity": { "type": "number" }
+              "item_id": {
+                "type": "string",
+                "ui": {
+                  "widget": "reference",
+                  "reference": "items",
+                  "label": "Item"
+                }
+              },
+              "quantity": {
+                "type": "number",
+                "ui": { "widget": "number", "label": "Quantity" }
+              }
             },
             "required": ["item_id", "quantity"]
+          }
+        },
+        "currencies": {
+          "type": "array",
+          "description": "Currency rewarded to the player",
+          "items": {
+            "type": "object",
+            "properties": {
+              "currency_id": {
+                "type": "string",
+                "ui": {
+                  "widget": "reference",
+                  "reference": "currencies",
+                  "label": "Currency"
+                }
+              },
+              "amount": {
+                "type": "number",
+                "ui": { "widget": "number", "label": "Amount" }
+              }
+            },
+            "required": ["currency_id", "amount"]
+          }
+        },
+        "reputation": {
+          "type": "array",
+          "description": "Faction reputation adjustments",
+          "items": {
+            "type": "object",
+            "properties": {
+              "faction_id": {
+                "type": "string",
+                "ui": {
+                  "widget": "reference",
+                  "reference": "factions",
+                  "label": "Faction"
+                }
+              },
+              "amount": {
+                "type": "number",
+                "description": "Positive or negative reputation delta",
+                "ui": { "widget": "number", "label": "Delta" }
+              }
+            },
+            "required": ["faction_id", "amount"]
           }
         },
         "flags_set": {
           "type": "array",
           "description": "Flags set after completing the encounter",
-          "items": {
-            "type": "string"
-          },
+          "items": { "type": "string" },
           "ui": {
             "widget": "multiselect",
             "label": "Flags Set",
@@ -93,10 +151,10 @@
     },
     "tags": {
       "type": "array",
-      "description": "Tags for filtering/searching/categorization",
+      "description": "Tags for filtering/searching/categorisation",
       "items": { "type": "string" },
       "ui": { "widget": "tags", "label": "Tags" }
     }
   },
-  "required": ["encounter_id", "name", "encounter_type"]
+  "required": ["id", "slug", "name", "encounter_type"]
 }

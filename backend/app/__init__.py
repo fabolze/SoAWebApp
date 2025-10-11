@@ -1,8 +1,9 @@
-# backend/app/__init__.py
+﻿# backend/app/__init__.py
 
 from flask import Flask, jsonify
 from flask_cors import CORS
 from backend.app.db.init_db import init_db
+from backend.app.utils.id import generate_ulid
 
 ########## Blueprints Import ##########
 from backend.app.routes.r_abilities import bp as abilities_bp
@@ -14,6 +15,8 @@ from backend.app.routes.r_dialogues import bp as dialogues_bp
 from backend.app.routes.r_encounters import bp as encounters_bp
 from backend.app.routes.r_enemies import bp as enemies_bp
 from backend.app.routes.r_events import bp as events_bp
+from backend.app.routes.r_content_packs import bp as content_packs_bp
+from backend.app.routes.r_currencies import bp as currencies_bp
 from backend.app.routes.r_factions import bp as factions_bp
 from backend.app.routes.r_flags import bp as flags_bp
 from backend.app.routes.r_items import bp as items_bp
@@ -30,6 +33,9 @@ from backend.app.routes.r_timelines import bp as timelines_bp
 from backend.app.routes.r_export import bp as export_bp
 from backend.app.routes.r_bulk_export import bp as bulk_export_bp
 from backend.app.routes.r_db_admin import bp as db_admin_bp
+
+__all__ = ["create_app", "generate_ulid"]
+
 
 def create_app() -> Flask:
     app = Flask(__name__)
@@ -48,11 +54,11 @@ def create_app() -> Flask:
         }), code
     
     # Bootstrapping pipeline
-    print("🔧 Initializing database...")
+    print("ðŸ”§ Initializing database...")
     init_db()
        
     # Register all blueprints
-    print("📑 Registering blueprints...")
+    print("ðŸ“‘ Registering blueprints...")
     blueprints = [
         abilities_bp,
         effects_bp,
@@ -63,6 +69,8 @@ def create_app() -> Flask:
         encounters_bp,
         enemies_bp,
         events_bp,
+        content_packs_bp,
+        currencies_bp,
         factions_bp,
         flags_bp,
         items_bp,
@@ -83,6 +91,8 @@ def create_app() -> Flask:
     
     for blueprint in blueprints:
         app.register_blueprint(blueprint)
-        print(f"✅ Registered {blueprint.name} blueprint")
+        print(f"âœ… Registered {blueprint.name} blueprint")
 
     return app
+
+

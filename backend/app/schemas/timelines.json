@@ -3,12 +3,16 @@
     "title": "Timeline Era",
     "type": "object",
     "properties": {
-      "timeline_id": {
+      "id": {
         "type": "string",
         "description": "Unique ID for the timeline era",
         "ui": {
           "widget": "hidden"
         }
+      },
+      "slug": {
+        "type": "string",
+        "ui": { "widget": "text", "label": "ID/Slug" }
       },
       "name": {
         "type": "string",
@@ -41,5 +45,5 @@
         "ui": { "widget": "tags", "label": "Tags" }
       }
     },
-    "required": ["timeline_id", "name"]
+    "required": ["id", "slug", "name"]
   }

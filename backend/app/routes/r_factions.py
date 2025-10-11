@@ -14,10 +14,10 @@ class FactionRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["faction_id", "name", "alignment"]
+        return ["id", "slug", "name", "alignment"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["faction_id"]
+        return data["id"]
     
     def process_input_data(self, db_session: Session, faction: Faction, data: Dict[str, Any]) -> None:
         # Validate enums
@@ -26,6 +26,7 @@ class FactionRoute(BaseRoute):
         })
         
         # Required fields
+        faction.slug = data["slug"]
         faction.name = data["name"]
         faction.alignment = data["alignment"]  # Already converted to enum
         

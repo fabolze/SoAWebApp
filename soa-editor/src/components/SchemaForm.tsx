@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { generateId } from '../utils/generateId';
+import { generateSlug } from '../utils/generateId';
 import Autocomplete from './Autocomplete';
 import TagInput from './TagInput';
 
@@ -15,10 +15,12 @@ interface SchemaFormProps {
 export default function SchemaForm({ schema, data, onChange, referenceOptions: parentReferenceOptions, fetchReferenceOptions: parentFetchReferenceOptions, isValidCallback }: SchemaFormProps) {
   const fields = Object.entries(schema.properties || {}) as [string, any][];
 
-  // Determine the id field name (e.g. class_id, npc_id, etc.)
+  // Determine the id field name (e.g. id)
   const idField = Object.keys(schema.properties || {}).find(
-    (k) => k.endsWith('_id') || k === 'id'
+    (k) => k === 'id' || k.endsWith('_id')
   );
+  // Detect a slug field
+  const hasSlugField = !!(schema.properties && 'slug' in schema.properties);
   // Try to infer the type from the schema title or idField
   const type = (schema.title || idField?.replace(/_id$/, '') || 'entity').toLowerCase();
 
@@ -89,12 +91,15 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isValid]);
 
-  // Auto-generate ID if name changes and id is empty
+  // Auto-fill slug from name when slug is empty; do NOT auto-generate id
   const handleChange = (key: string, value: any) => {
     // setTouched((prev) => ({ ...prev, [key]: true }));
     let updated = { ...data, [key]: value };
-    if (idField && key === 'name' && (!data[idField] || data[idField].startsWith('id_'))) {
-      updated[idField] = generateId(type, value);
+    if (hasSlugField && key === 'name') {
+      const currentSlug = (data && data.slug) || '';
+      if (!currentSlug || currentSlug.trim() === '') {
+        updated.slug = generateSlug(value || '');
+      }
     }
     onChange(updated);
   };

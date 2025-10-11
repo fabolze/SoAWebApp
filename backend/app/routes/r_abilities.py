@@ -31,6 +31,7 @@ class AbilityRoute(BaseRoute):
         })
         
         # Required fields
+        ability.slug = data["slug"]
         ability.name = data["name"]
         ability.type = data["type"]  # Already converted to enum
         

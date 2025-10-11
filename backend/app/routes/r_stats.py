@@ -14,7 +14,7 @@ class StatRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["id", "name", "category", "value_type"]
+        return ["id", "slug", "name", "category", "value_type"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
         return data["id"]
@@ -28,6 +28,7 @@ class StatRoute(BaseRoute):
         })
         
         # Required fields
+        stat.slug = data["slug"]
         stat.name = data["name"]
         stat.category = data["category"]  # Already converted to enum
         stat.value_type = data["value_type"]  # Already converted to enum

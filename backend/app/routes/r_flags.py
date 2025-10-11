@@ -1,5 +1,6 @@
-from backend.app.routes.base_route import BaseRoute
-from backend.app.models.m_flags import Flag, FlagType, ContentPack
+﻿from backend.app.routes.base_route import BaseRoute
+from backend.app.models.m_flags import Flag, FlagType
+from backend.app.models.m_content_packs import ContentPack
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -14,34 +15,37 @@ class FlagRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["flag_id", "name", "description"]
+        return ["id", "slug", "name", "description"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["flag_id"]
+        return data["id"]
     
     def process_input_data(self, db_session: Session, flag: Flag, data: Dict[str, Any]) -> None:
         # Validate enums
         self.validate_enums(data, {
-            "flag_type": FlagType,
-            "content_pack": ContentPack
+            "flag_type": FlagType
+        })
+
+        # Validate relationships
+        self.validate_relationships(db_session, data, {
+            "content_pack_id": ContentPack
         })
         
         # Required fields
+        flag.slug = data["slug"]
         flag.name = data["name"]
         flag.description = data["description"]
         
         # Optional fields
         flag.flag_type = data.get("flag_type")  # Already converted to enum if present
         flag.default_value = data.get("default_value", False)
-        flag.content_pack = data.get("content_pack")  # Already converted to enum if present
+        flag.content_pack_id = data.get("content_pack_id")
         
         # JSON fields
         flag.tags = data.get("tags", [])
 
     def serialize_item(self, flag: Flag) -> Dict[str, Any]:
-        serialized = self.serialize_model(flag)
-        serialized['flag_id'] = serialized.pop('id', None)  # Ensure flag_id is used instead of id
-        return serialized
+        return self.serialize_model(flag)
     
     def get_all(self):
         db_session = get_db_session()

@@ -21,10 +21,10 @@ class NPCRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["npc_id", "name"]
+        return ["id", "slug", "name"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
-        return data["npc_id"]
+        return data["id"]
     
     def process_input_data(self, db_session: Session, npc: NPC, data: Dict[str, Any]) -> None:
         # Validate enums
@@ -40,6 +40,7 @@ class NPCRoute(BaseRoute):
         })
         
         # Required fields
+        npc.slug = data["slug"]
         npc.name = data["name"]
         
         # Optional fields

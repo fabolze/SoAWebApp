@@ -3,7 +3,15 @@
     "title": "Requirements",
     "type": "object",
     "description": "Shared logic for unlocking quests, items, events, shops, etc.",
-    "properties": {
+  "properties": {
+    "id": {
+      "type": "string",
+      "ui": { "widget": "hidden" }
+    },
+    "slug": {
+      "type": "string",
+      "ui": { "widget": "text", "label": "ID/Slug" }
+    },
       "required_flags": {
         "type": "array",
         "description": "Flags the player must have",
@@ -43,6 +51,7 @@
         "description": "Tags for filtering/searching/categorization",
         "items": { "type": "string" },
         "ui": { "widget": "tags", "label": "Tags" }
-      }
-    }
+  },
+  "required": ["id", "slug"]
+}
   }

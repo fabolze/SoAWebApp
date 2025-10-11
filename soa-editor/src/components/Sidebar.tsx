@@ -18,11 +18,11 @@ import { CSS } from '@dnd-kit/utilities';
 import { useEffect, useState } from 'react';
 import {
   HomeIcon, SparklesIcon, BeakerIcon, ChartBarIcon, UserGroupIcon, ChatBubbleLeftRightIcon,
-  BookOpenIcon, MapIcon, UsersIcon, FlagIcon, CubeIcon, BuildingStorefrontIcon,
+  BookOpenIcon, MapIcon, UsersIcon, FlagIcon, CubeIcon, BuildingStorefrontIcon, BanknotesIcon,
   ClipboardDocumentListIcon, PuzzlePieceIcon, AcademicCapIcon, ClockIcon, DocumentTextIcon,
-  Squares2X2Icon, Cog6ToothIcon
+  Squares2X2Icon, Cog6ToothIcon, ArchiveBoxIcon, Bars3Icon, ChevronRightIcon,
+  ChevronDoubleLeftIcon, ChevronDoubleRightIcon
 } from '@heroicons/react/24/outline';
-import { Bars3Icon } from '@heroicons/react/24/outline';
 
 function SortableSidebarItem({ to, label, icon: Icon, collapsed, hidden, groupLabel }: {
   to: string;
@@ -90,6 +90,7 @@ const DEFAULT_GROUPS = [
       { to: '/attributes', label: 'Attributes', icon: ChartBarIcon },
       { to: '/characterclasses', label: 'Character Classes', icon: AcademicCapIcon },
       { to: '/items', label: 'Items', icon: CubeIcon },
+      { to: '/currencies', label: 'Currencies', icon: BanknotesIcon },
       { to: '/stats', label: 'Stats', icon: ChartBarIcon },
       { to: '/shops', label: 'Shops', icon: BuildingStorefrontIcon },
       { to: '/shops-inventory', label: 'Shops Inventory', icon: ClipboardDocumentListIcon },
@@ -112,6 +113,7 @@ const DEFAULT_GROUPS = [
       { to: '/dialogue-nodes', label: 'Dialogue Nodes', icon: ChatBubbleLeftRightIcon },
       { to: '/dialogues', label: 'Dialogues', icon: ChatBubbleLeftRightIcon },
       { to: '/quests', label: 'Quests', icon: DocumentTextIcon },
+      { to: '/content-packs', label: 'Content Packs', icon: ArchiveBoxIcon },
       { to: '/story-arcs', label: 'Story Arcs', icon: Squares2X2Icon },
       { to: '/timelines', label: 'Timelines', icon: ClockIcon },
       { to: '/events', label: 'Events', icon: ClipboardDocumentListIcon },
@@ -144,8 +146,15 @@ export default function Sidebar({ collapsed, onToggleCollapse }: { collapsed: bo
       const parsed = JSON.parse(stored);
 
       const reordered = DEFAULT_GROUPS.map((defaultGroup) => {
-        const itemOrder = parsed.itemOrder[defaultGroup.label] || defaultGroup.items.map((i) => i.to);
-        const sortedItems = itemOrder.map((id: string) => defaultGroup.items.find((i) => i.to === id)).filter(Boolean);
+        const defaultIds = defaultGroup.items.map((i) => i.to);
+        const storedOrder = Array.isArray(parsed.itemOrder?.[defaultGroup.label])
+          ? parsed.itemOrder[defaultGroup.label]
+          : [];
+        const baseOrder = storedOrder.length > 0 ? [...storedOrder] : [...defaultIds];
+        const fullOrder = baseOrder.concat(defaultIds.filter((id) => !baseOrder.includes(id)));
+        const sortedItems = fullOrder
+          .map((id: string) => defaultGroup.items.find((i) => i.to === id))
+          .filter(Boolean) as typeof defaultGroup.items;
 
         return { ...defaultGroup, items: sortedItems };
       });
@@ -218,8 +227,16 @@ export default function Sidebar({ collapsed, onToggleCollapse }: { collapsed: bo
         <img src="/vite.svg" alt="SoA" className="w-8 h-8" />
         {!collapsed && <span className="text-xl font-bold text-primary tracking-tight">SoA Editor</span>}
       </div>
-      <button className="bg-slate-700 text-white rounded-md p-2 hover:bg-primary hover:text-white transition self-end mx-2 mb-2" onClick={onToggleCollapse}>
-        {collapsed ? '➡️' : '⬅️'}
+      <button
+        className="bg-slate-700 text-white rounded-md p-2 hover:bg-primary hover:text-white transition self-end mx-2 mb-2"
+        onClick={onToggleCollapse}
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        {collapsed ? (
+          <ChevronDoubleRightIcon className="w-5 h-5" />
+        ) : (
+          <ChevronDoubleLeftIcon className="w-5 h-5" />
+        )}
       </button>
       {!collapsed && (
         <input
@@ -251,11 +268,11 @@ export default function Sidebar({ collapsed, onToggleCollapse }: { collapsed: bo
                   {!collapsed && (
                     <div className="flex items-center justify-between px-2 mb-2 text-xs uppercase tracking-wider text-slate-400 font-semibold">
                       <button onClick={() => toggleGroup(group.label)} className="flex items-center gap-1 focus:outline-none">
-                        <span className={`transition-transform ${collapsedGroups[group.label] ? '' : 'rotate-90'}`}>▶</span>
+                        <ChevronRightIcon className={`w-3 h-3 transition-transform ${collapsedGroups[group.label] ? '' : 'rotate-90'}`} />
                         {group.label}
                       </button>
                       <div {...listeners} className="cursor-grab p-1 focus:outline-none" aria-label={`Drag group ${group.label}`}>
-                        ⠿
+                        <Bars3Icon className="w-3 h-3 text-slate-400" />
                       </div>
                     </div>
                   )}
@@ -283,3 +300,6 @@ export default function Sidebar({ collapsed, onToggleCollapse }: { collapsed: bo
     </nav>
   );
 }
+
+
+

@@ -16,6 +16,12 @@ def export_csv(table_name):
         abort(404, description=f"Table '{table_name}' not found.")
     rows = session.query(model_class).all()
     columns = [c.name for c in model_class.__table__.columns]
+    # Ensure id and slug appear first if present
+    def order(cols):
+        head = [c for c in ["id", "slug"] if c in cols]
+        tail = [c for c in cols if c not in head]
+        return head + tail
+    columns = order(columns)
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(columns)
@@ -39,12 +45,31 @@ def import_csv(table_name):
         return jsonify({"error": "Empty file."}), 400
     stream = io.StringIO(file.stream.read().decode("utf-8"))
     reader = csv.DictReader(stream)
+    # Simple slugify fallback if missing
+    import re
+    def slugify(s: str) -> str:
+        if not s:
+            return ""
+        s = s.strip().lower()
+        s = re.sub(r"[\u0300-\u036f]", "", s)
+        s = re.sub(r"[^a-z0-9]+", "-", s)
+        s = re.sub(r"^-+|-+$", "", s)
+        s = re.sub(r"-{2,}", "-", s)
+        return s
     count = 0
     try:
         # Start transaction
         session.query(model_class).delete()
         for row in reader:
             clean_row = {k: v for k, v in row.items() if k}
+            # Validate id present
+            if not clean_row.get("id"):
+                raise ValueError("Missing required column 'id' or empty id value")
+            # If model has a slug column and it's missing/empty, derive from name/title/id
+            if hasattr(model_class, '__table__') and 'slug' in model_class.__table__.columns:
+                if not clean_row.get('slug'):
+                    base = clean_row.get('name') or clean_row.get('title') or clean_row.get('id')
+                    clean_row['slug'] = slugify(base)
             obj = model_class(**clean_row)
             session.add(obj)
             count += 1

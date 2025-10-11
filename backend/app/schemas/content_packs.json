@@ -1,0 +1,51 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Content Pack",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier",
+      "ui": { "widget": "hidden" }
+    },
+    "slug": {
+      "type": "string",
+      "description": "Reference slug used by other tables",
+      "ui": { "widget": "text", "label": "ID/Slug" }
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name",
+      "ui": { "widget": "text", "label": "Name" }
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional marketing or lore description",
+      "ui": { "widget": "textarea", "label": "Description" }
+    },
+    "release_date": {
+      "type": "string",
+      "description": "Planned or actual release date (YYYY-MM-DD)",
+      "ui": { "widget": "date", "label": "Release Date" }
+    },
+    "status": {
+      "type": "string",
+      "description": "Lifecycle stage such as Planned, Released, Archived",
+      "ui": { "widget": "text", "label": "Status" }
+    },
+    "is_active": {
+      "type": "boolean",
+      "description": "Controls whether this pack is selectable in tools",
+      "default": true,
+      "ui": { "widget": "checkbox", "label": "Active" }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching/categorization",
+      "items": { "type": "string" },
+      "ui": { "widget": "tags", "label": "Tags" }
+    }
+  },
+  "required": ["id", "slug", "name"]
+}
+

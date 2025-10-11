@@ -2,6 +2,7 @@
 
 from sqlalchemy import Column, String, Float, Enum, Text, JSON
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 import enum
 
 
@@ -27,7 +28,8 @@ class ScalingBehavior(enum.Enum):
 class Stat(Base):
     __tablename__ = 'stats'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
     category = Column(Enum(StatCategory), nullable=False)
     description = Column(Text)

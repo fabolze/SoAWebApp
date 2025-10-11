@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Float, Boolean, Enum, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 import enum
 
 
@@ -39,7 +40,8 @@ class TriggerCondition(enum.Enum):
 class Effect(Base):
     __tablename__ = 'effects'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
     type = Column(Enum(EffectType), nullable=False)
     description = Column(Text)

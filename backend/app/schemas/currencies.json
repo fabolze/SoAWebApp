@@ -1,0 +1,70 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Currency",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique ID for the currency",
+      "ui": { "widget": "hidden" }
+    },
+    "slug": {
+      "type": "string",
+      "description": "Slug used for references",
+      "ui": { "widget": "text", "label": "ID/Slug" }
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name",
+      "ui": { "widget": "text", "label": "Name" }
+    },
+    "type": {
+      "type": "string",
+      "enum": ["Soft", "Premium", "Token"],
+      "description": "Currency category",
+      "ui": {
+        "widget": "select",
+        "label": "Type",
+        "options": ["Soft", "Premium", "Token"]
+      }
+    },
+    "description": {
+      "type": "string",
+      "description": "Internal description or notes",
+      "ui": { "widget": "textarea", "label": "Description" }
+    },
+    "code": {
+      "type": "string",
+      "description": "Abbreviation used in UI or exports",
+      "ui": { "widget": "text", "label": "Code" }
+    },
+    "symbol": {
+      "type": "string",
+      "description": "Optional symbol displayed before values",
+      "ui": { "widget": "text", "label": "Symbol" }
+    },
+    "decimal_precision": {
+      "type": "number",
+      "description": "Digits supported after the decimal point",
+      "ui": { "widget": "number", "label": "Decimal Precision" }
+    },
+    "is_premium": {
+      "type": "boolean",
+      "description": "Marks the currency as premium for monetisation gating",
+      "default": false,
+      "ui": { "widget": "checkbox", "label": "Premium Currency" }
+    },
+    "icon_path": {
+      "type": "string",
+      "description": "Optional icon asset path",
+      "ui": { "widget": "filepicker", "label": "Icon" }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching/categorisation",
+      "items": { "type": "string" },
+      "ui": { "widget": "tags", "label": "Tags" }
+    }
+  },
+  "required": ["id", "slug", "name", "type"]
+}

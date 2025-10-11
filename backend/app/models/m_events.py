@@ -3,6 +3,7 @@
 from sqlalchemy import Column, String, Enum, Float, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 import enum
 
 
@@ -18,7 +19,8 @@ class EventType(enum.Enum):
 class Event(Base):
     __tablename__ = 'events'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
     title = Column(String, nullable=False)
     type = Column(Enum(EventType), nullable=False)
 
@@ -30,6 +32,8 @@ class Event(Base):
 
     item_rewards = Column(JSON)     # [{ item_id, quantity }]
     xp_reward = Column(Float)
+    currency_rewards = Column(JSON)  # [{ currency_id, amount }]
+    reputation_rewards = Column(JSON)  # [{ faction_id, amount }]
     flags_set = Column(JSON)        # [flag_id, ...]
     tags = Column(JSON)  # List of string tags
 

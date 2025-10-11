@@ -1,10 +1,10 @@
-# backend/app/models/m_story_arcs.py
+﻿# backend/app/models/m_story_arcs.py
 
 from sqlalchemy import Column, String, Enum, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 import enum
-
 
 
 class ArcType(enum.Enum):
@@ -13,21 +13,17 @@ class ArcType(enum.Enum):
     Faction = "Faction Arc"
     DLC = "DLC Arc"
 
-class ContentPack(enum.Enum):
-    Base = "Base"
-    DLC1 = "DLC1"
-    DLC2 = "DLC2"
-    Expansion = "Expansion"
 
 class StoryArc(Base):
     __tablename__ = 'story_arcs'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
     title = Column(String, nullable=False)
     summary = Column(Text, nullable=False)
     type = Column(Enum(ArcType), nullable=False)
-    content_pack = Column(Enum(ContentPack), nullable=False)
 
+    content_pack_id = Column(String, ForeignKey("content_packs.id"), nullable=False)
     timeline_id = Column(String, ForeignKey("timelines.id"))
 
     related_quests = Column(JSON)      # List of quest IDs
@@ -35,4 +31,6 @@ class StoryArc(Base):
     required_flags = Column(JSON, nullable=False)      # List of flag IDs
     tags = Column(JSON)  # List of string tags
 
+    content_pack = relationship("ContentPack")
     timeline = relationship("Timeline")
+

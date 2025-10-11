@@ -3,13 +3,15 @@
 from sqlalchemy import Column, String, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
+from backend.app.utils.id import generate_ulid
 
 
 
 class Dialogue(Base):
     __tablename__ = 'dialogues'
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
     title = Column(String, nullable=False)  # Internal dev-facing label
 
     npc_id = Column(String, ForeignKey("npcs.id"))

@@ -14,10 +14,10 @@ class ClassRoute(BaseRoute):
            )
        
        def get_required_fields(self) -> List[str]:
-           return ["class_id", "name", "role", "base_stats"]
+           return ["id", "slug", "name", "role", "base_stats"]
            
        def get_id_from_data(self, data: Dict[str, Any]) -> str:
-           return data["class_id"]
+           return data["id"]
        
        def process_input_data(self, db_session: Session, char_class: CharacterClass, data: Dict[str, Any]) -> None:  # CORRECTED HERE
            # Validate enums
@@ -26,6 +26,7 @@ class ClassRoute(BaseRoute):
            })
            
            # Required fields
+           char_class.slug = data["slug"]
            char_class.name = data["name"]
            char_class.role = data["role"]  # Already converted to enum
            char_class.base_stats = data["base_stats"]
