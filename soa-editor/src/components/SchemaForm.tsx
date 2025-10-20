@@ -358,80 +358,63 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
             options = refList;
           } else if (ui.options) {
             options = ui.options.map((opt: string) => ({ id: opt, name: opt }));
+          } else if (Array.isArray(config.items?.enum)) {
+            options = config.items.enum.map((opt: string) => ({ id: opt, name: opt }));
+          } else if (Array.isArray(config.enum)) {
+            options = config.enum.map((opt: string) => ({ id: opt, name: opt }));
           }
 
           // --- Type-ahead filter state ---
           const [filter, setFilter] = useState<string>("");
+          const currentValues = Array.isArray(value) ? value : [];
           // Filter options by name/title/id
           const filteredOptions = (Array.isArray(options) ? options : []).filter((opt: any) => {
             const display = opt.name || opt.title || opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
             return display.toLowerCase().includes(filter.toLowerCase());
           });
 
-          // Map selected values to display objects
-          const selectedObjs = (value || []).map((selected: string) =>
-            options.find((opt: any) => {
-              const val = opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
-              return val === selected;
-            }) || { id: selected, name: selected }
-          );
-
           return (
             <div key={key} className="form-field">
               {renderFieldLabel(label, description)}
-              <div className="border border-gray-300 rounded-md p-2 bg-white">
+              <div className="border border-gray-300 rounded-md p-3 bg-white">
                 <input
                   type="text"
-                  className="mb-2 w-full border border-gray-200 rounded px-2 py-1 text-sm"
+                  className="mb-2 w-full border border-gray-200 rounded px-2 py-1 text-sm text-gray-800 placeholder:text-gray-500"
                   placeholder={`Type to filter ${label}...`}
                   value={filter}
-                  onChange={e => setFilter(e.target.value)}
+                  onChange={(e) => setFilter(e.target.value)}
                 />
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {selectedObjs.map((opt: any) => {
-                    const display = opt.name || opt.title || opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
-                    const val = opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
-                    return (
-                      <span
-                        key={val}
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
-                      >
-                        {display}
-                        <button
-                          type="button"
-                          onClick={() => handleChange(key, value.filter((v: string) => v !== val))}
-                          className="ml-1 inline-flex text-blue-600 hover:text-blue-800"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    );
-                  })}
-                </div>
-                <select
-                  multiple
-                  className={`${inputBaseClass} min-h-[100px]`}
-                  value={value || []}
-                  onChange={e =>
-                    handleChange(
-                      key,
-                      Array.from(e.target.selectedOptions, (opt) => opt.value)
-                    )
-                  }
-                  disabled={filteredOptions.length === 0}
-                >
-                  {filteredOptions.length === 0 ? (
-                    <option value="">No options available</option>
-                  ) : (
-                    filteredOptions.map((opt: any) => {
+                {filteredOptions.length === 0 ? (
+                  <p className="text-sm text-gray-500">No options available</p>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    {filteredOptions.map((opt: any) => {
                       const display = opt.name || opt.title || opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
                       const val = opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
+                      const checked = currentValues.includes(val);
                       return (
-                        <option key={val} value={val}>{display}</option>
+                        <label
+                          key={val}
+                          className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors ${checked ? 'bg-blue-100 border border-blue-200' : 'hover:bg-blue-50'}`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-sm"
+                            checked={checked}
+                            onChange={() => {
+                              if (checked) {
+                                handleChange(key, currentValues.filter((v: string) => v !== val));
+                              } else {
+                                handleChange(key, [...currentValues, val]);
+                              }
+                            }}
+                          />
+                          <span className="text-sm text-gray-800">{display}</span>
+                        </label>
                       );
-                    })
-                  )}
-                </select>
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           );
