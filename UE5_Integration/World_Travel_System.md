@@ -1,66 +1,80 @@
 # World Travel System Blueprint Plan
 
-Designing the overworld traversal as a node and edge graph keeps travel deterministic, data-driven, and cheap to query in Blueprints. This guide details the data, subsystems, and testing strategy that support the travel experience outlined in `UE5_Integration_Plan.md`.
+This plan implements overworld traversal as a data-driven node/edge graph so travel is deterministic, debuggable, and cheap to query from Blueprints. It is scoped to a "select destination -> plan route -> execute segments" JRPG travel loop (world map UI + encounters/events), and complements `UE5_Integration_Plan.md` and `UE5_Integration/Blueprint_Systems.md`.
 
 ---
 
-## 1. Data Model
-| Table / Struct | Description | Notes |
+## 1. Purpose and Assumptions
+- Travel happens via UI/logic (not real-time character movement between POIs).
+- Locations and routes are authored in SoA exports and re-imported into UE as DataTables.
+- Encounters and events can interrupt travel; the system must pause/resume deterministically.
+
+---
+
+## 2. Data Model
+| Table / Struct | Purpose | Notes |
 | --- | --- | --- |
-| `FLocationData` | Nodes in the travel graph (biome, safe zone, fast travel flag, level range, encounter list). | Mirrors `backend/app/models/m_locations.py`. |
-| `FLocationRouteData` | Directed edges: `from_location_id`, `to_location_id`, `travel_time`, `distance`, `requirements_id`, `encounter_weight_modifier`, `cost_currency_id`, `cost_amount`, `flags_unlock`, `flags_lock`, `is_bidirectional`. | Export as new DataTable; duplicate entries for opposite direction if needed. |
-| `FRouteEventBinding` | Optional table linking route IDs to forced Event sequences. | Triggered before random rolls. |
-| `FTravelPlanSegment` | Runtime struct produced by planner: `RouteId`, `FromSlug`, `ToSlug`, `TravelTime`, `EncounterChance`, `Cost`, `IsSafePassage`. | Consumed by travel UI and orchestrator. |
+| `FLocationData` | Travel graph nodes. | Mirrors `backend/app/models/m_locations.py` (include `Coordinates` for map UI/A*; keep ULID `Id` inside the struct and use `Slug` as the DataTable Row Name). |
+| `FLocationRouteData` | Travel graph edges between locations. | New export table (see `UE5_Integration/UE5_Blueprint_Integration_Guide.txt`). Include `Id` (ULID) and use `Slug` as the DataTable Row Name. |
+| `FRouteEventBinding` | Optional bindings from a route to forced Events. | Use route **ULID** (preferred) or route slug (fallback) so bindings survive row renames. |
+| `FTravelTuningData` | Balancing knobs for travel math (encounter odds, safe-zone rules, travel mode multipliers). | Keep probabilities/weights out of Widgets; designers tune without Blueprint rewrites. |
+| `FTravelPlanSegment` | One executable segment of a planned path. | Store both `RouteId` and endpoint slugs/IDs for debug + robustness. |
+| `FTravelPlan` | Full planner output (segments + totals + diagnostics). | Planner returns structured failures (missing requirements, unreachable, unaffordable). |
+| `FTravelSessionState` | Persistable runtime state for pause/resume. | Needed if encounters/events load other maps or the player saves mid-travel. |
 
 **Key Principles**
-- Use ULID strings for every ID (locations, requirements, currencies, flags). Slug remains the DataTable row name.
+- Use ULID strings for stable cross-table references (locations, routes, requirements, currencies, flags). Use `FName` for slugs/row names in runtime hot paths.
 - Requirements gate routes (bridge destroyed, faction blockade) or unlocks (airship). Ensure requirement rows exist and are covered by automation tests.
-- Store encounter weight overrides per route to bias the default location encounter lists (for example haunted forest path increases spectral encounters).
+- Keep derived data single-source: don't duplicate "safe zone" or "encounter chance" in multiple places unless you need an explicit override field.
 
 ---
 
-## 2. Subsystem Responsibilities
+## 3. Subsystem Responsibilities
 ### `BP_WorldGraphSubsystem`
-- Loads Locations and Routes during `Initialize`.
-- Builds adjacency list `TMap<FString, FSoALocationNode>` where each node contains outgoing `FLocationRouteData` references.
-- Maintains `FTravelGraphMetadata` caches per travel mode and safe zone overlays.
+- Recommended lifetime: **World Subsystem** if travel only exists in the overworld/map world; **Game Instance Subsystem** if you need access across frequent `OpenLevel` transitions.
+- Loads Locations and Routes once at init (from `BP_GameDataSubsystem` caches/DataTables).
+- Builds adjacency lists keyed by Location **ULID** and/or Location **Slug** (prefer `FName` for slugs).
+- Expands `IsBidirectional` route rows into both directions at build time (without duplicating DataTable rows).
+- Maintains lightweight "version" counters (graph data, flags/packs, discovery/unlock state) to invalidate planner caches safely.
 - Reacts to `BP_FlagManager::OnFlagChanged` and `BP_ContentPackRegistry` events to mark edges active or inactive.
-- Exposes helpers: `GetAdjacency`, `IsRouteActive`, `MarkRouteDiscovered`, `GetRouteCost`.
+- Exposes helpers: `GetAdjacency`, `IsRouteActive`, `IsRouteUnlockedOrDiscovered`, `GetRouteCost`, `GetRouteDiagnostics`.
 
 ### `BP_TravelPlanner`
-- Implements Dijkstra or A* with runtime-configurable weight functions (time, distance, currency cost, combined scoring).
-- Input: `FromSlug`, `ToSlug`, options (`TravelMode`, `IgnoreRequirements`, `DesiredEncounterRange`).
-- Output: `FTravelPlan` containing segments, totals, encounter summary, outstanding requirements.
-- Supports caching so identical queries with unchanged world state reuse results.
+- Implement as a Blueprint Function Library (or a lightweight UObject) that queries `BP_WorldGraphSubsystem`.
+- Implements Dijkstra (always) and optionally A* when `FLocationData.Coordinates` are available for an admissible heuristic.
+- Inputs: `FromSlug`, `ToSlug`, options (travel mode, weight mode, "require discovered routes", "require affordability", dev overrides like "ignore requirements").
+- Output: `FTravelPlan` containing segments, totals, and structured diagnostics (why a plan failed).
+- Supports caching keyed by (from/to/options + world-state versions) so identical queries reuse results safely.
 - Emits diagnostics for missing routes or locked nodes (feeds automation tests and developer UI).
 
 ### `BP_TravelOrchestrator`
 - Executes `FTravelPlan` step by step:
   1. Validate requirements per segment (fail fast if state changes mid-travel).
-  2. Deduct travel cost (currency, stamina) using `BP_CurrencyManager` or player stats.
+  2. Reserve/deduct travel cost (currency, stamina) using `BP_CurrencyManager` or player stats (pick a single rule and enforce it consistently).
   3. Trigger forced events (`FRouteEventBinding`) via `BP_EventSequencer`.
-  4. Roll random encounters: weight = base location chance * route modifier * player stat modifiers (Luck or Stealth). Provide override hooks for story-critical sequences.
+  4. Roll random encounters using a deterministic `FRandomStream` seeded per travel session (formula tuned via `FTravelTuningData` + route modifiers + player stats).
   5. Hand off to `BP_EncounterManager` and resume travel after resolution.
   6. On completion, update `BP_LocationRegistry` and push travel history for codex or log.
+- Owns `FTravelSessionState` so travel can pause/resume across encounters, save/load, or map transitions.
 - Developer toggles: instant travel (skip timers), force encounter, skip encounter, debug stepper UI.
 
 ### `BP_WorldMapWidget`
-- Visualises nodes and edges, gating status, and encounter odds.
+- Visualises nodes/edges, gating status, and planner output.
 - Left-click sets destination (runs planner); right-click surfaces diagnostics (missing requirements, unlock flags).
-- Development overlay draws path heatmaps showing encounter probability.
+- Development overlay can draw path heatmaps using planner-provided segment stats (keep heavy computation outside the widget).
 
 ---
 
-## 3. Runtime Integrations
+## 4. Runtime Integrations
 - **Fast Travel:** `BP_LocationRegistry` tracks discovered fast-travel nodes. `BP_TravelPlanner` validates direct jumps; `BP_FlagManager` enforces prerequisites (for example airship license flag). Currency costs run through `BP_CurrencyManager`.
-- **Safe Zones:** `is_safe_zone` on locations zeroes encounter chance for adjacent safe routes. Duplicate this flag in route data so runtime checks are trivial.
+- **Safe Zones:** Prefer an explicit route override/tag (e.g. `SafePassage`) or a single rule in `FTravelTuningData` (for example "routes connected to safe zones have encounter multiplier = 0"). Avoid duplicating safe-zone state into multiple tables unless you need a deliberate override.
 - **Dynamic Route State:** Listen for flag changes to unlock edges (repair bridge). `BP_WorldGraphSubsystem` rebuilds only affected adjacency lists.
 - **Story Hooks:** Story arcs or events can pin destination nodes (quest objectives) or temporarily override pathfinding (force scenic route). Expose `RegisterPriorityRoute(QuestId, RouteId, PriorityWeight)`.
-- **Travel Seeds:** Store RNG seeds per travel session in SaveGame to reproduce bugs. Combine location IDs with timestamp for deterministic playback.
+- **Travel Seeds:** Store RNG seeds (and enough session state to resume) in SaveGame to reproduce bugs. Combine stable IDs with a session counter for deterministic playback.
 
 ---
 
-## 4. Testing and Debugging
+## 5. Testing and Debugging
 - **Automation Tests**
   - `TravelGraph_AllNodesReachable`: every non-isolated location has at least one active route respecting content pack and flag gating.
   - `TravelGraph_NoDeadEndsWithoutFlag`: locked routes expose a requirement and can unlock via documented flags.
@@ -74,11 +88,12 @@ Designing the overworld traversal as a node and edge graph keeps travel determin
 
 ---
 
-## 5. Implementation Checklist
-1. Extend SoA exports with a LocationRoute table (CSV or JSON) and ingest it alongside Locations.
-2. Prototype `BP_WorldGraphSubsystem` and `BP_TravelPlanner` using a small sample graph (three to five nodes) to validate pathfinding in Blueprints.
-3. Build the travel debug widget early; it doubles as validation feedback for designers.
-4. Hook travel events into `BP_EventSequencer` to prove forced events and random encounter handoff.
-5. Write automation tests before expanding the world to catch data regressions (missing routes, mismatched requirements).
+## 6. Implementation Checklist
+1. Extend SoA exports with a `LocationRoute` table that includes `Id` (ULID) + `Slug` (row name) and ingest it alongside Locations.
+2. Add `FTravelTuningData` (DataTable or DataAsset) so encounter odds and travel multipliers are data-driven.
+3. Prototype `BP_WorldGraphSubsystem` + `BP_TravelPlanner` with a tiny sample graph (3-5 nodes) and validate both Dijkstra and optional A* (if coordinates exist).
+4. Build the travel debug widget early; it doubles as validation feedback for designers and a smoke test for gating.
+5. Hook forced route events into `BP_EventSequencer`, then add deterministic encounter rolling via seeded `FRandomStream`.
+6. Write automation tests before expanding the world to catch data regressions (missing routes, mismatched requirements, unreachable destinations).
 
 By keeping travel data-driven and graph-based, traversal stays flexible, scalable, and debuggable. Designers reshape the overworld by editing CSV exports, while Blueprint subsystems respond automatically.

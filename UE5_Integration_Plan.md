@@ -43,6 +43,7 @@ A blueprint-only roadmap that turns the SoA content repository into a narrative-
 ### 3.1 Location Graph and Travel Planner
 - Create `BP_WorldGraphSubsystem` (World Subsystem) to ingest Locations plus LocationRoutes and build a directed, weighted graph. Cache adjacency lists keyed by Location ULID for fast lookups.
 - Add `BP_TravelPlanner` to compute optimal paths (Dijkstra or A* on route weights) and expose travel time, resource costs, and optional scenic variants. Support developer toggles (`Instant Travel`) and debug overlays.
+- Add a small travel tuning dataset (for example `FTravelTuningData` as a DataTable/DataAsset) so encounter odds and travel multipliers are fully data-driven and testable.
 - Store per-route metadata: travel time, stamina cost, vehicle type, environmental hazard level, encounter weight modifiers, requirements (`RequirementId`), and unlock conditions (for example a Flag gating a bridge). Use this to dynamically enable or disable edges at runtime.
 - Provide blueprint APIs: `FindBestRoute(FromSlug, ToSlug, TravelMode)`, `CanTravelRoute(RouteId)`, `GetTravelSummary(Path)`.
 - Supply a `BP_WorldMapWidget` that visualises nodes and edges, highlights locked routes, and surfaces encounter chances per segment.
@@ -55,6 +56,7 @@ A blueprint-only roadmap that turns the SoA content repository into a narrative-
   2. Check for forced events (Events tied to Route or Location) before random rolls.
   3. Roll random encounters using route-level encounter weights, biome modifiers, and character stats (Luck or Stealth). Allow global toggles (`ToggleEncounters`, `ForceEncounter <Slug>`).
   4. For each triggered encounter, call into `BP_EncounterManager` (see below).
+- Persist enough travel session state (seed + current segment index, at minimum) to pause/resume deterministically across encounters, save/load, or map transitions.
 - Safe zones (Locations with `is_safe_zone`) bypass random encounter logic; route encounter weights drop to zero when either endpoint is safe and the route is marked safe in data.
 - Fast Travel: if `is_fast_travel_point` is true and the player has discovered the location (Flag), the world map offers direct teleport. Requirements (currency cost, faction reputation, items) are validated via `BP_FlagManager` and `BP_CurrencyManager`.
 - For dynamic world state, allow routes to change weights or unlock or lock based on Flags (for example a destroyed bridge). `BP_WorldGraphSubsystem` should respond to `OnFlagChanged` and rebuild only affected edges.

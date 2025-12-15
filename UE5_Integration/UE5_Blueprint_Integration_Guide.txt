@@ -175,7 +175,7 @@ Struct FEncounterData:
 - RequirementsId (String) - ULID eines Requirement-Satzes.
 - EnemyIds (Array<String>) - Gegner-ULIDs fuer diesen Encounter.
 - NpcIds (Array<String>) - NPC-ULIDs, die beteiligt sind.
-- Rewards (Struct/JSON) - { Xp, Items, FlagsSet } als `FEncounterReward`.
+- Rewards (Struct/JSON) - { Xp, Items, Currencies, Reputation, FlagsSet } als `FEncounterReward`.
 - Tags (Array<String>).
 
 Events (Event Data Table) - Quelle: backend/app/models/m_events.py
@@ -191,6 +191,8 @@ Struct FEventData:
 - EncounterId (String) - ULID eines Encounters.
 - ItemRewards (Array<Struct>) - { item_id, quantity }.
 - XpReward (Float).
+- CurrencyRewards (Array<Struct>) - { currency_id, amount }.
+- ReputationRewards (Array<Struct>) - { faction_id, amount }.
 - FlagsSet (Array<String>) - Flag-ULIDs.
 - Tags (Array<String>).
 - NextEventId (String) - ULID fuer Ketten-Logik.
@@ -276,6 +278,8 @@ Struct FQuestData:
 - Objectives (Array<Struct>) - { ObjectiveId, Description, RequirementsId, FlagsSet }.
 - FlagsSetOnCompletion (Array<String>) - Flag-ULIDs.
 - XpReward (Float).
+- CurrencyRewards (Array<Struct>) - { currency_id, amount }.
+- ReputationRewards (Array<Struct>) - { faction_id, amount }.
 - ItemRewards (Array<Struct>) - { item_id, quantity }.
 - Tags (Array<String>).
 

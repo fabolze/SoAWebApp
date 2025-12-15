@@ -54,13 +54,13 @@ BP_GameInstance
   Ingests Location + LocationRoute tables, builds adjacency lists and weighted graph metadata. Provides pathfinding (`FindBestRoute` / `FindAllRoutes`), caches results per travel mode, and reacts to flag/content pack changes to enable/disable edges.
 
 - **`BP_TravelPlanner` (Object Library / Blueprint Function Library)**  
-  Executes Dijkstra/A* using data from the world graph, returning `FTravelPlan` structs (segments, estimated time, stamina costs, encounter odds). Supports developer overrides (instant travel, ignore requirements).
+  Executes Dijkstra/A* using data from the world graph, returning `FTravelPlan` structs (segments, estimated time, stamina costs, encounter odds). Reads travel tuning data (for example `FTravelTuningData`) and supports developer overrides (instant travel, ignore requirements).
 
 - **`BP_LocationRegistry` (World Subsystem)**  
   Tracks current location, discovered nodes, fast-travel unlocks, respawn anchors, and exposure to safe zones. Offers `GetLocationData`, `IsLocationUnlocked`, `MarkDiscovered`.
 
 - **`BP_TravelOrchestrator` (World Subsystem or Component on Player Controller)**  
-  Manages travel execution: steps through travel plan segments, triggers pre-segment events, rolls for encounters, plays travel UI/VO, and resumes control after each segment. Works with `BP_EncounterManager` for encounter injection.
+  Manages travel execution: steps through travel plan segments, triggers pre-segment events, rolls for encounters, plays travel UI/VO, and resumes control after each segment. Owns persistable travel session state (seed + segment index) and works with `BP_EncounterManager` for encounter injection.
 
 - **`BP_WorldMapWidget` (UI)**  
   Renders nodes/edges, colour-codes locked routes, shows encounter odds and travel costs. Integrates developer debug modes for graph visualisation.
