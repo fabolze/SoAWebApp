@@ -44,6 +44,7 @@ Empfohlene Reihenfolge fuer Structs + Imports (MVP zuerst)
 5) Combat: Abilities, Ability Links, Effects, Enemies
 6) Economy: Currencies, Shops, ShopInventory
 
+[DONE]
 Stats (Stat Data Table) - Quelle: backend/app/models/m_stats.py
 Die Stat-Tabelle enthaelt alle numerischen Werte/Statusgroessen.
 Struct FStatData (als Data Table importieren):
@@ -59,6 +60,7 @@ Struct FStatData (als Data Table importieren):
 - IconPath (String) - Asset-Referenz.
 - Tags (Array<String>) - freie Schlagworte.
 
+[DONE]
 Attributes (Attribute Data Table) - Quelle: backend/app/models/m_attributes.py
 Attribute sind Grundwerte, die auch Stat-Links besitzen.
 Struct FAttributeData:
@@ -72,6 +74,7 @@ Struct FAttributeData:
 - IconPath (String).
 - Tags (Array<String>).
 
+[DONE]
 Attribute-Stat-Verknuepfung (Data Table fuer backend/app/models/m_attribute_stat_link.py)
 Struct FAttributeStatLink (optional separate Data Table, falls benoetigt):
 - Id (String) - ULID.
@@ -80,6 +83,7 @@ Struct FAttributeStatLink (optional separate Data Table, falls benoetigt):
 - Scale (Enum/String) - Linear, Exponential, Custom; Blueprint-Enum `EAttributeStatScale` mit denselben Strings verwenden.
 - Multiplier (Float) - Skalierungsfaktor.
 Diese Tabelle erlaubt es, in UE5 blueprint-seitig alle Stat-Anpassungen pro Attribut zu iterieren.
+
 
 NPCs (NPC Data Table) - Quelle: backend/app/models/m_npcs.py
 Struct FNpcData:
