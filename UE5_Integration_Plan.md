@@ -6,10 +6,34 @@ A blueprint-only roadmap that turns the SoA content repository into a narrative-
 - `UE5_Integration/Blueprint_Systems.md` - subsystem blueprints and ownership.
 
 ## Vision & Design North Star
-- Deliver an author-first experience: rapid iteration on branching stories, evocative dialogue, and companion side tales.
-- Stay fully data-driven: gameplay pulls from exported SoA DataTables; reimports never require Blueprint edits.
-- Support a lone protagonist with rotating companions, separating permanent player data from temporary ally state.
-- Keep import/export painless: validation catches broken references before play; developers get shortcuts to bypass grindy flows.
+- Deliver an author-first experience: narrative tools must let you iterate on branching stories, evocative dialogue, and companion side tales rapidly.
+- Stay data-driven: all gameplay pulls from exported SoA DataTables so designers can update content without touching Blueprints.
+- Support a lone protagonist with rotating companions: architecture separates the player hero from temporary allies while keeping combat, dialogue, and quest hooks consistent.
+- Keep import/export painless: reimports from the SoA editor should be a one-click workflow with validation warnings for broken links.
+
+## Daily Start (short sessions, clear head)
+Mini-Ziel: genau 1 kleine Aufgabe pro Abend.
+
+Start-Checkliste (2-3 Minuten)
+1) `UE5_Integration/UE5_Blueprint_Integration_Guide.txt` oeffnen und letzte Stop-Notiz lesen.
+2) Eine kleine Aufgabe waehlen (max 20-30 Minuten).
+3) Ende der Session direkt terminieren (keine "nur noch schnell").
+
+Easy-Win Aufgaben (wenn du muede bist)
+- 1 Blueprint-Enum anlegen und Strings 1:1 uebernehmen.
+- 1 Struct fuer eine Tabelle pruefen/anpassen.
+- 1 DataTable reimportieren und Log checken.
+- 1 Cache-Map im `BP_GameDataSubsystem` fuer einen Block anlegen.
+
+Stop-Notiz Template (am Ende jeder Session)
+Kopieren und 30 Sekunden ausfuellen:
+```
+Datum:
+Heute gemacht:
+Naechster Schritt (1 Satz):
+Block-Status:
+Offene Fragen:
+```
 
 ## Content Coverage Snapshot
 - Core datasets: Stats, Attributes, Attribute-to-Stat links, Abilities, Ability links (effects and scaling), Effects, Items, Item modifiers, Currencies, Content Packs, Character Classes, NPCs, Dialogues plus Nodes, Quests, Story Arcs, Timelines, Locations, Location Routes, Encounters, Events, Enemies, Factions, Flags, Requirements plus flag and reputation link tables, Shops, Shop Inventory, Lore Entries.

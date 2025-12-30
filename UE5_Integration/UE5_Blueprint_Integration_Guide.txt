@@ -1,6 +1,49 @@
 Uebersicht: Datenstrukturen und Data Tables fuer Unreal Engine 5
 Um die im SoA-Editor gepflegten Inhalte in Unreal Engine 5 zu verwenden, sollten fuer jede Datenkategorie passende Blueprint-Structs und Data Tables erstellt werden. Alle Kernmodelle im Repository nutzen ULIDs als primaerschluessel (`id`) und zusaetzlich sprechende Slugs (`slug`). In UE5 empfiehlt es sich, den `slug` als Row Name zu verwenden (gut lesbar), den ULID-String aber als eigenes Feld in der Struct zu speichern, damit Querverweise stabil bleiben. Importiert wird bevorzugt ueber CSV- oder JSON-Exports, die Feldnamen muessen exakt mit den Struct-Feldern uebereinstimmen. Alle Loesungen bleiben blueprint-only; optionale Enums lassen sich als Blueprint-Enums abbilden, um die Editor-Bedienung zu vereinfachen. Alle Blueprint-Enums muessen die Backend-Strings unveraendert uebernehmen, damit CSV/JSON-Importe fehlerfrei greifen.
 
+Arbeitsmodus: "Heute zu tun" Checkliste (damit klar ist, wo du stehst)
+1) Ein Systemblock auswaehlen (z.B. Stats/Attributes oder Dialogue).
+2) Fuer den Block: Blueprint-Enums anlegen und Strings 1:1 uebernehmen.
+3) Struct(s) anlegen und Felder exakt wie Export benennen.
+4) DataTable erstellen und Import testen (1-2 Beispielzeilen).
+5) Validation-Notiz: Welche IDs verlinken auf andere Tabellen?
+6) Im BP_GameDataSubsystem: Cache-Map fuer diesen Block anlegen.
+7) Ergebnis markieren: "Block X fertig importiert + gecacht".
+
+Runtime-Architektur (Lyra-inspiriert, Blueprint-only, ohne GAS)
+- DataTables sind Import-Quelle, nicht die Runtime-Datenbank.
+- Beim Spielstart: DataTables in Registry-Maps cachen (ULID -> Struct, Slug -> Struct).
+- Kommunikation ueber Message-Events statt direkte Manager-Aufrufe (entkoppelt).
+- SoftObjectReferences fuer Assets (Icons, Portraits, VO) statt harter Pfad-Strings, wo moeglich.
+
+Konkrete Runtime-Bausteine
+- BP_GameDataSubsystem: laedt DataTables, baut Cache-Maps, bietet Lookup-Funktionen.
+- BP_MessageHub (oder Gameplay Message Subsystem): Events wie FlagChanged, QuestAdvanced, RewardApplied.
+- BP_FlagManager/BP_QuestLog: verwalten Zustand, senden Events, reagieren auf Events.
+
+Import-Workflow (Schritt-fuer-Schritt, wiederholbar)
+1) Export aus SoA-Editor (CSV oder JSON).
+2) Dateien nach `Content/Data/Exports` kopieren.
+3) Blueprint-Enum(s) aktualisieren oder neu erstellen.
+4) Struct(s) pruefen: Feldnamen = Export-Spalten.
+5) DataTable importieren oder reimportieren.
+6) BP_DataImportManager laufen lassen (Validation: fehlende ULIDs, Enum-Mismatch).
+7) BP_GameDataSubsystem neu laden, Cache-Maps aktualisieren.
+8) Ergebnis notieren: "Import OK" oder "Fehlerliste".
+
+Kommunikationsregeln (damit Systeme nicht verdrahtet sind)
+- Keine direkte Manager-zu-Manager-Calls fuer Gameplay-Flows.
+- Events senden: FlagChanged, RequirementPassed, QuestCompleted, RewardGranted.
+- Listener entscheiden lokal, was sie tun (UI refresh, Inventory update, Story advance).
+
+Empfohlene Reihenfolge fuer Structs + Imports (MVP zuerst)
+1) Core: Stats, Attributes, AttributeStatLink
+2) Progression: CharacterClasses, Items, Item Stat/Attribute Modifiers
+3) Narrative Spine: Flags, Requirements + Link-Tabellen, Quests, StoryArcs, Dialogues, DialogueNodes
+4) World: Locations, NPCs, Factions, Encounters, Events, Lore, Timelines
+5) Combat: Abilities, Ability Links, Effects, Enemies
+6) Economy: Currencies, Shops, ShopInventory
+
 Stats (Stat Data Table) - Quelle: backend/app/models/m_stats.py
 Die Stat-Tabelle enthaelt alle numerischen Werte/Statusgroessen.
 Struct FStatData (als Data Table importieren):
