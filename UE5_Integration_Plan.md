@@ -11,6 +11,30 @@ A blueprint-only implementation roadmap that turns the SoA content repository in
 - Support a lone protagonist with rotating companions: architecture separates the player hero from temporary allies while keeping combat, dialogue, and quest hooks consistent.
 - Keep import/export painless: reimports from the SoA editor should be a one-click workflow with validation warnings for broken links.
 
+## Daily Start (short sessions, clear head)
+Mini-Ziel: genau 1 kleine Aufgabe pro Abend.
+
+Start-Checkliste (2-3 Minuten)
+1) `UE5_Integration/UE5_Blueprint_Integration_Guide.txt` oeffnen und letzte Stop-Notiz lesen.
+2) Eine kleine Aufgabe waehlen (max 20-30 Minuten).
+3) Ende der Session direkt terminieren (keine "nur noch schnell").
+
+Easy-Win Aufgaben (wenn du muede bist)
+- 1 Blueprint-Enum anlegen und Strings 1:1 uebernehmen.
+- 1 Struct fuer eine Tabelle pruefen/anpassen.
+- 1 DataTable reimportieren und Log checken.
+- 1 Cache-Map im `BP_GameDataSubsystem` fuer einen Block anlegen.
+
+Stop-Notiz Template (am Ende jeder Session)
+Kopieren und 30 Sekunden ausfuellen:
+```
+Datum:
+Heute gemacht:
+Naechster Schritt (1 Satz):
+Block-Status:
+Offene Fragen:
+```
+
 ## Current Content Coverage Snapshot
 - Core datasets: Stats, Attributes, Attribute-to-Stat links, Abilities, Effects, Items, Currencies, Content Packs, Character Classes, NPCs, Dialogues with Nodes, Quests, Story Arcs, Timelines, Locations, Encounters, Events, Enemies, Factions, Flags, Requirements (with flag/reputation links), Shops, Shop Inventory, Lore Entries.
 - Cross-link highlights: Abilities reference Effects and Attributes; Items reference Requirements, Item stat/attribute modifier tables, and effect payloads; Quests feed Story Arcs, Flags, and reward packages (xp, currency, reputation); NPCs bridge Locations, Dialogues, Shops, and Companions; Events chain Encounters, Dialogues, and reward payloads; Content Packs scope which arcs/flags surface; Requirements unify gating across systems.
