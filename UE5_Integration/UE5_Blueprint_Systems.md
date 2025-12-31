@@ -72,7 +72,7 @@ BP_GameInstance
   Receives context from travel/events, filters encounter candidates by requirement, content pack, and difficulty, seeds RNG for deterministic runs, and forwards selected encounters to the event sequencer or combat director.
 
 - **`BP_EncounterDirector` (World Subsystem)**  
-  Builds combat scenes: spawns player + companions, instantiates enemies using `FEnemyData` and `FCharacterClassData`, applies route/environment modifiers (weather, terrain), and packages `FCombatContext`.
+  Builds combat scenes: spawns player + companions, instantiates combatants using `FCombatProfileData` and `FCharacterClassData`, applies route/environment modifiers (weather, terrain), and packages `FCombatContext`.
 
 - **`BP_TurnManager` (Actor/Component inside Battle Level)**  
   Orders combatants by Speed, handles initiative modifiers, queues actions, and drives the turn loop. Publishes turn order to UI and handles skip logic (stun, death).
@@ -93,7 +93,7 @@ BP_GameInstance
   Base combatant class plus specialisations. Provide API for stats, abilities, item usage, AI hooks, animation triggers.
 
 - **`BP_EnemyBrain` (Actor Component)**  
-  Wraps AI behaviour for enemies. Consumes behaviour tags from enemy data, scores abilities against current battlefield state, and picks targets.
+  Wraps AI behaviour for enemies. Consumes behaviour tags from combat profile data, scores abilities against current battlefield state, and picks targets.
 
 - **`BP_RewardDistributor` (Function Library)**  
   Routes XP, currency, items, reputation, and flags after combat or scripted events through `BP_CurrencyManager`, `BP_ItemManager`, `BP_ReputationSystem`, and `BP_FlagManager`.
@@ -103,7 +103,7 @@ BP_GameInstance
   Plays dialogues from `FDialogueData` + `FDialogueNodeData`, validates requirements per node using `BP_FlagManager`, pushes flags/rewards, and supports skip/debug options.
 
 - **`BP_DialogueSpeaker`**  
-  Maps speaker identifiers to character references (player, companion, NPC) and triggers VO/subtitles/emotes.
+  Maps speaker identifiers to character references (player, companion, character) and triggers VO/subtitles/emotes.
 
 - **`BP_EventSequencer` (Subsystem)**  
   Reads `FEventData`, resolves requirements, fires target actions (encounter, dialogue, teleport, scripted scene), applies rewards, and follows `next_event_id` chains. Used by travel, story, and encounter systems.

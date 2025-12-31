@@ -2,9 +2,10 @@ from flask import Blueprint, request, jsonify, abort
 from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_encounters import Encounter, EncounterType
 from backend.app.models.m_requirements import Requirement
-from backend.app.models.m_enemies import Enemy
+from backend.app.models.m_characters import Character
+from backend.app.models.m_combat_profiles import CombatProfile
+from backend.app.models.m_interaction_profiles import InteractionProfile
 from backend.app.models.m_flags import Flag
-from backend.app.models.m_npcs import NPC
 from backend.app.models.m_currencies import Currency
 from backend.app.models.m_factions import Faction
 from typing import Any, Dict, List
@@ -45,19 +46,36 @@ class EncounterRoute(BaseRoute):
         encounter.description = data.get("description")
         encounter.requirements_id = data.get("requirements_id")
         
-        # Validate enemy IDs
-        enemy_ids = data.get("enemy_ids", [])
-        for enemy_id in enemy_ids:
-            if not db_session.get(Enemy, enemy_id):
-                raise ValueError(f"Invalid enemy_id: {enemy_id}")
-        encounter.enemy_ids = enemy_ids
-        
-        # Validate NPC IDs
-        npc_ids = data.get("npc_ids", [])
-        for npc_id in npc_ids:
-            if not db_session.get(NPC, npc_id):
-                raise ValueError(f"Invalid npc_id: {npc_id}")
-        encounter.npc_ids = npc_ids
+        # Validate participants
+        participants = data.get("participants", [])
+        if not isinstance(participants, list):
+            raise ValueError("Participants must be a list")
+        allowed_contexts = {"Combat", "Interaction"}
+        allowed_sides = {"Hostile", "Friendly", "Neutral"}
+        for entry in participants:
+            if not isinstance(entry, dict):
+                raise ValueError("Participant entries must be objects")
+            character_id = entry.get("character_id")
+            if not character_id or not db_session.get(Character, character_id):
+                raise ValueError(f"Invalid character_id: {character_id}")
+            contexts = entry.get("contexts", [])
+            if not isinstance(contexts, list):
+                raise ValueError("Participant contexts must be a list")
+            for context in contexts:
+                if context not in allowed_contexts:
+                    raise ValueError(f"Invalid participant context: {context}")
+            combat_side = entry.get("combat_side")
+            if combat_side and combat_side not in allowed_sides:
+                raise ValueError(f"Invalid combat_side: {combat_side}")
+            if "Combat" in contexts:
+                profile = db_session.query(CombatProfile).filter_by(character_id=character_id).first()
+                if not profile:
+                    raise ValueError(f"Combat context requires combat profile for character_id: {character_id}")
+            if "Interaction" in contexts:
+                profile = db_session.query(InteractionProfile).filter_by(character_id=character_id).first()
+                if not profile:
+                    raise ValueError(f"Interaction context requires interaction profile for character_id: {character_id}")
+        encounter.participants = participants
         
         # Validate rewards
         rewards = data.get("rewards", {})

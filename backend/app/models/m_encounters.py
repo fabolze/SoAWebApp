@@ -24,8 +24,7 @@ class Encounter(Base):
     encounter_type = Column(Enum(EncounterType), nullable=False)
     requirements_id = Column(String, ForeignKey('requirements.id'))
 
-    enemy_ids = Column(JSON)     # List of enemy IDs
-    npc_ids = Column(JSON)       # List of NPC IDs
+    participants = Column(JSON)  # [{ character_id, contexts, combat_side }]
 
     rewards = Column(JSON)       # { xp, items, currencies, reputation, flags_set }
     tags = Column(JSON)  # List of string tags

@@ -22,13 +22,13 @@
           "label": "Dialogue Title"
         }
       },
-      "npc_id": {
+      "character_id": {
         "type": "string",
-        "description": "Optional: Which NPC this dialogue is associated with",
+        "description": "Optional: Which character this dialogue is associated with",
         "ui": {
           "widget": "reference",
-          "reference": "npcs",
-          "label": "NPC"
+          "reference": "characters",
+          "label": "Character"
         }
       },
       "location_id": {

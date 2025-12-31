@@ -41,24 +41,36 @@
         "label": "Requirements"
       }
     },
-    "enemy_ids": {
+    "participants": {
       "type": "array",
-      "description": "List of enemy IDs to spawn (if combat)",
-      "items": { "type": "string" },
-      "ui": {
-        "widget": "multiselect",
-        "label": "Enemies",
-        "reference": "enemies"
-      }
-    },
-    "npc_ids": {
-      "type": "array",
-      "description": "List of NPC IDs involved (optional)",
-      "items": { "type": "string" },
-      "ui": {
-        "widget": "multiselect",
-        "label": "NPCs",
-        "reference": "npcs"
+      "description": "Participants in this encounter",
+      "items": {
+        "type": "object",
+        "properties": {
+          "character_id": {
+            "type": "string",
+            "ui": {
+              "widget": "reference",
+              "label": "Character",
+              "reference": "characters"
+            }
+          },
+          "contexts": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["Combat", "Interaction"] },
+            "ui": {
+              "widget": "multiselect",
+              "label": "Contexts",
+              "options": ["Combat", "Interaction"]
+            }
+          },
+          "combat_side": {
+            "type": "string",
+            "enum": ["Hostile", "Friendly", "Neutral"],
+            "ui": { "widget": "select", "label": "Combat Side" }
+          }
+        },
+        "required": ["character_id", "contexts"]
       }
     },
     "rewards": {

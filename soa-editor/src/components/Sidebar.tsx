@@ -102,9 +102,10 @@ const DEFAULT_GROUPS = [
     items: [
       { to: '/locations', label: 'Locations', icon: MapIcon },
       { to: '/factions', label: 'Factions', icon: UserGroupIcon },
-      { to: '/npcs', label: 'NPCs', icon: UsersIcon },
       { to: '/lore-entries', label: 'Lore Entries', icon: BookOpenIcon },
-      { to: '/enemies', label: 'Enemies', icon: FlagIcon },
+      { to: '/characters', label: 'Characters', icon: UsersIcon },
+      { to: '/combat-profiles', label: 'Combat Profiles', icon: FlagIcon },
+      { to: '/interaction-profiles', label: 'Interaction Profiles', icon: ChatBubbleLeftRightIcon },
     ],
   },
   {

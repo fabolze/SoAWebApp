@@ -1,7 +1,8 @@
 from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_shops import Shop
 from backend.app.models.m_locations import Location
-from backend.app.models.m_npcs import NPC
+from backend.app.models.m_characters import Character
+from backend.app.models.m_interaction_profiles import InteractionProfile
 from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_currencies import Currency
 from typing import Any, Dict, List
@@ -27,7 +28,7 @@ class ShopRoute(BaseRoute):
         # Validate relationships
         self.validate_relationships(db_session, data, {
             "location_id": Location,
-            "npc_id": NPC,
+            "character_id": Character,
             "requirements_id": Requirement,
             "currency_id": Currency
         })
@@ -56,8 +57,13 @@ class ShopRoute(BaseRoute):
 
         # Relationship fields
         shop.location_id = data.get("location_id")
-        shop.npc_id = data.get("npc_id")
+        shop.character_id = data.get("character_id")
         shop.requirements_id = data.get("requirements_id")
+
+        if shop.character_id:
+            profile = db_session.query(InteractionProfile).filter_by(character_id=shop.character_id).first()
+            if not profile:
+                raise ValueError("Shop character requires an interaction profile")
         
         # JSON fields
         shop.price_modifiers = data.get("price_modifiers", {})  # Dict of discount/markup rules

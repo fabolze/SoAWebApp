@@ -36,8 +36,8 @@ Offene Fragen:
 ```
 
 ## Content Coverage Snapshot
-- Core datasets: Stats, Attributes, Attribute-to-Stat links, Abilities, Ability links (effects and scaling), Effects, Items, Item modifiers, Currencies, Content Packs, Character Classes, NPCs, Dialogues plus Nodes, Quests, Story Arcs, Timelines, Locations, Location Routes, Encounters, Events, Enemies, Factions, Flags, Requirements plus flag and reputation link tables, Shops, Shop Inventory, Lore Entries.
-- Cross-link highlights: Abilities reference Effects and Attributes; Items reference Requirements and modifiers; Quests feed Story Arcs, Flags, and reward bundles; NPCs bridge Locations, Dialogues, Shops, and Companions; Events chain Encounters, Dialogues, and reward payloads; Routes connect Locations with travel metadata; Requirements unify gating across systems.
+- Core datasets: Stats, Attributes, Attribute-to-Stat links, Abilities, Ability links (effects and scaling), Effects, Items, Item modifiers, Currencies, Content Packs, Character Classes, Characters, Interaction Profiles, Combat Profiles, Dialogues plus Nodes, Quests, Story Arcs, Timelines, Locations, Location Routes, Encounters, Events, Factions, Flags, Requirements plus flag and reputation link tables, Shops, Shop Inventory, Lore Entries.
+- Cross-link highlights: Abilities reference Effects and Attributes; Items reference Requirements and modifiers; Quests feed Story Arcs, Flags, and reward bundles; Characters and Interaction Profiles bridge Locations, Dialogues, Shops, and Companions; Events chain Encounters, Dialogues, and reward payloads; Routes connect Locations with travel metadata; Requirements unify gating across systems.
 - Use the relationship map as a wiring checklist before building Blueprint lookups.
 
 ## 1. Data Structures and Data Tables
@@ -58,7 +58,7 @@ Offene Fragen:
 5. `BP_FlagManager` (Game Instance Subsystem) initialises all Flags, evaluates `CheckRequirement(RequirementId)` by traversing required or forbidden flag tables and faction reputation thresholds, and broadcasts `OnFlagChanged` events.
 6. `BP_QuestLogComponent` (Player Actor Component) maps quest objectives, syncs with Flags, updates UI, and routes quest rewards through Currency, Reputation, and Item managers. Supports multi-branch objectives and timed goals.
 7. `BP_StoryManager` (GameMode Component) orchestrates Story Arcs, Timelines, and Event chains. It reacts to Flags, Content Pack filters, and `FEventData.next_event_id` to push the correct quest or event sequence.
-8. `BP_CompanionManager` (Game Instance Subsystem) controls active companion roster via `NPC.companion_config`, handles spawn and despawn, manages loyalty progression (Flags), and shares stat or ability data with the combat setup.
+8. `BP_CompanionManager` (Game Instance Subsystem) controls active companion roster via `CombatProfile.companion_config`, handles spawn and despawn, manages loyalty progression (Flags), and shares stat or ability data with the combat setup.
 9. Add a lightweight `BP_PersistenceValidator` to ensure SaveGame snapshots stay schema-compatible (for example warn if a removed quest exists in a save).
 
 > [Outcome] Gameplay systems call into central managers instead of reading DataTables ad-hoc. State progression, gating, and rewards stay in sync with content packs and save data.
@@ -100,7 +100,7 @@ Offene Fragen:
 
 ## 4. Combat System (Turn-Based)
 ### 4.1 Encounter Setup
-- `BP_EncounterDirector` builds combat scenes from `FEncounterData`: spawn player pawn, companions, and enemies. Pull `FEnemyData` plus `FCharacterClassData` to initialise stats, abilities, and AI tags.
+- `BP_EncounterDirector` builds combat scenes from `FEncounterData`: spawn player pawn, companions, and combatants. Pull `FCombatProfileData` plus `FCharacterClassData` to initialise stats, abilities, and AI tags.
 - Factor in Location or Route modifiers (weather, terrain) and event payloads (for example start battle with status effects). Encapsulate this in `FCombatContext` passed through the combat pipeline.
 - Support multiple arena templates: load small battle levels or use sub-level streaming; ensure SaveGame records last location to resume post-combat.
 
@@ -115,7 +115,7 @@ Offene Fragen:
 - `BP_CombatFormulaLibrary` centralises derived calculations (damage, critical hit chance, resistances) so balancing changes live in one place. Optionally expose a DataTable for formula coefficients.
 - Items used mid-battle route through `BP_ItemManager` and leverage the same Effect pipeline for consistency.
 
-### 4.4 Enemy and Companion Behaviour
+### 4.4 Combatant and Companion Behaviour
 - All combatants inherit from `BP_BattleCharacter` (base stats, damage handling, effect hooks). `BP_PlayerCharacter`, `BP_EnemyCharacter`, and `BP_CompanionCharacter` extend it with specific logic.
 - `BP_EnemyBrain` chooses actions based on AI tags defined in data (Aggressive, FocusHealer, UsesItems, and so on). Start simple (weighted random abilities) and layer heuristics (focus lowest HP, exploit weaknesses) via data-driven scoring tables.
 - Phase-based encounters: use Flags or encounter state to swap ability sets under health thresholds (for example `Phase2Flag` toggled at 25 percent HP triggers a new ability list).
@@ -157,7 +157,7 @@ Offene Fragen:
 1. Finalise Blueprint Struct and Enum definitions using the integration guide; generate placeholder DataTables and confirm imports (Phase 0).
 2. Prototype `BP_GameDataSubsystem` plus `BP_FlagManager` to validate requirement evaluation with exported sample data (bridge between Phases 1 and 2).
 3. Author initial Location plus Route data to seed the travel graph and validate the planner with Development cheats.
-4. Stand up dialogue playback for a single NPC to validate branching requirements before scaling to full story arcs.
+4. Stand up dialogue playback for a single Character to validate branching requirements before scaling to full story arcs.
 
 ## Quality Gates
 - All DataTable imports succeed without warnings; validation sweeps catch missing rows, enum mismatches, or orphaned routes before runtime.

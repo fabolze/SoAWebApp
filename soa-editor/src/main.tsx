@@ -7,10 +7,11 @@ import AbilitiesEditorPage from "./pages/AbilitiesEditor";
 import EffectsEditorPage from "./pages/EffectsEditor";
 import AttributesEditorPage from "./pages/AttributesEditor";
 import CharacterClassesEditorPage from "./pages/CharacterClassesEditor";
+import CharactersEditorPage from "./pages/CharactersEditor";
+import CombatProfilesEditorPage from "./pages/CombatProfilesEditor";
 import DialogueNodesEditorPage from "./pages/DialogueNodesEditor";
 import DialoguesEditorPage from "./pages/DialoguesEditor";
 import EncountersEditorPage from "./pages/EncountersEditor";
-import EnemiesEditorPage from "./pages/EnemiesEditor";
 import EventsEditorPage from "./pages/EventsEditor";
 import ContentPacksEditorPage from "./pages/ContentPacksEditor";
 import FactionsEditorPage from "./pages/FactionsEditor";
@@ -18,9 +19,9 @@ import FlagsEditorPage from "./pages/FlagsEditor";
 import IndexPageEditorPage from "./pages/IndexPageEditor";
 import ItemsEditorPage from "./pages/ItemsEditor";
 import CurrenciesEditorPage from "./pages/CurrenciesEditor";
+import InteractionProfilesEditorPage from "./pages/InteractionProfilesEditor";
 import LocationsEditorPage from "./pages/LocationsEditor";
 import LoreEntriesEditorPage from "./pages/LoreEntriesEditor";
-import NpcsEditorPage from "./pages/NpcsEditor";
 import QuestsEditorPage from "./pages/QuestsEditor";
 import RequirementsEditorPage from "./pages/RequirementsEditor";
 import ShopsEditorPage from "./pages/ShopsEditor";
@@ -53,19 +54,20 @@ const MainApp = () => {
             <Route path="attributes" element={<AttributesEditorPage />} />
             <Route path="effects" element={<EffectsEditorPage />} />
             <Route path="characterclasses" element={<CharacterClassesEditorPage />} />
+            <Route path="characters" element={<CharactersEditorPage />} />
+            <Route path="combat-profiles" element={<CombatProfilesEditorPage />} />
             <Route path="dialogue-nodes" element={<DialogueNodesEditorPage />} />
             <Route path="dialogues" element={<DialoguesEditorPage />} />
             <Route path="encounters" element={<EncountersEditorPage />} />
-            <Route path="enemies" element={<EnemiesEditorPage />} />
             <Route path="events" element={<EventsEditorPage />} />
             <Route path="content-packs" element={<ContentPacksEditorPage />} />
             <Route path="factions" element={<FactionsEditorPage />} />
             <Route path="flags" element={<FlagsEditorPage />} />
             <Route path="items" element={<ItemsEditorPage />} />
             <Route path="currencies" element={<CurrenciesEditorPage />} />
+            <Route path="interaction-profiles" element={<InteractionProfilesEditorPage />} />
             <Route path="locations" element={<LocationsEditorPage />} />
             <Route path="lore-entries" element={<LoreEntriesEditorPage />} />
-            <Route path="npcs" element={<NpcsEditorPage />} />
             <Route path="quests" element={<QuestsEditorPage />} />
             <Route path="requirements" element={<RequirementsEditorPage />} />
             <Route path="shops" element={<ShopsEditorPage />} />

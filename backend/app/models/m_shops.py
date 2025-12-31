@@ -19,7 +19,7 @@ class Shop(Base):
     currency_id = Column(String, ForeignKey('currencies.id'))
 
     location_id = Column(String, ForeignKey("locations.id"))
-    npc_id = Column(String, ForeignKey("npcs.id"))
+    character_id = Column(String, ForeignKey("characters.id"))
     requirements_id = Column(String, ForeignKey("requirements.id"))
 
     price_modifiers = Column(JSON)  # Keep as JSON for now (optional structure)
@@ -27,7 +27,7 @@ class Shop(Base):
 
     # Relationships
     location = relationship("Location")
-    npc = relationship("NPC")
+    character = relationship("Character")
     currency = relationship("Currency")
     requirements = relationship("Requirement")
     inventory = relationship("ShopInventory", back_populates="shop", cascade="all, delete-orphan")

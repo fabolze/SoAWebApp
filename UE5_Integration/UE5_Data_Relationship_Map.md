@@ -67,18 +67,22 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 - **Blueprint owners:** `BP_EncounterDirector`, `BP_LevelProgressionComponent`, companion setup.
 
 ### Shops (`m_shops.py`) and Shop Inventory (`m_shop_inventory.py`)
-- **References:** Locations, NPCs, Requirements, Currencies, Items.
+- **References:** Locations, Characters, Requirements, Currencies, Items.
 - **Blueprint owners:** `BP_ShopController`, `BP_ShopWidget`, availability gating via `BP_FlagManager`.
 
 ---
 
 ## Characters, Dialogue and Narrative
-### NPCs (`m_npcs.py`)
-- **References:** Locations, Factions, Dialogues, Quests, Shop links, Requirements, Companion config.
+### Characters (`m_characters.py`)
+- **References:** Locations, Factions, Character Classes, Combat Profiles (optional), Interaction Profiles (optional).
+- **Blueprint owners:** `BP_CharacterRegistry`, `BP_DialogueManager`, `BP_CompanionManager`.
+
+### Interaction Profiles (`m_interaction_profiles.py`)
+- **References:** Characters, Dialogues, Quests, Flags, Shops.
 - **Blueprint owners:** `BP_NPCSpawner`, `BP_DialogueManager`, `BP_CompanionManager`.
 
 ### Dialogues (`m_dialogues.py`) and Dialogue Nodes (`m_dialogue_nodes.py`)
-- **References:** NPCs, Locations, Requirements, Flags (set or require), Events (follow-ups).
+- **References:** Characters, Locations, Requirements, Flags (set or require), Events (follow-ups).
 - **Blueprint owners:** `BP_DialogueManager`, narrative analytics tooling.
 
 ### Quests (`m_quests.py`)
@@ -102,7 +106,7 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 ## World Graph, Travel and Exploration
 ### Locations (`m_locations.py`)
 - **Key fields:** `biome`, `level_range`, `encounters`, `is_safe_zone`, `is_fast_travel_point`, `has_respawn_point`.
-- **References:** Encounters, Events, Lore, Shops, NPCs.
+- **References:** Encounters, Events, Lore, Shops, Characters.
 - **Blueprint owners:** `BP_LocationRegistry`, `BP_WorldMapWidget`, travel orchestration.
 
 ### Location Routes (UE5 export proposal)
@@ -118,13 +122,13 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 
 ## Encounters, Events and Rewards
 ### Encounters (`m_encounters.py`)
-- **Key fields:** `encounter_type`, `enemy_ids`, `npc_ids`, `requirements_id`, `rewards` (xp, currency, reputation, items, flags), `spawn_context`.
-- **References:** Enemies, NPCs, Requirements, Currencies, Factions, Flags, Items, Events.
+- **Key fields:** `encounter_type`, `participants`, `requirements_id`, `rewards` (xp, currency, reputation, items, flags), `spawn_context`.
+- **References:** Characters, Combat Profiles, Interaction Profiles, Requirements, Currencies, Factions, Flags, Items, Events.
 - **Blueprint owners:** `BP_EncounterManager`, `BP_EncounterDirector`, reward pipelines.
 
-### Enemies (`m_enemies.py`)
-- **Key fields:** `class_id`, `faction_id`, `loot_table`, `currency_rewards`, `reputation_rewards`, `xp_reward`, `custom_abilities`.
-- **References:** Character Classes, Abilities, Items, Factions, Quests, Events.
+### Combat Profiles (`m_combat_profiles.py`)
+- **Key fields:** `character_id`, `enemy_type`, `aggression`, `loot_table`, `currency_rewards`, `reputation_rewards`, `xp_reward`, `custom_abilities`, `companion_config`.
+- **References:** Characters, Character Classes (via Character), Abilities, Items, Factions, Quests, Events.
 - **Blueprint owners:** `BP_EncounterDirector`, `BP_EnemyBrain`, loot resolver.
 
 ### Events (`m_events.py`)
@@ -141,7 +145,7 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 ## Validation Hotspots
 - **Requirements <-> Flags or Factions:** Every requirement entry should resolve its flags or faction thresholds. Broken links block narrative progression.
 - **Locations <-> Routes:** Every route endpoint must exist, and safe zones should not route into random-encounter-only segments unless design intends it.
-- **Encounters <-> Enemies or NPCs:** Ensure each enemy ULID exists and belongs to the intended content pack. Encounter rewards should reference valid currencies or items.
+- **Encounters <-> Characters and Profiles:** Ensure each character ULID exists and the required combat or interaction profile is present. Encounter rewards should reference valid currencies or items.
 - **Events <-> next_event_id Chains:** Validate that chains terminate; use automation tests to catch accidental loops.
 - **Quests <-> Story Arcs <-> Content Packs:** Quests must belong to Story Arcs that share the same content pack gating.
 
