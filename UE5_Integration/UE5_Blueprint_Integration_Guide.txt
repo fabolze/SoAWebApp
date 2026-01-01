@@ -44,6 +44,42 @@ Empfohlene Reihenfolge fuer Structs + Imports (MVP zuerst)
 5) Combat: Abilities, Ability Links, Effects, Combat Profiles
 6) Economy: Currencies, Shops, ShopInventory
 
+Enum-Index (Blueprint-Enums, 1:1 Backend-Strings)
+- EInteractionRole: Questgiver, Merchant, Trainer, Companion, Story, Background
+- EEnemyType: beast, undead, humanoid, elemental, machine, boss, demon, dragon, giant, spirit, other
+- EEnemyAggression: Hostile, Neutral, Friendly
+- EEncounterContext: Combat, Interaction
+- ECombatSide: Hostile, Friendly, Neutral
+- EEncounterType: Combat, Dialogue, Event
+- EStatCategory: Attribute, Combat, Defense, Magic, Support
+- EStatValueType: int, float, percentage
+- EStatScalingBehavior: None, Linear, Exponential, Custom Curve
+- EAttributeValueType: int, float
+- EAttributeScaling: None, Linear, Exponential, Logarithmic
+- EAttributeStatScale: Linear, Exponential, Custom
+- EItemType: Weapon, Armor, Accessory, Consumable, Tool, Material, Upgrade, Quest, SetPiece, Misc
+- EItemRarity: Common, Uncommon, Rare, Epic, Legendary
+- EEquipmentSlot: head, chest, legs, feet, hands, belt, ring, amulet, back, main_hand, off_hand, two_hand, accessory, mount, pet
+- EWeaponType: Greatsword, Longsword, Shortsword, Dagger, Rapier, Axe, Greataxe, Hammer, Mace, Spear, Polearm, Halberd, Staff, Wand, Tome, Bow, Crossbow, Firearm, Thrown, Unarmed, Shield, Focus, Instrument
+- EDamageType: Slashing, Piercing, Blunt, Elemental, Poison, Psychic, Holy, Void
+- EWeaponRangeType: melee, range
+- EModifierValueType: Flat, Percentage, Multiplier
+- EAbilityType: Active, Passive, Toggle
+- EAbilityTargeting: Single, Area, Self, Allies, Enemies
+- EAbilityTrigger: On Use, Passive, On Hit, When Damaged, On Kill
+- EEffectType: Status, Damage, Heal, Modifier, Reflect, Summon, Shield, Control
+- EEffectTarget: Self, Enemy, Ally, All, Area
+- EEffectValueType: Flat, Percentage, None
+- EEffectTriggerCondition: None, On Hit, When Damaged, On Kill, On Cast, Passive
+- EEventType: Encounter, ItemReward, LoreDiscovery, Dialogue, Teleport, ScriptedScene
+- EFactionAlignment: Hostile, Neutral, Friendly
+- EFlagType: Story Progress, Quest State, Lore Discovery, Item Unlock, NPC Relationship, Companion Progress, Secret Discovery, Shop Unlock, Event Trigger, Other
+- ELocationBiome: Plains, Forest, Cave, Mountain, Desert, Swamp, Coast, Tundra, City, Ruins, Fortress, Sky Isles, Cloud Sea, Crystal Caverns, Magma Veins, Fungal Undergrowth, Abyss
+- ELocationBiomeModifier: Arcane, Corrupted, Divine, Shadowed, Dreamlike
+- EStoryArcType: Main Story, Side Arc, Faction Arc, DLC Arc
+- ECharacterRole: Tank, Damage, Healer, Support, Hybrid
+- ECurrencyType: Soft, Premium, Token
+
 Character/Profile Umbau - Start jetzt (Enums zuerst, dann Structs)
 Enums (Phase 1 - zuerst anlegen, Strings 1:1 wie Backend):
 - EInteractionRole: Questgiver, Merchant, Trainer, Companion, Story, Background
@@ -244,40 +280,48 @@ Typische Fehlerbilder (schnell pruefen)
 Stats (Stat Data Table) - Quelle: backend/app/models/m_stats.py
 Die Stat-Tabelle enthaelt alle numerischen Werte/Statusgroessen.
 Struct FStatData (als Data Table importieren):
-- Id (String) - ULID aus `id`, Originalwert fuer sichere Verknuepfungen.
-- Slug (String) - sprechender Schluessel (`slug`), als Row Name nutzen.
-- Name (String) - Anzeigename.
-- Category (Enum/String) - `StatCategory` (Attribute, Combat, Defense, Magic, Support); Blueprint-Enum `EStatCategory` mit exakt gleichen Strings anlegen.
-- Description (Text) - Beschreibung.
-- ValueType (Enum/String) - `ValueType` (int, float, percentage); Blueprint-Enum `EStatValueType` mit identischen Strings anlegen.
-- DefaultValue/MinValue/MaxValue (Float) - numerische Grenzen.
-- ScalingBehavior (Enum/String) - None, Linear, Exponential, CustomCurve; Blueprint-Enum `EStatScalingBehavior` mit denselben DisplayNames hinterlegen.
-- AppliesTo (Array<String>) - Einsatzbereiche; als `TArray<FString>` importieren.
-- IconPath (String) - Asset-Referenz.
-- Tags (Array<String>) - freie Schlagworte.
+- RowName: slug
+- id (String) - ULID aus `id`, Originalwert fuer sichere Verknuepfungen.
+- slug (String) - sprechender Schluessel (`slug`), als Row Name nutzen.
+- name (String) - Anzeigename.
+- category (Enum/String) - `StatCategory` (Attribute, Combat, Defense, Magic, Support); Blueprint-Enum `EStatCategory` mit exakt gleichen Strings anlegen.
+- description (Text) - Beschreibung.
+- value_type (Enum/String) - `ValueType` (int, float, percentage); Blueprint-Enum `EStatValueType` mit identischen Strings anlegen.
+- default_value (Float) - numerische Grenze.
+- min_value (Float) - numerische Grenze.
+- max_value (Float) - numerische Grenze.
+- scaling_behavior (Enum/String) - None, Linear, Exponential, CustomCurve; Blueprint-Enum `EStatScalingBehavior` mit denselben DisplayNames hinterlegen.
+- applies_to (Array<String>) - Einsatzbereiche; als `TArray<FString>` importieren.
+- icon_path (String) - Asset-Referenz.
+- tags (Array<String>) - freie Schlagworte.
 
 [DONE]
 Attributes (Attribute Data Table) - Quelle: backend/app/models/m_attributes.py
 Attribute sind Grundwerte, die auch Stat-Links besitzen.
 Struct FAttributeData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Name, Description (String/Text).
-- ValueType (Enum/String) - `AttrValueType` (int, float); Blueprint-Enum `EAttributeValueType` mit exakt gleichen Namen.
-- DefaultValue/MinValue/MaxValue (Float).
-- Scaling (Enum/String) - None, Linear, Exponential, Logarithmic; Blueprint-Enum `EAttributeScaling` nach den Backend-Strings anlegen.
-- UsedIn (Array<String>) - wo die Attribute verwendet werden.
-- IconPath (String).
-- Tags (Array<String>).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- name (String).
+- description (Text).
+- value_type (Enum/String) - `AttrValueType` (int, float); Blueprint-Enum `EAttributeValueType` mit exakt gleichen Namen.
+- default_value (Float).
+- min_value (Float).
+- max_value (Float).
+- scaling (Enum/String) - None, Linear, Exponential, Logarithmic; Blueprint-Enum `EAttributeScaling` nach den Backend-Strings anlegen.
+- used_in (Array<String>) - wo die Attribute verwendet werden.
+- icon_path (String).
+- tags (Array<String>).
 
 [DONE]
 Attribute-Stat-Verknuepfung (Data Table fuer backend/app/models/m_attribute_stat_link.py)
 Struct FAttributeStatLink (optional separate Data Table, falls benoetigt):
-- Id (String) - ULID.
-- AttributeId (String) - ULID des Attributes.
-- StatId (String) - ULID des Stats.
-- Scale (Enum/String) - Linear, Exponential, Custom; Blueprint-Enum `EAttributeStatScale` mit denselben Strings verwenden.
-- Multiplier (Float) - Skalierungsfaktor.
+- RowName: id
+- id (String) - ULID.
+- attribute_id (String) - ULID des Attributes.
+- stat_id (String) - ULID des Stats.
+- scale (Enum/String) - Linear, Exponential, Custom; Blueprint-Enum `EAttributeStatScale` mit denselben Strings verwenden.
+- multiplier (Float) - Skalierungsfaktor.
 Diese Tabelle erlaubt es, in UE5 blueprint-seitig alle Stat-Anpassungen pro Attribut zu iterieren.
 
 
@@ -341,70 +385,101 @@ In UE5 koennen Choices als eigener Struct `FDialogueChoice` modelliert werden.
 
 Items (Item Data Table) - Quelle: backend/app/models/m_items.py
 Struct FItemData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Name (String).
-- Type (Enum/String) - `ItemType` (Weapon, Armor, Consumable, Misc); Blueprint-Enum `EItemType` mit identischen Strings anlegen.
-- Rarity (Enum/String) - Common, Uncommon, Rare, Epic, Legendary; Blueprint-Enum `EItemRarity` verwenden.
-- Description (Text).
-- EquipmentSlot (Enum/String) - head, chest, legs, feet, main_hand, off_hand, accessory; Blueprint-Enum `EEquipmentSlot` exakt nach diesen Keys definieren.
-- WeaponType (Enum/String) - Sword, Axe, Bow, Staff, Dagger, Mace; Blueprint-Enum `EWeaponType` mit gleichen Strings.
-- StatDamage/StatDefense/StatCritChance/StatWeight (Float).
-- AttrStrength/AttrDexterity/AttrVitality/AttrIntelligence (Float) - Attributboni.
-- Effects (Array<String>) - Effekt-ULIDs.
-- Tags (Array<String>).
-- IconPath (String).
-- RequirementsId (String) - ULID eines Requirement-Eintrags; optional Data Table `FRequirementData` nutzen.
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- name (String).
+- type (Enum/String) - `ItemType` (Weapon, Armor, Accessory, Consumable, Tool, Material, Upgrade, Quest, SetPiece, Misc); Blueprint-Enum `EItemType` exakt nach Backend-Strings.
+- rarity (Enum/String) - Common, Uncommon, Rare, Epic, Legendary; Blueprint-Enum `EItemRarity` verwenden.
+- description (Text).
+- base_price (Float).
+- base_currency_id (String) - ULID einer Currency (optional).
+- equipment_slot (Enum/String) - siehe `EquipmentSlot` im Backend; Blueprint-Enum `EEquipmentSlot` exakt nach Backend-Strings.
+- weapon_type (Enum/String) - siehe `WeaponType` im Backend; Blueprint-Enum `EWeaponType`.
+- damage_type (Enum/String) - Slashing, Piercing, Blunt, Elemental, Poison, Psychic, Holy, Void; Blueprint-Enum `EDamageType`.
+- weapon_range_type (Enum/String) - melee, range; Blueprint-Enum `EWeaponRangeType`.
+- weapon_range (Integer) - numerischer Bereich/Distanzwert (Einheit im Design festlegen).
+- effects (Array<String>) - Effekt-ULIDs.
+- tags (Array<String>).
+- icon_path (String).
+- requirements_id (String) - ULID eines Requirement-Eintrags; optional Data Table `FRequirementData` nutzen.
+
+Item Stat Modifiers (Item Stat Modifier Data Table) - Quelle: backend/app/models/m_items.py
+Struct FItemStatModifierData (optional separate DataTable oder aus FItemData.stat_modifiers parsen):
+- RowName: id
+- id (String) - ULID.
+- item_id (String) - ULID des Items.
+- stat_id (String) - ULID des Stats.
+- value (Float).
+- value_type (Enum/String) - Flat, Percentage, Multiplier; Blueprint-Enum `EModifierValueType`.
+- scaling_behavior (Enum/String) - None, Linear, Exponential, Custom Curve; Blueprint-Enum `EStatScalingBehavior`.
+- notes (Text).
+- order_index (Integer) - Reihenfolge im Item.
+
+Item Attribute Modifiers (Item Attribute Modifier Data Table) - Quelle: backend/app/models/m_items.py
+Struct FItemAttributeModifierData (optional separate DataTable oder aus FItemData.attribute_modifiers parsen):
+- RowName: id
+- id (String) - ULID.
+- item_id (String) - ULID des Items.
+- attribute_id (String) - ULID des Attributes.
+- value (Float).
+- scaling (Enum/String) - Linear, Exponential, Custom; Blueprint-Enum `EAttributeStatScale`.
+- notes (Text).
+- order_index (Integer) - Reihenfolge im Item.
 
 Abilities (Ability Data Table) - Quelle: backend/app/models/m_abilities.py
 Struct FAbilityData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Name (String).
-- Type (Enum/String) - Active, Passive, Toggle; Blueprint-Enum `EAbilityType` exakt nach Backend-Strings.
-- IconPath (String).
-- Description (Text).
-- ResourceCost (Float).
-- Cooldown (Float).
-- Targeting (Enum/String) - Single, Area, Self, Allies, Enemies; Blueprint-Enum `EAbilityTargeting` mit denselben Namen.
-- TriggerCondition (Enum/String) - OnUse, Passive, OnHit, WhenDamaged, OnKill; Blueprint-Enum `EAbilityTrigger` verwenden.
-- Requirements (Text/JSON) - als Raw JSON-String importieren oder in ein Struct parsen.
-- Tags (Array<String>).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- name (String).
+- type (Enum/String) - Active, Passive, Toggle; Blueprint-Enum `EAbilityType` exakt nach Backend-Strings.
+- icon_path (String).
+- description (Text).
+- resource_cost (Float).
+- cooldown (Float).
+- targeting (Enum/String) - Single, Area, Self, Allies, Enemies; Blueprint-Enum `EAbilityTargeting` mit denselben Namen.
+- trigger_condition (Enum/String) - On Use, Passive, On Hit, When Damaged, On Kill; Blueprint-Enum `EAbilityTrigger` verwenden.
+- requirements (Text/JSON) - als Raw JSON-String importieren oder in ein Struct parsen.
+- tags (Array<String>).
 
 Ability-Effekt-Verknuepfung - backend/app/models/m_abilities_links.py
 Struct FAbilityEffectLink:
-- Id (String) - ULID.
-- AbilityId (String) - ULID der Ability.
-- EffectId (String) - ULID des Effekts.
+- RowName: id
+- id (String) - ULID.
+- ability_id (String) - ULID der Ability.
+- effect_id (String) - ULID des Effekts.
 Damit lassen sich in Blueprint alle Effekte einer Faehigkeit via ULID nachladen.
 
 Ability-Scaling-Verknuepfung
 Struct FAbilityScalingLink:
-- Id (String) - ULID.
-- AbilityId (String).
-- AttributeId (String).
-- Multiplier (Float) - Faktor fuer die Skalierung.
+- RowName: id
+- id (String) - ULID.
+- ability_id (String).
+- attribute_id (String).
+- multiplier (Float) - Faktor fuer die Skalierung.
 Optional kann ein Blueprint-Struct `FAbilityScaling` direkt in `FAbilityData` eingebettet werden, falls der Export die Arrays bereits expandiert.
 
 Effects (Effect Data Table) - Quelle: backend/app/models/m_effects.py
 Struct FEffectData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Name (String).
-- Type (Enum/String) - Status, Damage, Heal, Modifier, Reflect, Summon, Shield, Control; Blueprint-Enum `EEffectType` exakt uebernehmen.
-- Description (Text).
-- Target (Enum/String) - Self, Enemy, Ally, All, Area; Blueprint-Enum `EEffectTarget` mit gleichen Strings.
-- Duration (Float).
-- ValueType (Enum/String) - Flat, Percentage, None; Blueprint-Enum `EEffectValueType` mit identischen Namen.
-- Value (Float).
-- AttributeId (String) - optionale ULID eines Attributes.
-- ScalingStatId (String) - optionale ULID eines Stats.
-- TriggerCondition (Enum/String) - None, OnHit, WhenDamaged, OnKill, OnCast, Passive; Blueprint-Enum `EEffectTriggerCondition` anlegen.
-- Stackable (Boolean).
-- SetBonusGroup (String).
-- IconPath (String).
-- RelatedItems (Array<String>) - Item-ULIDs.
-- Tags (Array<String>).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- name (String).
+- type (Enum/String) - Status, Damage, Heal, Modifier, Reflect, Summon, Shield, Control; Blueprint-Enum `EEffectType` exakt uebernehmen.
+- description (Text).
+- target (Enum/String) - Self, Enemy, Ally, All, Area; Blueprint-Enum `EEffectTarget` mit gleichen Strings.
+- duration (Float).
+- value_type (Enum/String) - Flat, Percentage, None; Blueprint-Enum `EEffectValueType` mit identischen Namen.
+- value (Float).
+- attribute_id (String) - optionale ULID eines Attributes.
+- scaling_stat_id (String) - optionale ULID eines Stats.
+- trigger_condition (Enum/String) - None, On Hit, When Damaged, On Kill, On Cast, Passive; Blueprint-Enum `EEffectTriggerCondition` anlegen.
+- stackable (Boolean).
+- set_bonus_group (String).
+- icon_path (String).
+- related_items (Array<String>) - Item-ULIDs.
+- tags (Array<String>).
 
 Combat Profiles (Combat Profile Data Table) - Quelle: backend/app/models/m_combat_profiles.py
 Struct FCombatProfileData:
@@ -477,179 +552,199 @@ Struct FEncounterParticipant:
 
 Events (Event Data Table) - Quelle: backend/app/models/m_events.py
 Struct FEventData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Title (String).
-- Type (Enum/String) - Encounter, ItemReward, LoreDiscovery, Dialogue, Teleport, ScriptedScene; Blueprint-Enum `EEventType` exakt nach Backend.
-- RequirementsId (String) - ULID eines Requirement-Satzes.
-- LocationId (String) - ULID einer Location.
-- LoreId (String) - ULID eines Lore-Eintrags.
-- DialogueId (String) - ULID eines Dialogs.
-- EncounterId (String) - ULID eines Encounters.
-- ItemRewards (Array<Struct>) - { item_id, quantity }.
-- XpReward (Float).
-- CurrencyRewards (Array<Struct>) - { currency_id, amount }.
-- ReputationRewards (Array<Struct>) - { faction_id, amount }.
-- FlagsSet (Array<String>) - Flag-ULIDs.
-- Tags (Array<String>).
-- NextEventId (String) - ULID fuer Ketten-Logik.
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- title (String).
+- type (Enum/String) - Encounter, ItemReward, LoreDiscovery, Dialogue, Teleport, ScriptedScene; Blueprint-Enum `EEventType` exakt nach Backend.
+- requirements_id (String) - ULID eines Requirement-Satzes.
+- location_id (String) - ULID einer Location.
+- lore_id (String) - ULID eines Lore-Eintrags.
+- dialogue_id (String) - ULID eines Dialogs.
+- encounter_id (String) - ULID eines Encounters.
+- item_rewards (Array<Struct>) - { item_id, quantity }.
+- xp_reward (Float).
+- currency_rewards (Array<Struct>) - { currency_id, amount }.
+- reputation_rewards (Array<Struct>) - { faction_id, amount }.
+- flags_set (Array<String>) - Flag-ULIDs.
+- tags (Array<String>).
+- next_event_id (String) - ULID fuer Ketten-Logik.
 
 Factions (Faction Data Table) - Quelle: backend/app/models/m_factions.py
 Struct FFactionData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Name (String).
-- Description (Text).
-- Alignment (Enum/String) - Hostile, Neutral, Friendly; Blueprint-Enum `EFactionAlignment` mit identischen Strings.
-- Relationships (Map<String, String>) - Zuordnung anderer Fraktionen zu Einstufungen.
-- ReputationConfig (Struct/JSON) - Grenzwerte fuer Rufstufen; als `FFactionReputationConfig` modellieren.
-- Tags (Array<String>).
-- IconPath (String).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- name (String).
+- description (Text).
+- alignment (Enum/String) - Hostile, Neutral, Friendly; Blueprint-Enum `EFactionAlignment` mit identischen Strings.
+- relationships (Map<String, String>) - Zuordnung anderer Fraktionen zu Einstufungen.
+- reputation_config (Struct/JSON) - Grenzwerte fuer Rufstufen; als `FFactionReputationConfig` modellieren.
+- tags (Array<String>).
+- icon_path (String).
 
 Flags (Flag Data Table) - Quelle: backend/app/models/m_flags.py
 Struct FFlagData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Name (String).
-- Description (Text).
-- FlagType (Enum/String) - Story Progress, Quest State, Lore Discovery, Item Unlock, NPC Relationship, Companion Progress, Secret Discovery, Shop Unlock, Event Trigger, Other; Blueprint-Enum `EFlagType` mit exakt diesen Strings.
-- DefaultValue (Boolean).
-- ContentPack (Enum/String) - Base, DLC1, DLC2, Expansion; Blueprint-Enum `EContentPack` identisch anlegen.
-- Tags (Array<String>).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- name (String).
+- description (Text).
+- flag_type (Enum/String) - Story Progress, Quest State, Lore Discovery, Item Unlock, NPC Relationship, Companion Progress, Secret Discovery, Shop Unlock, Event Trigger, Other; Blueprint-Enum `EFlagType` mit exakt diesen Strings.
+- default_value (Boolean).
+- content_pack_id (String) - ULID eines Content Packs (optional).
+- tags (Array<String>).
 
 Locations (Location Data Table) - Quelle: backend/app/models/m_locations.py
 Struct FLocationData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Name (String).
-- Description (Text).
-- Biome (Enum/String) - Plains, Forest, Cave, Mountain, Desert, Swamp, Coast, Tundra, City, Ruins, Fortress, Sky Isles, Cloud Sea, Crystal Caverns, Magma Veins, Fungal Undergrowth, Abyss; Blueprint-Enum `ELocationBiome` mit denselben Namen.
-- BiomeModifier (Enum/String, optional) - Arcane, Corrupted, Divine, Shadowed, Dreamlike; Blueprint-Enum `ELocationBiomeModifier` ebenfalls exakt benennen.
-- Region (String) - freie Regionseinteilung.
-- LevelRange (Struct/JSON) - { Min, Max } als `FLevelRange`.
-- Coordinates (Struct/JSON) - { X, Y } fuer Karte oder Editor.
-- ImagePath (String).
-- Encounters (Array<String>) - Encounter-ULIDs.
-- IsSafeZone (Boolean).
-- IsFastTravelPoint (Boolean).
-- HasRespawnPoint (Boolean).
-- Tags (Array<String>).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- name (String).
+- description (Text).
+- biome (Enum/String) - Plains, Forest, Cave, Mountain, Desert, Swamp, Coast, Tundra, City, Ruins, Fortress, Sky Isles, Cloud Sea, Crystal Caverns, Magma Veins, Fungal Undergrowth, Abyss; Blueprint-Enum `ELocationBiome` mit denselben Namen.
+- biome_modifier (Enum/String, optional) - Arcane, Corrupted, Divine, Shadowed, Dreamlike; Blueprint-Enum `ELocationBiomeModifier` ebenfalls exakt benennen.
+- region (String) - freie Regionseinteilung.
+- level_range (Struct/JSON) - { min, max } als `FLevelRange`.
+- coordinates (Struct/JSON) - { x, y } fuer Karte oder Editor.
+- image_path (String).
+- encounters (Array<String>) - Encounter-ULIDs.
+- is_safe_zone (Boolean).
+- is_fast_travel_point (Boolean).
+- has_respawn_point (Boolean).
+- tags (Array<String>).
 
 Location Routes (LocationRoute Data Table) - neue Export-Tabelle fuer das Reisesystem
 Struct FLocationRouteData:
-- Id (String) - ULID.
-- Slug (String) - Row Name (z.B. `northpass_to_highridge`).
-- FromLocationId (String) - ULID der Quell-Location.
-- ToLocationId (String) - ULID der Ziel-Location.
-- TravelTime (Float) - Dauer in Spielstunden/-tagen.
-- Distance (Float) - Distanz oder Abstraktion fuer UI.
-- RequirementsId (String) - ULID eines Requirement-Satzes (Blockaden, Ruf, Story).
-- EncounterWeightModifier (Float) - Multiplikator fuer Zufallsbegegnungen auf dieser Route.
-- CostCurrencyId (String, optional) - ULID einer Waehrung fuer Reisekosten.
-- CostAmount (Float, optional) - Kostenbetrag.
-- FlagsUnlock (Array<String>) - Flag-ULIDs, die beim Freischalten gesetzt werden.
-- FlagsLock (Array<String>) - Flag-ULIDs, bei deren Setzen die Route gesperrt wird.
-- IsBidirectional (Boolean) - true, wenn dieselben Werte fuer Hin- und Rueckweg gelten; ansonsten zweite Zeile anlegen.
-- Tags (Array<String>) - Zusaetzliche Metadaten (z.B. `MountainPass`, `RequiresAirship`).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name (z.B. `northpass_to_highridge`).
+- from_location_id (String) - ULID der Quell-Location.
+- to_location_id (String) - ULID der Ziel-Location.
+- travel_time (Float) - Dauer in Spielstunden/-tagen.
+- distance (Float) - Distanz oder Abstraktion fuer UI.
+- requirements_id (String) - ULID eines Requirement-Satzes (Blockaden, Ruf, Story).
+- encounter_weight_modifier (Float) - Multiplikator fuer Zufallsbegegnungen auf dieser Route.
+- cost_currency_id (String, optional) - ULID einer Waehrung fuer Reisekosten.
+- cost_amount (Float, optional) - Kostenbetrag.
+- flags_unlock (Array<String>) - Flag-ULIDs, die beim Freischalten gesetzt werden.
+- flags_lock (Array<String>) - Flag-ULIDs, bei deren Setzen die Route gesperrt wird.
+- is_bidirectional (Boolean) - true, wenn dieselben Werte fuer Hin- und Rueckweg gelten; ansonsten zweite Zeile anlegen.
+- tags (Array<String>) - Zusaetzliche Metadaten (z.B. `MountainPass`, `RequiresAirship`).
 Diese Tabelle ermoeglicht den Aufbau eines Graphen in UE5 (`BP_WorldGraphSubsystem`) und spiegelt die neuen Reise-Workflows aus dem Plan wider.
 
 Lore (Lore Entry Data Table) - Quelle: backend/app/models/m_lore_entries.py
 Struct FLoreEntryData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Title (String).
-- Text (Text).
-- LocationId (String) - ULID einer Location.
-- TimelineId (String) - ULID einer Timeline.
-- RelatedStoryArcs (Array<String>) - Story-Arc-ULIDs.
-- Tags (Array<String>).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- title (String).
+- text (Text).
+- location_id (String) - ULID einer Location.
+- timeline_id (String) - ULID einer Timeline.
+- related_story_arcs (Array<String>) - Story-Arc-ULIDs.
+- tags (Array<String>).
 
 Quests (Quest Data Table) - Quelle: backend/app/models/m_quests.py
 Struct FQuestData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Title (String).
-- Description (Text).
-- StoryArcId (String) - ULID eines Story-Arcs.
-- RequirementsId (String) - ULID eines Requirement-Satzes.
-- Objectives (Array<Struct>) - { ObjectiveId, Description, RequirementsId, FlagsSet }.
-- FlagsSetOnCompletion (Array<String>) - Flag-ULIDs.
-- XpReward (Float).
-- CurrencyRewards (Array<Struct>) - { currency_id, amount }.
-- ReputationRewards (Array<Struct>) - { faction_id, amount }.
-- ItemRewards (Array<Struct>) - { item_id, quantity }.
-- Tags (Array<String>).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- title (String).
+- description (Text).
+- story_arc_id (String) - ULID eines Story-Arcs.
+- requirements_id (String) - ULID eines Requirement-Satzes.
+- objectives (Array<Struct>) - { objective_id, description, requirements_id, flags_set }.
+- flags_set_on_completion (Array<String>) - Flag-ULIDs.
+- xp_reward (Float).
+- currency_rewards (Array<Struct>) - { currency_id, amount }.
+- reputation_rewards (Array<Struct>) - { faction_id, amount }.
+- item_rewards (Array<Struct>) - { item_id, quantity }.
+- tags (Array<String>).
 
 Story Arcs (Story Arc Data Table) - Quelle: backend/app/models/m_story_arcs.py
 Struct FStoryArcData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Title (String).
-- Summary (Text).
-- Type (Enum/String) - Main Story, Side Arc, Faction Arc, DLC Arc; Blueprint-Enum `EStoryArcType` exakt uebernehmen.
-- ContentPack (Enum/String) - Base, DLC1, DLC2, Expansion; Blueprint-Enum `EContentPack` weiterverwenden.
-- TimelineId (String) - ULID einer Timeline.
-- RelatedQuests (Array<String>) - Quest-ULIDs.
-- Branching (Array<Struct>) - { QuestId, Branches: [{ FlagId, NextQuestId }] }.
-- RequiredFlags (Array<String>) - Flag-ULIDs.
-- Tags (Array<String>).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- title (String).
+- summary (Text).
+- type (Enum/String) - Main Story, Side Arc, Faction Arc, DLC Arc; Blueprint-Enum `EStoryArcType` exakt uebernehmen.
+- content_pack_id (String) - ULID eines Content Packs.
+- timeline_id (String) - ULID einer Timeline.
+- related_quests (Array<String>) - Quest-ULIDs.
+- branching (Array<Struct>) - { quest_id, branches: [{ flag_id, next_quest_id }] }.
+- required_flags (Array<String>) - Flag-ULIDs.
+- tags (Array<String>).
 
 Timelines (Timeline Data Table) - Quelle: backend/app/models/m_timelines.py
 Struct FTimelineData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Name (String).
-- Description (Text).
-- StartYear (Integer).
-- EndYear (Integer).
-- Tags (Array<String>).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- name (String).
+- description (Text).
+- start_year (Integer).
+- end_year (Integer).
+- tags (Array<String>).
 
 Character Classes (Class Data Table) - Quelle: backend/app/models/m_characterclasses.py
 Struct FCharacterClassData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Name (String).
-- Description (Text).
-- Role (Enum/String) - Tank, Damage, Healer, Support, Hybrid; Blueprint-Enum `ECharacterRole` mit denselben Strings.
-- BaseStats (Map<String, Float>) - Startwerte.
-- StatGrowth (Map<String, Float>) - Zuwachse pro Level.
-- StartingAbilities (Array<String>) - Ability-ULIDs.
-- PreferredAttributes (Array<String>) - Attribute-ULIDs.
-- StartingEquipment (Array<String>) - Item-ULIDs.
-- Tags (Array<String>).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- name (String).
+- description (Text).
+- role (Enum/String) - Tank, Damage, Healer, Support, Hybrid; Blueprint-Enum `ECharacterRole` mit denselben Strings.
+- base_stats (Map<String, Float>) - Startwerte.
+- stat_growth (Map<String, Float>) - Zuwachse pro Level.
+- starting_abilities (Array<String>) - Ability-ULIDs.
+- preferred_attributes (Array<String>) - Attribute-ULIDs.
+- starting_equipment (Array<String>) - Item-ULIDs.
+- tags (Array<String>).
 
 Shops (Shop Data Table) - Quelle: backend/app/models/m_shops.py
 Struct FShopData:
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Name (String).
-- Description (Text).
-- LocationId (String) - ULID einer Location.
-- CharacterId (String) - ULID eines Characters (optional, wenn Shop an Character haengt).
-- RequirementsId (String) - ULID eines Requirement-Datensatzes.
-- PriceModifiers (Map/String) - JSON fuer Rabatte/Aufschlaege; als `TMap<FString, float>` oder Raw JSON importieren.
-- Tags (Array<String>).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- name (String).
+- description (Text).
+- price_modifier (Float).
+- price_multiplier (Float).
+- price_override (Float).
+- currency_id (String) - ULID einer Currency (optional).
+- location_id (String) - ULID einer Location.
+- character_id (String) - ULID eines Characters (optional).
+- requirements_id (String) - ULID eines Requirement-Datensatzes.
+- price_modifiers (Struct/JSON) - Regeln fuer Rabatte/Aufschlaege.
+- tags (Array<String>).
 
 Shop-Inventory (ShopInventory Data Table) - Quelle: backend/app/models/m_shop_inventory.py
 Struct FShopInventoryItem:
-- Id (String) - ULID.
-- Slug (String) - Row Name (z.B. Kombination aus Shop und Item).
-- ShopId (String) - ULID des Shops.
-- ItemId (String) - ULID des Items.
-- Price (Float).
-- Stock (Integer) - `-1` oder leer = unbegrenzt.
-- RequirementsId (String) - ULID eines Requirement-Eintrags.
-- Tags (Array<String>).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name (z.B. Kombination aus Shop und Item).
+- shop_id (String) - ULID des Shops.
+- item_id (String) - ULID des Items.
+- price_modifier (Float).
+- price_multiplier (Float).
+- price_override (Float).
+- currency_id (String) - ULID einer Currency (optional).
+- stock (Integer) - `-1` oder leer = unbegrenzt.
+- requirements_id (String) - ULID eines Requirement-Eintrags.
+- tags (Array<String>).
 
 Requirements (Requirement Data Table) - Quelle: backend/app/models/m_requirements.py
 Struct FRequirementData (optional):
-- Id (String) - ULID.
-- Slug (String) - Row Name.
-- Tags (Array<String>).
+- RowName: slug
+- id (String) - ULID.
+- slug (String) - Row Name.
+- tags (Array<String>).
 Dazu optionale Link-Tabellen als separate Data Tables, falls im Spiel benoetigt:
-- RequirementRequiredFlag: Id, RequirementId, FlagId.
-- RequirementForbiddenFlag: Id, RequirementId, FlagId.
-- RequirementMinFactionReputation: Id, RequirementId, FactionId, MinValue.
+- RequirementRequiredFlag: id, requirement_id, flag_id.
+- RequirementForbiddenFlag: id, requirement_id, flag_id.
+- RequirementMinFactionReputation: id, requirement_id, faction_id, min_value.
 
 Import- und Blueprint-Hinweise
 - Arrays/Maps aus JSON lassen sich mit JSON-Data-Table-Import direkt nach UE5 holen. Alternativ CSV-Exports erzeugen, bei denen Array-Felder als `[]`-Schreibweise (JSON) bleiben; UE5 parst diese in `TArray`/`TMap`, wenn die Struct entsprechend definiert ist.

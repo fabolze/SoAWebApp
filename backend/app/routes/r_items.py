@@ -7,7 +7,7 @@ from backend.app.models.m_items import (
     EquipmentSlot,
     WeaponType,
     DamageType,
-    WeaponRange,
+    WeaponRangeType,
     ModifierValueType,
 )
 from backend.app.models.m_items import ItemStatModifier, ItemAttributeModifier
@@ -44,7 +44,7 @@ class ItemRoute(BaseRoute):
             "equipment_slot": EquipmentSlot,
             "weapon_type": WeaponType,
             "damage_type": DamageType,
-            "weapon_range": WeaponRange,
+            "weapon_range_type": WeaponRangeType,
         })
 
         # Validate relationships
@@ -71,7 +71,16 @@ class ItemRoute(BaseRoute):
         item.equipment_slot = data.get("equipment_slot")
         item.weapon_type = data.get("weapon_type")
         item.damage_type = data.get("damage_type")
-        item.weapon_range = data.get("weapon_range")
+        item.weapon_range_type = data.get("weapon_range_type")
+
+        weapon_range_value = data.get("weapon_range")
+        if weapon_range_value is None:
+            item.weapon_range = None
+        else:
+            try:
+                item.weapon_range = int(weapon_range_value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("weapon_range must be an integer") from exc
 
         # Optional fields
         item.description = data.get("description")
@@ -170,7 +179,8 @@ class ItemRoute(BaseRoute):
             "equipment_slot": item.equipment_slot.value if item.equipment_slot else None,
             "weapon_type": item.weapon_type.value if item.weapon_type else None,
             "damage_type": item.damage_type.value if item.damage_type else None,
-            "weapon_range": item.weapon_range.value if item.weapon_range else None,
+            "weapon_range_type": item.weapon_range_type.value if item.weapon_range_type else None,
+            "weapon_range": item.weapon_range,
             "effects": item.effects or [],
             "tags": item.tags or [],
             "icon_path": item.icon_path,

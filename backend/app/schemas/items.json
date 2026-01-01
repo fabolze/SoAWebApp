@@ -184,16 +184,26 @@
         }
       }
     },
-    "weapon_range": {
+    "weapon_range_type": {
       "type": "string",
       "enum": [
-        "Melee",
-        "Reach",
-        "Ranged",
-        "Siege"
+        "melee",
+        "range"
       ],
       "ui": {
         "widget": "select",
+        "label": "Weapon Range Type",
+        "visible_if": {
+          "type": [
+            "Weapon"
+          ]
+        }
+      }
+    },
+    "weapon_range": {
+      "type": "integer",
+      "ui": {
+        "widget": "number",
         "label": "Weapon Range",
         "visible_if": {
           "type": [
