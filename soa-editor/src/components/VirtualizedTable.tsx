@@ -21,6 +21,7 @@ const VirtualizedTable: React.FC<VirtualizedTableProps> = ({ entries, listFields
     entries = [];
   }
 
+  // Render a virtualized row to keep large lists responsive.
   const Row = ({ index, style }: ListChildComponentProps) => {
     const entry = entries[index];
     return (
@@ -30,7 +31,9 @@ const VirtualizedTable: React.FC<VirtualizedTableProps> = ({ entries, listFields
         className={editingId && entry[idField] === editingId ? "bg-yellow-100" : "hover:bg-blue-50"}
       >
         {listFields.map((key) => (
-          <td key={key} className="px-3 py-2 border-b whitespace-nowrap max-w-xs overflow-x-auto">{String(entry[key] ?? '')}</td>
+          <td key={key} className="px-3 py-2 border-b whitespace-nowrap max-w-xs overflow-x-auto text-slate-900">
+            {String(entry[key] ?? '')}
+          </td>
         ))}
         <td className="px-3 py-2 border-b whitespace-nowrap">
           <button
@@ -54,18 +57,19 @@ const VirtualizedTable: React.FC<VirtualizedTableProps> = ({ entries, listFields
 
   return (
     <div style={{ height: Math.min(400, entries.length * ROW_HEIGHT), width: '100%' }} className="rounded-xl shadow-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 overflow-hidden">
-      <table className="min-w-full text-sm">
+      {/* Static header stays visible while rows are virtualized below. */}
+      <table className="min-w-full text-sm text-slate-900">
         <thead>
           <tr>
             {listFields.map((key) => (
-              <th key={key} className="px-3 py-2 border-b bg-gray-50 dark:bg-gray-800 font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap text-left uppercase tracking-wider text-xs">{key}</th>
+              <th key={key} className="px-3 py-2 border-b bg-gray-50 dark:bg-gray-800 font-semibold text-slate-700 dark:text-gray-200 whitespace-nowrap text-left uppercase tracking-wider text-xs">{key}</th>
             ))}
-            <th className="px-3 py-2 border-b bg-gray-50 dark:bg-gray-800 font-semibold text-gray-700 dark:text-gray-200 text-left uppercase tracking-wider text-xs">Actions</th>
+            <th className="px-3 py-2 border-b bg-gray-50 dark:bg-gray-800 font-semibold text-slate-700 dark:text-gray-200 text-left uppercase tracking-wider text-xs">Actions</th>
           </tr>
         </thead>
       </table>
       <div style={{ height: Math.min(400, entries.length * ROW_HEIGHT), overflow: 'auto' }}>
-        <table className="min-w-full text-sm">
+        <table className="min-w-full text-sm text-slate-900">
           <tbody>
             <List
               height={Math.min(400, entries.length * ROW_HEIGHT)}

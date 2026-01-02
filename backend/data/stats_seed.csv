@@ -1,0 +1,15 @@
+id,slug,name,category,value_type
+475dc36849114828bd4803e349fb65b8,health,Health,Attribute,Float
+a55aeadaf73b4b48a9ada0c77a519182,health_regen,Health Regeneration,Support,Float
+2e9d6671dcd44b6c9eeeab0244af0875,mana,Mana,Attribute,Float
+a9f98beae10644c9af4e31327e3c439f,mana_regen,Mana Regeneration,Support,Float
+220d2a684f824e06a76d42c9a5ed210c,physical_attack,Physical Attack,Combat,Float
+2547a197538d41ca9d785b2d40ea0c2e,physical_protection,Physical Protection,Defense,Float
+12590d5968654344a639a78c40266616,magic_attack,Magic Attack,Magic,Float
+591cfc6dfe9c4d198c0400dc8da5efb0,magic_protection,Magic Protection,Defense,Float
+9d18cbdc86ce4daebe871427c029aa34,attack_speed,Attack Speed,Combat,Percentage
+47dcfe39d47a4025b46a4ef4275e454d,precision,Precision,Combat,Percentage
+bcf85f28aa484f55830df342a14cbc1d,evasion,Evasion,Defense,Percentage
+388e84230f6c46a88eff4fd97b273944,crit_percent,Crit %,Combat,Percentage
+6a8bf26172184ce3a1c7be34788f3058,crit_dmg_percent,Crit DMG %,Combat,Percentage
+b84af9f75b3b423a865301c506c08e7c,speed,Speed,Support,Float

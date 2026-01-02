@@ -27,10 +27,12 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   const [importFileName, setImportFileName] = useState<string>("");
 
   useEffect(() => {
+    // Load the JSON schema definition for the current editor page.
     import(`../../../backend/app/schemas/${schemaName}.json`).then(setSchema);
   }, [schemaName]);
 
   useEffect(() => {
+    // Load current entries from the API endpoint backing this schema.
     fetch(`http://localhost:5000/api/${apiPath}`)
       .then((res) => res.json())
       .then((result) => {
@@ -44,6 +46,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   }, [apiPath]);
 
   const handleSave = async () => {
+    // Prevent accidental overwrites when the ID already exists.
     if (idField && data[idField]) {
       const existing = entries.find((entry) => entry[idField] === data[idField]);
       // If editing (ID matches current data), allow overwrite with confirmation
@@ -80,29 +83,40 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     toastTimeout.current = setTimeout(() => setToast(null), 3000);
   };
 
-  // Get all field names from schema for table columns
+  // Get all field names from schema for table columns.
   const fieldKeys = schema ? Object.keys(schema.properties || {}) : [];
 
-  // Determine which fields to display in the table
+  // Determine which fields to display in the table list view.
   let listFields: string[] = [];
+  const dedupeFields = (fields: string[]) => {
+    // Avoid duplicated columns when idField matches a fallback candidate.
+    const seen = new Set<string>();
+    return fields.filter((field) => {
+      if (seen.has(field)) return false;
+      seen.add(field);
+      return true;
+    });
+  };
   if (schema) {
     listFields = Object.entries(schema.properties || {})
       .filter(([_, config]: any) => config.ui && config.ui.list_display)
       .map(([key]) => key);
+    listFields = dedupeFields(listFields);
     // Fallback: if none marked, use id/slug/name/title etc. if present
     if (listFields.length === 0) {
-      const candidates = [idField, 'id', 'slug', 'name', 'title', 'type', 'role'];
+      const candidates = [idField, 'slug', 'name', 'title', 'type', 'role', 'value_type', 'created_at', 'default_value'];
       listFields = candidates.filter(f => f && fieldKeys.includes(f as string)) as string[];
+      listFields = dedupeFields(listFields);
       if (listFields.length === 0) listFields = fieldKeys.slice(0, 3); // fallback to first 3 fields
     }
   }
 
-  // Track which entry is being edited (by id)
+  // Track which entry is being edited (by id).
   const editingId = data && data[idField] ? data[idField] : null;
 
-  // Add New handler
+  // Add New handler.
   const handleAddNew = () => setData({ id: generateUlid() });
-  // Duplicate handler
+  // Duplicate handler.
   const handleDuplicate = (entry: any) => {
     const copy = { ...entry };
     if (idField) copy[idField] = generateUlid();
@@ -126,13 +140,13 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Edit entry handler
+  // Edit entry handler.
   const handleEdit = (entry: any) => {
     setData(entry);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Delete entry handler
+  // Delete entry handler.
   const confirmDelete = useRef<any>(null);
   const handleDelete = (entry: any) => {
     confirmDelete.current = entry;
@@ -166,10 +180,10 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     confirmDelete.current = null;
   };
 
-  // Field selection for search
+  // Field selection for search.
   const [searchField, setSearchField] = useState<string>("__all__");
 
-  // Filtered and sorted entries
+  // Filtered and sorted entries.
   const filteredEntries = entries.filter((entry) => {
     if (!search.trim()) return true;
     const searchLower = search.toLowerCase();
@@ -189,7 +203,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
       return String(val ?? "").toLowerCase().includes(searchLower);
     }
   });
-  // Sort alphabetically by name, fallback to id
+  // Sort alphabetically by name, fallback to id.
   const sortedEntries = [...filteredEntries].sort((a, b) => {
     const aName = (a.name || a[idField] || "").toLowerCase();
     const bName = (b.name || b[idField] || "").toLowerCase();
@@ -198,11 +212,11 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
 
   if (!schema) return <p className="p-4">Loading schema…</p>;
 
-  // Determine if creating new entry
+  // Determine if creating new entry.
   const isNew = !editingId;
   const formHeader = isNew ? `New ${title.replace(/ Editor$/, '')}` : `Edit ${title.replace(/ Editor$/, '')}`;
 
-  // Import CSV handler
+  // Import CSV handler.
   const handleImportCSV = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!importFile) return;
