@@ -46,7 +46,7 @@ Empfohlene Reihenfolge fuer Structs + Imports (MVP zuerst)
 
 Enum-Index (Blueprint-Enums, 1:1 Backend-Strings)
 - EInteractionRole: Questgiver, Merchant, Trainer, Companion, Story, Background
-- EEnemyType: beast, undead, humanoid, elemental, machine, boss, demon, dragon, giant, spirit, other
+- EEnemyType: beast, undead, humanoid, elemental, machine, boss, demon, dragon, giant, spirit, emanation, other
 - EEnemyAggression: Hostile, Neutral, Friendly
 - EEncounterContext: Combat, Interaction
 - ECombatSide: Hostile, Friendly, Neutral
@@ -83,7 +83,7 @@ Enum-Index (Blueprint-Enums, 1:1 Backend-Strings)
 Character/Profile Umbau - Start jetzt (Enums zuerst, dann Structs)
 Enums (Phase 1 - zuerst anlegen, Strings 1:1 wie Backend):
 - EInteractionRole: Questgiver, Merchant, Trainer, Companion, Story, Background
-- EEnemyType: beast, undead, humanoid, elemental, machine, boss, demon, dragon, giant, spirit, other
+- EEnemyType: beast, undead, humanoid, elemental, machine, boss, demon, dragon, giant, spirit, emanation, other
 - EEnemyAggression: Hostile, Neutral, Friendly
 - EEncounterContext: Combat, Interaction
 - ECombatSide: Hostile, Friendly, Neutral
@@ -486,7 +486,7 @@ Struct FCombatProfileData:
 - RowName: id
 - id (String) - ULID.
 - character_id (String) - ULID eines Characters.
-- enemy_type (Enum/String) - beast, undead, humanoid, elemental, machine, boss, demon, dragon, giant, spirit, other; Blueprint-Enum `EEnemyType` exakt wie im Backend.
+- enemy_type (Enum/String) - beast, undead, humanoid, elemental, machine, boss, demon, dragon, giant, spirit, emanation, other; Blueprint-Enum `EEnemyType` exakt wie im Backend.
 - aggression (Enum/String) - Hostile, Neutral, Friendly; Blueprint-Enum `EEnemyAggression` verwenden.
 - custom_stats (Map<String, Float>) - individuelle Stat-Overrides.
 - custom_abilities (Array<String>) - Ability-ULIDs.

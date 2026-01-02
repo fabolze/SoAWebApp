@@ -18,6 +18,7 @@ class EnemyType(enum.Enum):
     Dragon = "dragon"
     Giant = "giant"
     Spirit = "spirit"
+    emanation = "emanation"
     Other = "other"
 
 class Aggression(enum.Enum):
