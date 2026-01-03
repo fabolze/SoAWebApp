@@ -81,8 +81,8 @@ class DamageType(enum.Enum):
     Elemental = "Elemental"
     Poison = "Poison"
     Psychic = "Psychic"
-    Holy = "Holy"
-    Void = "Void"
+    Light = "Light"
+    Shadow = "Shadow"
 
 
 class WeaponRangeType(enum.Enum):

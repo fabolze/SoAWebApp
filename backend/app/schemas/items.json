@@ -171,8 +171,8 @@
         "Elemental",
         "Poison",
         "Psychic",
-        "Holy",
-        "Void"
+        "Light",
+        "Shadow"
       ],
       "ui": {
         "widget": "select",

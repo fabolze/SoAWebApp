@@ -61,7 +61,7 @@ Enum-Index (Blueprint-Enums, 1:1 Backend-Strings)
 - EItemRarity: Common, Uncommon, Rare, Epic, Legendary
 - EEquipmentSlot: head, chest, legs, feet, hands, belt, ring, amulet, back, main_hand, off_hand, two_hand, accessory, mount, pet
 - EWeaponType: Greatsword, Longsword, Shortsword, Dagger, Rapier, Axe, Greataxe, Hammer, Mace, Spear, Polearm, Halberd, Staff, Wand, Tome, Bow, Crossbow, Firearm, Thrown, Unarmed, Shield, Focus, Instrument
-- EDamageType: Slashing, Piercing, Blunt, Elemental, Poison, Psychic, Holy, Void
+- EDamageType: Slashing, Piercing, Blunt, Elemental, Poison, Psychic, Light, Shadow
 - EWeaponRangeType: melee, range
 - EModifierValueType: Flat, Percentage, Multiplier
 - EAbilityType: Active, Passive, Toggle
@@ -396,7 +396,7 @@ Struct FItemData:
 - base_currency_id (String) - ULID einer Currency (optional).
 - equipment_slot (Enum/String) - siehe `EquipmentSlot` im Backend; Blueprint-Enum `EEquipmentSlot` exakt nach Backend-Strings.
 - weapon_type (Enum/String) - siehe `WeaponType` im Backend; Blueprint-Enum `EWeaponType`.
-- damage_type (Enum/String) - Slashing, Piercing, Blunt, Elemental, Poison, Psychic, Holy, Void; Blueprint-Enum `EDamageType`.
+- damage_type (Enum/String) - Slashing, Piercing, Blunt, Elemental, Poison, Psychic, Light, Shadow; Blueprint-Enum `EDamageType`.
 - weapon_range_type (Enum/String) - melee, range; Blueprint-Enum `EWeaponRangeType`.
 - weapon_range (Integer) - numerischer Bereich/Distanzwert (Einheit im Design festlegen).
 - effects (Array<String>) - Effekt-ULIDs.
