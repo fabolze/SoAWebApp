@@ -115,6 +115,8 @@ class ItemRoute(BaseRoute):
                 except ValueError as exc:
                     raise ValueError(f"Invalid value_type for stat modifier: {entry.get('value_type')}" ) from exc
                 scaling_behavior = entry.get("scaling_behavior")
+                if scaling_behavior == "Custom Curve":
+                    scaling_behavior = "Custom"
                 scaling_enum = None
                 if scaling_behavior:
                     try:
@@ -149,6 +151,8 @@ class ItemRoute(BaseRoute):
                 if value is None:
                     raise ValueError("attribute_modifiers entries require value")
                 scaling = entry.get("scaling")
+                if scaling == "Custom Curve":
+                    scaling = "Custom"
                 scaling_enum = None
                 if scaling:
                     try:

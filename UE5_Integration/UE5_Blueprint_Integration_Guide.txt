@@ -54,10 +54,10 @@ Enum-Index (kanonisch, 1:1 Export-Strings)
 Core:
 - EStatCategory: Attribute, Combat, Defense, Magic, Support
 - EStatValueType: int, float, percentage
-- EStatScalingBehavior: None, Linear, Exponential, Custom Curve
+- EStatScalingBehavior: None, Linear, Exponential, Logarithmic, Custom
 - EAttributeValueType: int, float
-- EAttributeScaling: None, Linear, Exponential, Logarithmic
-- EAttributeStatScale: Linear, Exponential, Custom
+- EAttributeScaling: None, Linear, Exponential, Logarithmic, Custom
+- EAttributeStatScale: None, Linear, Exponential, Logarithmic, Custom
 
 Progression:
 - ECharacterRole: Tank, Damage, Healer, Support, Hybrid

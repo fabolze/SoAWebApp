@@ -23,7 +23,14 @@ class ScalingBehavior(enum.Enum):
     None_ = "None"
     Linear = "Linear"
     Exponential = "Exponential"
-    CustomCurve = "Custom Curve"
+    Logarithmic = "Logarithmic"
+    Custom = "Custom"
+
+    @classmethod
+    def _missing_(cls, value):
+        if value == "Custom Curve":
+            return cls.Custom
+        return None
 
 class Stat(Base):
     __tablename__ = 'stats'

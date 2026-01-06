@@ -17,6 +17,13 @@ class AttrScalingType(enum.Enum):
     Linear = "Linear"
     Exponential = "Exponential"
     Logarithmic = "Logarithmic"
+    Custom = "Custom"
+
+    @classmethod
+    def _missing_(cls, value):
+        if value == "Custom Curve":
+            return cls.Custom
+        return None
 
 class Attribute(Base):
     __tablename__ = 'attributes'

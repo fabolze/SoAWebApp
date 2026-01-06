@@ -76,12 +76,12 @@
       },
       "scaling_behavior": {
         "type": "string",
-        "enum": ["None", "Linear", "Exponential", "Custom Curve"],
+        "enum": ["None", "Linear", "Exponential", "Logarithmic", "Custom"],
         "description": "How the stat scales, if applicable",
         "ui": {
           "widget": "select",
           "label": "Scaling Behavior",
-          "options": ["None", "Linear", "Exponential", "Custom Curve"]
+          "options": ["None", "Linear", "Exponential", "Logarithmic", "Custom"]
         }
       },
       "applies_to": {

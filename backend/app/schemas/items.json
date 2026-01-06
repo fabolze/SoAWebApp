@@ -258,7 +258,8 @@
               "None",
               "Linear",
               "Exponential",
-              "Custom Curve"
+              "Logarithmic",
+              "Custom"
             ],
             "ui": {
               "widget": "select",
@@ -267,7 +268,8 @@
                 "None",
                 "Linear",
                 "Exponential",
-                "Custom Curve"
+                "Logarithmic",
+                "Custom"
               ]
             }
           },
@@ -319,8 +321,10 @@
           "scaling": {
             "type": "string",
             "enum": [
+              "None",
               "Linear",
               "Exponential",
+              "Logarithmic",
               "Custom"
             ],
             "ui": {
