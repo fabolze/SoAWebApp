@@ -340,7 +340,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
               <input
                 type="number"
                 className={inputBaseClass}
-                value={value || ''}
+                value={value ?? ''}
                 onChange={(e) => handleChange(key, parseFloat(e.target.value))}
                 placeholder={`Enter ${label.toLowerCase()}...`}
               />
