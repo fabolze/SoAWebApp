@@ -79,6 +79,41 @@
           "options": ["On Use", "Passive", "On Hit", "When Damaged", "On Kill"]
         }
       },
+      "damage_type_source": {
+        "type": "string",
+        "enum": ["Weapon", "Fixed", "None"],
+        "default": "None",
+        "description": "Where this ability takes its damage type from",
+        "ui": {
+          "widget": "select",
+          "label": "Damage Type Source",
+          "options": ["Weapon", "Fixed", "None"]
+        }
+      },
+      "damage_type": {
+        "type": "string",
+        "enum": [
+          "Slashing",
+          "Piercing",
+          "Blunt",
+          "Fire",
+          "Water",
+          "Air",
+          "Earth",
+          "Poison",
+          "Psychic",
+          "Light",
+          "Shadow"
+        ],
+        "description": "Fixed damage type when source is Fixed",
+        "ui": {
+          "widget": "select",
+          "label": "Damage Type",
+          "visible_if": {
+            "damage_type_source": ["Fixed"]
+          }
+        }
+      },
       "effects": {
         "type": "array",
         "description": "List of effects applied by this ability",

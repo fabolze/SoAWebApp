@@ -29,6 +29,7 @@ const IndexPage = () => {
   const pages = [
     { path: '/abilities', name: 'Abilities Editor' },
     { path: '/effects', name: 'Effects Editor' },
+    { path: '/statuses', name: 'Statuses Editor' },
     { path: '/attributes', name: 'Attributes Editor' },
     { path: '/characterclasses', name: 'CharacterClasses Editor' },
     { path: '/characters', name: 'Characters Editor' },
@@ -55,6 +56,7 @@ const IndexPage = () => {
 const pageIcons: Record<string, React.ElementType> = {
   '/abilities': SparklesIcon,
   '/effects': BeakerIcon,
+  '/statuses': BeakerIcon,
   '/attributes': ChartBarIcon,
   '/characterclasses': AcademicCapIcon,
   '/characters': UsersIcon,

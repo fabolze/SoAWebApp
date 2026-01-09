@@ -87,6 +87,7 @@ const DEFAULT_GROUPS = [
     items: [
       { to: '/abilities', label: 'Abilities', icon: SparklesIcon },
       { to: '/effects', label: 'Effects', icon: BeakerIcon },
+      { to: '/statuses', label: 'Statuses', icon: BeakerIcon },
       { to: '/attributes', label: 'Attributes', icon: ChartBarIcon },
       { to: '/characterclasses', label: 'Character Classes', icon: AcademicCapIcon },
       { to: '/items', label: 'Items', icon: CubeIcon },

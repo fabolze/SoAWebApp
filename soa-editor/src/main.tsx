@@ -29,6 +29,7 @@ import ShopsInventoryEditorPage from "./pages/ShopsInventoryEditor";
 import StatsEditorPage from "./pages/StatsEditor";
 import StoryArcsEditorPage from "./pages/StoryArcsEditor";
 import TimelinesEditorPage from "./pages/TimelinesEditor";
+import StatusesEditorPage from "./pages/StatusesEditor";
 import './index.css';
 import './App.css';
 import Layout from './components/Layout';
@@ -73,6 +74,7 @@ const MainApp = () => {
             <Route path="shops" element={<ShopsEditorPage />} />
             <Route path="shops-inventory" element={<ShopsInventoryEditorPage />} />
             <Route path="stats" element={<StatsEditorPage />} />
+            <Route path="statuses" element={<StatusesEditorPage />} />
             <Route path="story-arcs" element={<StoryArcsEditorPage />} />
             <Route path="timelines" element={<TimelinesEditorPage />} />
             <Route path="settings" element={<SettingsPage />} />

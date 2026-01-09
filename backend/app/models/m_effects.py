@@ -58,6 +58,10 @@ class Effect(Base):
     scaling_stat_id = Column(String, ForeignKey('stats.id'))
     scaling_stat = relationship("Stat")
 
+    status_id = Column(String, ForeignKey('statuses.id'))
+    status = relationship("Status")
+    apply_chance = Column(Float, default=100.0)
+
     trigger_condition = Column(Enum(TriggerCondition))
 
     stackable = Column(Boolean, default=False)

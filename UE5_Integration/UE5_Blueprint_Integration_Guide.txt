@@ -47,7 +47,7 @@ Empfohlene Reihenfolge fuer Structs + Imports (MVP zuerst)
 2) Progression: CharacterClasses, Items, Item Stat/Attribute Modifiers
 3) Narrative Spine: Flags, Requirements + Link-Tabellen, Quests, StoryArcs, Dialogues, DialogueNodes
 4) World: Locations, Characters, Factions, Encounters, Events, Lore, Timelines
-5) Combat: Abilities, Ability Links, Effects, Combat Profiles
+5) Combat: Abilities, Ability Links, Effects, Statuses, Combat Profiles
 6) Economy: Currencies, Shops, ShopInventory
 
 Enum-Index (kanonisch, 1:1 Export-Strings)
@@ -65,7 +65,7 @@ Progression:
 - EItemRarity: Common, Uncommon, Rare, Epic, Legendary
 - EEquipmentSlot: head, chest, legs, feet, hands, belt, ring, amulet, back, main_hand, off_hand, two_hand, accessory, mount, pet
 - EWeaponType: Greatsword, Longsword, Shortsword, Dagger, Rapier, Axe, Greataxe, Hammer, Mace, Spear, Polearm, Halberd, Staff, Wand, Tome, Bow, Crossbow, Firearm, Thrown, Unarmed, Shield, Focus, Instrument
-- EDamageType: Slashing, Piercing, Blunt, Elemental, Poison, Psychic, Light, Shadow
+- EDamageType: Slashing, Piercing, Blunt, Fire, Water, Air, Earth, Poison, Psychic, Light, Shadow
 - EWeaponRangeType: melee, range
 - EModifierValueType: Flat, Percentage, Multiplier
 
@@ -89,10 +89,12 @@ Combat:
 - EAbilityType: Active, Passive, Toggle
 - EAbilityTargeting: Single, Area, Self, Allies, Enemies
 - EAbilityTrigger: On Use, Passive, On Hit, When Damaged, On Kill
+- EDamageTypeSource: Weapon, Fixed, None
 - EEffectType: Status, Damage, Heal, Modifier, Reflect, Summon, Shield, Control
 - EEffectTarget: Self, Enemy, Ally, All, Area
 - EEffectValueType: Flat, Percentage, None
 - EEffectTriggerCondition: None, On Hit, When Damaged, On Kill, On Cast, Passive
+- EStatusCategory: Buff, Debuff, Control, DoT, Other
 
 Economy:
 - ECurrencyType: Soft, Premium, Token
@@ -412,6 +414,8 @@ Struct FAbilityData:
 - cooldown (Float).
 - targeting (Enum/String) - EAbilityTargeting.
 - trigger_condition (Enum/String) - EAbilityTrigger.
+- damage_type_source (Enum/String) - EDamageTypeSource.
+- damage_type (Enum/String) - EDamageType.
 - requirements (Text/JSON) - als Raw JSON-String importieren oder in ein Struct parsen.
 - tags (Array<String>).
 
@@ -438,11 +442,25 @@ Struct FEffectData:
 - value (Float).
 - attribute_id (String) - optionale ULID eines Attributes.
 - scaling_stat_id (String) - optionale ULID eines Stats.
+- status_id (String) - optionale ULID eines Status (nur wenn type = Status).
+- apply_chance (Float) - Prozentchance fuer Status-Applikation (0-100).
 - trigger_condition (Enum/String) - EEffectTriggerCondition.
 - stackable (Boolean).
 - set_bonus_group (String).
 - icon_path (String).
 - related_items (Array<String>) - Item-ULIDs.
+- tags (Array<String>).
+
+Struct FStatusData:
+- id (String) - ULID.
+- slug (String).
+- name (String).
+- category (Enum/String) - EStatusCategory.
+- description (Text).
+- default_duration (Float).
+- stackable (Boolean).
+- max_stacks (Integer).
+- icon_path (String).
 - tags (Array<String>).
 
 Struct FLootEntry:
@@ -575,6 +593,7 @@ Combat:
 - ability_effect_links -> FAbilityEffectLink (RowName: id) | Quelle: backend/app/models/m_abilities_links.py
 - ability_scaling_links -> FAbilityScalingLink (RowName: id) | Quelle: backend/app/models/m_abilities_links.py
 - effects -> FEffectData (RowName: slug) | Quelle: backend/app/models/m_effects.py
+- statuses -> FStatusData (RowName: slug) | Quelle: backend/app/models/m_statuses.py
 - combat_profiles -> FCombatProfileData (RowName: id) | Quelle: backend/app/models/m_combat_profiles.py
 
 Economy:

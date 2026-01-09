@@ -27,6 +27,7 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 
 ## Abilities and Effects
 ### Abilities (`m_abilities.py`)
+- **Key fields:** `damage_type_source`, `damage_type`.
 - **References:** AbilityEffectLink, AbilityScalingLink, Items (imbued abilities), Character Classes (starting kits).
 - **Blueprint owners:** `BP_EncounterDirector` (loadout assembly), `BP_TurnManager`, `BP_EnemyBrain`.
 
@@ -39,8 +40,12 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 - **Blueprint owners:** Damage or heal formulas in `BP_CombatFormulaLibrary`.
 
 ### Effects (`m_effects.py`)
-- **Key fields:** `type`, `target`, `value_type`, `attribute_id`, `scaling_stat_id`, `duration`, `stacking`.
+- **Key fields:** `type`, `target`, `value_type`, `attribute_id`, `scaling_stat_id`, `duration`, `stackable`, `status_id`, `apply_chance`.
 - **Blueprint owners:** `BP_EffectResolver`, `BP_StatusComponent`, requirement or dialogue side-effects.
+
+### Statuses (`m_statuses.py`)
+- **Key fields:** `category`, `default_duration`, `stackable`, `max_stacks`.
+- **Blueprint owners:** `BP_StatusComponent`, `BP_EffectResolver`, combat UI overlays.
 
 ---
 

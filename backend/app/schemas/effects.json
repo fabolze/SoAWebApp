@@ -81,6 +81,29 @@
         "label": "Effect Value"
       }
     },
+    "status_id": {
+      "type": "string",
+      "description": "Status to apply when this effect triggers",
+      "ui": {
+        "widget": "select",
+        "label": "Status",
+        "reference": "statuses",
+        "visible_if": {
+          "type": ["Status"]
+        }
+      }
+    },
+    "apply_chance": {
+      "type": "number",
+      "description": "Chance in percent to apply the status (0-100)",
+      "ui": {
+        "widget": "number",
+        "label": "Apply Chance (%)",
+        "visible_if": {
+          "type": ["Status"]
+        }
+      }
+    },
     "attribute": {
       "type": "string",
       "description": "Attribute affected, if any",
