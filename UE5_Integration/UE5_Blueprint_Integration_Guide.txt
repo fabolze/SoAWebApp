@@ -234,6 +234,17 @@ Struct FItemAttributeModifierData:
 - notes (Text).
 - order_index (Integer) - Reihenfolge im Item.
 
+Meta
+Struct FContentPackData:
+- id (String) - ULID.
+- slug (String).
+- name (String).
+- description (Text).
+- release_date (String) - ISO (YYYY-MM-DD) oder frei.
+- status (String) - z.B. Planned, Released, Archived.
+- is_active (Boolean).
+- tags (Array<String>).
+
 Narrative Spine
 Struct FFlagData:
 - id (String) - ULID.
@@ -273,13 +284,31 @@ Struct FQuestData:
 - description (Text).
 - story_arc_id (String) - ULID eines Story-Arcs.
 - requirements_id (String) - ULID eines Requirement-Satzes.
-- objectives (Array<Struct>) - { objective_id, description, requirements_id, flags_set }.
+- objectives (Array<Struct>) - FQuestObjectiveData.
 - flags_set_on_completion (Array<String>) - Flag-ULIDs.
 - xp_reward (Float).
-- currency_rewards (Array<Struct>) - { currency_id, amount }.
-- reputation_rewards (Array<Struct>) - { faction_id, amount }.
-- item_rewards (Array<Struct>) - { item_id, quantity }.
+- currency_rewards (Array<Struct>) - FRewardCurrencyData.
+- reputation_rewards (Array<Struct>) - FRewardReputationData.
+- item_rewards (Array<Struct>) - FRewardItemData.
 - tags (Array<String>).
+
+Struct FQuestObjectiveData:
+- objective_id (String) - interne ID pro Quest.
+- description (Text) - Spielertext.
+- requirements_id (String) - ULID eines Requirement-Satzes (optional).
+- flags_set (Array<String>) - Flag-ULIDs, die bei Abschluss gesetzt werden.
+
+Struct FRewardCurrencyData:
+- currency_id (String) - ULID einer Currency.
+- amount (Float).
+
+Struct FRewardReputationData:
+- faction_id (String) - ULID einer Fraktion.
+- amount (Float) - Rufdelta (+/-).
+
+Struct FRewardItemData:
+- item_id (String) - ULID eines Items.
+- quantity (Integer).
 
 Struct FStoryArcData:
 - id (String) - ULID.
@@ -290,9 +319,17 @@ Struct FStoryArcData:
 - content_pack_id (String) - ULID eines Content Packs.
 - timeline_id (String) - ULID einer Timeline.
 - related_quests (Array<String>) - Quest-ULIDs.
-- branching (Array<Struct>) - { quest_id, branches: [{ flag_id, next_quest_id }] }.
+- branching (Array<Struct>) - FStoryArcBranchData.
 - required_flags (Array<String>) - Flag-ULIDs.
 - tags (Array<String>).
+
+Struct FStoryArcBranchOption:
+- flag_id (String) - ULID eines Flags.
+- next_quest_id (String) - ULID der naechsten Quest.
+
+Struct FStoryArcBranchData:
+- quest_id (String) - ULID der Quest.
+- branches (Array<Struct>) - FStoryArcBranchOption.
 
 Struct FDialogueData:
 - id (String) - ULID.
@@ -311,7 +348,7 @@ Struct FDialogueNodeData:
 - speaker (String) - Sprecher-Kennung (z.B. Character- oder Player-Slug).
 - text (Text) - angezeigter Dialogtext.
 - requirements_id (String) - ULID eines Requirement-Satzes (optional).
-- choices (Array<Struct>) - { choice_text, next_node_id, requirements_id, flags_set }.
+- choices (Array<Struct>) - FDialogueChoice.
 - set_flags (Array<String>) - Flags, die dieser Knoten setzt.
 - tags (Array<String>).
 
@@ -395,8 +432,15 @@ Struct FEncounterData:
 - encounter_type (Enum/String) - EEncounterType.
 - requirements_id (String) - ULID eines Requirement-Satzes.
 - participants (Array<Struct>) - FEncounterParticipant.
-- rewards (Struct/JSON) - { xp, items, currencies, reputation, flags_set } als FEncounterReward.
+- rewards (Struct/JSON) - FEncounterReward.
 - tags (Array<String>).
+
+Struct FEncounterReward:
+- xp (Float).
+- items (Array<Struct>) - FRewardItemData.
+- currencies (Array<Struct>) - FRewardCurrencyData.
+- reputation (Array<Struct>) - FRewardReputationData.
+- flags_set (Array<String>).
 
 Struct FEventData:
 - id (String) - ULID.
@@ -408,10 +452,10 @@ Struct FEventData:
 - lore_id (String) - ULID eines Lore-Eintrags.
 - dialogue_id (String) - ULID eines Dialogs.
 - encounter_id (String) - ULID eines Encounters.
-- item_rewards (Array<Struct>) - { item_id, quantity }.
+- item_rewards (Array<Struct>) - FRewardItemData.
 - xp_reward (Float).
-- currency_rewards (Array<Struct>) - { currency_id, amount }.
-- reputation_rewards (Array<Struct>) - { faction_id, amount }.
+- currency_rewards (Array<Struct>) - FRewardCurrencyData.
+- reputation_rewards (Array<Struct>) - FRewardReputationData.
 - flags_set (Array<String>) - Flag-ULIDs.
 - tags (Array<String>).
 - next_event_id (String) - ULID fuer Ketten-Logik.
@@ -612,6 +656,9 @@ Progression:
 - items -> FItemData (RowName: slug) | Quelle: backend/app/models/m_items.py
 - item_stat_modifiers -> FItemStatModifierData (RowName: id) | Quelle: backend/app/models/m_items.py
 - item_attribute_modifiers -> FItemAttributeModifierData (RowName: id) | Quelle: backend/app/models/m_items.py
+
+Meta:
+- content_packs -> FContentPackData (RowName: slug) | Quelle: backend/app/models/m_content_packs.py
 
 Narrative Spine:
 - flags -> FFlagData (RowName: slug) | Quelle: backend/app/models/m_flags.py
