@@ -36,7 +36,7 @@ Offene Fragen:
 ```
 
 ## Content Coverage Snapshot
-- Core datasets: Stats, Attributes, Attribute-to-Stat links, Abilities, Ability links (effects and scaling), Effects, Statuses, Items, Item modifiers, Currencies, Content Packs, Character Classes, Characters, Interaction Profiles, Combat Profiles, Dialogues plus Nodes, Quests, Story Arcs, Timelines, Locations, Location Routes, Encounters, Events, Factions, Flags, Requirements plus flag and reputation link tables, Shops, Shop Inventory, Lore Entries.
+- Core datasets: Stats, Attributes, Attribute-to-Stat links, Abilities, Ability links (effects and scaling), Effects, Statuses, Items, Item modifiers, Currencies, Content Packs, Character Classes, Talent Trees, Talent Nodes, Talent Node Links, Characters, Interaction Profiles, Combat Profiles, Dialogues plus Nodes, Quests, Story Arcs, Timelines, Locations, Location Routes, Encounters, Events, Factions, Flags, Requirements plus flag and reputation link tables, Shops, Shop Inventory, Lore Entries.
 - Cross-link highlights: Abilities reference Effects and Attributes; Items reference Requirements and modifiers; Quests feed Story Arcs, Flags, and reward bundles; Characters and Interaction Profiles bridge Locations, Dialogues, Shops, and Companions; Events chain Encounters, Dialogues, and reward payloads; Routes connect Locations with travel metadata; Requirements unify gating across systems.
 - Use the relationship map as a wiring checklist before building Blueprint lookups.
 

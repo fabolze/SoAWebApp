@@ -8,6 +8,7 @@ BP_GameInstance
   +-- BP_ContentPackRegistry
   +-- BP_CurrencyManager
   +-- BP_FlagManager
+  +-- BP_TalentManager
   +-- BP_CompanionManager
   +-- BP_WorldGraphSubsystem
   +-- BP_EncounterManager
@@ -33,6 +34,9 @@ BP_GameInstance
 ## Narrative & Game State
 - **`BP_FlagManager` (Game Instance Subsystem)**  
   Initialises all flags to default values, exposes `CheckRequirement`, `SetFlag`, `GetFlagValue`, iterates link tables (required/forbidden flags, faction thresholds). Broadcasts `OnFlagChanged (FlagId, OldValue, NewValue)`; other systems subscribe.
+
+- **`BP_TalentManager` (Game Instance Subsystem)**  
+  Owns talent trees/nodes, tracks learned node ranks, validates prerequisites, applies passive modifiers, and emits `OnTalentChanged` for UI refresh and stat recompute.
 
 - **`BP_ReputationSystem` (Game Instance Subsystem)**  
   Keeps faction reputation maps, applies modifiers from quests/events/encounters, and exposes threshold queries used by requirements.

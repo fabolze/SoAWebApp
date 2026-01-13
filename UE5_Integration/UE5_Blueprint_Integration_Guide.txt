@@ -44,7 +44,7 @@ Kommunikationsregeln (damit Systeme nicht verdrahtet sind)
 
 Empfohlene Reihenfolge fuer Structs + Imports (MVP zuerst)
 1) Core: Stats, Attributes, AttributeStatLink
-2) Progression: CharacterClasses, Items, Item Stat/Attribute Modifiers
+2) Progression: CharacterClasses, TalentTrees, TalentNodes, TalentNodeLinks, Items, Item Stat/Attribute Modifiers
 3) Narrative Spine: Flags, Requirements + Link-Tabellen, Quests, StoryArcs, Dialogues, DialogueNodes
 4) World: Locations, Characters, Factions, Encounters, Events, Lore, Timelines
 5) Combat: Abilities, Ability Links, Effects, Statuses, Combat Profiles
@@ -61,6 +61,7 @@ Core:
 
 Progression:
 - ECharacterRole: Tank, Damage, Healer, Support, Hybrid
+- ETalentNodeType: Passive, Active, Keystone, Utility
 - EItemType: Weapon, Armor, Accessory, Consumable, Tool, Material, Upgrade, Quest, SetPiece, Misc
 - EItemRarity: Common, Uncommon, Rare, Epic, Legendary
 - EEquipmentSlot: head, chest, legs, feet, hands, belt, ring, amulet, back, main_hand, off_hand, two_hand, accessory, mount, pet
@@ -151,6 +152,49 @@ Struct FCharacterClassData:
 - preferred_attributes (Array<String>) - Attribute-ULIDs.
 - starting_equipment (Array<String>) - Item-ULIDs.
 - tags (Array<String>).
+
+Struct FTalentTreeData:
+- id (String) - ULID.
+- slug (String).
+- name (String).
+- description (Text).
+- class_id (String) - ULID einer CharacterClass (optional).
+- requirements_id (String) - ULID eines Requirement-Eintrags (optional).
+- icon_path (String).
+- tags (Array<String>).
+
+Struct FTalentNodeData:
+- id (String) - ULID.
+- slug (String).
+- tree_id (String) - ULID des Talent Trees.
+- name (String).
+- description (Text).
+- node_type (Enum/String) - ETalentNodeType.
+- max_rank (Integer).
+- point_cost (Integer).
+- requirements_id (String) - ULID eines Requirement-Eintrags (optional).
+- granted_abilities (Array<String>) - Ability-ULIDs.
+- stat_modifiers (Array<Struct>) - FTalentNodeStatModifier.
+- attribute_modifiers (Array<Struct>) - FTalentNodeAttributeModifier.
+- ui_position (Struct/JSON) - { x, y }.
+- tags (Array<String>).
+
+Struct FTalentNodeStatModifier:
+- stat_id (String) - ULID des Stats.
+- value (Float).
+- value_type (Enum/String) - EModifierValueType.
+
+Struct FTalentNodeAttributeModifier:
+- attribute_id (String) - ULID des Attributes.
+- value (Float).
+- scaling (Enum/String) - EAttributeStatScale.
+
+Struct FTalentNodeLink:
+- id (String) - ULID.
+- tree_id (String) - ULID des Talent Trees.
+- from_node_id (String) - ULID des Start-Nodes.
+- to_node_id (String) - ULID des Ziel-Nodes.
+- min_rank_required (Integer).
 
 Struct FItemData:
 - id (String) - ULID.
@@ -562,6 +606,9 @@ Core:
 
 Progression:
 - characterclasses -> FCharacterClassData (RowName: slug) | Quelle: backend/app/models/m_characterclasses.py
+- talent_trees -> FTalentTreeData (RowName: slug) | Quelle: backend/app/models/m_talent_trees.py
+- talent_nodes -> FTalentNodeData (RowName: slug) | Quelle: backend/app/models/m_talent_trees.py
+- talent_node_links -> FTalentNodeLink (RowName: id) | Quelle: backend/app/models/m_talent_trees.py
 - items -> FItemData (RowName: slug) | Quelle: backend/app/models/m_items.py
 - item_stat_modifiers -> FItemStatModifierData (RowName: id) | Quelle: backend/app/models/m_items.py
 - item_attribute_modifiers -> FItemAttributeModifierData (RowName: id) | Quelle: backend/app/models/m_items.py

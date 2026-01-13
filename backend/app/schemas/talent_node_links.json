@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Talent Node Link",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique ID for the link",
+      "ui": { "widget": "hidden" }
+    },
+    "tree_id": {
+      "type": "string",
+      "description": "Owning talent tree",
+      "ui": {
+        "widget": "reference",
+        "reference": "talent-trees",
+        "label": "Talent Tree"
+      }
+    },
+    "from_node_id": {
+      "type": "string",
+      "description": "Prerequisite node",
+      "ui": {
+        "widget": "reference",
+        "reference": "talent-nodes",
+        "label": "From Node"
+      }
+    },
+    "to_node_id": {
+      "type": "string",
+      "description": "Unlocked node",
+      "ui": {
+        "widget": "reference",
+        "reference": "talent-nodes",
+        "label": "To Node"
+      }
+    },
+    "min_rank_required": {
+      "type": "number",
+      "description": "Minimum rank required on the prerequisite node",
+      "ui": { "widget": "number", "label": "Min Rank Required" }
+    }
+  },
+  "required": ["id", "tree_id", "from_node_id", "to_node_id"]
+}

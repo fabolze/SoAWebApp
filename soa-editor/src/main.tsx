@@ -30,6 +30,9 @@ import StatsEditorPage from "./pages/StatsEditor";
 import StoryArcsEditorPage from "./pages/StoryArcsEditor";
 import TimelinesEditorPage from "./pages/TimelinesEditor";
 import StatusesEditorPage from "./pages/StatusesEditor";
+import TalentTreesEditorPage from "./pages/TalentTreesEditor";
+import TalentNodesEditorPage from "./pages/TalentNodesEditor";
+import TalentNodeLinksEditorPage from "./pages/TalentNodeLinksEditor";
 import './index.css';
 import './App.css';
 import Layout from './components/Layout';
@@ -77,6 +80,9 @@ const MainApp = () => {
             <Route path="statuses" element={<StatusesEditorPage />} />
             <Route path="story-arcs" element={<StoryArcsEditorPage />} />
             <Route path="timelines" element={<TimelinesEditorPage />} />
+            <Route path="talent-trees" element={<TalentTreesEditorPage />} />
+            <Route path="talent-nodes" element={<TalentNodesEditorPage />} />
+            <Route path="talent-node-links" element={<TalentNodeLinksEditorPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>

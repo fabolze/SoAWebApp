@@ -71,6 +71,11 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 - **References:** Stats, Abilities, Items, Attributes.
 - **Blueprint owners:** `BP_EncounterDirector`, `BP_LevelProgressionComponent`, companion setup.
 
+### Talent Trees / Nodes (`m_talent_trees.py`)
+- **References:** Character Classes (optional), Requirements, Abilities, Stats, Attributes.
+- **Feeds:** Player talent progression, passive stat/attribute modifiers, learned abilities.
+- **Blueprint owners:** `BP_TalentManager`, character sheet UI, skillbook.
+
 ### Shops (`m_shops.py`) and Shop Inventory (`m_shop_inventory.py`)
 - **References:** Locations, Characters, Requirements, Currencies, Items.
 - **Blueprint owners:** `BP_ShopController`, `BP_ShopWidget`, availability gating via `BP_FlagManager`.
@@ -149,6 +154,7 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 
 ## Validation Hotspots
 - **Requirements <-> Flags or Factions:** Every requirement entry should resolve its flags or faction thresholds. Broken links block narrative progression.
+- **Talent Nodes <-> Abilities/Stats/Attributes:** Ensure referenced IDs exist and node links stay within the same tree.
 - **Locations <-> Routes:** Every route endpoint must exist, and safe zones should not route into random-encounter-only segments unless design intends it.
 - **Encounters <-> Characters and Profiles:** Ensure each character ULID exists and the required combat or interaction profile is present. Encounter rewards should reference valid currencies or items.
 - **Events <-> next_event_id Chains:** Validate that chains terminate; use automation tests to catch accidental loops.

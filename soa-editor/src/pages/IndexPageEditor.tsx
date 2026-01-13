@@ -51,6 +51,9 @@ const IndexPage = () => {
     { path: '/stats', name: 'Stats Editor' },
     { path: '/story-arcs', name: 'Story Arcs Editor' },
     { path: '/timelines', name: 'Timelines Editor' },
+    { path: '/talent-trees', name: 'Talent Trees Editor' },
+    { path: '/talent-nodes', name: 'Talent Nodes Editor' },
+    { path: '/talent-node-links', name: 'Talent Node Links Editor' },
   ];
 
 const pageIcons: Record<string, React.ElementType> = {
@@ -78,6 +81,9 @@ const pageIcons: Record<string, React.ElementType> = {
   '/stats': ChartBarIcon,
   '/story-arcs': Squares2X2Icon,
   '/timelines': ClockIcon,
+  '/talent-trees': Squares2X2Icon,
+  '/talent-nodes': PuzzlePieceIcon,
+  '/talent-node-links': ClipboardDocumentListIcon,
 };
 
 

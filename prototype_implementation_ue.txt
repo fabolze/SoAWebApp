@@ -1,0 +1,122 @@
+Prototype Implementation UE5 (Vertical Slice)
+
+Ziel
+- 1 Bosskampf, 1 Held (umskillbar), optional 1-2 Companions, Loot am Ende, Build-Aenderung spuerbar.
+- Blueprint-only, data-driven aus SoA-Exports (siehe UE5_Integration/UE5_Blueprint_Integration_Guide.txt).
+
+Annahmen (explizit)
+- Combat ist real-time und top-down (ersetzt turn-based aus UE5_Integration_Plan.md fuer den Prototyp).
+- Loot am Encounter-Ende kommt primaer aus CombatProfile.loot_table; Encounter.rewards bleibt fuer spezielle Drops (z.B. Quest-Items).
+- Skilltree/Talents existieren nicht im Backend und muessen als neue Datenstruktur geplant werden (siehe "Fehlendes/Unklar").
+- Primaer-Ressource fuer Ability-Kosten ist Mana.
+
+Bereits im Projectscope (Daten + Blueprint-Planung, Implementierung offen)
+- Datenmodelle + Schema-Editor fuer Items, Abilities, Stats, Attributes, Effects, Statuses, Encounters, CombatProfiles, Characters, CharacterClasses, Requirements, Flags, Events, Currencies (siehe backend/app/models/* und backend/app/schemas/*).
+- UE5 Blueprint-Architektur und DataTable-Mapping dokumentiert (siehe UE5_Integration/UE5_Blueprint_Integration_Guide.txt und UE5_Integration/UE5_Blueprint_Systems.md).
+- DataTable-Index inkl. RowName=slug, stabile ULID im Struct (siehe UE5_Integration/UE5_Blueprint_Integration_Guide.txt).
+- Core-Import Status: Stats, Attributes, AttributeStatLink bereits als "DONE" markiert (siehe UE5_Integration/UE5_Blueprint_Integration_Guide.txt).
+
+Prototype-Module (vollstaendig, mit Systemgrenzen, Abhaengigkeiten, Events, UI-Auswirkungen)
+
+1) Datenmodell & Content-Pipeline
+- Systemgrenzen: Import/Cache von DataTables in UE5; keine Runtime-Logik ausser Lookup/Validation.
+- Abhaengigkeiten: SoA-Exports (CSV/JSON), Structs/Enums, BP_GameDataSubsystem, BP_DataImportManager.
+- Events: ImportCompleted, ValidationError (Blueprint Message Hub).
+- UI-Auswirkungen: Editor-Utility-Widget fuer Import/Validierung; keine Runtime-UI.
+- Datenquellen: UE5_Integration/UE5_Blueprint_Integration_Guide.txt (Struct-/DataTable-Index), backend/app/models/*.
+- Status im Scope: Vollstaendig vorhanden als Planung und Datenquellen; Implementierung in UE5 offen.
+
+2) Character-Stats & Attribute System
+- Systemgrenzen: Basestats + Level-Scaling + Attribute->Stat Links + Modifiers; keine Kampfregeln.
+- Abhaengigkeiten: stats, attributes, attribute_stat_links, characterclasses, item_stat_modifiers, item_attribute_modifiers, effects/statuses (nur als Mod-Quelle).
+- Events: StatsChanged, AttributesChanged.
+- UI-Auswirkungen: Charakterblatt (HP/Resource/Derived Stats), Vergleich bei Equip-Wechsel.
+- Datenquellen: backend/app/models/m_stats.py, m_attributes.py, m_attribute_stat_link.py, m_characterclasses.py, m_items.py, m_effects.py, m_statuses.py.
+- Status im Scope: Daten vorhanden; Layering-Logik in UE5 noch nicht implementiert.
+
+3) Inventar + Equipment
+- Systemgrenzen: Player-Inventory, Equip-Slots, Stackables, Loot-Add; keine Shops.
+- Abhaengigkeiten: items (equipment_slot, modifiers), combat_profiles (loot_table), encounter rewards (nur special drops), currencies (optional fuer UI).
+- Events: InventoryChanged, EquipmentChanged, LootGranted.
+- UI-Auswirkungen: Inventory-Screen light, Loot-Popup, Equip-Panel.
+- Datenquellen: backend/app/models/m_items.py, m_encounters.py, m_combat_profiles.py.
+- Status im Scope: Item-Daten vorhanden; Player-Inventory/Equipment-System fehlt.
+
+4) Ability-System (Kern)
+- Systemgrenzen: Auswahl aktiver Skills fuer die Ability-Bar, Cast/Channel-States, Targeting, Cooldowns; keine Kampf-Formeln.
+- Abhaengigkeiten: abilities, ability_effect_links, ability_scaling_links, effects, statuses; ggf. items fuer weapon damage type.
+- Events: AbilityStateChanged (Cast/Cancel/Fire), CooldownChanged.
+- UI-Auswirkungen: Ability-Bar fuer ausgewaehlte Skills, Skillbook fuer alle gelernten Skills, Cooldowns, Targeting-Indikatoren.
+- Datenquellen: backend/app/models/m_abilities.py, m_abilities_links.py, m_effects.py, m_statuses.py, m_items.py.
+- Status im Scope: Ability-Daten vorhanden; Loadout/State-Machine/Targeting-Runtime fehlt.
+
+5) Combat Core (Damage, Hit, Threat, CC)
+- Systemgrenzen: Damage-Pipeline, Mitigation, Status-Application, Threat/Aggro; keine Boss-Skripte.
+- Abhaengigkeiten: stats, attributes, effects, statuses, abilities, combat_profiles.
+- Events: DamageApplied, StatusApplied, CombatantDowned, ThreatChanged.
+- UI-Auswirkungen: HP-Updates, Status-Icons, Floating-Feedback (optional).
+- Datenquellen: backend/app/models/m_effects.py, m_statuses.py, m_stats.py, m_attributes.py, m_abilities.py, m_combat_profiles.py.
+- Status im Scope: Daten vorhanden; Combat-Resolver/Threat-System fehlt.
+
+6) Boss AI + Pattern System
+- Systemgrenzen: Phasen, Pattern-Scheduler, Telegraphs; keine generische Mob-AI.
+- Abhaengigkeiten: combat_profiles (enemy_type=Boss, custom_abilities, tags), abilities/effects, encounter context.
+- Events: PhaseChanged, PatternStarted, TelegraphShown.
+- UI-Auswirkungen: Boss-HP/Phase-Anzeige, Telegraph-Readability (World/UI).
+- Datenquellen: backend/app/models/m_combat_profiles.py, m_abilities.py, m_effects.py.
+- Status im Scope: Boss-Klassifizierung vorhanden; explizite Phasen/Pattern-Daten fehlen.
+
+7) Encounter System (Start/End/Reset/Rewards)
+- Systemgrenzen: Start/End/Reset, Spawn/Placement, Reward-Dispatch; kein World-Travel.
+- Abhaengigkeiten: encounters, characters, combat_profiles, locations (optional), events (optional), requirements/flags (optional).
+- Events: EncounterStarted, EncounterCompleted, EncounterReset, RewardGranted.
+- UI-Auswirkungen: Encounter-Start/End Feedback, Loot/Reward Anzeige.
+- Datenquellen: backend/app/models/m_encounters.py, m_characters.py, m_combat_profiles.py, m_events.py, m_requirements.py, m_flags.py.
+- Status im Scope: Encounter-Daten vorhanden; Director/Reset-Logik fehlt.
+
+8) UI/HUD (spielentscheidend)
+- Systemgrenzen: HP/Resource, Boss-HP/Phase, Ability-Cooldowns, Loot-UI; kein komplettes Menu.
+- Abhaengigkeiten: Stats-System, Ability-System, Encounter-System, Inventory.
+- Events: UIRefresh, AbilityStateChanged, LootPopupShow.
+- UI-Auswirkungen: Kern-HUD; Telegraphs als World-Indicator oder UI.
+- Datenquellen: abhaengig von obigen Systemen (keine direkten Backend-Tabellen).
+- Status im Scope: UI existiert nicht im Repo (nur SoA-Editor UI).
+
+9) Save/Load (minimal)
+- Systemgrenzen: SaveGame fuer Level/XP, Attribute-Punkte, Talent-Nodes, Inventory/Equipment; kein Account-System.
+- Abhaengigkeiten: Character-Stats, Inventory, Ability-Auswahl, Flags/Requirements (optional).
+- Events: SaveRequested, LoadCompleted, SaveValidationFailed.
+- UI-Auswirkungen: Minimaler Save/Load-Dialog oder Debug-Shortcut.
+- Datenquellen: keine direkten Backend-Tabellen; basiert auf Runtime-State.
+- Status im Scope: Nur als Blueprint-Plan beschrieben (UE5_Integration_Plan.md); Implementierung fehlt.
+
+10) Companion System (optional, wertvoll)
+- Systemgrenzen: Companion-Roster, Spawn/Despawn, simple Rollen; keine tiefe Beziehungssysteme.
+- Abhaengigkeiten: characters, combat_profiles (companion_config), characterclasses (role), abilities, items.
+- Events: CompanionJoined, CompanionLeft, CompanionDowned.
+- UI-Auswirkungen: Party-Frames, Companion-Status.
+- Datenquellen: backend/app/models/m_characters.py, m_combat_profiles.py, m_characterclasses.py, m_abilities.py, m_items.py.
+- Status im Scope: Companion-Daten (companion_config) vorhanden; Runtime-Manager fehlt.
+
+Fehlendes/Unklar (fuer Prototyp benoetigt, aber nicht ausreichend abgebildet)
+- Talent Trees Runtime: Datenstrukturen vorhanden (talent_trees, talent_nodes, talent_node_links), aber Runtime-Manager, UI und SaveGame-Integration fehlen; Respec-Regeln offen.
+- Ability-Auswahl/Slots: keine Datenstruktur fuer "ausgewaehlte Skills" vs. "gelernt"; Slot-Regeln bewusst offen.
+- Cast/Channel/Interrupt: keine Felder fuer CastTime, ChannelTime, InterruptRules, Range/LOS in abilities.
+- Boss-Phasen/Pattern: keine Datenstruktur fuer Phasen, Trigger (HP, Breakbar, Flags) und Pattern-Pools.
+- Threat/Aggro: keine Datenstruktur fuer Threat-Generation oder Target-Prioritaeten.
+- Inventory/Equipment Runtime: keine Player-Inventory Tabelle/Save-Struktur, kein Stack-Handling definiert.
+- UI/HUD Assets: keine UE5 Widgets oder UI-Schema fuer Kampf/Telegraph/Inventory.
+- SaveGame Felder fuer Talentpunkte/Respec nicht definiert (abh. von fehlendem Skilltree).
+
+Notizen fuer spaetere Session (Planung neuer Datenstrukturen)
+- Talent Trees Respec: Regeln fuer Refund/Reset und Progression-Validierung.
+- Ability-Auswahl: Slot-Definitionen und Regeln fuer "ausgewaehlte Skills" vs. "gelernt".
+- Ability Cast/Channel: Felder fuer CastTime, ChannelTime, InterruptRules, Range/LOS, Movement-Constraints.
+- Boss-Phasen/Pattern: Phase-Definition, Trigger (HP/Breakbar/Flag), Pattern-Pools, Telegraph-Templates.
+
+Talent Trees Modul (Scope fuer Umsetzung)
+- Systemgrenzen: Daten fuer Talent Trees/Nodes/Links, Runtime-Unlocks und Mod-Apply; keine UI-Logik fuer Knoten-Graph-Editor.
+- Abhaengigkeiten: characterclasses, requirements, abilities, stats, attributes.
+- Events: TalentStateChanged, TalentPointsChanged.
+- UI-Auswirkungen: Talent-Tree Ansicht (Nodes + Verbindungen), Node-Details, Skillbook zeigt durch Talente freigeschaltete Skills.
+- Annahmen: TalentNode-Mods gelten pro Rank; Node-Links sind gerichtete Prereqs innerhalb desselben Trees; granted_abilities fuegt die Ability zur "gelernt"-Liste hinzu.
