@@ -367,14 +367,22 @@ Struct FLocationData:
 - biome (Enum/String) - ELocationBiome.
 - biome_modifier (Enum/String, optional) - ELocationBiomeModifier.
 - region (String) - freie Regionseinteilung.
-- level_range (Struct/JSON) - { min, max } als FLevelRange.
-- coordinates (Struct/JSON) - { x, y } fuer Karte oder Editor.
+- level_range (Struct/JSON) - FLevelRange.
+- coordinates (Struct/JSON) - FMapCoordinates.
 - image_path (String).
 - encounters (Array<String>) - Encounter-ULIDs.
 - is_safe_zone (Boolean).
 - is_fast_travel_point (Boolean).
 - has_respawn_point (Boolean).
 - tags (Array<String>).
+
+Struct FLevelRange:
+- min (Integer).
+- max (Integer).
+
+Struct FMapCoordinates:
+- x (Float).
+- y (Float).
 
 Struct FLocationRouteData:
 - id (String) - ULID.
