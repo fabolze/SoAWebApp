@@ -32,27 +32,39 @@
         }
       },
       "base_stats": {
-        "type": "object",
+        "type": "array",
         "description": "Initial combat stats at level 1",
-        "properties": {
-          "hp": { "type": "number" },
-          "mana": { "type": "number" },
-          "attack": { "type": "number" },
-          "defense": { "type": "number" },
-          "speed": { "type": "number" },
-          "spell_power": { "type": "number" }
+        "items": {
+          "type": "object",
+          "properties": {
+            "stat_id": {
+              "type": "string",
+              "ui": { "widget": "reference", "reference": "stats", "label": "Stat" }
+            },
+            "value": {
+              "type": "number",
+              "ui": { "widget": "number", "label": "Value" }
+            }
+          },
+          "required": ["stat_id", "value"]
         }
       },
       "stat_growth": {
-        "type": "object",
+        "type": "array",
         "description": "Per-level stat increase",
-        "properties": {
-          "hp": { "type": "number" },
-          "mana": { "type": "number" },
-          "attack": { "type": "number" },
-          "defense": { "type": "number" },
-          "speed": { "type": "number" },
-          "spell_power": { "type": "number" }
+        "items": {
+          "type": "object",
+          "properties": {
+            "stat_id": {
+              "type": "string",
+              "ui": { "widget": "reference", "reference": "stats", "label": "Stat" }
+            },
+            "value": {
+              "type": "number",
+              "ui": { "widget": "number", "label": "Per Level" }
+            }
+          },
+          "required": ["stat_id", "value"]
         }
       },
       "starting_abilities": {

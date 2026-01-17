@@ -146,12 +146,16 @@ Struct FCharacterClassData:
 - name (String).
 - description (Text).
 - role (Enum/String) - ECharacterRole.
-- base_stats (Map<String, Float>) - Startwerte.
-- stat_growth (Map<String, Float>) - Zuwachse pro Level.
+- base_stats (Array<Struct>) - FStatValueEntry.
+- stat_growth (Array<Struct>) - FStatValueEntry.
 - starting_abilities (Array<String>) - Ability-ULIDs.
 - preferred_attributes (Array<String>) - Attribute-ULIDs.
 - starting_equipment (Array<String>) - Item-ULIDs.
 - tags (Array<String>).
+
+Struct FStatValueEntry:
+- stat_id (String) - ULID des Stats.
+- value (Float) - Basiswert oder Wachstum pro Level.
 
 Struct FTalentTreeData:
 - id (String) - ULID.
@@ -479,6 +483,16 @@ Struct FFactionData:
 - tags (Array<String>).
 - icon_path (String).
 
+Struct FFactionReputationConfig:
+- min (Float) - Minimaler Rufwert (z.B. 0).
+- max (Float) - Maximaler Rufwert (z.B. 100).
+- thresholds (Struct/JSON) - FFactionReputationThresholds.
+
+Struct FFactionReputationThresholds:
+- friendly (Float).
+- trusted (Float).
+- ally (Float).
+
 Struct FLoreEntryData:
 - id (String) - ULID.
 - slug (String).
@@ -573,24 +587,16 @@ Struct FReputationReward:
 - amount (Float).
 - drop_chance (Float).
 
-Struct FCompanionStatGrowth:
-- hp (Float).
-- attack (Float).
-- defense (Float).
-- speed (Float).
-- mana (Float).
-- spell_power (Float).
-
 Struct FCompanionProgression:
 - level_cap (Integer).
 - xp_multiplier (Float).
-- stat_growth (Struct) - FCompanionStatGrowth.
+- stat_growth (Array<Struct>) - FStatValueEntry.
 
 Struct FCompanionConfig:
 - class_id (String) - optionaler Override fuer Combat Class.
 - level (Integer) - optionaler Override fuer Startlevel.
 - custom_abilities (Array<String>).
-- custom_stats (Map<String, Float>).
+- custom_stats (Array<Struct>) - FStatValueEntry.
 - progression (Struct) - FCompanionProgression.
 
 Struct FCombatProfileData:
@@ -598,7 +604,7 @@ Struct FCombatProfileData:
 - character_id (String) - ULID eines Characters.
 - enemy_type (Enum/String) - EEnemyType.
 - aggression (Enum/String) - EEnemyAggression.
-- custom_stats (Map<String, Float>) - individuelle Stat-Overrides.
+- custom_stats (Array<Struct>) - FStatValueEntry.
 - custom_abilities (Array<String>) - Ability-ULIDs.
 - tags (Array<String>).
 - loot_table (Array<Struct>) - FLootEntry.
@@ -711,7 +717,7 @@ Phase 4: Cache-Maps in BP_GameDataSubsystem (siehe Runtime-Wiring).
 
 Blueprint-To-Do (Character/Profile Block)
 - Enums: EInteractionRole, EEnemyType, EEnemyAggression, EEncounterContext, ECombatSide (siehe Enum-Index).
-- Structs: FCharacterData, FInteractionProfileData, FInteractionItemForSale, FCombatProfileData, FLootEntry, FCurrencyReward, FReputationReward, FCompanionConfig, FCompanionProgression, FCompanionStatGrowth, FEncounterParticipant, FEncounterData (siehe Struct-Index).
+- Structs: FCharacterData, FInteractionProfileData, FInteractionItemForSale, FCombatProfileData, FLootEntry, FCurrencyReward, FReputationReward, FCompanionConfig, FCompanionProgression, FStatValueEntry, FEncounterParticipant, FEncounterData (siehe Struct-Index).
 - DataTables: characters, interaction_profiles, combat_profiles, encounters (siehe DataTable-Index).
 - Cache-Hinweis: im BP_GameDataSubsystem zusaetzlich Map "CharacterId -> InteractionProfile" und "CharacterId -> CombatProfile" bauen.
 

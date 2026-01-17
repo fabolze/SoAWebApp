@@ -22,14 +22,17 @@
       "ui": { "widget": "select", "label": "Aggression" }
     },
     "custom_stats": {
-      "type": "object",
-      "properties": {
-        "hp": { "type": "number" },
-        "attack": { "type": "number" },
-        "defense": { "type": "number" },
-        "speed": { "type": "number" },
-        "mana": { "type": "number" },
-        "spell_power": { "type": "number" }
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stat_id": {
+            "type": "string",
+            "ui": { "widget": "reference", "reference": "stats", "label": "Stat" }
+          },
+          "value": { "type": "number", "ui": { "widget": "number", "label": "Value" } }
+        },
+        "required": ["stat_id", "value"]
       }
     },
     "custom_abilities": {
@@ -106,14 +109,17 @@
           "ui": { "widget": "multiselect", "label": "Abilities", "reference": "abilities" }
         },
         "custom_stats": {
-          "type": "object",
-          "properties": {
-            "hp": { "type": "number" },
-            "attack": { "type": "number" },
-            "defense": { "type": "number" },
-            "speed": { "type": "number" },
-            "mana": { "type": "number" },
-            "spell_power": { "type": "number" }
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "stat_id": {
+                "type": "string",
+                "ui": { "widget": "reference", "reference": "stats", "label": "Stat" }
+              },
+              "value": { "type": "number", "ui": { "widget": "number", "label": "Value" } }
+            },
+            "required": ["stat_id", "value"]
           }
         },
         "progression": {
@@ -122,14 +128,17 @@
             "level_cap": { "type": "number" },
             "xp_multiplier": { "type": "number" },
             "stat_growth": {
-              "type": "object",
-              "properties": {
-                "hp": { "type": "number" },
-                "attack": { "type": "number" },
-                "defense": { "type": "number" },
-                "speed": { "type": "number" },
-                "mana": { "type": "number" },
-                "spell_power": { "type": "number" }
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "stat_id": {
+                    "type": "string",
+                    "ui": { "widget": "reference", "reference": "stats", "label": "Stat" }
+                  },
+                  "value": { "type": "number", "ui": { "widget": "number", "label": "Per Level" } }
+                },
+                "required": ["stat_id", "value"]
               }
             }
           }

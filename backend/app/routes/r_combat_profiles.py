@@ -8,6 +8,7 @@ from backend.app.models.m_items import Item
 from backend.app.models.m_quests import Quest
 from backend.app.models.m_abilities import Ability
 from backend.app.models.m_characterclasses import CharacterClass
+from backend.app.models.m_stats import Stat
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -29,6 +30,41 @@ class CombatProfileRoute(BaseRoute):
         return data["id"]
 
     def process_input_data(self, db_session: Session, profile: CombatProfile, data: Dict[str, Any]) -> None:
+        def _normalize_stat_entries(entries: Any, field_name: str) -> List[Dict[str, Any]]:
+            if entries is None:
+                return []
+            if isinstance(entries, dict):
+                normalized: List[Dict[str, Any]] = []
+                for key, value in entries.items():
+                    if value is None:
+                        raise ValueError(f"{field_name} entries must include value")
+                    stat = db_session.get(Stat, key)
+                    if not stat:
+                        stat = db_session.query(Stat).filter(Stat.slug == key).first()
+                    if not stat:
+                        raise ValueError(f"Invalid stat reference in {field_name}: {key}")
+                    normalized.append({"stat_id": stat.id, "value": value})
+                return normalized
+            if isinstance(entries, list):
+                normalized = []
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        raise ValueError(f"{field_name} entries must be objects")
+                    stat_ref = entry.get("stat_id")
+                    if stat_ref is None:
+                        raise ValueError(f"{field_name} entries must include stat_id")
+                    value = entry.get("value")
+                    if value is None:
+                        raise ValueError(f"{field_name} entries must include value")
+                    stat = db_session.get(Stat, stat_ref)
+                    if not stat:
+                        stat = db_session.query(Stat).filter(Stat.slug == stat_ref).first()
+                    if not stat:
+                        raise ValueError(f"Invalid stat_id in {field_name}: {stat_ref}")
+                    normalized.append({"stat_id": stat.id, "value": value})
+                return normalized
+            raise ValueError(f"{field_name} must be an array of stat entries")
+
         # Validate enums
         self.validate_enums(data, {
             "enemy_type": EnemyType,
@@ -50,6 +86,24 @@ class CombatProfileRoute(BaseRoute):
         companion_config = data.get("companion_config", {})
         if companion_config and not isinstance(companion_config, dict):
             raise ValueError("companion_config must be an object")
+        if companion_config:
+            companion_custom_stats = _normalize_stat_entries(
+                companion_config.get("custom_stats", []),
+                "companion_config.custom_stats"
+            )
+            if companion_custom_stats:
+                companion_config["custom_stats"] = companion_custom_stats
+            progression = companion_config.get("progression")
+            if progression is not None and not isinstance(progression, dict):
+                raise ValueError("companion_config.progression must be an object")
+            if progression and isinstance(progression, dict):
+                stat_growth = _normalize_stat_entries(
+                    progression.get("stat_growth", []),
+                    "companion_config.progression.stat_growth"
+                )
+                if stat_growth:
+                    progression["stat_growth"] = stat_growth
+                    companion_config["progression"] = progression
         profile.companion_config = companion_config
         if companion_config and "class_id" in companion_config:
             if not db_session.get(CharacterClass, companion_config["class_id"]):
@@ -103,7 +157,7 @@ class CombatProfileRoute(BaseRoute):
                 raise ValueError(f"Invalid quest_id: {quest_id}")
 
         # JSON fields
-        profile.custom_stats = data.get("custom_stats", {})
+        profile.custom_stats = _normalize_stat_entries(data.get("custom_stats", []), "custom_stats")
         profile.custom_abilities = custom_abilities
         profile.tags = data.get("tags", [])
         profile.loot_table = loot_table
