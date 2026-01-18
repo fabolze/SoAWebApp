@@ -328,7 +328,7 @@ Struct FStoryArcData:
 - tags (Array<String>).
 
 Struct FStoryArcBranchOption:
-- flag_id (String) - ULID eines Flags.
+- condition_flag (String) - ULID eines Flags.
 - next_quest_id (String) - ULID der naechsten Quest.
 
 Struct FStoryArcBranchData:
@@ -360,7 +360,7 @@ Struct FDialogueChoice:
 - choice_text (String).
 - next_node_id (String).
 - requirements_id (String).
-- flags_set (Array<String>).
+- set_flags (Array<String>).
 
 World
 Struct FLocationData:

@@ -16,6 +16,7 @@ BP_GameInstance
 ```
 
 ## Data Foundation
+- Enum and Struct source of truth: `UE5_Integration/UE5_Blueprint_Integration_Guide.txt`. This document only references them by name.
 - **`BP_GameDataSubsystem` (Engine Subsystem)**  
   Loads every DataTable on Init, builds caches keyed by ULID and slug, exposes helper functions (`GetStatById`, `GetItemModifiers`, `FindEncountersForLocation`). Provides typed wrappers for JSON fields (e.g. quest objective arrays). Emits validation logs when lookups miss.
 
@@ -36,12 +37,12 @@ BP_GameInstance
   Initialises all flags to default values, exposes `CheckRequirement`, `SetFlag`, `GetFlagValue`, iterates link tables (required/forbidden flags, faction thresholds). Broadcasts `OnFlagChanged (FlagId, OldValue, NewValue)`; other systems subscribe.
 
 - **`BP_TalentManager` (Game Instance Subsystem)**  
-  Owns talent trees/nodes, tracks learned node ranks, validates prerequisites, applies passive modifiers, and emits `OnTalentChanged` for UI refresh and stat recompute.
+  Owns talent trees/nodes, tracks learned node ranks, validates prerequisites, applies passive modifiers to `BP_StatsComponent`, and emits `OnTalentChanged` for UI refresh and stat recompute.
 
 - **`BP_ReputationSystem` (Game Instance Subsystem)**  
   Keeps faction reputation maps, applies modifiers from quests/events/encounters, and exposes threshold queries used by requirements.
 
-- **`BP_QuestLogComponent` (Actor Component on Player)`**  
+- **`BP_QuestLogComponent` (Actor Component on Player)**  
   Tracks quest states, objectives, timers. Subscribes to flag changes and updates UI. Calls into reward systems when objectives complete. Persists progress via SaveGame.
 
 - **`BP_StoryManager` (Actor Component on GameMode)**  
@@ -51,7 +52,7 @@ BP_GameInstance
   Handles companion roster, spawns/despawns follower pawns, manages loyalty flags, communicates loadout/stats to combat setup. Supports rotating companions per story beat.
 
 - **`BP_SaveGame_SoA` (SaveGame Blueprint)**  
-  Serialises player stats, inventory, learned abilities, flags, quest states, companion roster, unlocked routes, content pack selection, travel seeds.
+  Serialises player stats, inventory, learned abilities, flags, quest states, companion roster, unlocked routes, content pack selection, travel seeds. For the prototype, store a minimal subset in the same schema.
 
 ## World Graph & Travel
 - **`BP_WorldGraphSubsystem` (World Subsystem)**  
@@ -71,23 +72,41 @@ BP_GameInstance
 
 > Detailed travel architecture: `UE5_Integration/World_Travel_System.md`.
 
-## Encounter & Combat Layer
+## Encounter & Combat Layer (Real-Time + Able)
 - **`BP_EncounterManager` (World Subsystem)**  
   Receives context from travel/events, filters encounter candidates by requirement, content pack, and difficulty, seeds RNG for deterministic runs, and forwards selected encounters to the event sequencer or combat director.
 
 - **`BP_EncounterDirector` (World Subsystem)**  
   Builds combat scenes: spawns player + companions, instantiates combatants using `FCombatProfileData` and `FCharacterClassData`, applies route/environment modifiers (weather, terrain), and packages `FCombatContext`.
 
-- **`BP_TurnManager` (Actor/Component inside Battle Level)**  
-  Orders combatants by Speed, handles initiative modifiers, queues actions, and drives the turn loop. Publishes turn order to UI and handles skip logic (stun, death).
+- **`BP_CombatComponent` (Actor Component on Combatants)**  
+  Central API for basic attacks and ability requests, validates targets and range, triggers damage pipeline, and emits combat events for UI and AI.
 
-- **`BP_ActionQueue` (Support Object)**  
-  Stores declared actions, allows preview/confirmation, supports reaction hooks (interrupts, counters) configured via data.
+- **`BP_StatsComponent` (Actor Component on Combatants)**  
+  Stores base and derived stats, applies modifiers, and emits `OnStatsChanged`.
+
+- **`BP_HealthComponent` (Actor Component on Combatants)**  
+  Tracks current/max health, emits `OnHealthChanged`, and signals death to combat flow.
+
+- **`BP_TargetingComponent` (Actor Component on Player Controller or Player Character)**  
+  Maintains soft target and hard lock, cycles next/prev targets, and enforces range or LOS rules.
+
+- **`BPI_Targetable` + `BP_TargetableComponent` (Interface + Component)**  
+  Marks actors as valid targets, exposes selection metadata, and drives outline/highlight hooks.
+
+- **`BP_AbleAbilityComponent` (Able Plugin Component)**  
+  Executes abilities, cooldowns, casts, and channels. Wrapper helpers should expose `TryActivateAbility`, `CancelAbility`, and cooldown queries to UI.
+
+- **`BP_TelegraphActor` / `BP_TelegraphComponent`**  
+  Spawns AOE warnings from Able ability timelines and cleans up on execute or cancel.
+
+- **`BPI_VFXHooks` / `BPI_AudioHooks`**  
+  Interface hooks for hit, cast start/end, telegraph, and impact cues.
 
 - **`BP_EffectResolver` (Blueprint Function Library)**  
   Applies damage/heal/buff/debuff effects using `value_type`, `attribute_id`, and `scaling_stat_id`. Interfaces with `BP_CombatFormulaLibrary` for calculations and `BP_StatusComponent` for persistent states.
 
-- **`BP_StatusComponent` (Actor Component on Battle Characters)**  
+- **`BP_StatusComponent` (Actor Component on Combatants)**  
   Manages timed effects, stacking, immunities, and tick-based damage. Emits events for UI/AI when states change.
 
 - **`BP_CombatFormulaLibrary` (Function Library)**  
@@ -101,6 +120,13 @@ BP_GameInstance
 
 - **`BP_RewardDistributor` (Function Library)**  
   Routes XP, currency, items, reputation, and flags after combat or scripted events through `BP_CurrencyManager`, `BP_ItemManager`, `BP_ReputationSystem`, and `BP_FlagManager`.
+
+## Character Build Systems
+- **`BP_InventoryComponent` (Actor Component on Player/Companions)**  
+  Manages slots, stacks, grants, and removes items for prototyping.
+
+- **`BP_EquipmentComponent` (Actor Component on Player/Companions)**  
+  Equips gear, applies stat modifiers via `BP_StatsComponent`, and emits equip/unequip events.
 
 ## Dialogue, Events & Interactions
 - **`BP_DialogueManager` (Widget + Actor Component)**  
@@ -123,7 +149,7 @@ BP_GameInstance
   Exposes commands (`SpawnEncounter`, `ToggleEncounters`, `SetFlag`, `GiveItem`, `DebugLookupRow`, `UnlockRoute`, `TravelTo`, etc.). Only active in Development builds.
 
 - **`BP_DebugOverlayWidget`**  
-  UI for toggling cheats, viewing travel graph, inspecting current requirements, visualising encounter odds and turn order predictions.
+  UI for toggling cheats, viewing travel graph, inspecting current requirements, and visualising encounter odds or targeting debug data.
 
 - **Automation Tests (Blueprint-based)**  
   - Data integrity suite (per-table row validation, dangling ULIDs, enum mismatches).  

@@ -29,7 +29,7 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 ### Abilities (`m_abilities.py`)
 - **Key fields:** `damage_type_source`, `damage_type`.
 - **References:** AbilityEffectLink, AbilityScalingLink, Items (imbued abilities), Character Classes (starting kits).
-- **Blueprint owners:** `BP_EncounterDirector` (loadout assembly), `BP_TurnManager`, `BP_EnemyBrain`.
+- **Blueprint owners:** `BP_EncounterDirector` (loadout assembly), `BP_CombatComponent`, `BP_AbleAbilityComponent`, `BP_TargetingComponent`, `BP_EnemyBrain`.
 
 ### Ability-to-Effect Link (`m_abilities_links.py`)
 - **Purpose:** Connects abilities to payload Effects.
