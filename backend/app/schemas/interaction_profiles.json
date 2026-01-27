@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Interaction Profile",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "ui": { "widget": "hidden" }
+    },
+    "character_id": {
+      "type": "string",
+      "ui": { "widget": "reference", "label": "Character", "reference": "characters" }
+    },
+    "role": {
+      "type": "string",
+      "enum": ["Questgiver", "Merchant", "Trainer", "Companion", "Story", "Background"],
+      "ui": { "widget": "select", "label": "Role", "options": ["Questgiver", "Merchant", "Trainer", "Companion", "Story", "Background"] }
+    },
+    "dialogue_tree_id": {
+      "type": "string",
+      "ui": { "widget": "reference", "label": "Dialogue Tree", "reference": "dialogues" }
+    },
+    "available_quests": {
+      "type": "array",
+      "items": { "type": "string" },
+      "ui": { "widget": "multiselect", "label": "Quests", "reference": "quests" }
+    },
+    "inventory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "ui": { "widget": "reference", "label": "Item", "reference": "items" }
+          },
+          "price": { "type": "number", "ui": { "widget": "number", "label": "Price" } }
+        },
+        "required": ["item_id", "price"]
+      },
+      "ui": { "widget": "item_price_table", "label": "Merchant Inventory" }
+    },
+    "flags_set_on_interaction": {
+      "type": "array",
+      "items": { "type": "string" },
+      "ui": { "widget": "multiselect", "label": "Flags Set", "reference": "flags" }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "ui": { "widget": "tags", "label": "Tags" }
+    }
+  },
+  "required": ["id", "character_id"]
+}

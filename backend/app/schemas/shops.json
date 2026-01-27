@@ -76,13 +76,13 @@
         "reference": "locations"
       }
     },
-    "npc_id": {
+    "character_id": {
       "type": "string",
-      "description": "Optional: NPC running the shop",
+      "description": "Optional: Character running the shop",
       "ui": {
         "widget": "reference",
-        "label": "Shopkeeper (NPC)",
-        "reference": "npcs"
+        "label": "Shopkeeper (Character)",
+        "reference": "characters"
       }
     },
     "requirements_id": {

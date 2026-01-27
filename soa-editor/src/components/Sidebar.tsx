@@ -87,8 +87,12 @@ const DEFAULT_GROUPS = [
     items: [
       { to: '/abilities', label: 'Abilities', icon: SparklesIcon },
       { to: '/effects', label: 'Effects', icon: BeakerIcon },
+      { to: '/statuses', label: 'Statuses', icon: BeakerIcon },
       { to: '/attributes', label: 'Attributes', icon: ChartBarIcon },
       { to: '/characterclasses', label: 'Character Classes', icon: AcademicCapIcon },
+      { to: '/talent-trees', label: 'Talent Trees', icon: Squares2X2Icon },
+      { to: '/talent-nodes', label: 'Talent Nodes', icon: PuzzlePieceIcon },
+      { to: '/talent-node-links', label: 'Talent Node Links', icon: ClipboardDocumentListIcon },
       { to: '/items', label: 'Items', icon: CubeIcon },
       { to: '/currencies', label: 'Currencies', icon: BanknotesIcon },
       { to: '/stats', label: 'Stats', icon: ChartBarIcon },
@@ -102,9 +106,10 @@ const DEFAULT_GROUPS = [
     items: [
       { to: '/locations', label: 'Locations', icon: MapIcon },
       { to: '/factions', label: 'Factions', icon: UserGroupIcon },
-      { to: '/npcs', label: 'NPCs', icon: UsersIcon },
       { to: '/lore-entries', label: 'Lore Entries', icon: BookOpenIcon },
-      { to: '/enemies', label: 'Enemies', icon: FlagIcon },
+      { to: '/characters', label: 'Characters', icon: UsersIcon },
+      { to: '/combat-profiles', label: 'Combat Profiles', icon: FlagIcon },
+      { to: '/interaction-profiles', label: 'Interaction Profiles', icon: ChatBubbleLeftRightIcon },
     ],
   },
   {

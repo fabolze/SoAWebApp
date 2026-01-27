@@ -36,9 +36,10 @@ const EntryListPanel = ({
       <div className="flex gap-2 items-center mb-2">
         <button className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700" onClick={onAddNew}>+ New</button>
       </div>
+      {/* Search controls for filtering entries in the list. */}
       <div className="flex gap-2 items-center mb-2 bg-gray-100 p-2.5 rounded shadow">
         <select
-          className="border rounded p-2 text-sm"
+          className="border rounded p-2 text-sm text-slate-900 bg-white"
           value={searchField}
           onChange={e => setSearchField(e.target.value)}
         >
@@ -50,7 +51,7 @@ const EntryListPanel = ({
         <input
           type="text"
           placeholder={searchField === "__all__" ? `Search all fields...` : `Search ${searchField}...`}
-          className="w-full p-2 border rounded"
+          className="w-full p-2 border rounded text-slate-900 bg-white placeholder:text-slate-500"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
@@ -68,23 +69,24 @@ const EntryListPanel = ({
           onDelete={onDelete}
         />
       ) : (
-        <table className="min-w-full border text-sm">
+        <table className="min-w-full border text-sm text-slate-900">
           <thead>
             <tr>
               {listFields.map((key) => (
-                <th key={key} className="px-3 py-2 border-b bg-gray-50 font-semibold text-gray-700 whitespace-nowrap">{key}</th>
+                <th key={key} className="px-3 py-2 border-b bg-gray-50 font-semibold text-slate-700 whitespace-nowrap">{key}</th>
               ))}
-              <th className="px-3 py-2 border-b bg-gray-50 font-semibold text-gray-700">Actions</th>
+              <th className="px-3 py-2 border-b bg-gray-50 font-semibold text-slate-700">Actions</th>
             </tr>
           </thead>
           <tbody>
             {entries.map((entry) => (
+              // Highlight the currently edited row.
               <tr key={entry[idField]} className={editingId && entry[idField] === editingId ? "bg-yellow-100" : "hover:bg-blue-50"}>
                 {listFields.map((key) => {
                   const value = entry[key];
                   const isImage = typeof value === 'string' && (value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && (value.startsWith('http') || value.startsWith('/')));
                   return (
-                    <td key={key} className="px-3 py-2 border-b whitespace-nowrap max-w-xs overflow-x-auto">
+                    <td key={key} className="px-3 py-2 border-b whitespace-nowrap max-w-xs overflow-x-auto text-slate-900">
                       {isImage ? (
                         <img src={value} alt="asset" style={{ maxHeight: '40px', maxWidth: '80px', objectFit: 'contain' }} />
                       ) : (

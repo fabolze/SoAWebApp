@@ -20,6 +20,8 @@ class StatRoute(BaseRoute):
         return data["id"]
     
     def process_input_data(self, db_session: Session, stat: Stat, data: Dict[str, Any]) -> None:
+        if data.get("scaling_behavior") == "Custom Curve":
+            data["scaling_behavior"] = "Custom"
         # Validate enums
         self.validate_enums(data, {
             "category": StatCategory,

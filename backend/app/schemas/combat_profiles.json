@@ -1,0 +1,155 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Combat Profile",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "ui": { "widget": "hidden" }
+    },
+    "character_id": {
+      "type": "string",
+      "ui": { "widget": "reference", "label": "Character", "reference": "characters" }
+    },
+    "enemy_type": {
+      "type": "string",
+      "enum": ["beast", "undead", "humanoid", "elemental", "machine", "boss", "demon", "dragon", "giant", "spirit", "emanation", "other"],
+      "ui": { "widget": "select", "label": "Enemy Type" }
+    },
+    "aggression": {
+      "type": "string",
+      "enum": ["Hostile", "Neutral", "Friendly"],
+      "ui": { "widget": "select", "label": "Aggression" }
+    },
+    "custom_stats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stat_id": {
+            "type": "string",
+            "ui": { "widget": "reference", "reference": "stats", "label": "Stat" }
+          },
+          "value": { "type": "number", "ui": { "widget": "number", "label": "Value" } }
+        },
+        "required": ["stat_id", "value"]
+      }
+    },
+    "custom_abilities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "ui": { "widget": "multiselect", "label": "Abilities", "reference": "abilities" }
+    },
+    "loot_table": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "ui": { "widget": "reference", "reference": "items", "label": "Item" }
+          },
+          "drop_chance": { "type": "number", "ui": { "widget": "number", "label": "Drop Chance" } }
+        },
+        "required": ["item_id", "drop_chance"]
+      },
+      "ui": { "widget": "item_drop_table", "label": "Loot" }
+    },
+    "currency_rewards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "currency_id": {
+            "type": "string",
+            "ui": { "widget": "reference", "reference": "currencies", "label": "Currency" }
+          },
+          "amount": { "type": "number", "ui": { "widget": "number", "label": "Amount" } },
+          "drop_chance": { "type": "number", "ui": { "widget": "number", "label": "Drop Chance" } }
+        },
+        "required": ["currency_id", "amount"]
+      }
+    },
+    "reputation_rewards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "faction_id": {
+            "type": "string",
+            "ui": { "widget": "reference", "reference": "factions", "label": "Faction" }
+          },
+          "amount": { "type": "number", "ui": { "widget": "number", "label": "Delta" } },
+          "drop_chance": { "type": "number", "ui": { "widget": "number", "label": "Drop Chance" } }
+        },
+        "required": ["faction_id", "amount"]
+      }
+    },
+    "xp_reward": {
+      "type": "number",
+      "ui": { "widget": "number", "label": "Experience" }
+    },
+    "related_quests": {
+      "type": "array",
+      "items": { "type": "string" },
+      "ui": { "widget": "multiselect", "label": "Related Quests", "reference": "quests" }
+    },
+    "companion_config": {
+      "type": "object",
+      "description": "Companion-specific overrides and progression",
+      "properties": {
+        "class_id": {
+          "type": "string",
+          "ui": { "widget": "reference", "label": "Combat Class", "reference": "characterclasses" }
+        },
+        "level": { "type": "number", "ui": { "widget": "number", "label": "Level" } },
+        "custom_abilities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "ui": { "widget": "multiselect", "label": "Abilities", "reference": "abilities" }
+        },
+        "custom_stats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "stat_id": {
+                "type": "string",
+                "ui": { "widget": "reference", "reference": "stats", "label": "Stat" }
+              },
+              "value": { "type": "number", "ui": { "widget": "number", "label": "Value" } }
+            },
+            "required": ["stat_id", "value"]
+          }
+        },
+        "progression": {
+          "type": "object",
+          "properties": {
+            "level_cap": { "type": "number" },
+            "xp_multiplier": { "type": "number" },
+            "stat_growth": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "stat_id": {
+                    "type": "string",
+                    "ui": { "widget": "reference", "reference": "stats", "label": "Stat" }
+                  },
+                  "value": { "type": "number", "ui": { "widget": "number", "label": "Per Level" } }
+                },
+                "required": ["stat_id", "value"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "ui": { "widget": "tags", "label": "Tags" }
+    }
+  },
+  "required": ["id", "character_id"]
+}

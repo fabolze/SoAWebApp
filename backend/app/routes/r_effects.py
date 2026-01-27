@@ -2,6 +2,7 @@ from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_effects import Effect, EffectType, EffectTarget, ValueInterpretation, TriggerCondition
 from backend.app.models.m_attributes import Attribute
 from backend.app.models.m_stats import Stat
+from backend.app.models.m_statuses import Status
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -33,7 +34,8 @@ class EffectRoute(BaseRoute):
         # Validate relationships
         self.validate_relationships(db_session, data, {
             "attribute_id": Attribute,
-            "scaling_stat_id": Stat
+            "scaling_stat_id": Stat,
+            "status_id": Status
         })
         
         # Required fields
@@ -55,6 +57,13 @@ class EffectRoute(BaseRoute):
         # Relationship fields
         effect.attribute_id = data.get("attribute_id")
         effect.scaling_stat_id = data.get("scaling_stat_id")
+        effect.status_id = data.get("status_id")
+        effect.apply_chance = data.get("apply_chance", 100.0)
+
+        if effect.type == EffectType.Status and not effect.status_id:
+            raise ValueError("status_id is required for Status effects")
+        if effect.type != EffectType.Status and effect.status_id:
+            raise ValueError("status_id is only valid for Status effects")
         
         # JSON fields
         effect.related_items = data.get("related_items", {})

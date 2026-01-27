@@ -42,11 +42,16 @@ class QuestRoute(BaseRoute):
         
         # Validate objectives and their requirements
         objectives = data.get("objectives", [])
+        normalized_objectives = []
         for objective in objectives:
-            if "requirements" in objective:
-                if not db_session.get(Requirement, objective["requirements"]):
-                    raise ValueError(f"Invalid requirements_id in objective: {objective['requirements']}")
-        quest.objectives = objectives
+            req_id = objective.get("requirements_id") or objective.get("requirements")
+            if req_id and not db_session.get(Requirement, req_id):
+                raise ValueError(f"Invalid requirements_id in objective: {req_id}")
+            if req_id and "requirements_id" not in objective:
+                objective = {**objective, "requirements_id": req_id}
+                objective.pop("requirements", None)
+            normalized_objectives.append(objective)
+        quest.objectives = normalized_objectives
         
         # Validate item rewards
         item_rewards = data.get("item_rewards", [])

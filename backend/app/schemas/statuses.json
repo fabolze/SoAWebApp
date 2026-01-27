@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Status",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "ui": {
+        "widget": "hidden"
+      }
+    },
+    "slug": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      }
+    },
+    "name": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "Status Name"
+      }
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Buff",
+        "Debuff",
+        "Control",
+        "DoT",
+        "Other"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Category",
+        "options": [
+          "Buff",
+          "Debuff",
+          "Control",
+          "DoT",
+          "Other"
+        ]
+      }
+    },
+    "description": {
+      "type": "string",
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      }
+    },
+    "default_duration": {
+      "type": "number",
+      "description": "Default duration in seconds when no effect override is provided",
+      "ui": {
+        "widget": "number",
+        "label": "Default Duration"
+      }
+    },
+    "stackable": {
+      "type": "boolean",
+      "description": "Whether this status can stack",
+      "ui": {
+        "widget": "checkbox",
+        "label": "Stackable"
+      }
+    },
+    "max_stacks": {
+      "type": "integer",
+      "description": "Maximum stacks allowed if stackable",
+      "ui": {
+        "widget": "number",
+        "label": "Max Stacks"
+      }
+    },
+    "icon_path": {
+      "type": "string",
+      "ui": {
+        "widget": "filepicker",
+        "label": "Icon"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching/categorization",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "slug",
+    "name"
+  ]
+}

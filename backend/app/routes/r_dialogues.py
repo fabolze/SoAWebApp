@@ -1,7 +1,8 @@
 from flask import request, jsonify
 from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_dialogues import Dialogue
-from backend.app.models.m_npcs import NPC
+from backend.app.models.m_characters import Character
+from backend.app.models.m_interaction_profiles import InteractionProfile
 from backend.app.models.m_locations import Location
 from backend.app.models.m_requirements import Requirement
 from backend.app.db.init_db import get_db_session
@@ -32,15 +33,20 @@ class DialogueRoute(BaseRoute):
         
         # Relationship validation
         self.validate_relationships(db_session, data, {
-            "npc_id": NPC,
+            "character_id": Character,
             "location_id": Location,
             "requirements_id": Requirement
         })
         
         # Optional relationships
-        dialogue.npc_id = data.get("npc_id")
+        dialogue.character_id = data.get("character_id")
         dialogue.location_id = data.get("location_id")
         dialogue.requirements_id = data.get("requirements_id")
+
+        if dialogue.character_id:
+            profile = db_session.query(InteractionProfile).filter_by(character_id=dialogue.character_id).first()
+            if not profile:
+                raise ValueError("Dialogue character requires an interaction profile")
         
         # JSON fields
         dialogue.tags = data.get("tags", [])

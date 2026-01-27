@@ -14,7 +14,7 @@ class Dialogue(Base):
     slug = Column(String, unique=True, nullable=False)
     title = Column(String, nullable=False)  # Internal dev-facing label
 
-    npc_id = Column(String, ForeignKey("npcs.id"))
+    character_id = Column(String, ForeignKey("characters.id"))
     location_id = Column(String, ForeignKey("locations.id"))
     requirements_id = Column(String, ForeignKey("requirements.id"))
 
@@ -22,7 +22,7 @@ class Dialogue(Base):
     tags = Column(JSON)         # List of string tags
 
     # Relationships
-    npc = relationship("NPC", foreign_keys=[npc_id], back_populates="dialogues")
+    character = relationship("Character", foreign_keys=[character_id])
     location = relationship("Location", foreign_keys=[location_id])
     requirements = relationship("Requirement", foreign_keys=[requirements_id])
 

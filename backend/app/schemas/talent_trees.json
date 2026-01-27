@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Talent Tree",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique ID for the talent tree",
+      "ui": { "widget": "hidden" }
+    },
+    "slug": {
+      "type": "string",
+      "ui": { "widget": "text", "label": "ID/Slug" }
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name for this talent tree",
+      "ui": { "widget": "text", "label": "Name" }
+    },
+    "description": {
+      "type": "string",
+      "description": "Short description of this tree",
+      "ui": { "widget": "textarea", "label": "Description" }
+    },
+    "class_id": {
+      "type": "string",
+      "description": "Optional class that owns this tree",
+      "ui": {
+        "widget": "reference",
+        "reference": "characterclasses",
+        "label": "Character Class"
+      }
+    },
+    "requirements_id": {
+      "type": "string",
+      "description": "Optional requirement to unlock the tree",
+      "ui": {
+        "widget": "reference",
+        "reference": "requirements",
+        "label": "Requirements"
+      }
+    },
+    "icon_path": {
+      "type": "string",
+      "description": "Icon used in UI",
+      "ui": {
+        "widget": "filepicker",
+        "label": "Icon Path"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching",
+      "items": { "type": "string" },
+      "ui": { "widget": "tags", "label": "Tags" }
+    }
+  },
+  "required": ["id", "slug", "name"]
+}

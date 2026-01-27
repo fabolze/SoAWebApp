@@ -1,7 +1,7 @@
 from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_attributes import Attribute, AttrValueType, AttrScalingType
 from backend.app.models.m_stats import Stat
-from backend.app.models.m_attribute_stat_link import AttributeStatLink
+from backend.app.models.m_attribute_stat_link import AttributeStatLink, ScaleType
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -22,6 +22,8 @@ class AttributeRoute(BaseRoute):
         return data["id"]
         
     def process_input_data(self, db_session: Session, attribute: Attribute, data: Dict[str, Any]) -> None:
+        if data.get("scaling") == "Custom Curve":
+            data["scaling"] = "Custom"
         # Validate enums
         self.validate_enums(data, {
             "value_type": AttrValueType,
@@ -54,10 +56,17 @@ class AttributeRoute(BaseRoute):
             # Validate stat exists
             if not db_session.get(Stat, entry["stat_id"]):
                 raise ValueError(f"Invalid stat_id: {entry['stat_id']}")
-            
+            scale_value = entry["scale"]
+            if scale_value == "Custom Curve":
+                scale_value = "Custom"
+            try:
+                scale_enum = ScaleType(scale_value)
+            except ValueError as exc:
+                raise ValueError(f"Invalid scale for attribute link: {scale_value}") from exc
+
             link = AttributeStatLink(
                 stat_id=entry["stat_id"],
-                scale_type=entry["scale"],
+                scale=scale_enum,
                 multiplier=float(entry["multiplier"])
             )
             link.attribute = attribute

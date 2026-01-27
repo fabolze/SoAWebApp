@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Character",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique ID",
+      "ui": { "widget": "hidden" }
+    },
+    "slug": {
+      "type": "string",
+      "ui": { "widget": "text", "label": "ID/Slug" }
+    },
+    "name": {
+      "type": "string",
+      "ui": { "widget": "text", "label": "Name" }
+    },
+    "title": {
+      "type": "string",
+      "ui": { "widget": "text", "label": "Title" }
+    },
+    "description": {
+      "type": "string",
+      "ui": { "widget": "textarea", "label": "Bio / Notes" }
+    },
+    "image_path": {
+      "type": "string",
+      "ui": { "widget": "filepicker", "label": "Portrait" }
+    },
+    "level": {
+      "type": "number",
+      "ui": { "widget": "number", "label": "Level" }
+    },
+    "class_id": {
+      "type": "string",
+      "ui": { "widget": "reference", "label": "Combat Class", "reference": "characterclasses" }
+    },
+    "faction_id": {
+      "type": "string",
+      "ui": { "widget": "reference", "label": "Faction", "reference": "factions" }
+    },
+    "home_location_id": {
+      "type": "string",
+      "ui": { "widget": "reference", "label": "Home Location", "reference": "locations" }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "ui": { "widget": "tags", "label": "Tags" }
+    }
+  },
+  "required": ["id", "slug", "name"]
+}

@@ -11,9 +11,11 @@ from backend.app.routes.r_effects import bp as effects_bp
 from backend.app.routes.r_attributes import bp as attributes_bp
 from backend.app.routes.r_characterclasses import bp as characterclasses_bp
 from backend.app.routes.r_dialogue_nodes import bp as dialogue_nodes_bp
+from backend.app.routes.r_characters import bp as characters_bp
+from backend.app.routes.r_combat_profiles import bp as combat_profiles_bp
 from backend.app.routes.r_dialogues import bp as dialogues_bp
 from backend.app.routes.r_encounters import bp as encounters_bp
-from backend.app.routes.r_enemies import bp as enemies_bp
+from backend.app.routes.r_interaction_profiles import bp as interaction_profiles_bp
 from backend.app.routes.r_events import bp as events_bp
 from backend.app.routes.r_content_packs import bp as content_packs_bp
 from backend.app.routes.r_currencies import bp as currencies_bp
@@ -22,7 +24,6 @@ from backend.app.routes.r_flags import bp as flags_bp
 from backend.app.routes.r_items import bp as items_bp
 from backend.app.routes.r_locations import bp as locations_bp
 from backend.app.routes.r_lore_entries import bp as lore_entries_bp
-from backend.app.routes.r_npcs import bp as npcs_bp
 from backend.app.routes.r_quests import bp as quests_bp
 from backend.app.routes.r_requirements import bp as requirements_bp
 from backend.app.routes.r_shops import bp as shops_bp
@@ -30,6 +31,10 @@ from backend.app.routes.r_shop_inventory import bp as shop_inventory_bp
 from backend.app.routes.r_stats import bp as stats_bp
 from backend.app.routes.r_story_arcs import bp as story_arcs_bp
 from backend.app.routes.r_timelines import bp as timelines_bp
+from backend.app.routes.r_statuses import bp as statuses_bp
+from backend.app.routes.r_talent_trees import bp as talent_trees_bp
+from backend.app.routes.r_talent_nodes import bp as talent_nodes_bp
+from backend.app.routes.r_talent_node_links import bp as talent_node_links_bp
 from backend.app.routes.r_export import bp as export_bp
 from backend.app.routes.r_bulk_export import bp as bulk_export_bp
 from backend.app.routes.r_db_admin import bp as db_admin_bp
@@ -67,8 +72,10 @@ def create_app() -> Flask:
         dialogue_nodes_bp,
         dialogues_bp,
         encounters_bp,
-        enemies_bp,
         events_bp,
+        characters_bp,
+        combat_profiles_bp,
+        interaction_profiles_bp,
         content_packs_bp,
         currencies_bp,
         factions_bp,
@@ -76,14 +83,17 @@ def create_app() -> Flask:
         items_bp,
         locations_bp,
         lore_entries_bp,
-        npcs_bp,
         quests_bp,
         requirements_bp,
         shops_bp,
         shop_inventory_bp,
         stats_bp,
+        statuses_bp,
         story_arcs_bp,
         timelines_bp,
+        talent_trees_bp,
+        talent_nodes_bp,
+        talent_node_links_bp,
         export_bp,
         bulk_export_bp,
         db_admin_bp

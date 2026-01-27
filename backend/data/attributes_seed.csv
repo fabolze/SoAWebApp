@@ -1,0 +1,5 @@
+id,slug,name,description,value_type,default_value,min_value,max_value,scaling,used_in,icon_path,tags
+c744647a42d540de9adf304af739be43,strength,Strength,Physical power that boosts offense and crit.,float,0,0,100,Linear,"[""Character"",""Item""]",icons/attributes/strength.png,"[""core"",""attribute""]"
+88ff181989764668a6c145ef609a3c7e,endurance,Endurance,Toughness and stamina that raise defenses.,float,0,0,100,Linear,"[""Character"",""Item""]",icons/attributes/endurance.png,"[""core"",""attribute""]"
+aafc3c0b3bd34c24bb823446defccf18,intelligence,Intelligence,Mystic focus that fuels magic output.,float,0,0,100,Linear,"[""Character"",""Item""]",icons/attributes/intelligence.png,"[""core"",""attribute""]"
+5dca8f7d1b4945f484604d1ba602504d,dexterity,Dexterity,Agility and precision that improve speed.,float,0,0,100,Linear,"[""Character"",""Item""]",icons/attributes/dexterity.png,"[""core"",""attribute""]"

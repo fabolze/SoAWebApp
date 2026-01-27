@@ -42,11 +42,11 @@
       },
       "scaling": {
         "type": "string",
-        "enum": ["None", "Linear", "Exponential", "Logarithmic"],
+        "enum": ["None", "Linear", "Exponential", "Logarithmic", "Custom"],
         "ui": {
           "widget": "select",
           "label": "Scaling Type",
-          "options": ["None", "Linear", "Exponential", "Logarithmic"]
+          "options": ["None", "Linear", "Exponential", "Logarithmic", "Custom"]
         }
       },
       "results_in": {
@@ -66,12 +66,12 @@
             },
             "scale": {
               "type": "string",
-              "enum": ["Linear", "Exponential", "Custom"],
+              "enum": ["None", "Linear", "Exponential", "Logarithmic", "Custom"],
               "description": "Scaling model",
               "ui": {
                 "widget": "select",
                 "label": "Scale Type",
-                "options": ["Linear", "Exponential", "Custom"]
+                "options": ["None", "Linear", "Exponential", "Logarithmic", "Custom"]
               }
             },
             "multiplier": {

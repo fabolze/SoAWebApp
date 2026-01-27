@@ -1,0 +1,157 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Talent Node",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique ID for the node",
+      "ui": { "widget": "hidden" }
+    },
+    "slug": {
+      "type": "string",
+      "ui": { "widget": "text", "label": "ID/Slug" }
+    },
+    "tree_id": {
+      "type": "string",
+      "description": "Owning talent tree",
+      "ui": {
+        "widget": "reference",
+        "reference": "talent-trees",
+        "label": "Talent Tree"
+      }
+    },
+    "name": {
+      "type": "string",
+      "description": "Node name",
+      "ui": { "widget": "text", "label": "Name" }
+    },
+    "description": {
+      "type": "string",
+      "description": "Node description",
+      "ui": { "widget": "textarea", "label": "Description" }
+    },
+    "node_type": {
+      "type": "string",
+      "enum": ["Passive", "Active", "Keystone", "Utility"],
+      "description": "Node category",
+      "ui": {
+        "widget": "select",
+        "label": "Node Type",
+        "options": ["Passive", "Active", "Keystone", "Utility"]
+      }
+    },
+    "max_rank": {
+      "type": "number",
+      "description": "Maximum ranks for this node",
+      "ui": { "widget": "number", "label": "Max Rank" }
+    },
+    "point_cost": {
+      "type": "number",
+      "description": "Points required per rank",
+      "ui": { "widget": "number", "label": "Point Cost" }
+    },
+    "requirements_id": {
+      "type": "string",
+      "description": "Optional requirement to unlock this node",
+      "ui": {
+        "widget": "reference",
+        "reference": "requirements",
+        "label": "Requirements"
+      }
+    },
+    "granted_abilities": {
+      "type": "array",
+      "description": "Abilities granted when this node is learned",
+      "items": { "type": "string" },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Granted Abilities",
+        "reference": "abilities"
+      }
+    },
+    "stat_modifiers": {
+      "type": "array",
+      "description": "Stat modifiers applied by this node",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stat_id": {
+            "type": "string",
+            "description": "Affected stat",
+            "ui": {
+              "widget": "select",
+              "label": "Stat",
+              "reference": "stats"
+            }
+          },
+          "value": {
+            "type": "number",
+            "description": "Modifier value",
+            "ui": { "widget": "number", "label": "Value" }
+          },
+          "value_type": {
+            "type": "string",
+            "enum": ["Flat", "Percentage", "Multiplier"],
+            "description": "How the value applies",
+            "ui": {
+              "widget": "select",
+              "label": "Value Type",
+              "options": ["Flat", "Percentage", "Multiplier"]
+            }
+          }
+        },
+        "required": ["stat_id", "value"]
+      }
+    },
+    "attribute_modifiers": {
+      "type": "array",
+      "description": "Attribute modifiers applied by this node",
+      "items": {
+        "type": "object",
+        "properties": {
+          "attribute_id": {
+            "type": "string",
+            "description": "Affected attribute",
+            "ui": {
+              "widget": "select",
+              "label": "Attribute",
+              "reference": "attributes"
+            }
+          },
+          "value": {
+            "type": "number",
+            "description": "Modifier value",
+            "ui": { "widget": "number", "label": "Value" }
+          },
+          "scaling": {
+            "type": "string",
+            "enum": ["None", "Linear", "Exponential", "Logarithmic", "Custom"],
+            "description": "Scaling behavior",
+            "ui": {
+              "widget": "select",
+              "label": "Scaling",
+              "options": ["None", "Linear", "Exponential", "Logarithmic", "Custom"]
+            }
+          }
+        },
+        "required": ["attribute_id", "value"]
+      }
+    },
+    "ui_position": {
+      "type": "object",
+      "description": "Optional node position for UI layout",
+      "properties": {
+        "x": { "type": "number", "ui": { "widget": "number", "label": "X" } },
+        "y": { "type": "number", "ui": { "widget": "number", "label": "Y" } }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching",
+      "items": { "type": "string" },
+      "ui": { "widget": "tags", "label": "Tags" }
+    }
+  },
+  "required": ["id", "slug", "tree_id", "name", "node_type"]
+}

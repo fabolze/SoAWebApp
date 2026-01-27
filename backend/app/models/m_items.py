@@ -78,18 +78,19 @@ class DamageType(enum.Enum):
     Slashing = "Slashing"
     Piercing = "Piercing"
     Blunt = "Blunt"
-    Elemental = "Elemental"
+    Fire = "Fire"
+    Water = "Water"
+    Air = "Air"
+    Earth = "Earth"
     Poison = "Poison"
     Psychic = "Psychic"
-    Holy = "Holy"
-    Void = "Void"
+    Light = "Light"
+    Shadow = "Shadow"
 
 
-class WeaponRange(enum.Enum):
-    Melee = "Melee"
-    Reach = "Reach"
-    Ranged = "Ranged"
-    Siege = "Siege"
+class WeaponRangeType(enum.Enum):
+    Melee = "melee"
+    Range = "range"
 
 
 class ModifierValueType(enum.Enum):
@@ -114,7 +115,8 @@ class Item(Base):
     equipment_slot = Column(Enum(EquipmentSlot))
     weapon_type = Column(Enum(WeaponType))
     damage_type = Column(Enum(DamageType))
-    weapon_range = Column(Enum(WeaponRange))
+    weapon_range_type = Column(Enum(WeaponRangeType))
+    weapon_range = Column(Integer)
 
     effects = Column(JSON)
     tags = Column(JSON)

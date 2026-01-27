@@ -4,6 +4,7 @@ from sqlalchemy import Column, String, Float, Enum, Text, JSON
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
 from backend.app.utils.id import generate_ulid
+from backend.app.models.m_items import DamageType
 import enum
 
 
@@ -27,6 +28,12 @@ class TriggerCondition(enum.Enum):
     WhenDamaged = "When Damaged"
     OnKill = "On Kill"
 
+
+class DamageTypeSource(enum.Enum):
+    Weapon = "Weapon"
+    Fixed = "Fixed"
+    None_ = "None"
+
 class Ability(Base):
     __tablename__ = 'abilities'
 
@@ -42,6 +49,8 @@ class Ability(Base):
     cooldown = Column(Float)
     targeting = Column(Enum(Targeting))
     trigger_condition = Column(Enum(TriggerCondition))
+    damage_type_source = Column(Enum(DamageTypeSource), default=DamageTypeSource.None_)
+    damage_type = Column(Enum(DamageType))
 
     requirements = Column(JSON)  # Keep as JSON for now (simple, rarely queried)
     tags = Column(JSON)  # List of string tags

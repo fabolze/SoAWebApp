@@ -1,7 +1,9 @@
 from backend.app.routes.base_route import BaseRoute
-from backend.app.models.m_abilities import Ability, AbilityType, Targeting, TriggerCondition
+from backend.app.models.m_abilities import Ability, AbilityType, Targeting, TriggerCondition, DamageTypeSource
 from backend.app.models.m_abilities_links import AbilityEffectLink, AbilityScalingLink
 from backend.app.models.m_effects import Effect
+from backend.app.models.m_effects import EffectType
+from backend.app.models.m_items import DamageType
 from backend.app.db.init_db import get_db_session
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
@@ -27,7 +29,9 @@ class AbilityRoute(BaseRoute):
         self.validate_enums(data, {
             "type": AbilityType,
             "targeting": Targeting,
-            "trigger_condition": TriggerCondition
+            "trigger_condition": TriggerCondition,
+            "damage_type_source": DamageTypeSource,
+            "damage_type": DamageType,
         })
         
         # Required fields
@@ -43,13 +47,25 @@ class AbilityRoute(BaseRoute):
         ability.targeting = data.get("targeting")  # Already converted to enum if present
         ability.trigger_condition = data.get("trigger_condition")  # Already converted to enum if present
         ability.requirements = data.get("requirements", {})
+
+        damage_type_source = data.get("damage_type_source") or DamageTypeSource.None_
+        ability.damage_type_source = damage_type_source
+        if damage_type_source == DamageTypeSource.Fixed:
+            if not data.get("damage_type"):
+                raise ValueError("damage_type is required when damage_type_source is Fixed")
+            ability.damage_type = data.get("damage_type")
+        else:
+            ability.damage_type = None
         
         # Clear and reset effect links
         ability.effects.clear()
         for effect_id in data.get("effects", []):
             # Validate effect exists
-            if not db_session.get(Effect, effect_id):
+            effect = db_session.get(Effect, effect_id)
+            if not effect:
                 raise ValueError(f"Invalid effect_id: {effect_id}")
+            if damage_type_source == DamageTypeSource.None_ and effect.type == EffectType.Damage:
+                raise ValueError("Non-damaging abilities cannot include Damage effects")
             link = AbilityEffectLink(effect_id=effect_id)
             link.ability = ability
             db_session.add(link)
