@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, type ReactNode } from 'react';
 import { generateSlug } from '../utils/generateId';
 import Autocomplete from './Autocomplete';
 import TagInput from './TagInput';
+import { useEditorStack, ParentSummary } from './EditorStackContext';
 
 interface SchemaFormProps {
   schema: any;
@@ -10,10 +11,12 @@ interface SchemaFormProps {
   referenceOptions?: Record<string, any[]>;
   fetchReferenceOptions?: (refType: string) => void;
   isValidCallback?: (valid: boolean) => void;
+  parentSummary?: ParentSummary;
 }
 
-export default function SchemaForm({ schema, data, onChange, referenceOptions: parentReferenceOptions, fetchReferenceOptions: parentFetchReferenceOptions, isValidCallback }: SchemaFormProps) {
+export default function SchemaForm({ schema, data, onChange, referenceOptions: parentReferenceOptions, fetchReferenceOptions: parentFetchReferenceOptions, isValidCallback, parentSummary }: SchemaFormProps) {
   const fields = Object.entries(schema.properties || {}) as [string, any][];
+  const editorStack = useEditorStack();
 
   // Determine the id field name (e.g. id)
   const idField = Object.keys(schema.properties || {}).find(
@@ -26,6 +29,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
 
   // --- Reference dropdowns state ---
   const [referenceOptions, setReferenceOptions] = useState<Record<string, any>>(parentReferenceOptions || {});
+  const [createdLabels, setCreatedLabels] = useState<Record<string, { id: string; label: string }>>({});
 
   // Fetch reference options, but only if not provided by parent
   const fetchReferenceOptions = useCallback((refType: string) => {
@@ -44,6 +48,21 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
         });
     }
   }, [parentFetchReferenceOptions, referenceOptions]);
+
+  const refreshReferenceOptions = useCallback((refType: string) => {
+    if (parentFetchReferenceOptions) {
+      parentFetchReferenceOptions(refType);
+      return;
+    }
+    fetch(`http://localhost:5000/api/${refType}`)
+      .then((res) => res.json())
+      .then((list) => {
+        setReferenceOptions((prev) => ({ ...prev, [refType]: list }));
+      })
+      .catch(() => {
+        setReferenceOptions((prev) => ({ ...prev, [refType]: [] }));
+      });
+  }, [parentFetchReferenceOptions]);
 
   // --- Reference autocomplete fetcher ---
   const fetchReferenceAutocomplete = useCallback(
@@ -104,16 +123,48 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
     onChange(updated);
   };
 
-  const renderFieldLabel = (label: string, description?: string) => (
-    <div className="mb-1">
-      <span className="font-medium text-gray-800">{label}</span>
-      {description && (
-        <p className="text-sm text-gray-500 mt-0.5">{description}</p>
-      )}
+  const renderFieldLabel = (label: string, description?: string, action?: ReactNode) => (
+    <div className="mb-1 flex items-start justify-between gap-2">
+      <div>
+        <span className="font-medium text-gray-800">{label}</span>
+        {description && (
+          <p className="text-sm text-gray-500 mt-0.5">{description}</p>
+        )}
+      </div>
+      {action}
     </div>
   );
 
   const inputBaseClass = "w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-white text-gray-800 transition-all duration-200 ease-in-out focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none hover:border-gray-400";
+
+  const schemaNameOverrides: Record<string, string> = {
+    'content-packs': 'content_packs',
+    'dialogue-nodes': 'dialogue_nodes',
+    'lore-entries': 'lore_entries',
+    'story-arcs': 'story_arcs',
+    'talent-nodes': 'talent_nodes',
+    'talent-node-links': 'talent_node_links',
+    'talent-trees': 'talent_trees',
+    'shop-inventory': 'shops_inventory',
+  };
+
+  const resolveSchemaName = (refType: string) => schemaNameOverrides[refType] || refType;
+
+  const handleCreateReference = async (
+    refType: string,
+    onSelect: (id: string, createdData: Record<string, any>) => void
+  ) => {
+    if (!editorStack?.openEditor) return;
+    const result = await editorStack.openEditor({
+      schemaName: resolveSchemaName(refType),
+      apiPath: refType,
+      parentSummary,
+    });
+    if (result?.id) {
+      onSelect(result.id, result.data);
+      refreshReferenceOptions(refType);
+    }
+  };
 
   // --- Preview URLs state for file uploads ---
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
@@ -148,6 +199,104 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           if (!shouldShow) return null;
         }
 
+        if (type === 'string' && ui.reference) {
+          const refType = ui.reference;
+          const createAction = editorStack?.openEditor ? (
+            <button
+              type="button"
+              className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-700 bg-slate-100 hover:bg-slate-200"
+              onClick={() =>
+                handleCreateReference(refType, (id, createdData) => {
+                  handleChange(key, id);
+                  const labelValue = createdData?.name || createdData?.title || createdData?.slug || createdData?.id;
+                  if (labelValue) {
+                    setCreatedLabels((prev) => ({ ...prev, [key]: { id, label: String(labelValue) } }));
+                  }
+                })
+              }
+            >
+              Create new
+            </button>
+          ) : null;
+          // Use Autocomplete for large lists, fallback to dropdown for small lists
+          const refOptions = (parentReferenceOptions || referenceOptions)[refType] || [];
+          const useAutocomplete = !ui.options && (!refOptions || refOptions.length > 50);
+          if (useAutocomplete) {
+            return (
+              <div key={key} className="form-field">
+                {renderFieldLabel(label, description, createAction)}
+                <Autocomplete
+                  label={label}
+                  value={value || ''}
+                  onChange={(val) => handleChange(key, val)}
+                  fetchOptions={(search) => fetchReferenceAutocomplete(refType, search)}
+                  getOptionLabel={(opt) => opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt)}
+                  getOptionValue={(opt) => opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt}
+                  placeholder={`Search ${label}...`}
+                  disabled={false}
+                  description={description}
+                  valueLabel={createdLabels[key]?.id === value ? createdLabels[key]?.label : undefined}
+                  hideLabel
+                  hideDescription
+                />
+              </div>
+            );
+          }
+          // fallback to dropdown for small lists or explicit select widget
+          const options = refOptions;
+          // Defensive: ensure options is always an array
+          const safeOptions = Array.isArray(options) ? options : [];
+          const showEmptyCreate = safeOptions.length === 0 && editorStack?.openEditor;
+          return (
+            <div key={key} className="form-field">
+              {renderFieldLabel(label, description, createAction)}
+              <div className="relative">
+                <select
+                  className={inputBaseClass}
+                  value={value || ''}
+                  onChange={(e) => handleChange(key, e.target.value)}
+                  disabled={safeOptions.length === 0}
+                >
+                  <option value="">{safeOptions.length === 0 ? 'No options available' : `Select ${label}`}</option>
+                  {(safeOptions as any[]).map((opt: any) => {
+                    // Try to show a human-friendly label
+                    const display = opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt);
+                    const val = opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
+                    return (
+                      <option key={val} value={val}>{display}</option>
+                    );
+                  })}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+              {showEmptyCreate && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">
+                  <span>No options yet.</span>
+                  <button
+                    type="button"
+                    className="px-2 py-1 rounded border border-slate-300 text-slate-700 bg-slate-100 hover:bg-slate-200"
+                    onClick={() =>
+                      handleCreateReference(refType, (id, createdData) => {
+                        handleChange(key, id);
+                        const labelValue = createdData?.name || createdData?.title || createdData?.slug || createdData?.id;
+                        if (labelValue) {
+                          setCreatedLabels((prev) => ({ ...prev, [key]: { id, label: String(labelValue) } }));
+                        }
+                      })
+                    }
+                  >
+                    Create new
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        }
+
         if (type === 'string' && ui.widget === 'select') {
           // Use ui.options if present, otherwise fallback to config.enum
           const selectOptions = ui.options || config.enum || [];
@@ -178,63 +327,6 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                 onChange={(e) => handleChange(key, e.target.value)}
                 placeholder={`Enter ${label.toLowerCase()}...`}
               />
-            </div>
-          );
-        }
-
-        if (type === 'string' && ui.reference) {
-          const refType = ui.reference;
-          // Use Autocomplete for large lists, fallback to dropdown for small lists
-          const refOptions = (parentReferenceOptions || referenceOptions)[refType] || [];
-          const useAutocomplete = !ui.options && (!refOptions || refOptions.length > 50);
-          if (useAutocomplete) {
-            return (
-              <div key={key} className="form-field">
-                {renderFieldLabel(label, description)}
-                <Autocomplete
-                  label={label}
-                  value={value || ''}
-                  onChange={(val) => handleChange(key, val)}
-                  fetchOptions={(search) => fetchReferenceAutocomplete(refType, search)}
-                  getOptionLabel={(opt) => opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt)}
-                  getOptionValue={(opt) => opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt}
-                  placeholder={`Search ${label}...`}
-                  disabled={false}
-                  description={description}
-                />
-              </div>
-            );
-          }
-          // fallback to dropdown for small lists
-          const options = refOptions;
-          // Defensive: ensure options is always an array
-          const safeOptions = Array.isArray(options) ? options : [];
-          return (
-            <div key={key} className="form-field">
-              {renderFieldLabel(label, description)}
-              <div className="relative">
-                <select
-                  className={inputBaseClass}
-                  value={value || ''}
-                  onChange={(e) => handleChange(key, e.target.value)}
-                  disabled={safeOptions.length === 0}
-                >
-                  <option value="">{safeOptions.length === 0 ? 'No options available' : `Select ${label}`}</option>
-                  {(safeOptions as any[]).map((opt: any) => {
-                    // Try to show a human-friendly label
-                    const display = opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt);
-                    const val = opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
-                    return (
-                      <option key={val} value={val}>{display}</option>
-                    );
-                  })}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              </div>
             </div>
           );
         }
@@ -373,9 +465,25 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
             return display.toLowerCase().includes(filter.toLowerCase());
           });
 
+          const createAction = refType && editorStack?.openEditor ? (
+            <button
+              type="button"
+              className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-700 bg-slate-100 hover:bg-slate-200"
+              onClick={() =>
+                handleCreateReference(refType as string, (id) => {
+                  if (!currentValues.includes(id)) {
+                    handleChange(key, [...currentValues, id]);
+                  }
+                })
+              }
+            >
+              Create new
+            </button>
+          ) : null;
+
           return (
             <div key={key} className="form-field">
-              {renderFieldLabel(label, description)}
+              {renderFieldLabel(label, description, createAction)}
               <div className="border border-gray-300 rounded-md p-3 bg-white">
                 <input
                   type="text"
@@ -399,7 +507,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                         >
                           <input
                             type="checkbox"
-                            className="checkbox checkbox-sm"
+                            className="h-4 w-4 rounded border-slate-300 text-slate-700 accent-slate-600 focus:ring-slate-400"
                             checked={checked}
                             onChange={() => {
                               if (checked) {
@@ -446,6 +554,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                   onChange={(val) => handleChange(key, val)}
                   referenceOptions={parentReferenceOptions || referenceOptions}
                   fetchReferenceOptions={fetchReferenceOptions}
+                  parentSummary={parentSummary}
                 />
               </div>
             </fieldset>
@@ -472,7 +581,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                       className="absolute top-2 right-2 text-gray-400 hover:text-red-500"
                       aria-label={`Remove ${label} item`}
                     >
-                      ×
+                      x
                     </button>
                     {/* Render each property in the object, with reference dropdown for stat_id if specified */}
                     {Object.entries(itemSchema.properties || {}).map(([itemKey, itemConfig]: any) => {
@@ -486,7 +595,25 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                         const safeOptions = Array.isArray(options) ? options : [];
                         return (
                           <div key={itemKey} className="form-field mb-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <label className="block text-sm font-medium text-gray-700">{itemLabel}</label>
+                              {editorStack?.openEditor && (
+                                <button
+                                  type="button"
+                                  className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-700 bg-slate-100 hover:bg-slate-200"
+                                  onClick={() =>
+                                    handleCreateReference(refType, (id) => {
+                                    const updatedItem = { ...item, [itemKey]: id };
+                                      const newArr = [...(value || [])];
+                                      newArr[idx] = updatedItem;
+                                      handleChange(key, newArr);
+                                    })
+                                  }
+                                >
+                                  Create new
+                                </button>
+                              )}
+                            </div>
                             <select
                               className={inputBaseClass}
                               value={itemValue || ''}

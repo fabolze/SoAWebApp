@@ -48,7 +48,7 @@
         },
         "ui": {
           "widget": "multiselect",
-          "reference": "story_arcs",
+          "reference": "story-arcs",
           "label": "Related Story Arcs"
         }
       },

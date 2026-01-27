@@ -10,6 +10,9 @@ interface AutocompleteProps {
   placeholder?: string;
   disabled?: boolean;
   description?: string;
+  valueLabel?: string;
+  hideLabel?: boolean;
+  hideDescription?: boolean;
 }
 
 const Autocomplete: React.FC<AutocompleteProps> = ({
@@ -22,6 +25,9 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
   placeholder,
   disabled,
   description,
+  valueLabel,
+  hideLabel,
+  hideDescription,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [options, setOptions] = useState<any[]>([]);
@@ -36,6 +42,12 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
       setSelectedLabel(selected ? getOptionLabel(selected) : '');
     }
   }, [value, options, getOptionLabel, getOptionValue]);
+
+  useEffect(() => {
+    if (valueLabel) {
+      setSelectedLabel(valueLabel);
+    }
+  }, [valueLabel]);
 
   useEffect(() => {
     if (showDropdown && inputValue.length >= 0) {
@@ -64,8 +76,8 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
 
   return (
     <div className="form-field relative">
-      <label className="font-medium text-gray-800 mb-1 block">{label}</label>
-      {description && <p className="text-sm text-gray-500 mb-1">{description}</p>}
+      {!hideLabel && <label className="font-medium text-gray-800 mb-1 block">{label}</label>}
+      {!hideDescription && description && <p className="text-sm text-gray-500 mb-1">{description}</p>}
       <input
         ref={inputRef}
         type="text"

@@ -30,7 +30,7 @@ const DarkModeToggle: React.FC = () => {
       onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       aria-label="Toggle dark mode"
     >
-      {theme === 'dark' ? '🌙 Dark' : '☀️ Light'}
+      {theme === 'dark' ? 'Dark' : 'Light'}
     </button>
   );
 };

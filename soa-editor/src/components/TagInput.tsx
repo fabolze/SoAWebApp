@@ -50,7 +50,7 @@ const TagInput: React.FC<TagInputProps> = ({ value, onChange, label = "Tags", pl
                 onClick={() => removeTag(tag)}
                 aria-label={`Remove tag ${tag}`}
               >
-                ×
+                x
               </button>
             )}
           </span>

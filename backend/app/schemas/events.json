@@ -50,7 +50,7 @@
       "description": "Required if type = LoreDiscovery",
       "ui": {
         "widget": "reference",
-        "reference": "lore_entries",
+        "reference": "lore-entries",
         "label": "Lore Entry"
       }
     },

@@ -1,4 +1,5 @@
 import SchemaForm from "./SchemaForm";
+import { ParentSummary } from "./EditorStackContext";
 
 interface EntryFormPanelProps {
   schema: any;
@@ -11,6 +12,7 @@ interface EntryFormPanelProps {
   setFormValid: (valid: boolean) => void;
   isNew: boolean;
   referenceOptionsVersion: number;
+  parentSummary?: ParentSummary;
 }
 
 const EntryFormPanel = ({
@@ -24,6 +26,7 @@ const EntryFormPanel = ({
   setFormValid,
   isNew,
   referenceOptionsVersion,
+  parentSummary,
 }: EntryFormPanelProps) => (
   <div className="flex-1 min-w-0 flex flex-col h-full max-h-full overflow-hidden bg-white p-6">
     <div className="sticky top-0 z-10 bg-white p-4 border-b">
@@ -41,6 +44,7 @@ const EntryFormPanel = ({
         fetchReferenceOptions={undefined}
         isValidCallback={setFormValid}
         key={referenceOptionsVersion}
+        parentSummary={parentSummary}
       />
       <div className="flex gap-2 mt-4">
         <button
@@ -48,7 +52,7 @@ const EntryFormPanel = ({
           onClick={onSave}
           disabled={!formValid}
         >
-          💾 Save
+          Save
         </button>
         {!isNew && (
           <button

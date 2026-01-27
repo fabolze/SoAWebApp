@@ -5,6 +5,7 @@ import { useRef } from "react";
 import EntryListPanel from "./EntryListPanel";
 import EntryFormPanel from "./EntryFormPanel";
 import { generateUlid, generateSlug } from "../utils/generateId";
+import { ParentSummary } from "./EditorStackContext";
 
 interface SchemaEditorProps {
   schemaName: string;
@@ -25,6 +26,10 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   const confirmRef = useRef<HTMLDialogElement>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importFileName, setImportFileName] = useState<string>("");
+  const parentSummary: ParentSummary = {
+    title: title.replace(/ Editor$/, ''),
+    data,
+  };
 
   useEffect(() => {
     // Load the JSON schema definition for the current editor page.
@@ -67,12 +72,12 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     
 
     if (res.ok) {
-      setToast({ type: 'success', message: 'Saved successfully ✅' });
+      setToast({ type: 'success', message: 'Saved successfully' });
       const updated = await fetch(`http://localhost:5000/api/${apiPath}`).then((r) => r.json());
       setEntries(updated);
       setReferenceOptionsVersion((v) => v + 1); // Trigger referenceOptions refresh in SchemaForm
     } else {
-      let msg = '❌ Save failed';
+      let msg = 'Save failed';
       try {
         const err = await res.json();
         if (err && err.message) msg += `: ${err.message}`;
@@ -163,9 +168,9 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     if (res.ok) {
       setEntries(entries.filter((e) => e[idField] !== entry[idField]));
       if (data[idField] === entry[idField]) setData({});
-      setToast({ type: 'success', message: 'Deleted successfully 🗑️' });
+      setToast({ type: 'success', message: 'Deleted successfully' });
     } else {
-      let msg = '❌ Delete failed';
+      let msg = 'Delete failed';
       try {
         const err = await res.json();
         if (err && err.message) msg += `: ${err.message}`;
@@ -210,7 +215,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     return aName.localeCompare(bName);
   });
 
-  if (!schema) return <p className="p-4">Loading schema…</p>;
+  if (!schema) return <p className="p-4">Loading schema...</p>;
 
   // Determine if creating new entry.
   const isNew = !editingId;
@@ -222,17 +227,17 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     if (!importFile) return;
     const formData = new FormData();
     formData.append("file", importFile);
-    const res = await fetch(`http://localhost:5000/api/import/csv/${apiPath}`, {
+    const res = await fetch(`http://localhost:5000/api/import/csv/${schemaName}`, {
       method: "POST",
       body: formData,
     });
     if (res.ok) {
-      setToast({ type: "success", message: "Imported successfully ✅" });
+      setToast({ type: "success", message: "Imported successfully" });
       // Refresh entries
       const updated = await fetch(`http://localhost:5000/api/${apiPath}`).then((r) => r.json());
       setEntries(updated);
     } else {
-      let msg = "❌ Import failed";
+      let msg = "Import failed";
       try {
         const err = await res.json();
         if (err && err.error) msg += `: ${err.error}`;
@@ -264,7 +269,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
             Download All (ZIP)
           </a>
           <a
-            href={`http://localhost:5000/api/export/csv/${apiPath}`}
+            href={`http://localhost:5000/api/export/csv/${schemaName}`}
             className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
             download
           >
@@ -320,6 +325,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
           setFormValid={setFormValid}
           isNew={isNew}
           referenceOptionsVersion={referenceOptionsVersion}
+          parentSummary={parentSummary}
         />
       </div>
       {/* DaisyUI modal for delete confirmation */}
