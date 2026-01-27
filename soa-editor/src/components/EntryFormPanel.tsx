@@ -13,6 +13,7 @@ interface EntryFormPanelProps {
   isNew: boolean;
   referenceOptionsVersion: number;
   parentSummary?: ParentSummary;
+  isDirty?: boolean;
 }
 
 const EntryFormPanel = ({
@@ -27,12 +28,16 @@ const EntryFormPanel = ({
   isNew,
   referenceOptionsVersion,
   parentSummary,
+  isDirty,
 }: EntryFormPanelProps) => (
   <div className="flex-1 min-w-0 flex flex-col h-full max-h-full overflow-hidden bg-white p-6">
     <div className="sticky top-0 z-10 bg-white p-4 border-b">
-      <h1 className="text-xl font-bold mb-2">{formHeader}</h1>
+      <h1 className="text-xl font-bold mb-2 text-slate-900">{formHeader}</h1>
       {!isNew && data?.id && (
-        <span className="ml-2 text-blue-700 font-semibold">Editing: {data.id}</span>
+        <span className="ml-2 text-slate-700 font-semibold">Editing: {data.id}</span>
+      )}
+      {isDirty && (
+        <span className="ml-2 text-amber-600 font-semibold">Unsaved changes</span>
       )}
     </div>
     <div className="flex-1 overflow-y-auto min-h-0 p-4">

@@ -55,6 +55,12 @@ function SortableSidebarItem({ to, label, icon: Icon, collapsed, hidden, groupLa
         </div>
         <NavLink
           to={to}
+          onClick={(e) => {
+            const dirty = (window as any).__soaDirty;
+            if (dirty && !window.confirm('You have unsaved changes. Discard them?')) {
+              e.preventDefault();
+            }
+          }}
           className={({ isActive }) =>
             `flex items-center ${collapsed ? 'justify-center' : 'gap-3'} py-2 px-2 rounded-md transition-colors duration-200 ${isActive ? 'bg-primary text-white' : 'hover:bg-slate-700'} font-medium ${isDragging ? 'pointer-events-none' : ''}`
           }

@@ -3,6 +3,7 @@ import { generateSlug } from '../utils/generateId';
 import Autocomplete from './Autocomplete';
 import TagInput from './TagInput';
 import { useEditorStack, ParentSummary } from './EditorStackContext';
+import SearchableSelect from './SearchableSelect';
 
 interface SchemaFormProps {
   schema: any;
@@ -30,6 +31,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
   // --- Reference dropdowns state ---
   const [referenceOptions, setReferenceOptions] = useState<Record<string, any>>(parentReferenceOptions || {});
   const [createdLabels, setCreatedLabels] = useState<Record<string, { id: string; label: string }>>({});
+  const [recentlyAdded, setRecentlyAdded] = useState<Record<string, string>>({});
 
   // Fetch reference options, but only if not provided by parent
   const fetchReferenceOptions = useCallback((refType: string) => {
@@ -166,6 +168,19 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
     }
   };
 
+  const markRecentlyAdded = (key: string, id: string) => {
+    setRecentlyAdded((prev) => ({ ...prev, [key]: id }));
+    setTimeout(() => {
+      setRecentlyAdded((prev) => {
+        if (prev[key] !== id) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }, 2500);
+  };
+
+
   // --- Preview URLs state for file uploads ---
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
 
@@ -201,10 +216,10 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
 
         if (type === 'string' && ui.reference) {
           const refType = ui.reference;
-          const createAction = editorStack?.openEditor ? (
+          const inlineCreate = editorStack?.openEditor ? (
             <button
               type="button"
-              className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-700 bg-slate-100 hover:bg-slate-200"
+              className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-700 bg-slate-100 hover:bg-slate-200 whitespace-nowrap"
               onClick={() =>
                 handleCreateReference(refType, (id, createdData) => {
                   handleChange(key, id);
@@ -224,21 +239,26 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           if (useAutocomplete) {
             return (
               <div key={key} className="form-field">
-                {renderFieldLabel(label, description, createAction)}
-                <Autocomplete
-                  label={label}
-                  value={value || ''}
-                  onChange={(val) => handleChange(key, val)}
-                  fetchOptions={(search) => fetchReferenceAutocomplete(refType, search)}
-                  getOptionLabel={(opt) => opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt)}
-                  getOptionValue={(opt) => opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt}
-                  placeholder={`Search ${label}...`}
-                  disabled={false}
-                  description={description}
-                  valueLabel={createdLabels[key]?.id === value ? createdLabels[key]?.label : undefined}
-                  hideLabel
-                  hideDescription
-                />
+                {renderFieldLabel(label, description)}
+                <div className="flex items-start gap-2">
+                  <div className="flex-1">
+                    <Autocomplete
+                      label={label}
+                      value={value || ''}
+                      onChange={(val) => handleChange(key, val)}
+                      fetchOptions={(search) => fetchReferenceAutocomplete(refType, search)}
+                      getOptionLabel={(opt) => opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt)}
+                      getOptionValue={(opt) => opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt}
+                      placeholder={`Search ${label}...`}
+                      disabled={false}
+                      description={description}
+                      valueLabel={createdLabels[key]?.id === value ? createdLabels[key]?.label : undefined}
+                      hideLabel
+                      hideDescription
+                    />
+                  </div>
+                  {inlineCreate}
+                </div>
               </div>
             );
           }
@@ -246,32 +266,27 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           const options = refOptions;
           // Defensive: ensure options is always an array
           const safeOptions = Array.isArray(options) ? options : [];
+          const mappedOptions = safeOptions.map((opt: any) => {
+            const labelText = opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt);
+            const valueText = opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
+            return { label: String(labelText), value: String(valueText) };
+          });
           const showEmptyCreate = safeOptions.length === 0 && editorStack?.openEditor;
           return (
             <div key={key} className="form-field">
-              {renderFieldLabel(label, description, createAction)}
-              <div className="relative">
-                <select
-                  className={inputBaseClass}
-                  value={value || ''}
-                  onChange={(e) => handleChange(key, e.target.value)}
-                  disabled={safeOptions.length === 0}
-                >
-                  <option value="">{safeOptions.length === 0 ? 'No options available' : `Select ${label}`}</option>
-                  {(safeOptions as any[]).map((opt: any) => {
-                    // Try to show a human-friendly label
-                    const display = opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt);
-                    const val = opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
-                    return (
-                      <option key={val} value={val}>{display}</option>
-                    );
-                  })}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+              {renderFieldLabel(label, description)}
+              <div className="flex items-start gap-2">
+                <div className="relative flex-1">
+                  <SearchableSelect
+                    value={value || ''}
+                    onChange={(val) => handleChange(key, val)}
+                    options={mappedOptions}
+                    placeholder={safeOptions.length === 0 ? 'No options available' : `Select ${label}`}
+                    disabled={safeOptions.length === 0}
+                    valueLabel={createdLabels[key]?.id === value ? createdLabels[key]?.label : undefined}
+                  />
                 </div>
+                {inlineCreate}
               </div>
               {showEmptyCreate && (
                 <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">
@@ -300,19 +315,20 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
         if (type === 'string' && ui.widget === 'select') {
           // Use ui.options if present, otherwise fallback to config.enum
           const selectOptions = ui.options || config.enum || [];
+          const mappedOptions = (selectOptions || []).map((opt: string) => ({
+            label: String(opt),
+            value: String(opt),
+          }));
           return (
             <div key={key} className="form-field">
               {renderFieldLabel(label, description)}
-              <select
-                className={inputBaseClass}
+              <SearchableSelect
                 value={value || ''}
-                onChange={(e) => handleChange(key, e.target.value)}
-              >
-                <option value="">Select {label}</option>
-                {selectOptions.map((opt: string) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
+                onChange={(val) => handleChange(key, val)}
+                options={mappedOptions}
+                placeholder={`Select ${label}`}
+                disabled={mappedOptions.length === 0}
+              />
             </div>
           );
         }
@@ -473,6 +489,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                 handleCreateReference(refType as string, (id) => {
                   if (!currentValues.includes(id)) {
                     handleChange(key, [...currentValues, id]);
+                    markRecentlyAdded(key, id);
                   }
                 })
               }
@@ -500,10 +517,11 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                       const display = opt.name || opt.title || opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
                       const val = opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
                       const checked = currentValues.includes(val);
+                      const isRecent = recentlyAdded[key] === val;
                       return (
                         <label
                           key={val}
-                          className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors ${checked ? 'bg-blue-100 border border-blue-200' : 'hover:bg-blue-50'}`}
+                          className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors ${checked ? 'bg-blue-100 border border-blue-200' : 'hover:bg-blue-50'} ${isRecent ? 'ring-2 ring-emerald-300 bg-emerald-50 border border-emerald-200' : ''}`}
                         >
                           <input
                             type="checkbox"

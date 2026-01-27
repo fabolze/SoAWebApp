@@ -101,6 +101,12 @@ const pageIcons: Record<string, React.ElementType> = {
               <Link
                 key={page.path}
                 to={page.path}
+                onClick={(e) => {
+                  const dirty = (window as any).__soaDirty;
+                  if (dirty && !window.confirm('You have unsaved changes. Discard them?')) {
+                    e.preventDefault();
+                  }
+                }}
                 className="card w-full bg-base-100 shadow-xl hover:shadow-2xl transition-transform hover:-translate-y-1 rounded-xl border border-gray-200 dark:border-gray-700 group focus:outline-none focus:ring-2 focus:ring-primary/40"
                 tabIndex={0}
                 aria-label={page.name}
