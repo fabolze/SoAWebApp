@@ -70,6 +70,24 @@ def import_csv(table_name):
                 if not clean_row.get('slug'):
                     base = clean_row.get('name') or clean_row.get('title') or clean_row.get('id')
                     clean_row['slug'] = slugify(base)
+                else:
+                    clean_row['slug'] = str(clean_row.get('slug') or '').strip().lower()
+            # Normalize tags to lowercase if present
+            if 'tags' in clean_row and clean_row.get('tags') is not None:
+                tags_val = clean_row.get('tags')
+                if isinstance(tags_val, str):
+                    raw = tags_val.strip()
+                    # Try JSON list
+                    try:
+                        parsed = json.loads(raw)
+                        if isinstance(parsed, list):
+                            clean_row['tags'] = [str(t).strip().lower() for t in parsed if str(t).strip() != ""]
+                        else:
+                            clean_row['tags'] = str(parsed).strip().lower()
+                    except Exception:
+                        # Fallback: comma-separated string
+                        parts = [p.strip().lower() for p in raw.split(',') if p.strip() != ""]
+                        clean_row['tags'] = parts
             obj = model_class(**clean_row)
             session.add(obj)
             count += 1

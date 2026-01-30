@@ -76,8 +76,22 @@ class BaseRoute:
         """Validate enum fields in the data."""
         try:
             for field, enum_class in enum_fields.items():
-                if field in data and data[field]:
-                    data[field] = enum_class(data[field])
+                if field in data and data[field] is not None:
+                    val = data[field]
+                    # Allow case-insensitive enum inputs
+                    if isinstance(val, str):
+                        try:
+                            data[field] = enum_class(val)
+                            continue
+                        except ValueError:
+                            for member in enum_class:
+                                if member.value.lower() == val.lower() or member.name.lower() == val.lower():
+                                    data[field] = member
+                                    break
+                            else:
+                                raise ValueError(f"{val} is not among the defined enum values")
+                    else:
+                        data[field] = enum_class(val)
         except ValueError as e:
             abort(400, description=f"Invalid enum value: {str(e)}")
     
@@ -123,6 +137,8 @@ class BaseRoute:
             item = db_session.get(self.model, item_id) or self.model(id=item_id)
             # Validate and process the data
             self.process_input_data(db_session, item, data)
+            # Normalize common fields (slug/tags) regardless of custom processing
+            self._normalize_common_fields(item, data)
             db_session.add(item)
             db_session.commit()
             return jsonify({"status": "ok", "id": item.id})
@@ -223,6 +239,24 @@ class BaseRoute:
         for key, value in data.items():
             if hasattr(model_instance, key):
                 setattr(model_instance, key, value)
+
+    def _normalize_common_fields(self, model_instance: Any, data: Dict[str, Any]) -> None:
+        """Normalize slug/tags to lowercase if present on the model."""
+        try:
+            if hasattr(model_instance, "slug"):
+                slug_val = getattr(model_instance, "slug", None)
+                if isinstance(slug_val, str):
+                    setattr(model_instance, "slug", slug_val.strip().lower())
+            if hasattr(model_instance, "tags"):
+                tags_val = getattr(model_instance, "tags", None)
+                if isinstance(tags_val, list):
+                    normalized = [str(t).strip().lower() for t in tags_val if str(t).strip() != ""]
+                    setattr(model_instance, "tags", normalized)
+                elif isinstance(tags_val, str):
+                    setattr(model_instance, "tags", tags_val.strip().lower())
+        except Exception:
+            # Avoid breaking saves on normalization errors
+            pass
     
     def serialize_list(self, items: List[Any]) -> List[Dict[str, Any]]:
         """Convert a list of items to JSON-serializable dicts."""

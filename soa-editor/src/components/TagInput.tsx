@@ -1,7 +1,7 @@
 import React, { useState, KeyboardEvent } from "react";
 
 interface TagInputProps {
-  value: string[];
+  value: string[] | string | null;
   onChange: (tags: string[]) => void;
   label?: string;
   placeholder?: string;
@@ -9,17 +9,22 @@ interface TagInputProps {
 }
 
 const TagInput: React.FC<TagInputProps> = ({ value, onChange, label = "Tags", placeholder = "Add a tag...", disabled = false }) => {
+  const safeValue = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(',').map((t) => t.trim()).filter(Boolean)
+      : [];
   const [input, setInput] = useState("");
 
   const addTag = (tag: string) => {
-    const trimmed = tag.trim();
-    if (trimmed && !value.includes(trimmed)) {
-      onChange([...value, trimmed]);
+    const trimmed = tag.trim().toLowerCase();
+    if (trimmed && !safeValue.includes(trimmed)) {
+      onChange([...safeValue, trimmed]);
     }
   };
 
   const removeTag = (tag: string) => {
-    onChange(value.filter((t) => t !== tag));
+    onChange(safeValue.filter((t) => t !== tag));
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -31,8 +36,8 @@ const TagInput: React.FC<TagInputProps> = ({ value, onChange, label = "Tags", pl
       e.preventDefault();
       addTag(input);
       setInput("");
-    } else if (e.key === "Backspace" && !input && value.length > 0) {
-      removeTag(value[value.length - 1]);
+    } else if (e.key === "Backspace" && !input && safeValue.length > 0) {
+      removeTag(safeValue[safeValue.length - 1]);
     }
   };
 
@@ -40,7 +45,7 @@ const TagInput: React.FC<TagInputProps> = ({ value, onChange, label = "Tags", pl
     <div className="form-field">
       {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
       <div className="flex flex-wrap gap-2 mb-2">
-        {value.map((tag) => (
+        {safeValue.map((tag) => (
           <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
             {tag}
             {!disabled && (

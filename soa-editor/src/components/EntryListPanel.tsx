@@ -2,6 +2,7 @@ import VirtualizedTable from "./VirtualizedTable";
 import { useMemo, useState, useEffect } from "react";
 
 interface EntryListPanelProps {
+  schemaName: string;
   entries: any[];
   listFields: string[];
   idField: string;
@@ -23,6 +24,7 @@ interface EntryListPanelProps {
 }
 
 const EntryListPanel = ({
+  schemaName,
   entries,
   listFields,
   idField,
@@ -43,6 +45,7 @@ const EntryListPanel = ({
   onToggleEditor,
 }: EntryListPanelProps) => (
   <EntryListPanelInternal
+    schemaName={schemaName}
     entries={entries}
     listFields={listFields}
     idField={idField}
@@ -65,6 +68,7 @@ const EntryListPanel = ({
 );
 
 const EntryListPanelInternal = ({
+  schemaName,
   entries,
   listFields,
   idField,
@@ -88,6 +92,8 @@ const EntryListPanelInternal = ({
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [bulkField, setBulkField] = useState<string>("");
   const [bulkValue, setBulkValue] = useState<string>("");
+  const [showColumns, setShowColumns] = useState(false);
+  const [visibleFields, setVisibleFields] = useState<string[]>(listFields);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allSelected = entries.length > 0 && selectedIds.length === entries.length;
@@ -95,6 +101,28 @@ const EntryListPanelInternal = ({
   useEffect(() => {
     setSelectedIds((prev) => prev.filter((id) => entries.some((e) => e[idField] === id)));
   }, [entries, idField]);
+
+  useEffect(() => {
+    const storageKey = `soa.columns.${schemaName}`;
+    const raw = localStorage.getItem(storageKey);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setVisibleFields(parsed);
+          return;
+        }
+      } catch {}
+    }
+    setVisibleFields(listFields);
+  }, [schemaName, listFields]);
+
+  useEffect(() => {
+    const storageKey = `soa.columns.${schemaName}`;
+    if (visibleFields.length > 0) {
+      localStorage.setItem(storageKey, JSON.stringify(visibleFields));
+    }
+  }, [schemaName, visibleFields]);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -110,6 +138,18 @@ const EntryListPanelInternal = ({
 
   const selectedEntries = entries.filter((e) => selectedSet.has(e[idField]));
 
+  const allFields = fieldKeys;
+  const isFieldVisible = (field: string) => visibleFields.includes(field);
+  const toggleField = (field: string) => {
+    setVisibleFields((prev) => {
+      if (prev.includes(field)) {
+        const next = prev.filter((f) => f !== field);
+        return next.length > 0 ? next : prev;
+      }
+      return [...prev, field];
+    });
+  };
+
   return (
     <div className="flex-1 min-w-0 flex flex-col h-full max-h-full overflow-hidden border-r border-slate-200 bg-gray-50 p-6">
       <div className="flex flex-col gap-2 p-4 border-b bg-white sticky top-0 z-10">
@@ -120,6 +160,12 @@ const EntryListPanelInternal = ({
             onClick={onToggleEditor}
           >
             {showEditor ? 'Hide Editor' : 'Show Editor'}
+          </button>
+          <button
+            className="px-2 py-1 rounded bg-slate-200 text-slate-700 text-xs hover:bg-slate-300"
+            onClick={() => setShowColumns((v) => !v)}
+          >
+            Columns
           </button>
           {selectedIds.length > 0 && (
             <>
@@ -159,6 +205,20 @@ const EntryListPanelInternal = ({
             <button className="px-2 py-1 rounded bg-slate-300 text-slate-700 text-xs hover:bg-slate-400" onClick={() => setShowBulkEdit(false)}>Cancel</button>
           </div>
         )}
+        {showColumns && (
+          <div className="flex flex-wrap gap-3 items-center bg-slate-50 p-2 rounded border border-slate-200">
+            {allFields.map((field) => (
+              <label key={field} className="flex items-center gap-2 text-xs text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={isFieldVisible(field)}
+                  onChange={() => toggleField(field)}
+                />
+                {field}
+              </label>
+            ))}
+          </div>
+        )}
         {/* Search controls for filtering entries in the list. */}
         <div className="flex gap-2 items-center mb-2 bg-gray-100 p-2.5 rounded shadow">
           <select
@@ -184,7 +244,7 @@ const EntryListPanelInternal = ({
         {entries.length > 100 ? (
           <VirtualizedTable
             entries={entries}
-            listFields={listFields}
+            listFields={visibleFields}
             idField={idField}
             editingId={editingId}
             onEdit={onEdit}
@@ -206,7 +266,7 @@ const EntryListPanelInternal = ({
                     onChange={toggleSelectAll}
                   />
                 </th>
-                {listFields.map((key) => (
+                {visibleFields.map((key) => (
                   <th key={key} className="px-3 py-2 border-b bg-gray-50 font-semibold text-slate-700 whitespace-nowrap">{key}</th>
                 ))}
                 <th className="px-3 py-2 border-b bg-gray-50 font-semibold text-slate-700">Actions</th>
@@ -223,7 +283,7 @@ const EntryListPanelInternal = ({
                       onChange={() => toggleSelect(entry[idField])}
                     />
                   </td>
-                  {listFields.map((key) => {
+                  {visibleFields.map((key) => {
                     const value = entry[key];
                     const isImage = typeof value === 'string' && (value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && (value.startsWith('http') || value.startsWith('/')));
                     return (

@@ -68,14 +68,14 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         autoComplete="off"
       />
       {showDropdown && (
-        <div className="absolute z-10 left-0 right-0 bg-white border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto mt-1">
+        <div className="absolute z-10 left-0 right-0 bg-white text-slate-900 border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto mt-1">
           {filteredOptions.length === 0 ? (
             <div className="p-2 text-gray-500 text-sm">No results</div>
           ) : (
             filteredOptions.map((option) => (
               <div
                 key={option.value}
-                className="px-3 py-2 cursor-pointer hover:bg-primary hover:text-white"
+                className="px-3 py-2 cursor-pointer text-slate-900 hover:bg-slate-100"
                 onMouseDown={() => {
                   onChange(option.value);
                   setInputValue(option.label);

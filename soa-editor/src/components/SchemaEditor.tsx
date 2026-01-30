@@ -18,6 +18,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   const [schema, setSchema] = useState<any | null>(null);
   const [data, setData] = useState<any>({});
   const [entries, setEntries] = useState<any[]>([]);
+  const [entriesError, setEntriesError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [formValid, setFormValid] = useState(true);
   const [referenceOptionsVersion, setReferenceOptionsVersion] = useState(0);
@@ -48,9 +49,17 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
         if (!Array.isArray(result)) {
           console.warn("API did not return an array for entries:", result);
           setEntries([]);
+          const msg = result?.message || result?.error || "API did not return a list.";
+          setEntriesError(`Entries load failed: ${msg}`);
         } else {
           setEntries(result);
+          setEntriesError(null);
         }
+      })
+      .catch((err) => {
+        console.error("Failed to load entries:", err);
+        setEntries([]);
+        setEntriesError(`Entries load failed: ${err?.message || "Unknown error"}`);
       });
   }, [apiPath]);
 
@@ -277,6 +286,10 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     if (Array.isArray(template)) {
       return value.split(',').map((v) => v.trim()).filter(Boolean);
     }
+    if (template === undefined) {
+      const num = parseFloat(value);
+      if (!Number.isNaN(num)) return num;
+    }
     return value;
   };
 
@@ -284,7 +297,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     if (selected.length === 0) return;
     if (!field) return;
     if (!window.confirm(`Apply "${field}" to ${selected.length} entries?`)) return;
-    await Promise.all(
+    const results = await Promise.all(
       selected.map((entry) => {
         const updated = { ...entry, [field]: coerceValue(entry[field], value) };
         return fetch(`http://localhost:5000/api/${apiPath}`, {
@@ -294,6 +307,17 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
         });
       })
     );
+    const failed = results.filter((r) => !r.ok);
+    if (failed.length > 0) {
+      let msg = `${failed.length} updates failed`;
+      try {
+        const err = await failed[0].json();
+        if (err?.message) msg += `: ${err.message}`;
+      } catch {}
+      setToast({ type: 'error', message: msg });
+    } else {
+      setToast({ type: 'success', message: `Updated ${selected.length} entries` });
+    }
     const updated = await fetch(`http://localhost:5000/api/${apiPath}`).then((r) => r.json());
     setEntries(updated);
   };
@@ -320,7 +344,8 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
   const [searchField, setSearchField] = useState<string>("__all__");
 
   // Filtered and sorted entries.
-  const filteredEntries = entries.filter((entry) => {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const filteredEntries = safeEntries.filter((entry) => {
     if (!search.trim()) return true;
     const searchLower = search.toLowerCase();
     if (searchField === "__all__") {
@@ -488,8 +513,14 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
           </form>
         </div>
       </div>
+      {entriesError && (
+        <div className="mx-6 mt-4 rounded border border-red-200 bg-red-50 text-red-800 px-4 py-2 text-sm">
+          {entriesError}
+        </div>
+      )}
       <div className="flex flex-row gap-6 flex-1 min-h-0">
         <EntryListPanel
+          schemaName={schemaName}
           entries={sortedEntries}
           listFields={listFields}
           idField={idField}

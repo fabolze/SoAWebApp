@@ -32,6 +32,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
   const [referenceOptions, setReferenceOptions] = useState<Record<string, any>>(parentReferenceOptions || {});
   const [createdLabels, setCreatedLabels] = useState<Record<string, { id: string; label: string }>>({});
   const [recentlyAdded, setRecentlyAdded] = useState<Record<string, string>>({});
+  const [numberInputs, setNumberInputs] = useState<Record<string, string>>({});
 
   // Fetch reference options, but only if not provided by parent
   const fetchReferenceOptions = useCallback((refType: string) => {
@@ -123,6 +124,45 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
       }
     }
     onChange(updated);
+  };
+
+  const normalizeDecimalInput = (raw: string) => raw.replace(',', '.');
+
+  const getNumberInputValue = (key: string, value: any) => {
+    if (numberInputs[key] !== undefined) return numberInputs[key];
+    if (value === null || value === undefined) return '';
+    return String(value);
+  };
+
+  const handleNumberChange = (key: string, raw: string) => {
+    const normalized = normalizeDecimalInput(raw);
+    setNumberInputs((prev) => ({ ...prev, [key]: normalized }));
+  };
+
+  const handleNumberBlur = (key: string, raw: string, applyChange?: (val: number | '') => void) => {
+    const normalized = normalizeDecimalInput(raw).trim();
+    if (normalized === '') {
+      setNumberInputs((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      if (applyChange) applyChange('');
+      return;
+    }
+    const num = parseFloat(normalized);
+    if (!Number.isNaN(num)) {
+      setNumberInputs((prev) => ({ ...prev, [key]: normalized }));
+      if (applyChange) applyChange(num);
+    }
+  };
+
+  const getNumberPlaceholder = (labelText: string, keyName?: string) => {
+    const lower = `${labelText} ${keyName || ''}`.toLowerCase();
+    if (lower.includes('multiplier')) return 'e.g. 0.8';
+    if (lower.includes('chance') || lower.includes('%')) return 'e.g. 25';
+    if (lower.includes('min') || lower.includes('max')) return 'e.g. 0';
+    return `e.g. 1.0`;
   };
 
   const renderFieldLabel = (label: string, description?: string, action?: ReactNode) => (
@@ -446,11 +486,13 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
             <div key={key} className="form-field">
               {renderFieldLabel(label, description)}
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 className={inputBaseClass}
-                value={value ?? ''}
-                onChange={(e) => handleChange(key, parseFloat(e.target.value))}
-                placeholder={`Enter ${label.toLowerCase()}...`}
+                value={getNumberInputValue(key, value)}
+                onChange={(e) => handleNumberChange(key, e.target.value)}
+                onBlur={(e) => handleNumberBlur(key, e.target.value, (val) => handleChange(key, val))}
+                placeholder={getNumberPlaceholder(label, key)}
               />
             </div>
           );
@@ -611,6 +653,11 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                         const options = (parentReferenceOptions || referenceOptions)[refType] || [];
                         // Defensive: ensure options is always an array
                         const safeOptions = Array.isArray(options) ? options : [];
+                        const mappedOptions = safeOptions.map((opt: any) => {
+                          const labelText = opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt);
+                          const valueText = opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
+                          return { label: String(labelText), value: String(valueText) };
+                        });
                         return (
                           <div key={itemKey} className="form-field mb-2">
                             <div className="flex items-start justify-between gap-2 mb-1">
@@ -632,44 +679,91 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                                 </button>
                               )}
                             </div>
-                            <select
-                              className={inputBaseClass}
+                            <SearchableSelect
                               value={itemValue || ''}
-                              onChange={e => {
-                                const updatedItem = { ...item, [itemKey]: e.target.value };
-                                const newArr = [...value];
+                              onChange={(val) => {
+                                const updatedItem = { ...item, [itemKey]: val };
+                                const newArr = [...(value || [])];
                                 newArr[idx] = updatedItem;
                                 handleChange(key, newArr);
                               }}
+                              options={mappedOptions}
+                              placeholder={safeOptions.length === 0 ? 'No options available' : `Select ${itemLabel}`}
                               disabled={safeOptions.length === 0}
-                            >
-                              <option value="">{safeOptions.length === 0 ? 'No options available' : `Select ${itemLabel}`}</option>
-                              {safeOptions.map((opt: any) => {
-                                const display = opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt);
-                                const val = opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
-                                return (
-                                  <option key={val} value={val}>{display}</option>
-                                );
-                              })}
-                            </select>
+                            />
+                            {safeOptions.length === 0 && editorStack?.openEditor && (
+                              <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">
+                                <span>No options yet.</span>
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 rounded border border-slate-300 text-slate-700 bg-slate-100 hover:bg-slate-200"
+                                  onClick={() =>
+                                    handleCreateReference(refType, (id) => {
+                                      const updatedItem = { ...item, [itemKey]: id };
+                                      const newArr = [...(value || [])];
+                                      newArr[idx] = updatedItem;
+                                      handleChange(key, newArr);
+                                    })
+                                  }
+                                >
+                                  Create new
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      if (itemConfig.type === 'string' && itemUi.widget === 'select') {
+                        const selectOptions = itemUi.options || itemConfig.enum || [];
+                        const mappedOptions = (selectOptions || []).map((opt: string) => ({
+                          label: String(opt),
+                          value: String(opt),
+                        }));
+                        return (
+                          <div key={itemKey} className="form-field mb-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
+                            <SearchableSelect
+                              value={itemValue || ''}
+                              onChange={(val) => {
+                                const updatedItem = { ...item, [itemKey]: val };
+                                const newArr = [...(value || [])];
+                                newArr[idx] = updatedItem;
+                                handleChange(key, newArr);
+                              }}
+                              options={mappedOptions}
+                              placeholder={`Select ${itemLabel}`}
+                              disabled={mappedOptions.length === 0}
+                            />
                           </div>
                         );
                       }
                       // Fallback for other types
                       if (itemConfig.type === 'number') {
+                        const itemKeyPath = `${key}.${idx}.${itemKey}`;
                         return (
                           <div key={itemKey} className="form-field mb-2">
                             <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
                             <input
-                              type="number"
+                              type="text"
+                              inputMode="decimal"
                               className={inputBaseClass}
-                              value={itemValue || ''}
+                              value={getNumberInputValue(itemKeyPath, itemValue)}
                               onChange={e => {
-                                const updatedItem = { ...item, [itemKey]: parseFloat(e.target.value) };
-                                const newArr = [...value];
+                                handleNumberChange(itemKeyPath, e.target.value);
+                                const updatedItem = { ...item, [itemKey]: item[itemKey] };
+                                const newArr = [...(value || [])];
                                 newArr[idx] = updatedItem;
                                 handleChange(key, newArr);
                               }}
+                              onBlur={(e) => {
+                                handleNumberBlur(itemKeyPath, e.target.value, (val) => {
+                                  const updatedItem = { ...item, [itemKey]: val };
+                                  const newArr = [...(value || [])];
+                                  newArr[idx] = updatedItem;
+                                  handleChange(key, newArr);
+                                });
+                              }}
+                              placeholder={getNumberPlaceholder(itemLabel, itemKey)}
                             />
                           </div>
                         );
