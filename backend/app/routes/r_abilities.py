@@ -83,7 +83,16 @@ class AbilityRoute(BaseRoute):
             db_session.add(link)
     
     def serialize_item(self, ability: Ability) -> Dict[str, Any]:
-        return self.serialize_model(ability)
+        data = self.serialize_model(ability)
+        data["effects"] = [link.effect_id for link in (ability.effects or [])]
+        data["scaling"] = [
+            {
+                "attribute_id": link.attribute_id,
+                "multiplier": link.multiplier,
+            }
+            for link in (ability.scaling or [])
+        ]
+        return data
     
     def get_all(self):
         """Get all abilities, with optional search and tag filtering."""

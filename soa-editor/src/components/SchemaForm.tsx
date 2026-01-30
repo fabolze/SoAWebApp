@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, type ReactNode } from 'react';
 import { generateSlug } from '../utils/generateId';
-import Autocomplete from './Autocomplete';
 import TagInput from './TagInput';
 import { useEditorStack, ParentSummary } from './EditorStackContext';
 import SearchableSelect from './SearchableSelect';
+import ArrayStringMultiSelectField from './SchemaFields/ArrayStringMultiSelectField';
+import ReferenceSelectField from './SchemaFields/ReferenceSelectField';
 
 interface SchemaFormProps {
   schema: any;
@@ -256,99 +257,38 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
 
         if (type === 'string' && ui.reference) {
           const refType = ui.reference;
-          const inlineCreate = editorStack?.openEditor ? (
-            <button
-              type="button"
-              className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-700 bg-slate-100 hover:bg-slate-200 whitespace-nowrap"
-              onClick={() =>
-                handleCreateReference(refType, (id, createdData) => {
-                  handleChange(key, id);
-                  const labelValue = createdData?.name || createdData?.title || createdData?.slug || createdData?.id;
-                  if (labelValue) {
-                    setCreatedLabels((prev) => ({ ...prev, [key]: { id, label: String(labelValue) } }));
-                  }
-                })
-              }
-            >
-              Create new
-            </button>
-          ) : null;
           // Use Autocomplete for large lists, fallback to dropdown for small lists
           const refOptions = (parentReferenceOptions || referenceOptions)[refType] || [];
           const useAutocomplete = !ui.options && (!refOptions || refOptions.length > 50);
-          if (useAutocomplete) {
-            return (
-              <div key={key} className="form-field">
-                {renderFieldLabel(label, description)}
-                <div className="flex items-start gap-2">
-                  <div className="flex-1">
-                    <Autocomplete
-                      label={label}
-                      value={value || ''}
-                      onChange={(val) => handleChange(key, val)}
-                      fetchOptions={(search) => fetchReferenceAutocomplete(refType, search)}
-                      getOptionLabel={(opt) => opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt)}
-                      getOptionValue={(opt) => opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt}
-                      placeholder={`Search ${label}...`}
-                      disabled={false}
-                      description={description}
-                      valueLabel={createdLabels[key]?.id === value ? createdLabels[key]?.label : undefined}
-                      hideLabel
-                      hideDescription
-                    />
-                  </div>
-                  {inlineCreate}
-                </div>
-              </div>
-            );
-          }
-          // fallback to dropdown for small lists or explicit select widget
-          const options = refOptions;
-          // Defensive: ensure options is always an array
-          const safeOptions = Array.isArray(options) ? options : [];
-          const mappedOptions = safeOptions.map((opt: any) => {
-            const labelText = opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt);
-            const valueText = opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
-            return { label: String(labelText), value: String(valueText) };
-          });
-          const showEmptyCreate = safeOptions.length === 0 && editorStack?.openEditor;
+          const handleCreateReferenceForField = async () => {
+            let created: { id: string; label?: string } | null = null;
+            await handleCreateReference(refType, (id, createdData) => {
+              const labelValue = createdData?.name || createdData?.title || createdData?.slug || createdData?.id;
+              created = { id, label: labelValue ? String(labelValue) : undefined };
+            });
+            return created;
+          };
+
+          const valueLabel = createdLabels[key]?.id === value ? createdLabels[key]?.label : undefined;
           return (
-            <div key={key} className="form-field">
-              {renderFieldLabel(label, description)}
-              <div className="flex items-start gap-2">
-                <div className="relative flex-1">
-                  <SearchableSelect
-                    value={value || ''}
-                    onChange={(val) => handleChange(key, val)}
-                    options={mappedOptions}
-                    placeholder={safeOptions.length === 0 ? 'No options available' : `Select ${label}`}
-                    disabled={safeOptions.length === 0}
-                    valueLabel={createdLabels[key]?.id === value ? createdLabels[key]?.label : undefined}
-                  />
-                </div>
-                {inlineCreate}
-              </div>
-              {showEmptyCreate && (
-                <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">
-                  <span>No options yet.</span>
-                  <button
-                    type="button"
-                    className="px-2 py-1 rounded border border-slate-300 text-slate-700 bg-slate-100 hover:bg-slate-200"
-                    onClick={() =>
-                      handleCreateReference(refType, (id, createdData) => {
-                        handleChange(key, id);
-                        const labelValue = createdData?.name || createdData?.title || createdData?.slug || createdData?.id;
-                        if (labelValue) {
-                          setCreatedLabels((prev) => ({ ...prev, [key]: { id, label: String(labelValue) } }));
-                        }
-                      })
-                    }
-                  >
-                    Create new
-                  </button>
-                </div>
-              )}
-            </div>
+            <ReferenceSelectField
+              key={key}
+              label={label}
+              description={description}
+              value={value || ''}
+              refType={refType}
+              options={refOptions}
+              useAutocomplete={useAutocomplete}
+              valueLabel={valueLabel}
+              canCreate={!!editorStack?.openEditor}
+              onCreateReference={editorStack?.openEditor ? handleCreateReferenceForField : undefined}
+              onCreatedLabel={(id, labelText) => {
+                setCreatedLabels((prev) => ({ ...prev, [key]: { id, label: labelText } }));
+              }}
+              onChange={(val) => handleChange(key, val)}
+              fetchReferenceAutocomplete={fetchReferenceAutocomplete}
+              renderFieldLabel={renderFieldLabel}
+            />
           );
         }
 
@@ -514,77 +454,30 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
             options = config.enum.map((opt: string) => ({ id: opt, name: opt }));
           }
 
-          // --- Type-ahead filter state ---
-          const [filter, setFilter] = useState<string>("");
-          const currentValues = Array.isArray(value) ? value : [];
-          // Filter options by name/title/id
-          const filteredOptions = (Array.isArray(options) ? options : []).filter((opt: any) => {
-            const display = opt.name || opt.title || opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
-            return display.toLowerCase().includes(filter.toLowerCase());
-          });
-
-          const createAction = refType && editorStack?.openEditor ? (
-            <button
-              type="button"
-              className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-700 bg-slate-100 hover:bg-slate-200"
-              onClick={() =>
-                handleCreateReference(refType as string, (id) => {
-                  if (!currentValues.includes(id)) {
-                    handleChange(key, [...currentValues, id]);
-                    markRecentlyAdded(key, id);
-                  }
-                })
-              }
-            >
-              Create new
-            </button>
-          ) : null;
+          const onCreateReference = refType && editorStack?.openEditor
+            ? async () => {
+              let createdId: string | null = null;
+              await handleCreateReference(refType as string, (id) => {
+                createdId = id;
+              });
+              return createdId;
+            }
+            : undefined;
 
           return (
-            <div key={key} className="form-field">
-              {renderFieldLabel(label, description, createAction)}
-              <div className="border border-gray-300 rounded-md p-3 bg-white">
-                <input
-                  type="text"
-                  className="mb-2 w-full border border-gray-200 rounded px-2 py-1 text-sm text-gray-800 placeholder:text-gray-500"
-                  placeholder={`Type to filter ${label}...`}
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                />
-                {filteredOptions.length === 0 ? (
-                  <p className="text-sm text-gray-500">No options available</p>
-                ) : (
-                  <div className="flex flex-col gap-1">
-                    {filteredOptions.map((opt: any) => {
-                      const display = opt.name || opt.title || opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
-                      const val = opt.id || opt[`${refType?.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt;
-                      const checked = currentValues.includes(val);
-                      const isRecent = recentlyAdded[key] === val;
-                      return (
-                        <label
-                          key={val}
-                          className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors ${checked ? 'bg-blue-100 border border-blue-200' : 'hover:bg-blue-50'} ${isRecent ? 'ring-2 ring-emerald-300 bg-emerald-50 border border-emerald-200' : ''}`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-slate-300 text-slate-700 accent-slate-600 focus:ring-slate-400"
-                            checked={checked}
-                            onChange={() => {
-                              if (checked) {
-                                handleChange(key, currentValues.filter((v: string) => v !== val));
-                              } else {
-                                handleChange(key, [...currentValues, val]);
-                              }
-                            }}
-                          />
-                          <span className="text-sm text-gray-800">{display}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
+            <ArrayStringMultiSelectField
+              key={key}
+              label={label}
+              description={description}
+              value={Array.isArray(value) ? value : []}
+              options={options}
+              refType={refType}
+              recentlyAddedId={recentlyAdded[key]}
+              onChange={(next) => handleChange(key, next)}
+              onCreateReference={onCreateReference}
+              onMarkRecentlyAdded={(id) => markRecentlyAdded(key, id)}
+              renderFieldLabel={renderFieldLabel}
+            />
           );
         }
 

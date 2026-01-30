@@ -174,37 +174,54 @@ class BaseRoute:
         """Extract the ID from the input data."""
         raise NotImplementedError
     
-    def serialize_model(self, model_instance: Any) -> Dict[str, Any]:
-        """Serialize any model instance dynamically, handling enums, JSON fields, relationships, and computed fields."""
-        serialized = {}
-        for column in model_instance.__table__.columns:
-            value = getattr(model_instance, column.name, None)
-            if isinstance(value, enum.Enum):
-                serialized[column.name] = value.value  # Convert enum to its string value
-            elif isinstance(value, list) or isinstance(value, dict):
-                serialized[column.name] = value  # Handle JSON fields
-            else:
-                serialized[column.name] = value
+    def serialize_model(self, model_instance: Any, _active: Optional[set] = None) -> Dict[str, Any]:
+        """Serialize any model instance dynamically, handling enums, JSON fields, relationships, and computed fields.
 
-        # Handle relationships
-        for relationship in model_instance.__mapper__.relationships:
-            related_value = getattr(model_instance, relationship.key, None)
-            if related_value is not None:
-                if isinstance(related_value, list):
-                    serialized[relationship.key] = [self.serialize_model(item) for item in related_value]
+        Uses a cycle guard to avoid infinite recursion on bidirectional relationships.
+        """
+        if model_instance is None:
+            return {}
+        if _active is None:
+            _active = set()
+
+        model_id = getattr(model_instance, "id", None)
+        identity = (model_instance.__class__.__name__, model_id if model_id is not None else id(model_instance))
+        if identity in _active:
+            return {"id": model_id}
+
+        _active.add(identity)
+        try:
+            serialized = {}
+            for column in model_instance.__table__.columns:
+                value = getattr(model_instance, column.name, None)
+                if isinstance(value, enum.Enum):
+                    serialized[column.name] = value.value  # Convert enum to its string value
+                elif isinstance(value, list) or isinstance(value, dict):
+                    serialized[column.name] = value  # Handle JSON fields
                 else:
-                    serialized[relationship.key] = self.serialize_model(related_value)
+                    serialized[column.name] = value
 
-        # Add computed fields if any
-        if hasattr(model_instance, "computed_fields"):
-            for field_name, compute_func in model_instance.computed_fields.items():
-                serialized[field_name] = compute_func(model_instance)
+            # Handle relationships
+            for relationship in model_instance.__mapper__.relationships:
+                related_value = getattr(model_instance, relationship.key, None)
+                if related_value is not None:
+                    if isinstance(related_value, list):
+                        serialized[relationship.key] = [self.serialize_model(item, _active) for item in related_value]
+                    else:
+                        serialized[relationship.key] = self.serialize_model(related_value, _active)
 
-        # Custom serialization for specific models
-        if hasattr(model_instance, "custom_serialization"):
-            serialized.update(model_instance.custom_serialization())
+            # Add computed fields if any
+            if hasattr(model_instance, "computed_fields"):
+                for field_name, compute_func in model_instance.computed_fields.items():
+                    serialized[field_name] = compute_func(model_instance)
 
-        return serialized
+            # Custom serialization for specific models
+            if hasattr(model_instance, "custom_serialization"):
+                serialized.update(model_instance.custom_serialization())
+
+            return serialized
+        finally:
+            _active.remove(identity)
 
     def process_input_data(self, db_session: Session, model_instance: Any, data: Dict[str, Any]) -> None:
         """Process input data for model instance, handling enums, relationships, and JSON fields."""

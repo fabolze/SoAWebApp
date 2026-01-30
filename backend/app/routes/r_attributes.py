@@ -73,7 +73,17 @@ class AttributeRoute(BaseRoute):
             db_session.add(link)
     
     def serialize_item(self, attribute: Attribute) -> Dict[str, Any]:
-        return self.serialize_model(attribute)
+        serialized = self.serialize_model(attribute)
+        serialized.pop("scaling_links", None)
+        serialized["results_in"] = [
+            {
+                "stat_id": link.stat_id,
+                "scale": link.scale.value if hasattr(link.scale, "value") else link.scale,
+                "multiplier": link.multiplier,
+            }
+            for link in (attribute.scaling_links or [])
+        ]
+        return serialized
     
     def get_all(self):
         db_session = get_db_session()

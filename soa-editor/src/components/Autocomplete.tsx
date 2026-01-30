@@ -34,6 +34,7 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState('');
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -59,6 +60,14 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
     }
   }, [inputValue, showDropdown, fetchOptions]);
 
+  useEffect(() => {
+    if (!showDropdown) {
+      setHighlightedIndex(-1);
+      return;
+    }
+    setHighlightedIndex(options.length > 0 ? 0 : -1);
+  }, [showDropdown, options]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
     setShowDropdown(true);
@@ -74,6 +83,42 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
     setTimeout(() => setShowDropdown(false), 150);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!showDropdown) {
+        setShowDropdown(true);
+        return;
+      }
+      setHighlightedIndex((prev) => {
+        if (options.length === 0) return -1;
+        const next = prev < 0 ? 0 : Math.min(prev + 1, options.length - 1);
+        return next;
+      });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!showDropdown) {
+        setShowDropdown(true);
+        return;
+      }
+      setHighlightedIndex((prev) => {
+        if (options.length === 0) return -1;
+        const next = prev <= 0 ? 0 : prev - 1;
+        return next;
+      });
+    } else if (e.key === 'Enter') {
+      if (showDropdown && highlightedIndex >= 0 && highlightedIndex < options.length) {
+        e.preventDefault();
+        handleSelect(options[highlightedIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      if (showDropdown) {
+        e.preventDefault();
+        setShowDropdown(false);
+      }
+    }
+  };
+
   return (
     <div className="form-field relative">
       {!hideLabel && <label className="font-medium text-gray-800 mb-1 block">{label}</label>}
@@ -86,6 +131,7 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
         onChange={handleInputChange}
         onFocus={() => setShowDropdown(true)}
         onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder || `Search ${label}...`}
         disabled={disabled}
         autoComplete="off"
@@ -100,10 +146,10 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
           ) : options.length === 0 ? (
             <div className="p-2 text-gray-500 text-sm">No results</div>
           ) : (
-            options.map((option) => (
+            options.map((option, index) => (
               <div
                 key={getOptionValue(option)}
-                className="px-3 py-2 cursor-pointer hover:bg-primary hover:text-white"
+                className={`px-3 py-2 cursor-pointer hover:bg-primary hover:text-white ${highlightedIndex === index ? 'bg-primary text-white' : ''}`}
                 onMouseDown={() => handleSelect(option)}
               >
                 {getOptionLabel(option)}

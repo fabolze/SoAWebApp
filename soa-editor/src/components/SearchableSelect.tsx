@@ -25,6 +25,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState('');
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -53,6 +54,53 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     setTimeout(() => setShowDropdown(false), 150);
   };
 
+  useEffect(() => {
+    if (!showDropdown) {
+      setHighlightedIndex(-1);
+      return;
+    }
+    setHighlightedIndex(filteredOptions.length > 0 ? 0 : -1);
+  }, [showDropdown, filteredOptions.length]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!showDropdown) {
+        setShowDropdown(true);
+        return;
+      }
+      setHighlightedIndex((prev) => {
+        if (filteredOptions.length === 0) return -1;
+        const next = prev < 0 ? 0 : Math.min(prev + 1, filteredOptions.length - 1);
+        return next;
+      });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!showDropdown) {
+        setShowDropdown(true);
+        return;
+      }
+      setHighlightedIndex((prev) => {
+        if (filteredOptions.length === 0) return -1;
+        const next = prev <= 0 ? 0 : prev - 1;
+        return next;
+      });
+    } else if (e.key === 'Enter') {
+      if (showDropdown && highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
+        e.preventDefault();
+        const option = filteredOptions[highlightedIndex];
+        onChange(option.value);
+        setInputValue(option.label);
+        setShowDropdown(false);
+      }
+    } else if (e.key === 'Escape') {
+      if (showDropdown) {
+        e.preventDefault();
+        setShowDropdown(false);
+      }
+    }
+  };
+
   return (
     <div className="relative">
       <input
@@ -63,6 +111,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         onChange={(e) => setInputValue(e.target.value)}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled}
         autoComplete="off"
@@ -72,10 +121,10 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
           {filteredOptions.length === 0 ? (
             <div className="p-2 text-gray-500 text-sm">No results</div>
           ) : (
-            filteredOptions.map((option) => (
+            filteredOptions.map((option, index) => (
               <div
                 key={option.value}
-                className="px-3 py-2 cursor-pointer text-slate-900 hover:bg-slate-100"
+                className={`px-3 py-2 cursor-pointer text-slate-900 hover:bg-slate-100 ${highlightedIndex === index ? 'bg-slate-100' : ''}`}
                 onMouseDown={() => {
                   onChange(option.value);
                   setInputValue(option.label);
