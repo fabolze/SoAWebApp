@@ -12,7 +12,7 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 
 ### Attributes (`m_attributes.py`)
 - **Key fields:** `id`, `slug`, `value_type`, `scaling`.
-- **Feeds:** AttributeStatLink, AbilityScalingLink, Item Attribute Modifiers, Effects (`attribute_id`), dialogue or stat checks.
+- **Feeds:** AttributeStatLink, Item Attribute Modifiers, Effects (`attribute_id`), dialogue or stat checks.
 - **Blueprint owners:** Attribute resolver inside `BP_GameDataSubsystem`, `BP_EffectResolver`, character sheet UI.
 
 ### Attribute-to-Stat Link (`m_attribute_stat_link.py`)
@@ -36,7 +36,8 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 - **Blueprint owners:** `BP_EffectResolver`, combat log.
 
 ### Ability Scaling Link (`m_abilities_links.py`)
-- **Purpose:** Ties abilities to Attributes with multipliers.
+- **Purpose:** Ties abilities to Stats with multipliers.
+- **Key fields:** `ability_id`, `stat_id`, `multiplier`.
 - **Blueprint owners:** Damage or heal formulas in `BP_CombatFormulaLibrary`.
 
 ### Effects (`m_effects.py`)

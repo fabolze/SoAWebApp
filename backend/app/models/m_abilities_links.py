@@ -21,8 +21,8 @@ class AbilityScalingLink(Base):
 
     id = Column(String, primary_key=True, default=generate_ulid)
     ability_id = Column(String, ForeignKey('abilities.id'), nullable=False)
-    attribute_id = Column(String, ForeignKey('attributes.id'), nullable=False)
+    stat_id = Column(String, ForeignKey('stats.id'), nullable=False)
     multiplier = Column(Float, nullable=False)
 
     ability = relationship("Ability", back_populates="scaling")
-    attribute = relationship("Attribute")
+    stat = relationship("Stat")

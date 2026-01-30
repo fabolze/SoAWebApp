@@ -2,8 +2,8 @@
 from flask import Blueprint, Response, abort, send_file
 from backend.app.db.init_db import get_db_session
 from backend.app.models import ALL_MODELS
+from backend.app.utils.csv_tools import build_csv_rows
 import csv
-import io
 import zipfile
 import tempfile
 import os
@@ -22,16 +22,12 @@ def export_all_csv_zip():
             if not table_name:
                 continue
             rows = session.query(model_class).all()
-            columns = [c.name for c in model_class.__table__.columns]
-            # Ensure id and slug appear first if present
-            head = [c for c in ["id", "slug"] if c in columns]
-            columns = head + [c for c in columns if c not in head]
             csv_path = os.path.join(temp_dir, f"{table_name}.csv")
             with open(csv_path, "w", newline='', encoding="utf-8") as f:
+                columns, data_rows = build_csv_rows(table_name, model_class, rows)
                 writer = csv.writer(f)
                 writer.writerow(columns)
-                for row in rows:
-                    writer.writerow([getattr(row, col) for col in columns])
+                writer.writerows(data_rows)
             csv_files.append(csv_path)
         # Create zip
         zip_path = os.path.join(temp_dir, "all_tables.zip")

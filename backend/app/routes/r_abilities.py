@@ -4,6 +4,7 @@ from backend.app.models.m_abilities_links import AbilityEffectLink, AbilityScali
 from backend.app.models.m_effects import Effect
 from backend.app.models.m_effects import EffectType
 from backend.app.models.m_items import DamageType
+from backend.app.models.m_stats import Stat
 from backend.app.db.init_db import get_db_session
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
@@ -73,10 +74,13 @@ class AbilityRoute(BaseRoute):
         # Clear and reset scaling
         ability.scaling.clear()
         for entry in data.get("scaling", []):
-            if not all(k in entry for k in ["attribute_id", "multiplier"]):
-                raise ValueError("Invalid scaling entry: missing attribute_id or multiplier")
+            if not all(k in entry for k in ["stat_id", "multiplier"]):
+                raise ValueError("Invalid scaling entry: missing stat_id or multiplier")
+            stat_id = entry["stat_id"]
+            if not db_session.get(Stat, stat_id):
+                raise ValueError(f"Invalid stat_id: {stat_id}")
             link = AbilityScalingLink(
-                attribute_id=entry["attribute_id"],
+                stat_id=stat_id,
                 multiplier=float(entry["multiplier"])
             )
             link.ability = ability
@@ -87,7 +91,7 @@ class AbilityRoute(BaseRoute):
         data["effects"] = [link.effect_id for link in (ability.effects or [])]
         data["scaling"] = [
             {
-                "attribute_id": link.attribute_id,
+                "stat_id": link.stat_id,
                 "multiplier": link.multiplier,
             }
             for link in (ability.scaling or [])

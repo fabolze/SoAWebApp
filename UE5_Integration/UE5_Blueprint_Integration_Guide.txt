@@ -537,7 +537,7 @@ Struct FAbilityEffectLink:
 Struct FAbilityScalingLink:
 - id (String) - ULID.
 - ability_id (String).
-- attribute_id (String).
+- stat_id (String).
 - multiplier (Float) - Faktor fuer die Skalierung.
 
 Struct FEffectData:

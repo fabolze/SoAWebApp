@@ -128,29 +128,29 @@
       },
       "scaling": {
         "type": "array",
-        "description": "Scaling formulas for this ability (e.g. damage based on Strength)",
+        "description": "Scaling formulas for this ability (e.g. damage based on Physical Attack)",
         "items": {
           "type": "object",
           "properties": {
-            "attribute_id": {
+            "stat_id": {
               "type": "string",
-              "description": "ID of the scaling attribute",
+              "description": "ID of the scaling stat",
               "ui": {
                 "widget": "select",
-                "label": "Attribute",
-                "reference": "attributes"
+                "label": "Stat",
+                "reference": "stats"
               }
             },
             "multiplier": {
               "type": "number",
-              "description": "How much the attribute contributes",
+              "description": "How much the stat contributes",
               "ui": {
                 "widget": "number",
                 "label": "Multiplier"
               }
             }
           },
-          "required": ["attribute_id", "multiplier"]
+          "required": ["stat_id", "multiplier"]
         }
       },
       "requirements_id": {

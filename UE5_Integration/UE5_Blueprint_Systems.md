@@ -110,7 +110,7 @@ BP_GameInstance
   Manages timed effects, stacking, immunities, and tick-based damage. Emits events for UI/AI when states change.
 
 - **`BP_CombatFormulaLibrary` (Function Library)**  
-  Centralises formulas (damage, crit, resistance), pulling coefficients from DataTables so balancing can change without blueprint rewiring.
+  Centralises formulas (damage, crit, resistance), pulling coefficients from DataTables so balancing can change without blueprint rewiring. Ability scaling reads `ability_scaling_links.stat_id` (Stats), not Attributes.
 
 - **`BP_BattleCharacter` / `BP_PlayerCharacter` / `BP_EnemyCharacter` / `BP_CompanionCharacter`**  
   Base combatant class plus specialisations. Provide API for stats, abilities, item usage, AI hooks, animation triggers.

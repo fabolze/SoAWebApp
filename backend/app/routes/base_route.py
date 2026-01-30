@@ -9,6 +9,9 @@ import os
 import json
 import enum
 
+# Registry for resolving routes from table names (used by CSV export/import).
+ROUTE_REGISTRY = {}
+
 class BaseRoute:
     """Base class for route handlers that implements basic CRUD operations."""
     def __init__(self, model, blueprint_name: str, route_prefix: str):
@@ -23,6 +26,18 @@ class BaseRoute:
         self.bp = Blueprint(blueprint_name, __name__)
         self.route_prefix = route_prefix
         self._register_routes()
+        self._register_in_registry(blueprint_name)
+
+    def _register_in_registry(self, blueprint_name: str) -> None:
+        """Register this route instance for lookup by table or blueprint name."""
+        try:
+            table_name = getattr(self.model, "__tablename__", None)
+            if table_name:
+                ROUTE_REGISTRY[table_name] = self
+            ROUTE_REGISTRY[blueprint_name] = self
+        except Exception:
+            # Avoid breaking route registration on registry issues.
+            pass
     
     def _register_routes(self) -> None:
         """Register all CRUD routes."""

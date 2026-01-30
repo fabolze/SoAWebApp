@@ -1,0 +1,2 @@
+id,slug,name,type,icon_path,description,resource_cost,cooldown,targeting,trigger_condition,damage_type_source,damage_type,effects,scaling,requirements,tags
+01KG7H3KT1C8TTBFB300KY1QJ5,auto_attack,Auto Attack,Active,,"Basic weapon attack. Uses equipped weapon range and damage type.",0,0,Single,On Use,Weapon,,[],[],{},["basic","auto_attack","weapon"]
