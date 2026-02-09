@@ -1,5 +1,6 @@
 import VirtualizedTable from "./VirtualizedTable";
-import { useMemo, useState, useEffect } from "react";
+import { memo, useMemo, useState, useEffect } from "react";
+import { BUTTON_CLASSES, BUTTON_SIZES, TEXT_CLASSES } from "../styles/uiTokens";
 
 interface EntryListPanelProps {
   schemaName: string;
@@ -154,25 +155,25 @@ const EntryListPanelInternal = ({
     <div className="flex-1 min-w-0 flex flex-col h-full max-h-full overflow-hidden border-r border-slate-200 bg-gray-50 p-6">
       <div className="flex flex-col gap-2 p-4 border-b bg-white sticky top-0 z-10">
         <div className="flex flex-wrap gap-2 items-center mb-2">
-          <button className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700" onClick={onAddNew}>+ New</button>
+          <button className={`${BUTTON_CLASSES.success} ${BUTTON_SIZES.sm}`} onClick={onAddNew}>+ New</button>
           <button
-            className="px-2 py-1 rounded bg-slate-700 text-white text-xs hover:bg-slate-800"
+            className={`${BUTTON_CLASSES.neutral} ${BUTTON_SIZES.xs}`}
             onClick={onToggleEditor}
           >
             {showEditor ? 'Hide Editor' : 'Show Editor'}
           </button>
           <button
-            className="px-2 py-1 rounded bg-slate-200 text-slate-700 text-xs hover:bg-slate-300"
+            className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
             onClick={() => setShowColumns((v) => !v)}
           >
             Columns
           </button>
           {selectedIds.length > 0 && (
             <>
-              <span className="text-xs text-slate-600">{selectedIds.length} selected</span>
-              <button className="px-2 py-1 rounded bg-indigo-600 text-white text-xs hover:bg-indigo-700" onClick={() => onBulkDuplicate(selectedEntries)}>Duplicate</button>
-              <button className="px-2 py-1 rounded bg-red-600 text-white text-xs hover:bg-red-700" onClick={() => onBulkDelete(selectedEntries)}>Delete</button>
-              <button className="px-2 py-1 rounded bg-slate-600 text-white text-xs hover:bg-slate-700" onClick={() => setShowBulkEdit((v) => !v)}>Bulk edit</button>
+              <span className={`text-xs ${TEXT_CLASSES.muted}`}>{selectedIds.length} selected</span>
+              <button className={`${BUTTON_CLASSES.indigo} ${BUTTON_SIZES.xs}`} onClick={() => onBulkDuplicate(selectedEntries)}>Duplicate</button>
+              <button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`} onClick={() => onBulkDelete(selectedEntries)}>Delete</button>
+              <button className={`${BUTTON_CLASSES.neutral} ${BUTTON_SIZES.xs}`} onClick={() => setShowBulkEdit((v) => !v)}>Bulk edit</button>
             </>
           )}
         </div>
@@ -196,13 +197,13 @@ const EntryListPanelInternal = ({
               onChange={(e) => setBulkValue(e.target.value)}
             />
             <button
-              className="px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700"
+              className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.xs}`}
               onClick={() => onBulkEdit(selectedEntries, bulkField, bulkValue)}
               disabled={!bulkField}
             >
               Apply
             </button>
-            <button className="px-2 py-1 rounded bg-slate-300 text-slate-700 text-xs hover:bg-slate-400" onClick={() => setShowBulkEdit(false)}>Cancel</button>
+            <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`} onClick={() => setShowBulkEdit(false)}>Cancel</button>
           </div>
         )}
         {showColumns && (
@@ -298,15 +299,15 @@ const EntryListPanelInternal = ({
                   })}
                   <td className="px-3 py-2 border-b whitespace-nowrap">
                     <button
-                      className="mr-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                      className={`mr-2 ${BUTTON_CLASSES.primary} ${BUTTON_SIZES.xs}`}
                       onClick={() => onEdit(entry)}
                     >Edit</button>
                     <button
-                      className="mr-2 px-2 py-1 bg-purple-500 text-white rounded hover:bg-purple-600"
+                      className={`mr-2 ${BUTTON_CLASSES.violet} ${BUTTON_SIZES.xs}`}
                       onClick={() => onDuplicate(entry)}
                     >Duplicate</button>
                     <button
-                      className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                      className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`}
                       onClick={() => onDelete(entry)}
                       type="button"
                       aria-label="Delete entry"
@@ -322,4 +323,4 @@ const EntryListPanelInternal = ({
   );
 };
 
-export default EntryListPanel;
+export default memo(EntryListPanel);

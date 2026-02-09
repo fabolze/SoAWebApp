@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { BUTTON_CLASSES, BUTTON_SIZES } from '../styles/uiTokens';
 
 const getInitialTheme = () => {
   if (typeof window !== 'undefined') {
@@ -26,7 +27,7 @@ const DarkModeToggle: React.FC = () => {
 
   return (
     <button
-      className="btn btn-sm btn-outline"
+      className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`}
       onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       aria-label="Toggle dark mode"
     >

@@ -1,6 +1,7 @@
 // VirtualizedTable.tsx
 import { FixedSizeList as List, ListChildComponentProps } from 'react-window';
 import React from 'react';
+import { BUTTON_CLASSES, BUTTON_SIZES } from '../styles/uiTokens';
 
 interface VirtualizedTableProps {
   entries: any[];
@@ -48,15 +49,15 @@ const VirtualizedTable: React.FC<VirtualizedTableProps> = ({ entries, listFields
         ))}
         <td className="px-3 py-2 border-b whitespace-nowrap">
           <button
-            className="mr-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+            className={`mr-2 ${BUTTON_CLASSES.primary} ${BUTTON_SIZES.xs}`}
             onClick={() => onEdit(entry)}
           >Edit</button>
           <button
-            className="mr-2 px-2 py-1 bg-purple-500 text-white rounded hover:bg-purple-600"
+            className={`mr-2 ${BUTTON_CLASSES.violet} ${BUTTON_SIZES.xs}`}
             onClick={() => onDuplicate(entry)}
           >Duplicate</button>
           <button
-            className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+            className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`}
             onClick={() => onDelete(entry)}
             type="button"
             aria-label="Delete entry"

@@ -22,12 +22,15 @@ import {
   ClockIcon,
   DocumentTextIcon,
   Squares2X2Icon,
+  CpuChipIcon,
 } from '@heroicons/react/24/outline';
+import { TEXT_CLASSES } from '../styles/uiTokens';
 
 
 const IndexPage = () => {
   const pages = [
     { path: '/abilities', name: 'Abilities Editor' },
+    { path: '/simulation', name: 'Simulation Sandbox' },
     { path: '/effects', name: 'Effects Editor' },
     { path: '/statuses', name: 'Statuses Editor' },
     { path: '/attributes', name: 'Attributes Editor' },
@@ -58,6 +61,7 @@ const IndexPage = () => {
 
 const pageIcons: Record<string, React.ElementType> = {
   '/abilities': SparklesIcon,
+  '/simulation': CpuChipIcon,
   '/effects': BeakerIcon,
   '/statuses': BeakerIcon,
   '/attributes': ChartBarIcon,
@@ -91,7 +95,7 @@ const pageIcons: Record<string, React.ElementType> = {
     <div className="min-h-screen flex flex-col bg-gray-100 dark:bg-gray-900 font-sans">
       <main className="flex-1 p-8">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-semibold text-primary dark:text-primary-content">Welcome to the SoA Editor</h1>
+          <h1 className={`text-3xl font-semibold ${TEXT_CLASSES.heading} dark:text-slate-100`}>Welcome to the SoA Editor</h1>
           <DarkModeToggle />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -107,7 +111,7 @@ const pageIcons: Record<string, React.ElementType> = {
                     e.preventDefault();
                   }
                 }}
-                className="card w-full bg-base-100 shadow-xl hover:shadow-2xl transition-transform hover:-translate-y-1 rounded-xl border border-gray-200 dark:border-gray-700 group focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="card w-full bg-white dark:bg-slate-800 shadow-xl hover:shadow-2xl transition-transform hover:-translate-y-1 hover:bg-slate-800 hover:border-slate-800 rounded-xl border border-gray-200 dark:border-gray-700 group focus:outline-none focus:ring-2 focus:ring-primary/40"
                 tabIndex={0}
                 aria-label={page.name}
               >
@@ -115,7 +119,7 @@ const pageIcons: Record<string, React.ElementType> = {
                   <span className="mb-3 w-12 h-12 flex items-center justify-center rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition">
                     <Icon className="w-8 h-8" />
                   </span>
-                  <h2 className="text-xl font-semibold text-primary mb-0 dark:text-primary-content text-center group-hover:text-white transition">
+                  <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-0 text-center group-hover:text-white transition">
                     {page.name}
                   </h2>
                 </div>

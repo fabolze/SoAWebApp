@@ -38,6 +38,7 @@ import './App.css';
 import Layout from './components/Layout';
 import SettingsPage from "./pages/SettingsPage";
 import { EditorStackProvider } from "./components/EditorStack";
+import SimulationSandboxPage from "./pages/SimulationSandboxPage";
 
 const MainApp = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -85,6 +86,7 @@ const MainApp = () => {
               <Route path="talent-trees" element={<TalentTreesEditorPage />} />
               <Route path="talent-nodes" element={<TalentNodesEditorPage />} />
               <Route path="talent-node-links" element={<TalentNodeLinksEditorPage />} />
+              <Route path="simulation" element={<SimulationSandboxPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Routes>

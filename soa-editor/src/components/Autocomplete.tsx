@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import useDebouncedValue from './hooks/useDebouncedValue';
 
 interface AutocompleteProps {
   label: string;
@@ -36,6 +37,13 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
   const [selectedLabel, setSelectedLabel] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const requestSeqRef = useRef(0);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(240);
+  const debouncedInputValue = useDebouncedValue(inputValue, 180);
+  const rowHeight = 36;
+  const overscan = 6;
 
   useEffect(() => {
     if (value && options.length > 0) {
@@ -51,14 +59,30 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
   }, [valueLabel]);
 
   useEffect(() => {
-    if (showDropdown && inputValue.length >= 0) {
-      setLoading(true);
-      fetchOptions(inputValue).then((opts) => {
-        setOptions(opts);
+    if (!showDropdown) return;
+    const requestId = ++requestSeqRef.current;
+    setLoading(true);
+    fetchOptions(debouncedInputValue)
+      .then((opts) => {
+        if (requestId !== requestSeqRef.current) return;
+        setOptions(Array.isArray(opts) ? opts : []);
+      })
+      .catch(() => {
+        if (requestId !== requestSeqRef.current) return;
+        setOptions([]);
+      })
+      .finally(() => {
+        if (requestId !== requestSeqRef.current) return;
         setLoading(false);
       });
-    }
-  }, [inputValue, showDropdown, fetchOptions]);
+  }, [debouncedInputValue, showDropdown, fetchOptions]);
+
+  const isVirtualized = options.length >= 120;
+  const startIndex = isVirtualized ? Math.max(0, Math.floor(scrollTop / rowHeight) - overscan) : 0;
+  const visibleCount = isVirtualized ? Math.ceil(viewportHeight / rowHeight) + overscan * 2 : options.length;
+  const endIndex = isVirtualized ? Math.min(options.length, startIndex + visibleCount) : options.length;
+  const visibleOptions = isVirtualized ? options.slice(startIndex, endIndex) : options;
+  const totalHeight = options.length * rowHeight;
 
   useEffect(() => {
     if (!showDropdown) {
@@ -66,7 +90,26 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
       return;
     }
     setHighlightedIndex(options.length > 0 ? 0 : -1);
+    setScrollTop(0);
+    if (dropdownRef.current) {
+      dropdownRef.current.scrollTop = 0;
+      setViewportHeight(dropdownRef.current.clientHeight || 240);
+    }
   }, [showDropdown, options]);
+
+  useEffect(() => {
+    if (!showDropdown || highlightedIndex < 0 || !dropdownRef.current) return;
+    const container = dropdownRef.current;
+    const itemTop = highlightedIndex * rowHeight;
+    const itemBottom = itemTop + rowHeight;
+    const viewTop = container.scrollTop;
+    const viewBottom = viewTop + container.clientHeight;
+    if (itemTop < viewTop) {
+      container.scrollTop = itemTop;
+    } else if (itemBottom > viewBottom) {
+      container.scrollTop = itemBottom - container.clientHeight;
+    }
+  }, [showDropdown, highlightedIndex]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
@@ -129,7 +172,10 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
         className="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-white text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
         value={showDropdown ? inputValue : selectedLabel || ''}
         onChange={handleInputChange}
-        onFocus={() => setShowDropdown(true)}
+        onFocus={() => {
+          setInputValue(selectedLabel || '');
+          setShowDropdown(true);
+        }}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         placeholder={placeholder || `Search ${label}...`}
@@ -137,7 +183,11 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
         autoComplete="off"
       />
       {showDropdown && (
-        <div className="absolute z-10 left-0 right-0 bg-white border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto mt-1">
+        <div
+          ref={dropdownRef}
+          className="absolute z-10 left-0 right-0 bg-white border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto mt-1"
+          onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        >
           {loading ? (
             <div className="p-2 text-gray-500 text-sm flex items-center gap-2">
               <span className="loading loading-spinner loading-sm"></span>
@@ -145,8 +195,26 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
             </div>
           ) : options.length === 0 ? (
             <div className="p-2 text-gray-500 text-sm">No results</div>
+          ) : isVirtualized ? (
+            <div style={{ height: totalHeight, position: 'relative' }}>
+              <div style={{ position: 'absolute', top: startIndex * rowHeight, left: 0, right: 0 }}>
+                {visibleOptions.map((option, index) => {
+                  const absoluteIndex = startIndex + index;
+                  return (
+                    <div
+                      key={String(getOptionValue(option))}
+                      className={`px-3 py-2 cursor-pointer hover:bg-primary hover:text-white ${highlightedIndex === absoluteIndex ? 'bg-primary text-white' : ''}`}
+                      style={{ height: rowHeight }}
+                      onMouseDown={() => handleSelect(option)}
+                    >
+                      {getOptionLabel(option)}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           ) : (
-            options.map((option, index) => (
+            visibleOptions.map((option, index) => (
               <div
                 key={getOptionValue(option)}
                 className={`px-3 py-2 cursor-pointer hover:bg-primary hover:text-white ${highlightedIndex === index ? 'bg-primary text-white' : ''}`}

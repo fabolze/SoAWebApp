@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "../lib/api";
+import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 
 export default function SettingsPage() {
   const [dbs, setDbs] = useState<string[]>([]);
@@ -116,7 +117,7 @@ export default function SettingsPage() {
       </div>
       <div className="mb-8">
         <button
-          className="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700 font-semibold text-lg shadow transition"
+          className={`${BUTTON_CLASSES.danger} px-6 py-2 text-lg font-semibold shadow`}
           onClick={() => setShowResetModal(true)}
         >
           Reset Active Database
@@ -128,8 +129,8 @@ export default function SettingsPage() {
             <h2 className="text-lg font-bold mb-2 text-primary">Confirm Reset</h2>
             <p className="mb-4 text-slate-200">Are you sure you want to reset the active database? This will delete all data and recreate all tables.</p>
             <div className="flex gap-2 justify-end">
-              <button className="bg-slate-700 text-white px-4 py-2 rounded hover:bg-slate-600" onClick={() => setShowResetModal(false)}>Cancel</button>
-              <button className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-semibold" onClick={handleReset} disabled={resetting}>
+              <button className={`${BUTTON_CLASSES.neutral} ${BUTTON_SIZES.md}`} onClick={() => setShowResetModal(false)}>Cancel</button>
+              <button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.md} font-semibold`} onClick={handleReset} disabled={resetting}>
                 {resetting ? "Resetting..." : "Confirm Reset"}
               </button>
             </div>
@@ -147,7 +148,7 @@ export default function SettingsPage() {
             className="border border-slate-700 bg-slate-800 text-white px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-primary"
             required
           />
-          <button type="submit" className="bg-blue-600 text-white px-4 py-1 rounded hover:bg-blue-700 font-semibold shadow transition" disabled={creating}>
+          <button type="submit" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm} font-semibold shadow`} disabled={creating}>
             {creating ? "Creating..." : "Create"}
           </button>
         </form>
@@ -162,14 +163,14 @@ export default function SettingsPage() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 font-semibold shadow transition disabled:opacity-50"
+                  className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm} font-semibold shadow`}
                   onClick={() => handleSelect(name)}
                   disabled={name === activeDb || selecting === name}
                 >
                   {selecting === name ? "Switching..." : "Use"}
                 </button>
                 <button
-                  className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 font-semibold shadow transition disabled:opacity-50"
+                  className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm} font-semibold shadow`}
                   onClick={() => handleDelete(name)}
                   disabled={deleting === name || name === activeDb}
                 >

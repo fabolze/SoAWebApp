@@ -8,6 +8,7 @@ import {
   CreatedResult,
 } from './EditorStackContext';
 import { apiFetch } from '../lib/api';
+import { BUTTON_CLASSES, BUTTON_SIZES } from '../styles/uiTokens';
 
 type StackItem = OpenEditorArgs & {
   id: string;
@@ -119,11 +120,11 @@ function InlineSchemaEditor({
         />
       </div>
       <div className="p-4 border-t flex items-center gap-2 justify-end">
-        <button className="px-3 py-2 rounded border border-slate-300" onClick={onClose}>
+        <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} onClick={onClose}>
           Cancel
         </button>
         <button
-          className="px-3 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
+          className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`}
           onClick={handleSave}
           disabled={!formValid || saving}
         >

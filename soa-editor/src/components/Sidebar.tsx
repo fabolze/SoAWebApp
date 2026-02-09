@@ -21,6 +21,7 @@ import {
   BookOpenIcon, MapIcon, UsersIcon, FlagIcon, CubeIcon, BuildingStorefrontIcon, BanknotesIcon,
   ClipboardDocumentListIcon, PuzzlePieceIcon, AcademicCapIcon, ClockIcon, DocumentTextIcon,
   Squares2X2Icon, Cog6ToothIcon, ArchiveBoxIcon, Bars3Icon, ChevronRightIcon,
+  CpuChipIcon,
   ChevronDoubleLeftIcon, ChevronDoubleRightIcon
 } from '@heroicons/react/24/outline';
 
@@ -67,7 +68,7 @@ function SortableSidebarItem({ to, label, icon: Icon, collapsed, hidden, groupLa
           title={label}
           end={to === '/'}
         >
-          <Icon className="w-5 h-5 text-white group-hover:text-primary transition-colors duration-200" />
+          <Icon className="w-5 h-5 text-current transition-colors duration-200" />
           {!collapsed && <span className="text-xs font-medium">{label}</span>}
         </NavLink>
       </div>
@@ -85,6 +86,7 @@ const DEFAULT_GROUPS = [
     label: 'System',
     items: [
       { to: '/', label: 'Home', icon: HomeIcon },
+      { to: '/simulation', label: 'Simulation Sandbox', icon: CpuChipIcon },
       { to: '/settings', label: 'Settings', icon: Cog6ToothIcon },
     ],
   },

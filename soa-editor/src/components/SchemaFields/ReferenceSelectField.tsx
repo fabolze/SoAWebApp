@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Autocomplete from '../Autocomplete';
 import SearchableSelect from '../SearchableSelect';
+import { BUTTON_CLASSES, BUTTON_SIZES } from '../../styles/uiTokens';
 
 interface ReferenceSelectFieldProps {
   label: string;
@@ -53,7 +54,7 @@ export default function ReferenceSelectField({
   const inlineCreate = canCreate ? (
     <button
       type="button"
-      className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-700 bg-slate-100 hover:bg-slate-200 whitespace-nowrap"
+      className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs} whitespace-nowrap`}
       onClick={handleCreate}
     >
       Create new
@@ -110,7 +111,7 @@ export default function ReferenceSelectField({
           <span>No options yet.</span>
           <button
             type="button"
-            className="px-2 py-1 rounded border border-slate-300 text-slate-700 bg-slate-100 hover:bg-slate-200"
+            className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
             onClick={handleCreate}
           >
             Create new
