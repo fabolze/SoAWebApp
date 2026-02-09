@@ -1,4 +1,4 @@
-﻿from backend.app.routes.base_route import BaseRoute
+from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_locations import Location, Biome, BiomeModifier
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
@@ -83,7 +83,7 @@ class LocationRoute(BaseRoute):
                     tag = tag.strip()
                     if tag:
                         query = query.filter(
-                            self.model.tags.any(lambda t: t.ilike(f"%{tag}%"))
+                            self._build_tag_filter_expression(tag)
                         )
             items = query.all()
             return jsonify(self.serialize_list(items))
@@ -92,4 +92,5 @@ class LocationRoute(BaseRoute):
 
 # Create the route instance
 bp = LocationRoute().bp
+
 

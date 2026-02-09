@@ -1,4 +1,4 @@
-﻿from backend.app.routes.base_route import BaseRoute
+from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_content_packs import ContentPack
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
@@ -48,7 +48,7 @@ class ContentPackRoute(BaseRoute):
                     tag = tag.strip()
                     if tag:
                         query = query.filter(
-                            self.model.tags.any(lambda t: t.ilike(f"%{tag}%"))
+                            self._build_tag_filter_expression(tag)
                         )
             items = query.all()
             return jsonify(self.serialize_list(items))
@@ -56,4 +56,5 @@ class ContentPackRoute(BaseRoute):
             db_session.close()
 
 bp = ContentPackRoute().bp
+
 

@@ -100,7 +100,7 @@ class ShopInventoryRoute(BaseRoute):
                     tag = tag.strip()
                     if tag:
                         query = query.filter(
-                            self.model.tags.any(lambda t: t.ilike(f"%{tag}%"))
+                            self._build_tag_filter_expression(tag)
                         )
             items = query.all()
             return jsonify(self.serialize_list(items))
@@ -113,3 +113,4 @@ bp = route_instance.bp
 
 # Register additional routes
 bp.route("/api/shops/<shop_id>/inventory", methods=["GET"])(route_instance.get_shop_inventory)
+

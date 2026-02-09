@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 from backend.app.db.init_db import get_db_session
 from backend.app.models.base import Base
 from sqlalchemy.orm import Session
+from sqlalchemy import cast, exists, func, literal, select, String
 from sqlalchemy.types import JSON, Enum
 import os
 import json
@@ -117,6 +118,31 @@ class BaseRoute:
             if field in data and data[field]:
                 if not db_session.get(model, data[field]):
                     abort(400, description=f"Invalid {field}: {data[field]}")
+
+    def _build_tag_filter_expression(self, raw_tag: str):
+        """Build a case-insensitive tag filter expression for JSON array columns.
+
+        Uses SQLite JSON1 (`json_each`) to match tags reliably instead of `.any(...)`,
+        which is not valid for plain JSON array columns on SQLite.
+        """
+        tag = (raw_tag or "").strip().lower()
+        if not tag:
+            return literal(True)
+
+        tags_column = getattr(self.model, "tags", None)
+        if tags_column is None:
+            return literal(True)
+
+        try:
+            tag_values = func.json_each(tags_column).table_valued("value").alias(f"tag_values_{abs(hash(tag))}")
+            return exists(
+                select(1)
+                .select_from(tag_values)
+                .where(func.lower(cast(tag_values.c.value, String)).like(f"%{tag}%"))
+            )
+        except Exception:
+            # Fallback for environments without JSON1 support.
+            return func.lower(cast(tags_column, String)).like(f'%"{tag}"%')
     
     def get_all(self):
         """Get all items."""

@@ -5,6 +5,7 @@ import { useEditorStack, ParentSummary } from './EditorStackContext';
 import SearchableSelect from './SearchableSelect';
 import ArrayStringMultiSelectField from './SchemaFields/ArrayStringMultiSelectField';
 import ReferenceSelectField from './SchemaFields/ReferenceSelectField';
+import { apiFetch } from '../lib/api';
 
 interface SchemaFormProps {
   schema: any;
@@ -26,14 +27,47 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
   );
   // Detect a slug field
   const hasSlugField = !!(schema.properties && 'slug' in schema.properties);
-  // Try to infer the type from the schema title or idField
-  const type = (schema.title || idField?.replace(/_id$/, '') || 'entity').toLowerCase();
 
   // --- Reference dropdowns state ---
   const [referenceOptions, setReferenceOptions] = useState<Record<string, any>>(parentReferenceOptions || {});
   const [createdLabels, setCreatedLabels] = useState<Record<string, { id: string; label: string }>>({});
   const [recentlyAdded, setRecentlyAdded] = useState<Record<string, string>>({});
   const [numberInputs, setNumberInputs] = useState<Record<string, string>>({});
+
+  const schemaNameOverrides: Record<string, string> = {
+    'content-packs': 'content_packs',
+    'dialogue-nodes': 'dialogue_nodes',
+    'lore-entries': 'lore_entries',
+    'story-arcs': 'story_arcs',
+    'talent-nodes': 'talent_nodes',
+    'talent-node-links': 'talent_node_links',
+    'talent-trees': 'talent_trees',
+    'shop-inventory': 'shops_inventory',
+  };
+
+  const schemaToApiPathOverrides: Record<string, string> = {
+    content_packs: 'content-packs',
+    dialogue_nodes: 'dialogue-nodes',
+    lore_entries: 'lore-entries',
+    story_arcs: 'story-arcs',
+    talent_nodes: 'talent-nodes',
+    talent_node_links: 'talent-node-links',
+    talent_trees: 'talent-trees',
+    shops_inventory: 'shop-inventory',
+  };
+
+  const resolveSchemaName = (refType: string) => schemaNameOverrides[refType] || refType;
+  const resolveApiPathFromSchemaName = (schemaName: string) => schemaToApiPathOverrides[schemaName] || schemaName;
+
+  const resolveReferenceFromOptionsSource = (source: unknown): string | null => {
+    if (typeof source !== 'string') return null;
+    const normalized = source.replace(/\\/g, '/').trim();
+    const fileName = normalized.split('/').pop();
+    if (!fileName || !fileName.toLowerCase().endsWith('.json')) return null;
+    const schemaName = fileName.replace(/\.json$/i, '');
+    if (!schemaName) return null;
+    return resolveApiPathFromSchemaName(schemaName);
+  };
 
   // Fetch reference options, but only if not provided by parent
   const fetchReferenceOptions = useCallback((refType: string) => {
@@ -42,7 +76,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
       return;
     }
     if (!referenceOptions[refType]) {
-      fetch(`http://localhost:5000/api/${refType}`)
+      apiFetch(`/api/${refType}`)
         .then((res) => res.json())
         .then((list) => {
           setReferenceOptions((prev) => ({ ...prev, [refType]: list }));
@@ -58,7 +92,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
       parentFetchReferenceOptions(refType);
       return;
     }
-    fetch(`http://localhost:5000/api/${refType}`)
+    apiFetch(`/api/${refType}`)
       .then((res) => res.json())
       .then((list) => {
         setReferenceOptions((prev) => ({ ...prev, [refType]: list }));
@@ -71,21 +105,23 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
   // --- Reference autocomplete fetcher ---
   const fetchReferenceAutocomplete = useCallback(
     async (refType: string, search: string) => {
-      const url = `http://localhost:5000/api/${refType}?search=${encodeURIComponent(search)}`;
-      const res = await fetch(url);
+      const url = `/api/${refType}?search=${encodeURIComponent(search)}`;
+      const res = await apiFetch(url);
       return res.json();
     },
     []
   );
 
   useEffect(() => {
-    // For each field with ui.reference, fetch options from backend (top-level and nested)
+    // For each field with ui.reference or ui.options_source, fetch options from backend.
     const collectReferences = (schemaObj: any): string[] => {
       let refs: string[] = [];
       if (!schemaObj || !schemaObj.properties) return refs;
       for (const [_, configUnknown] of Object.entries(schemaObj.properties)) {
         const config = configUnknown as any;
-        if (config.ui && config.ui.reference) refs.push(config.ui.reference);
+        if (config.ui?.reference) refs.push(config.ui.reference);
+        const sourceRef = resolveReferenceFromOptionsSource(config.ui?.options_source);
+        if (sourceRef) refs.push(sourceRef);
         // If array of objects, check nested
         if (config.type === 'array' && config.items?.type === 'object') {
           refs = refs.concat(collectReferences(config.items));
@@ -101,12 +137,17 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
   // --- Required fields validation ---
   const requiredFields: string[] = schema.required || [];
   // const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const isMissingScalarValue = (val: unknown) => {
+    if (val === null || val === undefined) return true;
+    if (typeof val === 'string') return val.trim() === '';
+    return false;
+  };
   const missingFields = requiredFields.filter((key) => {
     // For nested/array fields, skip here (handled in subforms)
     const config = schema.properties?.[key];
     if (!config) return false;
     if (config.type === 'array' || config.type === 'object') return false;
-    return !data[key] && data[key] !== 0;
+    return isMissingScalarValue(data[key]);
   });
   const isValid = missingFields.length === 0;
   useEffect(() => {
@@ -140,7 +181,22 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
     setNumberInputs((prev) => ({ ...prev, [key]: normalized }));
   };
 
-  const handleNumberBlur = (key: string, raw: string, applyChange?: (val: number | '') => void) => {
+  const parseNumberByType = (raw: string, valueType: 'number' | 'integer'): number | null => {
+    if (valueType === 'integer') {
+      if (!/^-?\d+$/.test(raw)) return null;
+      const parsedInt = parseInt(raw, 10);
+      return Number.isNaN(parsedInt) ? null : parsedInt;
+    }
+    const parsedFloat = parseFloat(raw);
+    return Number.isNaN(parsedFloat) ? null : parsedFloat;
+  };
+
+  const handleNumberBlur = (
+    key: string,
+    raw: string,
+    valueType: 'number' | 'integer',
+    applyChange?: (val: number | '') => void
+  ) => {
     const normalized = normalizeDecimalInput(raw).trim();
     if (normalized === '') {
       setNumberInputs((prev) => {
@@ -151,8 +207,8 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
       if (applyChange) applyChange('');
       return;
     }
-    const num = parseFloat(normalized);
-    if (!Number.isNaN(num)) {
+    const num = parseNumberByType(normalized, valueType);
+    if (num !== null) {
       setNumberInputs((prev) => ({ ...prev, [key]: normalized }));
       if (applyChange) applyChange(num);
     }
@@ -179,19 +235,6 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
   );
 
   const inputBaseClass = "w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-white text-gray-800 transition-all duration-200 ease-in-out focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none hover:border-gray-400";
-
-  const schemaNameOverrides: Record<string, string> = {
-    'content-packs': 'content_packs',
-    'dialogue-nodes': 'dialogue_nodes',
-    'lore-entries': 'lore_entries',
-    'story-arcs': 'story_arcs',
-    'talent-nodes': 'talent_nodes',
-    'talent-node-links': 'talent_node_links',
-    'talent-trees': 'talent_trees',
-    'shop-inventory': 'shops_inventory',
-  };
-
-  const resolveSchemaName = (refType: string) => schemaNameOverrides[refType] || refType;
 
   const handleCreateReference = async (
     refType: string,
@@ -327,6 +370,20 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           );
         }
 
+        if (type === 'string' && ui.widget === 'date') {
+          return (
+            <div key={key} className="form-field">
+              {renderFieldLabel(label, description)}
+              <input
+                type="date"
+                className={inputBaseClass}
+                value={value || ''}
+                onChange={(e) => handleChange(key, e.target.value)}
+              />
+            </div>
+          );
+        }
+
         if (type === 'string' && (key === idField)) {
           // Render the ID field as read-only and greyed out
           return (
@@ -421,7 +478,24 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           );
         }
 
-        if (type === 'number') {
+        if (type === 'boolean' || ui.widget === 'checkbox') {
+          return (
+            <div key={key} className="form-field">
+              {renderFieldLabel(label, description)}
+              <label className="inline-flex items-center gap-2 text-gray-800">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-slate-700 accent-slate-600 focus:ring-slate-400"
+                  checked={Boolean(value)}
+                  onChange={(e) => handleChange(key, e.target.checked)}
+                />
+                <span>Enabled</span>
+              </label>
+            </div>
+          );
+        }
+
+        if (type === 'number' || type === 'integer') {
           return (
             <div key={key} className="form-field">
               {renderFieldLabel(label, description)}
@@ -431,7 +505,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                 className={inputBaseClass}
                 value={getNumberInputValue(key, value)}
                 onChange={(e) => handleNumberChange(key, e.target.value)}
-                onBlur={(e) => handleNumberBlur(key, e.target.value, (val) => handleChange(key, val))}
+                onBlur={(e) => handleNumberBlur(key, e.target.value, type === 'integer' ? 'integer' : 'number', (val) => handleChange(key, val))}
                 placeholder={getNumberPlaceholder(label, key)}
               />
             </div>
@@ -446,6 +520,13 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
             refType = ui.reference;
             const refList = (parentReferenceOptions || referenceOptions)[refType] || [];
             options = refList;
+          } else if (ui.options_source) {
+            const sourceRef = resolveReferenceFromOptionsSource(ui.options_source);
+            if (sourceRef) {
+              refType = sourceRef;
+              const refList = (parentReferenceOptions || referenceOptions)[sourceRef] || [];
+              options = refList;
+            }
           } else if (ui.options) {
             options = ui.options.map((opt: string) => ({ id: opt, name: opt }));
           } else if (Array.isArray(config.items?.enum)) {
@@ -631,8 +712,9 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                         );
                       }
                       // Fallback for other types
-                      if (itemConfig.type === 'number') {
+                      if (itemConfig.type === 'number' || itemConfig.type === 'integer') {
                         const itemKeyPath = `${key}.${idx}.${itemKey}`;
+                        const itemNumberType = itemConfig.type === 'integer' ? 'integer' : 'number';
                         return (
                           <div key={itemKey} className="form-field mb-2">
                             <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
@@ -649,7 +731,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                                 handleChange(key, newArr);
                               }}
                               onBlur={(e) => {
-                                handleNumberBlur(itemKeyPath, e.target.value, (val) => {
+                                handleNumberBlur(itemKeyPath, e.target.value, itemNumberType, (val) => {
                                   const updatedItem = { ...item, [itemKey]: val };
                                   const newArr = [...(value || [])];
                                   newArr[idx] = updatedItem;
@@ -658,6 +740,26 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                               }}
                               placeholder={getNumberPlaceholder(itemLabel, itemKey)}
                             />
+                          </div>
+                        );
+                      }
+                      if (itemConfig.type === 'boolean' || itemUi.widget === 'checkbox') {
+                        return (
+                          <div key={itemKey} className="form-field mb-2">
+                            <label className="inline-flex items-center gap-2 text-gray-800">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-slate-300 text-slate-700 accent-slate-600 focus:ring-slate-400"
+                                checked={Boolean(itemValue)}
+                                onChange={e => {
+                                  const updatedItem = { ...item, [itemKey]: e.target.checked };
+                                  const newArr = [...(value || [])];
+                                  newArr[idx] = updatedItem;
+                                  handleChange(key, newArr);
+                                }}
+                              />
+                              <span>{itemLabel}</span>
+                            </label>
                           </div>
                         );
                       }

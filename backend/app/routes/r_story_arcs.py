@@ -1,4 +1,4 @@
-﻿from backend.app.routes.base_route import BaseRoute
+from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_story_arcs import StoryArc, ArcType
 from backend.app.models.m_content_packs import ContentPack
 from backend.app.models.m_flags import Flag
@@ -76,7 +76,7 @@ class StoryArcRoute(BaseRoute):
                     tag = tag.strip()
                     if tag:
                         query = query.filter(
-                            self.model.tags.any(lambda t: t.ilike(f"%{tag}%"))
+                            self._build_tag_filter_expression(tag)
                         )
             items = query.all()
             return jsonify(self.serialize_list(items))
@@ -85,3 +85,4 @@ class StoryArcRoute(BaseRoute):
 
 # Create the route instance
 bp = StoryArcRoute().bp
+

@@ -61,7 +61,7 @@ class StatusRoute(BaseRoute):
                     tag = tag.strip()
                     if tag:
                         query = query.filter(
-                            self.model.tags.any(lambda t: t.ilike(f"%{tag}%"))
+                            self._build_tag_filter_expression(tag)
                         )
             items = query.all()
             return jsonify(self.serialize_list(items))
@@ -71,3 +71,4 @@ class StatusRoute(BaseRoute):
 
 # Create the route instance
 bp = StatusRoute().bp
+

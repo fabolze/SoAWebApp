@@ -7,6 +7,7 @@ import {
   OpenEditorArgs,
   CreatedResult,
 } from './EditorStackContext';
+import { apiFetch } from '../lib/api';
 
 type StackItem = OpenEditorArgs & {
   id: string;
@@ -74,7 +75,7 @@ function InlineSchemaEditor({
       if (!payload.slug && payload.name) {
         payload.slug = generateSlug(payload.name);
       }
-      const res = await fetch(`http://localhost:5000/api/${apiPath}`, {
+      const res = await apiFetch(`/api/${apiPath}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

@@ -1,4 +1,4 @@
-﻿from backend.app.routes.base_route import BaseRoute
+from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_currencies import Currency, CurrencyType
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session

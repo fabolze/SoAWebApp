@@ -6,6 +6,7 @@ import EntryListPanel from "./EntryListPanel";
 import EntryFormPanel from "./EntryFormPanel";
 import { generateUlid, generateSlug } from "../utils/generateId";
 import { ParentSummary } from "./EditorStackContext";
+import { apiFetch, buildApiUrl } from "../lib/api";
 
 interface SchemaEditorProps {
   schemaName: string;
@@ -43,7 +44,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
 
   useEffect(() => {
     // Load current entries from the API endpoint backing this schema.
-    fetch(`http://localhost:5000/api/${apiPath}`)
+    apiFetch(`/api/${apiPath}`)
       .then((res) => res.json())
       .then((result) => {
         if (!Array.isArray(result)) {
@@ -75,7 +76,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
       }
     }
     console.log("Saving data:", data);
-    const res = await fetch(`http://localhost:5000/api/${apiPath}`, {
+    const res = await apiFetch(`/api/${apiPath}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -86,7 +87,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
 
     if (res.ok) {
       setToast({ type: 'success', message: 'Saved successfully' });
-      const updated = await fetch(`http://localhost:5000/api/${apiPath}`).then((r) => r.json());
+      const updated = await apiFetch(`/api/${apiPath}`).then((r) => r.json());
       setEntries(updated);
       setReferenceOptionsVersion((v) => v + 1); // Trigger referenceOptions refresh in SchemaForm
       setOriginalData(data);
@@ -215,7 +216,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     if (!entry) return;
     confirmRef.current?.close();
     confirmDelete.current = null;
-    const res = await fetch(`http://localhost:5000/api/${apiPath}/${entry[idField]}`, {
+    const res = await apiFetch(`/api/${apiPath}/${entry[idField]}`, {
       method: 'DELETE',
     });
     if (res.ok) {
@@ -264,10 +265,10 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     if (!window.confirm(`Delete ${selected.length} entries? This cannot be undone.`)) return;
     await Promise.all(
       selected.map((entry) =>
-        fetch(`http://localhost:5000/api/${apiPath}/${entry[idField]}`, { method: 'DELETE' })
+        apiFetch(`/api/${apiPath}/${entry[idField]}`, { method: 'DELETE' })
       )
     );
-    const updated = await fetch(`http://localhost:5000/api/${apiPath}`).then((r) => r.json());
+    const updated = await apiFetch(`/api/${apiPath}`).then((r) => r.json());
     setEntries(updated);
     if (selected.some((e) => e[idField] === data[idField])) setData({});
   };
@@ -300,7 +301,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     const results = await Promise.all(
       selected.map((entry) => {
         const updated = { ...entry, [field]: coerceValue(entry[field], value) };
-        return fetch(`http://localhost:5000/api/${apiPath}`, {
+        return apiFetch(`/api/${apiPath}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updated),
@@ -318,7 +319,7 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     } else {
       setToast({ type: 'success', message: `Updated ${selected.length} entries` });
     }
-    const updated = await fetch(`http://localhost:5000/api/${apiPath}`).then((r) => r.json());
+    const updated = await apiFetch(`/api/${apiPath}`).then((r) => r.json());
     setEntries(updated);
   };
 
@@ -328,14 +329,14 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     const duplicates = selected.map((entry) => buildDuplicate(entry, usedSlugs));
     await Promise.all(
       duplicates.map((copy) =>
-        fetch(`http://localhost:5000/api/${apiPath}`, {
+        apiFetch(`/api/${apiPath}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(copy),
         })
       )
     );
-    const updated = await fetch(`http://localhost:5000/api/${apiPath}`).then((r) => r.json());
+    const updated = await apiFetch(`/api/${apiPath}`).then((r) => r.json());
     setEntries(updated);
     setReferenceOptionsVersion((v) => v + 1);
   };
@@ -442,14 +443,14 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     if (!importFile) return;
     const formData = new FormData();
     formData.append("file", importFile);
-    const res = await fetch(`http://localhost:5000/api/import/csv/${schemaName}`, {
+    const res = await apiFetch(`/api/import/csv/${schemaName}`, {
       method: "POST",
       body: formData,
     });
     if (res.ok) {
       setToast({ type: "success", message: "Imported successfully" });
       // Refresh entries
-      const updated = await fetch(`http://localhost:5000/api/${apiPath}`).then((r) => r.json());
+      const updated = await apiFetch(`/api/${apiPath}`).then((r) => r.json());
       setEntries(updated);
     } else {
       let msg = "Import failed";
@@ -477,14 +478,14 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
         <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
         <div className="flex gap-2 items-center">
           <a
-            href={`http://localhost:5000/api/export/all-csv-zip`}
+            href={buildApiUrl(`/api/export/all-csv-zip`)}
             className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700"
             download
           >
             Download All (ZIP)
           </a>
           <a
-            href={`http://localhost:5000/api/export/csv/${schemaName}`}
+            href={buildApiUrl(`/api/export/csv/${schemaName}`)}
             className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
             download
           >
