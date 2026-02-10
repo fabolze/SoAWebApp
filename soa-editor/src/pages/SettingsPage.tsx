@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "../lib/api";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
+import { asRecord, getErrorMessage } from "../types/common";
 
 export default function SettingsPage() {
   const [dbs, setDbs] = useState<string[]>([]);
@@ -13,28 +14,34 @@ export default function SettingsPage() {
   const [showResetModal, setShowResetModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const readError = async (res: Response, fallback: string) => {
+  const readError = useCallback(async (res: Response, fallback: string) => {
     try {
-      const payload = await res.json();
-      return payload?.error || payload?.message || fallback;
+      const payload = asRecord(await res.json());
+      const errorText = payload.error;
+      if (typeof errorText === "string" && errorText.trim()) return errorText;
+      const messageText = payload.message;
+      if (typeof messageText === "string" && messageText.trim()) return messageText;
+      return fallback;
     } catch {
       return fallback;
     }
-  };
+  }, []);
 
-  const fetchDbs = async () => {
+  const fetchDbs = useCallback(async () => {
     const res = await apiFetch("/api/db/list");
     if (!res.ok) {
       throw new Error(await readError(res, "Failed to load databases"));
     }
-    const data = await res.json();
-    setDbs(data.databases || []);
-    setActiveDb(data.active || "");
-  };
+    const data = asRecord(await res.json());
+    const databases = Array.isArray(data.databases) ? data.databases.map((db) => String(db)) : [];
+    const active = typeof data.active === "string" ? data.active : "";
+    setDbs(databases);
+    setActiveDb(active);
+  }, [readError]);
 
   useEffect(() => {
-    fetchDbs().catch((e: any) => setError(e?.message || "Failed to load databases"));
-  }, []);
+    void fetchDbs().catch((e: unknown) => setError(getErrorMessage(e, "Failed to load databases")));
+  }, [fetchDbs]);
 
   const handleReset = async () => {
     setResetting(true);
@@ -44,8 +51,8 @@ export default function SettingsPage() {
       if (!res.ok) throw new Error(await readError(res, "Reset failed"));
       await fetchDbs();
       setShowResetModal(false);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Reset failed"));
     } finally {
       setResetting(false);
     }
@@ -64,8 +71,8 @@ export default function SettingsPage() {
       if (!res.ok) throw new Error(await readError(res, "Create failed"));
       setNewDb("");
       await fetchDbs();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Create failed"));
     } finally {
       setCreating(false);
     }
@@ -82,8 +89,8 @@ export default function SettingsPage() {
       });
       if (!res.ok) throw new Error(await readError(res, "Delete failed"));
       await fetchDbs();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Delete failed"));
     } finally {
       setDeleting(null);
     }
@@ -100,8 +107,8 @@ export default function SettingsPage() {
       });
       if (!res.ok) throw new Error(await readError(res, "Switch failed"));
       await fetchDbs();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Switch failed"));
     } finally {
       setSelecting(null);
     }

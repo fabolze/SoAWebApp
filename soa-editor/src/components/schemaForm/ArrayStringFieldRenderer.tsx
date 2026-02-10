@@ -2,23 +2,29 @@ import type { ReactNode } from 'react';
 import ArrayStringMultiSelectField from '../SchemaFields/ArrayStringMultiSelectField';
 import TagInput from '../TagInput';
 import { resolveReferenceFromOptionsSource } from './helpers';
+import type {
+  EntryData,
+  ReferenceOptionsMap,
+  SchemaFieldConfig,
+  SchemaFieldUiConfig,
+} from './types';
 
 interface ArrayStringFieldRendererProps {
   fieldKey: string;
-  ui: any;
-  config: any;
+  ui: SchemaFieldUiConfig;
+  config: SchemaFieldConfig;
   label: string;
   description?: string;
-  value: any;
-  parentReferenceOptions?: Record<string, any[]>;
-  referenceOptions: Record<string, any[]>;
+  value: unknown;
+  parentReferenceOptions?: ReferenceOptionsMap;
+  referenceOptions: ReferenceOptionsMap;
   canCreateReference: boolean;
   recentlyAdded: Record<string, string>;
-  handleChange: (key: string, value: any) => void;
+  handleChange: (key: string, value: unknown) => void;
   markRecentlyAdded: (key: string, id: string) => void;
   handleCreateReference: (
     refType: string,
-    onSelect: (id: string, createdData: Record<string, any>) => void
+    onSelect: (id: string, createdData: EntryData) => void
   ) => Promise<void>;
   renderFieldLabel: (label: string, description?: string, action?: ReactNode) => ReactNode;
 }
@@ -43,7 +49,7 @@ export default function ArrayStringFieldRenderer({
     return (
       <TagInput
         key={fieldKey}
-        value={value || []}
+        value={Array.isArray(value) ? value.map((tag) => String(tag)) : typeof value === 'string' ? value : []}
         onChange={(tags) => handleChange(fieldKey, tags)}
         label={label}
         placeholder={description || 'Add a tag...'}
@@ -52,7 +58,7 @@ export default function ArrayStringFieldRenderer({
     );
   }
 
-  let options: any[] = [];
+  let options: unknown[] = [];
   let refType: string | null = null;
   if (ui.reference) {
     const referenceType = String(ui.reference);
@@ -67,11 +73,11 @@ export default function ArrayStringFieldRenderer({
       options = refList;
     }
   } else if (ui.options) {
-    options = ui.options.map((opt: string) => ({ id: opt, name: opt }));
+    options = ui.options.map((opt) => ({ id: String(opt), name: String(opt) }));
   } else if (Array.isArray(config.items?.enum)) {
-    options = config.items.enum.map((opt: string) => ({ id: opt, name: opt }));
+    options = config.items.enum.map((opt) => ({ id: String(opt), name: String(opt) }));
   } else if (Array.isArray(config.enum)) {
-    options = config.enum.map((opt: string) => ({ id: opt, name: opt }));
+    options = config.enum.map((opt) => ({ id: String(opt), name: String(opt) }));
   }
 
   const onCreateReference =

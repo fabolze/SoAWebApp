@@ -1,3 +1,5 @@
+import { asRecord } from './types';
+
 export type NumberValueType = 'number' | 'integer';
 
 const schemaNameOverrides: Record<string, string> = {
@@ -81,28 +83,30 @@ export function toNumberOrNull(value: unknown): number | null {
   return Number.isFinite(num) ? num : null;
 }
 
-export function getReferenceOptionLabel(opt: any, refType: string): string {
+export function getReferenceOptionLabel(opt: unknown, refType: string): string {
+  const record = asRecord(opt);
   const labelText =
-    opt?.name ||
-    opt?.title ||
-    opt?.slug ||
-    opt?.id ||
-    opt?.[`${refType.slice(0, -1)}_id`] ||
-    opt?.[`${refType}_id`] ||
+    record.name ||
+    record.title ||
+    record.slug ||
+    record.id ||
+    record[`${refType.slice(0, -1)}_id`] ||
+    record[`${refType}_id`] ||
     JSON.stringify(opt);
   return String(labelText);
 }
 
-export function getReferenceOptionValue(opt: any, refType: string): string {
+export function getReferenceOptionValue(opt: unknown, refType: string): string {
+  const record = asRecord(opt);
   const valueText =
-    opt?.id ||
-    opt?.[`${refType.slice(0, -1)}_id`] ||
-    opt?.[`${refType}_id`] ||
+    record.id ||
+    record[`${refType.slice(0, -1)}_id`] ||
+    record[`${refType}_id`] ||
     opt;
   return String(valueText);
 }
 
-export function mapReferenceOptions(options: any[], refType: string): { label: string; value: string }[] {
+export function mapReferenceOptions(options: unknown[], refType: string): { label: string; value: string }[] {
   return (Array.isArray(options) ? options : []).map((opt) => ({
     label: getReferenceOptionLabel(opt, refType),
     value: getReferenceOptionValue(opt, refType),

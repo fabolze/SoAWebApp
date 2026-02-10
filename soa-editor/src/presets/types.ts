@@ -1,3 +1,5 @@
+import type { UnknownRecord } from "../types/common";
+
 export type PresetApplyMode = 'fill_empty' | 'merge' | 'overwrite';
 
 export interface EntityPreset {
@@ -6,7 +8,7 @@ export interface EntityPreset {
   description?: string;
   tags?: string[];
   defaultMode?: PresetApplyMode;
-  data: Record<string, any>;
+  data: UnknownRecord;
 }
 
 export interface PresetScope {

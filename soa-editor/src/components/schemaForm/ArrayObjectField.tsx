@@ -11,22 +11,30 @@ import {
   type NumberValueType,
   toNumberOrNull,
 } from './helpers';
+import {
+  asRecord,
+  type EntryData,
+  type ReferenceOptionsMap,
+  type SchemaFieldConfig,
+  type SchemaFieldUiConfig,
+  type UnknownRecord,
+} from './types';
 
 interface ArrayObjectFieldProps {
   fieldKey: string;
   label: string;
   description?: string;
-  value: any[];
-  itemSchema: any;
+  value: UnknownRecord[];
+  itemSchema: SchemaFieldConfig;
   widget?: string;
   inputBaseClass: string;
-  parentData?: Record<string, any>;
-  parentReferenceOptions?: Record<string, any[]>;
-  referenceOptions: Record<string, any[]>;
+  parentData?: EntryData;
+  parentReferenceOptions?: ReferenceOptionsMap;
+  referenceOptions: ReferenceOptionsMap;
   canCreateReference: boolean;
   handleCreateReference: (refType: string, onSelect: (id: string) => void) => Promise<void> | void;
-  handleChange: (key: string, value: any) => void;
-  getNumberInputValue: (key: string, value: any) => string;
+  handleChange: (key: string, value: unknown) => void;
+  getNumberInputValue: (key: string, value: unknown) => string;
   handleNumberChange: (key: string, raw: string) => void;
   handleNumberBlur: (
     key: string,
@@ -38,7 +46,7 @@ interface ArrayObjectFieldProps {
   renderFieldLabel: (label: string, description?: string, action?: ReactNode) => ReactNode;
 }
 
-function getRefOptions(parentReferenceOptions: Record<string, any[]> | undefined, referenceOptions: Record<string, any[]>, refType: string): any[] {
+function getRefOptions(parentReferenceOptions: ReferenceOptionsMap | undefined, referenceOptions: ReferenceOptionsMap, refType: string): unknown[] {
   const options = (parentReferenceOptions || referenceOptions)[refType];
   return Array.isArray(options) ? options : [];
 }
@@ -51,10 +59,11 @@ function applyPricingLayer(currentPrice: number, multiplier: number | null, modi
   return next;
 }
 
-function shouldShowByVisibleIf(visibleIf: any, rowData: Record<string, any>): boolean {
+function shouldShowByVisibleIf(visibleIf: unknown, rowData: UnknownRecord): boolean {
+  const visible = asRecord(visibleIf);
   if (!visibleIf || typeof visibleIf !== 'object') return true;
-  for (const depField in visibleIf) {
-    const expected = visibleIf[depField];
+  for (const depField in visible) {
+    const expected = visible[depField];
     const actual = rowData?.[depField];
     if (Array.isArray(expected)) {
       if (!expected.includes(actual)) return false;
@@ -92,10 +101,11 @@ export default function ArrayObjectField({
   const isGenericTable = widget === 'table';
 
   const itemOptions = getRefOptions(parentReferenceOptions, referenceOptions, 'items');
-  const itemById = new Map(
+  const itemById = new Map<string, UnknownRecord>(
     itemOptions.map((opt) => {
-      const id = String(opt?.id || opt?.item_id || '');
-      return [id, opt];
+      const record = asRecord(opt);
+      const id = String(record.id || record.item_id || '');
+      return [id, record];
     })
   );
 
@@ -138,7 +148,7 @@ export default function ArrayObjectField({
     handleChange(fieldKey, next);
   };
 
-  const computePricePreview = (row: any): number | null => {
+  const computePricePreview = (row: UnknownRecord): number | null => {
     if (!isPriceTable) return null;
     const directPrice = toNumberOrNull(row?.price);
     if (directPrice !== null) return Math.max(directPrice, 0);
@@ -163,7 +173,7 @@ export default function ArrayObjectField({
     return Math.max(rowPrice, 0);
   };
 
-  const getRowHeadline = (row: any, idx: number) => {
+  const getRowHeadline = (row: UnknownRecord, idx: number) => {
     if (isObjectivesEditor) {
       const objectiveId = String(row?.objective_id || `Objective ${idx + 1}`);
       const summary = row?.description ? String(row.description) : '';
@@ -205,18 +215,18 @@ export default function ArrayObjectField({
   };
 
   const renderArrayStringCell = (params: {
-    row: any;
+    row: UnknownRecord;
     rowIndex: number;
     itemKey: string;
-    itemConfig: any;
-    itemUi: any;
+    itemConfig: SchemaFieldConfig;
+    itemUi: SchemaFieldUiConfig;
     itemLabel: string;
-    itemValue: any;
+    itemValue: unknown;
   }) => {
     const { row, rowIndex, itemKey, itemConfig, itemUi, itemLabel, itemValue } = params;
     if (!(itemConfig.type === 'array' && itemConfig.items?.type === 'string')) return null;
 
-    const updateRowValue = (nextValue: any) => {
+    const updateRowValue = (nextValue: unknown) => {
       const next = [...safeValue];
       next[rowIndex] = { ...row, [itemKey]: nextValue };
       handleChange(fieldKey, next);
@@ -235,7 +245,7 @@ export default function ArrayObjectField({
     }
 
     if (itemUi.widget === 'multiselect') {
-      let options: any[] = [];
+      let options: unknown[] = [];
       let refType: string | null = null;
       if (itemUi.reference) {
         const referenceType = String(itemUi.reference);
@@ -248,9 +258,9 @@ export default function ArrayObjectField({
           options = getRefOptions(parentReferenceOptions, referenceOptions, sourceRef);
         }
       } else if (itemUi.options) {
-        options = itemUi.options.map((opt: string) => ({ id: opt, name: opt }));
+        options = itemUi.options.map((opt) => ({ id: String(opt), name: String(opt) }));
       } else if (Array.isArray(itemConfig.items?.enum)) {
-        options = itemConfig.items.enum.map((opt: string) => ({ id: opt, name: opt }));
+        options = itemConfig.items.enum.map((opt) => ({ id: String(opt), name: String(opt) }));
       }
 
       const onCreateReference =
@@ -291,7 +301,7 @@ export default function ArrayObjectField({
         {renderSpecialTopInfo()}
       </div>
       <div className="space-y-4">
-        {safeValue.map((item: any, idx: number) => {
+        {safeValue.map((item, idx: number) => {
           const headline = getRowHeadline(item, idx);
           const pricePreview = computePricePreview(item);
           const dropChance = toNumberOrNull(item?.drop_chance);
@@ -348,8 +358,9 @@ export default function ArrayObjectField({
                 </div>
               </div>
 
-              {Object.entries(itemSchema.properties || {}).map(([itemKey, itemConfig]: any) => {
-                const itemUi = itemConfig.ui || {};
+              {Object.entries(itemSchema.properties || {}).map(([itemKey, rawItemConfig]) => {
+                const itemConfig = rawItemConfig as SchemaFieldConfig;
+                const itemUi = (itemConfig.ui || {}) as SchemaFieldUiConfig;
                 const itemLabel = itemUi.label || itemKey;
                 const itemValue = item[itemKey];
                 if (!shouldShowByVisibleIf(itemUi.visible_if, item)) return null;
@@ -365,7 +376,7 @@ export default function ArrayObjectField({
                 });
                 if (arrayCell) return arrayCell;
 
-                const updateValue = (nextValue: any) => {
+                const updateValue = (nextValue: unknown) => {
                   const updatedItem = { ...item, [itemKey]: nextValue };
                   const next = [...safeValue];
                   next[idx] = updatedItem;
@@ -392,13 +403,13 @@ export default function ArrayObjectField({
                         )}
                       </div>
                       <SearchableSelect
-                        value={itemValue || ''}
+                        value={String(itemValue ?? '')}
                         onChange={(val) => updateValue(val)}
                         options={mappedOptions}
                         placeholder={mappedOptions.length === 0 ? 'No options available' : `Select ${itemLabel}`}
                         disabled={mappedOptions.length === 0}
                       />
-                      {isPriceTable && itemKey === 'item_id' && itemValue && (
+                      {isPriceTable && itemKey === 'item_id' && Boolean(itemValue) && (
                         <div className="mt-1 text-xs text-gray-500">
                           {(() => {
                             const opt = itemById.get(String(itemValue));
@@ -419,7 +430,7 @@ export default function ArrayObjectField({
                     <div key={itemKey} className="form-field mb-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
                       <SearchableSelect
-                        value={itemValue || ''}
+                        value={String(itemValue ?? '')}
                         onChange={(val) => updateValue(val)}
                         options={mappedOptions}
                         placeholder={`Select ${itemLabel}`}
@@ -485,7 +496,7 @@ export default function ArrayObjectField({
                   return (
                     <div key={itemKey} className="form-field mb-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
-                      <input type="date" className={inputBaseClass} value={itemValue || ''} onChange={(e) => updateValue(e.target.value)} />
+                      <input type="date" className={inputBaseClass} value={String(itemValue ?? '')} onChange={(e) => updateValue(e.target.value)} />
                     </div>
                   );
                 }
@@ -497,7 +508,7 @@ export default function ArrayObjectField({
                       <input
                         type="text"
                         className={inputBaseClass}
-                        value={itemValue || ''}
+                        value={String(itemValue ?? '')}
                         onChange={(e) => updateValue(e.target.value)}
                       />
                     </div>

@@ -1,8 +1,5 @@
 import type { PresetApplyMode } from './types';
-
-function isPlainObject(value: unknown): value is Record<string, any> {
-  return Object.prototype.toString.call(value) === '[object Object]';
-}
+import { asRecord, isRecord, type UnknownRecord } from '../types/common';
 
 function deepClone<T>(value: T): T {
   if (typeof structuredClone === 'function') {
@@ -15,11 +12,11 @@ function isEmptyValue(value: unknown): boolean {
   if (value === null || value === undefined) return true;
   if (typeof value === 'string') return value.trim() === '';
   if (Array.isArray(value)) return value.length === 0;
-  if (isPlainObject(value)) return Object.keys(value).length === 0;
+  if (isRecord(value)) return Object.keys(value).length === 0;
   return false;
 }
 
-function applyNode(current: any, patch: any, mode: PresetApplyMode): any {
+function applyNode(current: unknown, patch: unknown, mode: PresetApplyMode): unknown {
   if (patch === undefined) return current;
 
   if (Array.isArray(patch)) {
@@ -29,26 +26,26 @@ function applyNode(current: any, patch: any, mode: PresetApplyMode): any {
     return deepClone(patch);
   }
 
-  if (!isPlainObject(patch)) {
+  if (!isRecord(patch)) {
     if (mode === 'fill_empty') {
       return isEmptyValue(current) ? patch : current;
     }
     return patch;
   }
 
-  const base = isPlainObject(current) ? deepClone(current) : {};
-  const out: Record<string, any> = { ...base };
-  for (const [key, patchValue] of Object.entries(patch)) {
+  const base = isRecord(current) ? deepClone(current) : {};
+  const out: UnknownRecord = { ...base };
+  for (const [key, patchValue] of Object.entries(asRecord(patch))) {
     const curValue = out[key];
     if (mode === 'fill_empty') {
-      if (isPlainObject(patchValue) && isPlainObject(curValue)) {
+      if (isRecord(patchValue) && isRecord(curValue)) {
         out[key] = applyNode(curValue, patchValue, mode);
       } else if (isEmptyValue(curValue)) {
         out[key] = applyNode(curValue, patchValue, mode);
       }
       continue;
     }
-    if (isPlainObject(patchValue) && isPlainObject(curValue)) {
+    if (isRecord(patchValue) && isRecord(curValue)) {
       out[key] = applyNode(curValue, patchValue, mode);
     } else {
       out[key] = applyNode(curValue, patchValue, mode);
@@ -58,11 +55,11 @@ function applyNode(current: any, patch: any, mode: PresetApplyMode): any {
 }
 
 export function applyPresetData(
-  currentData: Record<string, any>,
-  presetData: Record<string, any>,
+  currentData: UnknownRecord,
+  presetData: UnknownRecord,
   mode: PresetApplyMode
-): Record<string, any> {
-  const base = isPlainObject(currentData) ? currentData : {};
-  const patch = isPlainObject(presetData) ? presetData : {};
-  return applyNode(base, patch, mode);
+): UnknownRecord {
+  const base = isRecord(currentData) ? currentData : {};
+  const patch = isRecord(presetData) ? presetData : {};
+  return asRecord(applyNode(base, patch, mode));
 }

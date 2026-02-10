@@ -8,6 +8,8 @@ import StringFieldRenderer from './schemaForm/StringFieldRenderer';
 import ScalarFieldRenderer from './schemaForm/ScalarFieldRenderer';
 import ArrayStringFieldRenderer from './schemaForm/ArrayStringFieldRenderer';
 import ObjectFieldRenderer from './schemaForm/ObjectFieldRenderer';
+import useDebouncedValue from './hooks/useDebouncedValue';
+import { BUTTON_CLASSES, BUTTON_SIZES } from '../styles/uiTokens';
 import {
   getNumberPlaceholder,
   isMissingScalarValue,
@@ -17,22 +19,32 @@ import {
   resolveSchemaName,
   type NumberValueType,
 } from './schemaForm/helpers';
+import {
+  asRecord,
+  type EntryData,
+  type ReferenceOptionsMap,
+  type SchemaDefinition,
+  type SchemaFieldConfig,
+  type SchemaFieldUiConfig,
+} from './schemaForm/types';
 
 interface SchemaFormProps {
-  schema: any;
-  data: any;
-  onChange: (updated: any) => void;
-  referenceOptions?: Record<string, any[]>;
+  schema: SchemaDefinition;
+  data: EntryData;
+  onChange: (updated: EntryData) => void;
+  referenceOptions?: ReferenceOptionsMap;
   fetchReferenceOptions?: (refType: string) => void;
   isValidCallback?: (valid: boolean) => void;
   parentSummary?: ParentSummary;
   isNested?: boolean;
+  changedFieldKeys?: string[];
 }
 
-function isVisibleByRule(ui: any, sourceData: Record<string, any>): boolean {
-  if (!ui?.visible_if) return true;
-  for (const depField in ui.visible_if) {
-    const expected = ui.visible_if[depField];
+function isVisibleByRule(ui: SchemaFieldUiConfig, sourceData: EntryData): boolean {
+  const visibleIf = asRecord(ui.visible_if);
+  if (Object.keys(visibleIf).length === 0) return true;
+  for (const depField in visibleIf) {
+    const expected = visibleIf[depField];
     const actual = sourceData?.[depField];
     if (Array.isArray(expected)) {
       if (!expected.includes(actual)) return false;
@@ -43,8 +55,8 @@ function isVisibleByRule(ui: any, sourceData: Record<string, any>): boolean {
   return true;
 }
 
-export default function SchemaForm({ schema, data, onChange, referenceOptions: parentReferenceOptions, fetchReferenceOptions: parentFetchReferenceOptions, isValidCallback, parentSummary, isNested = false }: SchemaFormProps) {
-  const fields = Object.entries(schema.properties || {}) as [string, any][];
+export default function SchemaForm({ schema, data, onChange, referenceOptions: parentReferenceOptions, fetchReferenceOptions: parentFetchReferenceOptions, isValidCallback, parentSummary, isNested = false, changedFieldKeys = [] }: SchemaFormProps) {
+  const fields = Object.entries(schema.properties || {}) as [string, SchemaFieldConfig][];
   const editorStack = useEditorStack();
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -56,10 +68,13 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
   const hasSlugField = !!(schema.properties && 'slug' in schema.properties);
 
   // --- Reference dropdowns state ---
-  const [referenceOptions, setReferenceOptions] = useState<Record<string, any>>(parentReferenceOptions || {});
+  const [referenceOptions, setReferenceOptions] = useState<ReferenceOptionsMap>(parentReferenceOptions || {});
   const [createdLabels, setCreatedLabels] = useState<Record<string, { id: string; label: string }>>({});
   const [recentlyAdded, setRecentlyAdded] = useState<Record<string, string>>({});
   const [numberInputs, setNumberInputs] = useState<Record<string, string>>({});
+  const [fieldFilter, setFieldFilter] = useState('');
+  const [fieldViewMode, setFieldViewMode] = useState<'all' | 'missing' | 'changed'>('all');
+  const debouncedFieldFilter = useDebouncedValue(fieldFilter, 120);
 
   // Fetch reference options, but only if not provided by parent
   const fetchReferenceOptions = useCallback((refType: string) => {
@@ -106,11 +121,10 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
 
   useEffect(() => {
     // For each field with ui.reference or ui.options_source, fetch options from backend.
-    const collectReferences = (schemaObj: any): string[] => {
+    const collectReferences = (schemaObj: SchemaDefinition | SchemaFieldConfig): string[] => {
       let refs: string[] = [];
       if (!schemaObj || !schemaObj.properties) return refs;
-      for (const [_, configUnknown] of Object.entries(schemaObj.properties)) {
-        const config = configUnknown as any;
+      for (const [, config] of Object.entries(schemaObj.properties)) {
         if (config.ui?.reference) refs.push(config.ui.reference);
         const sourceRef = resolveReferenceFromOptionsSource(config.ui?.options_source);
         if (sourceRef) refs.push(sourceRef);
@@ -145,6 +159,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
 
   const missingFields = scalarRequiredFields.filter((key) => isMissingScalarValue(data[key]));
   const missingFieldSet = useMemo(() => new Set(missingFields), [missingFields]);
+  const changedFieldSet = useMemo(() => new Set(changedFieldKeys.filter((key) => typeof key === 'string' && key.length > 0)), [changedFieldKeys]);
   const requiredTotal = scalarRequiredFields.length;
   const requiredCompleted = requiredTotal - missingFields.length;
   const requiredProgress = requiredTotal === 0 ? 100 : Math.round((requiredCompleted / requiredTotal) * 100);
@@ -155,6 +170,12 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isValid]);
 
+  useEffect(() => {
+    if (isNested) return;
+    setFieldFilter('');
+    setFieldViewMode('all');
+  }, [isNested, schema]);
+
   const scrollToField = (key: string) => {
     const container = fieldRefs.current[key];
     if (!container) return;
@@ -163,20 +184,49 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
     if (target) target.focus();
   };
 
+  const normalizedFieldFilter = debouncedFieldFilter.trim().toLowerCase();
+
+  const shouldIncludeField = useCallback((key: string, label: string, descriptionText?: string) => {
+    if (isNested) return true;
+    if (fieldViewMode === 'missing' && !missingFieldSet.has(key)) return false;
+    if (fieldViewMode === 'changed' && !changedFieldSet.has(key)) return false;
+    if (!normalizedFieldFilter) return true;
+    const haystack = `${key} ${label} ${descriptionText || ''}`.toLowerCase();
+    return haystack.includes(normalizedFieldFilter);
+  }, [changedFieldSet, fieldViewMode, isNested, missingFieldSet, normalizedFieldFilter]);
+
+  const totalVisibleByRules = useMemo(() => {
+    return fields.reduce((count, [, config]) => {
+      if (!isVisibleByRule(config?.ui || {}, data || {})) return count;
+      return count + 1;
+    }, 0);
+  }, [data, fields]);
+
+  const filteredVisibleCount = useMemo(() => {
+    return fields.reduce((count, [key, config]) => {
+      const ui = config.ui || {};
+      const label = ui.label || key;
+      const description = ui.description || config.description;
+      if (!isVisibleByRule(ui, data || {})) return count;
+      if (!shouldIncludeField(key, label, description)) return count;
+      return count + 1;
+    }, 0);
+  }, [data, fields, shouldIncludeField]);
+
   // Auto-fill slug from name when slug is empty; do NOT auto-generate id
-  const handleChange = (key: string, value: any) => {
+  const handleChange = (key: string, value: unknown) => {
     // setTouched((prev) => ({ ...prev, [key]: true }));
-    let updated = { ...data, [key]: value };
+    const updated: EntryData = { ...data, [key]: value };
     if (hasSlugField && key === 'name') {
-      const currentSlug = (data && data.slug) || '';
+      const currentSlug = typeof data?.slug === 'string' ? data.slug : '';
       if (!currentSlug || currentSlug.trim() === '') {
-        updated.slug = generateSlug(value || '');
+        updated.slug = generateSlug(String(value ?? ''));
       }
     }
     onChange(updated);
   };
 
-  const getNumberInputValue = (key: string, value: any) => {
+  const getNumberInputValue = (key: string, value: unknown) => {
     if (numberInputs[key] !== undefined) return numberInputs[key];
     if (value === null || value === undefined) return '';
     return String(value);
@@ -218,7 +268,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
 
   const handleCreateReference = async (
     refType: string,
-    onSelect: (id: string, createdData: Record<string, any>) => void
+    onSelect: (id: string, createdData: EntryData) => void
   ) => {
     if (!editorStack?.openEditor) return;
     const result = await editorStack.openEditor({
@@ -296,6 +346,54 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           <span>Please fill all required fields: {missingFields.join(', ')}</span>
         </div>
       )}
+      {!isNested && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              type="text"
+              className="flex-1 min-w-[220px] border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-900 bg-white"
+              placeholder="Filter fields (name, label, description)"
+              value={fieldFilter}
+              onChange={(e) => setFieldFilter(e.target.value)}
+            />
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className={`${fieldViewMode === 'all' ? BUTTON_CLASSES.primary : BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+                onClick={() => setFieldViewMode('all')}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                className={`${fieldViewMode === 'missing' ? BUTTON_CLASSES.primary : BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+                onClick={() => setFieldViewMode('missing')}
+              >
+                Missing ({missingFields.length})
+              </button>
+              <button
+                type="button"
+                className={`${fieldViewMode === 'changed' ? BUTTON_CLASSES.primary : BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+                onClick={() => setFieldViewMode('changed')}
+              >
+                Changed ({changedFieldSet.size})
+              </button>
+              {fieldFilter && (
+                <button
+                  type="button"
+                  className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
+                  onClick={() => setFieldFilter('')}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="mt-2 text-xs text-slate-600">
+            Showing {filteredVisibleCount} / {totalVisibleByRules} visible fields
+          </div>
+        </div>
+      )}
       {fields.map(([key, config]) => {
         const type = config.type;
         const ui = config.ui || {};
@@ -304,6 +402,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
         const value = data[key];
 
         if (!isVisibleByRule(ui, data || {})) return null;
+        if (!shouldIncludeField(key, label, description)) return null;
 
         let fieldNode: ReactNode = null;
 
@@ -333,10 +432,10 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           );
         } else if (type === 'boolean' || type === 'number' || type === 'integer' || ui.widget === 'checkbox') {
           fieldNode = (
-            <ScalarFieldRenderer
-              fieldKey={key}
-              type={type}
-              ui={ui}
+                <ScalarFieldRenderer
+                  fieldKey={key}
+                  type={type || 'number'}
+                  ui={ui}
               label={label}
               description={description}
               value={value}
@@ -380,7 +479,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
               renderNestedForm={(fieldKeyValue, nestedPropsValue, nestedValue) => (
                 <SchemaForm
                   schema={{ properties: nestedPropsValue }}
-                  data={nestedValue || {}}
+                  data={nestedValue}
                   onChange={(val) => handleChange(fieldKeyValue, val)}
                   referenceOptions={parentReferenceOptions || referenceOptions}
                   fetchReferenceOptions={fetchReferenceOptions}
@@ -396,8 +495,8 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
               fieldKey={key}
               label={label}
               description={description}
-              value={value || []}
-              itemSchema={config.items}
+              value={Array.isArray(value) ? value.map((row) => asRecord(row)) : []}
+              itemSchema={config.items || {}}
               widget={ui.widget}
               inputBaseClass={inputBaseClass}
               parentData={data}

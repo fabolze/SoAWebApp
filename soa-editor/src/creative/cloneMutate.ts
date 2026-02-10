@@ -1,4 +1,5 @@
 import { generateSlug, generateUlid } from "../utils/generateId";
+import { asRecord, isRecord, type UnknownRecord } from "../types/common";
 
 export interface CloneMutateOptions {
   numericMultiplier: number;
@@ -9,7 +10,7 @@ export interface CloneMutateOptions {
 }
 
 export interface CloneMutateResult {
-  nextData: Record<string, any>;
+  nextData: UnknownRecord;
   changedCount: number;
 }
 
@@ -20,10 +21,6 @@ export const defaultCloneMutateOptions: CloneMutateOptions = {
   slugSuffix: "variant",
   addVariantTag: true,
 };
-
-function isPlainObject(value: unknown): value is Record<string, any> {
-  return Object.prototype.toString.call(value) === "[object Object]";
-}
 
 function deepClone<T>(value: T): T {
   if (typeof structuredClone === "function") {
@@ -38,23 +35,24 @@ function mutateNumericValue(value: number, isInteger: boolean, options: CloneMut
 }
 
 function mutateBySchemaNode(
-  schemaNode: any,
-  value: any,
+  schemaNode: unknown,
+  value: unknown,
   options: CloneMutateOptions,
   changedRef: { count: number }
-): any {
+): unknown {
   if (value === null || value === undefined) return value;
 
-  const type = schemaNode?.type;
+  const schemaRecord = asRecord(schemaNode);
+  const type = schemaRecord.type;
   if ((type === "number" || type === "integer") && typeof value === "number") {
     const nextNumeric = mutateNumericValue(value, type === "integer", options);
     if (nextNumeric !== value) changedRef.count += 1;
     return nextNumeric;
   }
 
-  if ((type === "object" || schemaNode?.properties) && isPlainObject(value)) {
-    const out = { ...value };
-    const properties = schemaNode?.properties || {};
+  if ((type === "object" || schemaRecord.properties) && isRecord(value)) {
+    const out: UnknownRecord = { ...value };
+    const properties = asRecord(schemaRecord.properties);
     for (const [key, childSchema] of Object.entries(properties)) {
       if (out[key] === undefined) continue;
       out[key] = mutateBySchemaNode(childSchema, out[key], options, changedRef);
@@ -63,7 +61,7 @@ function mutateBySchemaNode(
   }
 
   if (type === "array" && Array.isArray(value)) {
-    const childSchema = schemaNode?.items || {};
+    const childSchema = schemaRecord.items ?? {};
     return value.map((item) => mutateBySchemaNode(childSchema, item, options, changedRef));
   }
 
@@ -71,22 +69,23 @@ function mutateBySchemaNode(
 }
 
 function estimateBySchemaNode(
-  schemaNode: any,
-  value: any,
+  schemaNode: unknown,
+  value: unknown,
   options: CloneMutateOptions,
   changedRef: { count: number }
 ): void {
   if (value === null || value === undefined) return;
 
-  const type = schemaNode?.type;
+  const schemaRecord = asRecord(schemaNode);
+  const type = schemaRecord.type;
   if ((type === "number" || type === "integer") && typeof value === "number") {
     const nextNumeric = mutateNumericValue(value, type === "integer", options);
     if (nextNumeric !== value) changedRef.count += 1;
     return;
   }
 
-  if ((type === "object" || schemaNode?.properties) && isPlainObject(value)) {
-    const properties = schemaNode?.properties || {};
+  if ((type === "object" || schemaRecord.properties) && isRecord(value)) {
+    const properties = asRecord(schemaRecord.properties);
     for (const [key, childSchema] of Object.entries(properties)) {
       if (value[key] === undefined) continue;
       estimateBySchemaNode(childSchema, value[key], options, changedRef);
@@ -95,21 +94,21 @@ function estimateBySchemaNode(
   }
 
   if (type === "array" && Array.isArray(value)) {
-    const childSchema = schemaNode?.items || {};
+    const childSchema = schemaRecord.items ?? {};
     value.forEach((item) => estimateBySchemaNode(childSchema, item, options, changedRef));
   }
 }
 
 export function buildMutatedClone(
-  schema: any,
-  data: Record<string, any>,
+  schema: unknown,
+  data: UnknownRecord,
   options: CloneMutateOptions
 ): CloneMutateResult {
-  const safeData = isPlainObject(data) ? data : {};
+  const safeData: UnknownRecord = isRecord(data) ? data : {};
   const changedRef = { count: 0 };
-  const rootSchema = { type: "object", properties: schema?.properties || {} };
+  const rootSchema = { type: "object", properties: asRecord(asRecord(schema).properties) };
   const mutated = mutateBySchemaNode(rootSchema, deepClone(safeData), options, changedRef);
-  const next = isPlainObject(mutated) ? mutated : deepClone(safeData);
+  const next: UnknownRecord = isRecord(mutated) ? mutated : deepClone(safeData);
 
   if (typeof next.id === "string" && next.id.trim() !== "") {
     next.id = generateUlid();
@@ -137,7 +136,7 @@ export function buildMutatedClone(
   }
 
   if (options.addVariantTag && Array.isArray(next.tags)) {
-    const normalized = next.tags.map((t: any) => String(t));
+    const normalized = next.tags.map((t) => String(t));
     if (!normalized.includes("variant")) {
       next.tags = [...normalized, "variant"];
       changedRef.count += 1;
@@ -148,13 +147,13 @@ export function buildMutatedClone(
 }
 
 export function estimateMutatedCloneChangeCount(
-  schema: any,
-  data: Record<string, any>,
+  schema: unknown,
+  data: UnknownRecord,
   options: CloneMutateOptions
 ): number {
-  const safeData = isPlainObject(data) ? data : {};
+  const safeData: UnknownRecord = isRecord(data) ? data : {};
   const changedRef = { count: 0 };
-  const rootSchema = { type: "object", properties: schema?.properties || {} };
+  const rootSchema = { type: "object", properties: asRecord(asRecord(schema).properties) };
   estimateBySchemaNode(rootSchema, safeData, options, changedRef);
 
   if (typeof safeData.id === "string" && safeData.id.trim() !== "") {
@@ -182,7 +181,7 @@ export function estimateMutatedCloneChangeCount(
   }
 
   if (options.addVariantTag && Array.isArray(safeData.tags)) {
-    const normalized = safeData.tags.map((t: any) => String(t));
+    const normalized = safeData.tags.map((t) => String(t));
     if (!normalized.includes("variant")) {
       changedRef.count += 1;
     }

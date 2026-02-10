@@ -870,6 +870,15 @@ export default function SchemaEditor({
   // Determine if creating new entry.
   const isNew = !editingId;
   const formHeader = isNew ? `New ${title.replace(/ Editor$/, "")}` : `Edit ${title.replace(/ Editor$/, "")}`;
+  const changedFieldKeys = useMemo(() => {
+    const keys = new Set<string>([
+      ...Object.keys(originalData || {}),
+      ...Object.keys(data || {}),
+    ]);
+    return Array.from(keys)
+      .filter((key) => stringifyStable(originalData?.[key]) !== stringifyStable(data?.[key]))
+      .sort((a, b) => a.localeCompare(b));
+  }, [data, originalData]);
 
   useEffect(() => {
     originalSerializedRef.current = stringifyStable(originalData);
@@ -1093,6 +1102,7 @@ export default function SchemaEditor({
             referenceError={referenceError}
             onRefreshReferences={handleRefreshReferences}
             onOpenReferenceHit={handleOpenReferenceHit}
+            changedFieldKeys={changedFieldKeys}
           />
         )}
       </div>

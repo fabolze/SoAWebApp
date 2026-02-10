@@ -1,8 +1,9 @@
 import { createContext, useContext } from 'react';
+import type { EntryData } from './schemaForm/types';
 
 export type ParentSummary = {
   title: string;
-  data: Record<string, any>;
+  data: EntryData;
 };
 
 export type OpenEditorArgs = {
@@ -13,7 +14,7 @@ export type OpenEditorArgs = {
 
 export type CreatedResult = {
   id: string;
-  data: Record<string, any>;
+  data: EntryData;
 };
 
 export type EditorStackContextValue = {

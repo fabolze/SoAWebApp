@@ -18,6 +18,10 @@ import useDebouncedValue from "./hooks/useDebouncedValue";
 import ContextSimulationPanel from "./simulation/ContextSimulationPanel";
 import type { EntryRecord, ReferenceHit, ReferenceSummary } from "../types/editorQol";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 interface EntryFormPanelProps {
   schemaName: string;
   schema: Record<string, unknown>;
@@ -37,6 +41,7 @@ interface EntryFormPanelProps {
   referenceError: string | null;
   onRefreshReferences: () => void;
   onOpenReferenceHit: (hit: ReferenceHit) => void;
+  changedFieldKeys: string[];
 }
 
 export default function EntryFormPanel({
@@ -58,6 +63,7 @@ export default function EntryFormPanel({
   referenceError,
   onRefreshReferences,
   onOpenReferenceHit,
+  changedFieldKeys,
 }: EntryFormPanelProps) {
   const presets = useMemo(() => getPresetsForSchema(schemaName), [schemaName]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
@@ -65,6 +71,8 @@ export default function EntryFormPanel({
   const [undoSnapshot, setUndoSnapshot] = useState<EntryRecord | null>(null);
   const [creativeUndoSnapshot, setCreativeUndoSnapshot] = useState<EntryRecord | null>(null);
   const [cloneUndoSnapshot, setCloneUndoSnapshot] = useState<EntryRecord | null>(null);
+  const [jsonMergeUndoSnapshot, setJsonMergeUndoSnapshot] = useState<EntryRecord | null>(null);
+  const [utilityNotice, setUtilityNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [cloneOptions, setCloneOptions] = useState<CloneMutateOptions>(defaultCloneMutateOptions);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const debouncedCloneData = useDebouncedValue(data || {}, 250);
@@ -73,12 +81,17 @@ export default function EntryFormPanel({
   const currentEntryId = typeof rawEntryId === "string" ? rawEntryId : rawEntryId != null ? String(rawEntryId) : "";
   const hasExistingId = !isNew && currentEntryId.length > 0;
 
+  const showUtilityNotice = useCallback((type: "success" | "error", message: string) => {
+    setUtilityNotice({ type, message });
+  }, []);
+
   useEffect(() => {
     if (!presets.length) {
       setSelectedPresetId("");
       setUndoSnapshot(null);
       setCreativeUndoSnapshot(null);
       setCloneUndoSnapshot(null);
+      setJsonMergeUndoSnapshot(null);
       return;
     }
     const first = presets[0];
@@ -87,7 +100,14 @@ export default function EntryFormPanel({
     setUndoSnapshot(null);
     setCreativeUndoSnapshot(null);
     setCloneUndoSnapshot(null);
+    setJsonMergeUndoSnapshot(null);
   }, [schemaName, presets]);
+
+  useEffect(() => {
+    if (!utilityNotice) return;
+    const timeout = setTimeout(() => setUtilityNotice(null), 3500);
+    return () => clearTimeout(timeout);
+  }, [utilityNotice]);
 
   const selectedPreset = presets.find((preset) => preset.id === selectedPresetId) || presets[0] || null;
 
@@ -138,6 +158,73 @@ export default function EntryFormPanel({
     onChange(cloneUndoSnapshot);
     setCloneUndoSnapshot(null);
   }, [cloneUndoSnapshot, onChange]);
+
+  const handleCopyJson = useCallback(async () => {
+    const payload = JSON.stringify(data || {}, null, 2);
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payload);
+        showUtilityNotice("success", "Entry JSON copied to clipboard.");
+        return;
+      }
+      window.prompt("Copy entry JSON:", payload);
+      showUtilityNotice("success", "Entry JSON opened for copy.");
+    } catch {
+      showUtilityNotice("error", "Unable to copy JSON.");
+    }
+  }, [data, showUtilityNotice]);
+
+  const handleCopyId = useCallback(async () => {
+    if (!hasExistingId) {
+      showUtilityNotice("error", "No entry ID available yet.");
+      return;
+    }
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(currentEntryId);
+        showUtilityNotice("success", "Entry ID copied.");
+        return;
+      }
+      window.prompt("Copy entry ID:", currentEntryId);
+      showUtilityNotice("success", "Entry ID opened for copy.");
+    } catch {
+      showUtilityNotice("error", "Unable to copy entry ID.");
+    }
+  }, [currentEntryId, hasExistingId, showUtilityNotice]);
+
+  const handleMergeJsonPatch = useCallback(() => {
+    const raw = window.prompt("Paste JSON object to merge into this entry:");
+    if (raw === null) return;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      showUtilityNotice("error", "Invalid JSON.");
+      return;
+    }
+
+    if (!isRecord(parsed)) {
+      showUtilityNotice("error", "JSON patch must be an object.");
+      return;
+    }
+    const patch = parsed as EntryRecord;
+    if (Object.keys(patch).length === 0) {
+      showUtilityNotice("error", "JSON patch is empty.");
+      return;
+    }
+
+    setJsonMergeUndoSnapshot(data || {});
+    onChange({ ...(data || {}), ...patch });
+    showUtilityNotice("success", `Merged ${Object.keys(patch).length} field(s).`);
+  }, [data, onChange, showUtilityNotice]);
+
+  const handleUndoJsonMerge = useCallback(() => {
+    if (!jsonMergeUndoSnapshot) return;
+    onChange(jsonMergeUndoSnapshot);
+    setJsonMergeUndoSnapshot(null);
+    showUtilityNotice("success", "Reverted JSON merge.");
+  }, [jsonMergeUndoSnapshot, onChange, showUtilityNotice]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -202,6 +289,28 @@ export default function EntryFormPanel({
         run: handleUndoClone,
       },
       {
+        id: "copy-json",
+        title: "Copy Entry JSON",
+        subtitle: "Copy current entry payload to clipboard",
+        keywords: ["copy", "json", "clipboard"],
+        run: handleCopyJson,
+      },
+      {
+        id: "merge-json",
+        title: "Merge JSON Patch",
+        subtitle: "Paste a JSON object and merge fields",
+        keywords: ["merge", "json", "patch"],
+        run: handleMergeJsonPatch,
+      },
+      {
+        id: "undo-json-merge",
+        title: "Undo JSON Merge",
+        subtitle: "Revert last JSON merge action",
+        keywords: ["undo", "json", "merge"],
+        disabled: !jsonMergeUndoSnapshot,
+        run: handleUndoJsonMerge,
+      },
+      {
         id: "cancel",
         title: "Cancel Editing",
         subtitle: isNew ? "Not available for a new draft" : "Discard and return to a new draft",
@@ -223,6 +332,10 @@ export default function EntryFormPanel({
       handleApplyClone,
       cloneUndoSnapshot,
       handleUndoClone,
+      handleCopyJson,
+      handleMergeJsonPatch,
+      jsonMergeUndoSnapshot,
+      handleUndoJsonMerge,
       isNew,
       onCancel,
     ]
@@ -271,6 +384,64 @@ export default function EntryFormPanel({
           schemaName={schemaName}
           data={(data || {}) as Record<string, unknown>}
         />
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 mb-4">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              <div className="text-sm font-semibold text-slate-800">Authoring Utilities</div>
+              <div className="text-xs text-slate-600 mt-1">
+                Changed fields: <span className="font-semibold text-slate-800">{changedFieldKeys.length}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 flex-wrap">
+              {hasExistingId && (
+                <button
+                  type="button"
+                  className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
+                  onClick={() => {
+                    void handleCopyId();
+                  }}
+                >
+                  Copy ID
+                </button>
+              )}
+              <button
+                type="button"
+                className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
+                onClick={() => {
+                  void handleCopyJson();
+                }}
+              >
+                Copy JSON
+              </button>
+              <button
+                type="button"
+                className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+                onClick={handleMergeJsonPatch}
+              >
+                Merge JSON
+              </button>
+              <button
+                type="button"
+                className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+                onClick={handleUndoJsonMerge}
+                disabled={!jsonMergeUndoSnapshot}
+              >
+                Undo Merge
+              </button>
+            </div>
+          </div>
+          {utilityNotice && (
+            <div
+              className={`mt-2 rounded border px-2 py-1 text-xs ${
+                utilityNotice.type === "success"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-red-200 bg-red-50 text-red-700"
+              }`}
+            >
+              {utilityNotice.message}
+            </div>
+          )}
+        </div>
         {hasExistingId && (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 mb-4">
             <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -351,6 +522,7 @@ export default function EntryFormPanel({
           isValidCallback={setFormValid}
           key={referenceOptionsVersion}
           parentSummary={parentSummary}
+          changedFieldKeys={changedFieldKeys}
         />
         <div className="flex gap-2 mt-4">
           <button

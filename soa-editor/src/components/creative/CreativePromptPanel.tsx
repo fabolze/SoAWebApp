@@ -2,19 +2,20 @@ import { useMemo, useState } from "react";
 import { generateCreativeSuggestions, type CreativeSuggestion, type CreativeTone } from "../../creative";
 import type { PresetApplyMode } from "../../presets";
 import { BUTTON_CLASSES, BUTTON_SIZES, TEXT_CLASSES } from "../../styles/uiTokens";
+import type { EntryData, SchemaDefinition } from "../schemaForm/types";
 
 interface CreativePromptPanelProps {
   schemaName: string;
-  schema: any;
-  data: Record<string, any>;
+  schema: SchemaDefinition;
+  data: EntryData;
   canUndo: boolean;
   onUndo: () => void;
-  onApplyPatch: (patch: Record<string, any>, mode: PresetApplyMode) => void;
+  onApplyPatch: (patch: EntryData, mode: PresetApplyMode) => void;
 }
 
 const toneOptions: CreativeTone[] = ["neutral", "heroic", "dark", "mystic", "playful"];
 
-function pickTextField(patch: Record<string, any>): [string, any] | null {
+function pickTextField(patch: EntryData): [string, unknown] | null {
   const candidates = ["description", "text", "summary"];
   for (const key of candidates) {
     if (patch[key] !== undefined) return [key, patch[key]];

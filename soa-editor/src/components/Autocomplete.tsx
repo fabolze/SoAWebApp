@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useDebouncedValue from './hooks/useDebouncedValue';
+import { asRecord } from './schemaForm/types';
 
 interface AutocompleteProps {
   label: string;
   value: string | null;
   onChange: (value: string | null) => void;
-  fetchOptions: (search: string) => Promise<any[]>;
-  getOptionLabel?: (option: any) => string;
-  getOptionValue?: (option: any) => string;
+  fetchOptions: (search: string) => Promise<unknown[]>;
+  getOptionLabel?: (option: unknown) => string;
+  getOptionValue?: (option: unknown) => string;
   placeholder?: string;
   disabled?: boolean;
   description?: string;
@@ -21,8 +22,14 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
   value,
   onChange,
   fetchOptions,
-  getOptionLabel = (o) => o.name || o.title || o.id || JSON.stringify(o),
-  getOptionValue = (o) => o.id || o,
+  getOptionLabel = (o) => {
+    const record = asRecord(o);
+    return String(record.name || record.title || record.id || JSON.stringify(o));
+  },
+  getOptionValue = (o) => {
+    const record = asRecord(o);
+    return String(record.id ?? o ?? '');
+  },
   placeholder,
   disabled,
   description,
@@ -31,7 +38,7 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
   hideDescription,
 }) => {
   const [inputValue, setInputValue] = useState('');
-  const [options, setOptions] = useState<any[]>([]);
+  const [options, setOptions] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState('');
@@ -116,7 +123,7 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
     setShowDropdown(true);
   };
 
-  const handleSelect = (option: any) => {
+  const handleSelect = (option: unknown) => {
     onChange(getOptionValue(option));
     setInputValue(getOptionLabel(option));
     setShowDropdown(false);

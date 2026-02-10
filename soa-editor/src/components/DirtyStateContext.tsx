@@ -1,14 +1,5 @@
-import { createContext, useCallback, useMemo, useState } from "react";
-
-type DirtySources = Record<string, true>;
-
-interface DirtyStateContextValue {
-  isDirty: boolean;
-  setDirty: (sourceId: string, dirty: boolean) => void;
-  confirmNavigate: () => boolean;
-}
-
-export const DirtyStateContext = createContext<DirtyStateContextValue | null>(null);
+import { useCallback, useMemo, useState } from "react";
+import { DirtyStateContext, type DirtySources } from "./DirtyStateStore";
 
 export function DirtyStateProvider({ children }: { children: React.ReactNode }) {
   const [dirtySources, setDirtySources] = useState<DirtySources>({});

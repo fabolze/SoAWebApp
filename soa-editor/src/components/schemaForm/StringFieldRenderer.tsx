@@ -2,29 +2,35 @@ import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import SearchableSelect from '../SearchableSelect';
 import ReferenceSelectField from '../SchemaFields/ReferenceSelectField';
 import { mapSelectOptions, resolveReferenceFromOptionsSource } from './helpers';
+import type {
+  EntryData,
+  ReferenceOptionsMap,
+  SchemaFieldConfig,
+  SchemaFieldUiConfig,
+} from './types';
 
 interface StringFieldRendererProps {
   fieldKey: string;
   idField?: string;
-  ui: any;
-  config: any;
+  ui: SchemaFieldUiConfig;
+  config: SchemaFieldConfig;
   label: string;
   description?: string;
-  value: any;
+  value: unknown;
   inputBaseClass: string;
-  parentReferenceOptions?: Record<string, any[]>;
-  referenceOptions: Record<string, any[]>;
+  parentReferenceOptions?: ReferenceOptionsMap;
+  referenceOptions: ReferenceOptionsMap;
   createdLabels: Record<string, { id: string; label: string }>;
   setCreatedLabels: Dispatch<SetStateAction<Record<string, { id: string; label: string }>>>;
   previewUrls: Record<string, string>;
   setPreviewUrls: Dispatch<SetStateAction<Record<string, string>>>;
   canCreateReference: boolean;
-  handleChange: (key: string, value: any) => void;
+  handleChange: (key: string, value: unknown) => void;
   handleCreateReference: (
     refType: string,
-    onSelect: (id: string, createdData: Record<string, any>) => void
+    onSelect: (id: string, createdData: EntryData) => void
   ) => Promise<void>;
-  fetchReferenceAutocomplete: (refType: string, search: string) => Promise<any[]>;
+  fetchReferenceAutocomplete: (refType: string, search: string) => Promise<unknown[]>;
   renderFieldLabel: (label: string, description?: string, action?: ReactNode) => ReactNode;
 }
 
@@ -71,7 +77,7 @@ export default function StringFieldRenderer({
         key={fieldKey}
         label={label}
         description={description}
-        value={value || ''}
+        value={String(value ?? '')}
         refType={refType}
         options={refOptions}
         useAutocomplete={useAutocomplete}
@@ -89,13 +95,13 @@ export default function StringFieldRenderer({
   }
 
   if (ui.widget === 'select') {
-    const selectOptions = ui.options || config.enum || [];
+    const selectOptions = (ui.options as unknown[] | undefined) || config.enum || [];
     const mappedOptions = mapSelectOptions(selectOptions || []);
     return (
       <div key={fieldKey} className="form-field">
         {renderFieldLabel(label, description)}
         <SearchableSelect
-          value={value || ''}
+          value={String(value ?? '')}
           onChange={(val) => handleChange(fieldKey, val)}
           options={mappedOptions}
           placeholder={`Select ${label}`}
@@ -128,7 +134,7 @@ export default function StringFieldRenderer({
         <input
           type="date"
           className={inputBaseClass}
-          value={value || ''}
+          value={String(value ?? '')}
           onChange={(e) => handleChange(fieldKey, e.target.value)}
         />
       </div>
@@ -142,7 +148,7 @@ export default function StringFieldRenderer({
         <input
           type="text"
           className={inputBaseClass + ' bg-gray-100 text-gray-500 cursor-not-allowed'}
-          value={value || ''}
+          value={String(value ?? '')}
           readOnly
           tabIndex={-1}
           style={{ pointerEvents: 'none' }}
@@ -171,7 +177,7 @@ export default function StringFieldRenderer({
             reader.readAsDataURL(file);
           }}
         />
-        {value && value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && previewUrls[fieldKey] && (
+        {typeof value === 'string' && value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && previewUrls[fieldKey] && (
           <div className="mt-2 flex items-center gap-2">
             <img src={previewUrls[fieldKey]} alt="preview" style={{ maxHeight: '60px' }} />
             <button
@@ -190,9 +196,9 @@ export default function StringFieldRenderer({
             </button>
           </div>
         )}
-        {value && !value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && (
+        {typeof value === 'string' && !value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && (
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-xs text-gray-500">{value}</span>
+            <span className="text-xs text-gray-500">{String(value)}</span>
             <button
               type="button"
               className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs"
@@ -219,7 +225,7 @@ export default function StringFieldRenderer({
       <input
         type="text"
         className={inputBaseClass}
-        value={value || ''}
+        value={String(value ?? '')}
         onChange={(e) => handleChange(fieldKey, e.target.value)}
         placeholder={`Enter ${label.toLowerCase()}...`}
       />

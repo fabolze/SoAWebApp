@@ -2,20 +2,21 @@ import type { ReactNode } from 'react';
 import Autocomplete from '../Autocomplete';
 import SearchableSelect from '../SearchableSelect';
 import { BUTTON_CLASSES, BUTTON_SIZES } from '../../styles/uiTokens';
+import { getReferenceOptionLabel, getReferenceOptionValue } from '../schemaForm/helpers';
 
 interface ReferenceSelectFieldProps {
   label: string;
   description?: string;
   value: string | null;
   refType: string;
-  options: any[];
+  options: unknown[];
   useAutocomplete: boolean;
   valueLabel?: string;
   canCreate?: boolean;
   onCreateReference?: () => Promise<{ id: string; label?: string } | null>;
   onCreatedLabel?: (id: string, label: string) => void;
   onChange: (value: string | null) => void;
-  fetchReferenceAutocomplete: (refType: string, search: string) => Promise<any[]>;
+  fetchReferenceAutocomplete: (refType: string, search: string) => Promise<unknown[]>;
   renderFieldLabel: (label: string, description?: string, action?: ReactNode) => ReactNode;
 }
 
@@ -35,10 +36,11 @@ export default function ReferenceSelectField({
   renderFieldLabel,
 }: ReferenceSelectFieldProps) {
   const safeOptions = Array.isArray(options) ? options : [];
-  const mappedOptions = safeOptions.map((opt: any) => {
-    const labelText = opt?.name || opt?.title || opt?.id || opt?.[`${refType.slice(0, -1)}_id`] || opt?.[`${refType}_id`] || JSON.stringify(opt);
-    const valueText = opt?.id || opt?.[`${refType.slice(0, -1)}_id`] || opt?.[`${refType}_id`] || opt;
-    return { label: String(labelText), value: String(valueText) };
+  const mappedOptions = safeOptions.map((opt) => {
+    return {
+      label: getReferenceOptionLabel(opt, refType),
+      value: getReferenceOptionValue(opt, refType),
+    };
   });
 
   const handleCreate = async () => {
@@ -72,8 +74,8 @@ export default function ReferenceSelectField({
               value={value || ''}
               onChange={(val) => onChange(val)}
               fetchOptions={(search) => fetchReferenceAutocomplete(refType, search)}
-              getOptionLabel={(opt) => opt.name || opt.title || opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || JSON.stringify(opt)}
-              getOptionValue={(opt) => opt.id || opt[`${refType.slice(0, -1)}_id`] || opt[`${refType}_id`] || opt}
+              getOptionLabel={(opt) => getReferenceOptionLabel(opt, refType)}
+              getOptionValue={(opt) => getReferenceOptionValue(opt, refType)}
               placeholder={`Search ${label}...`}
               disabled={false}
               description={description}

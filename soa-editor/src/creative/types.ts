@@ -1,11 +1,12 @@
 import type { PresetApplyMode } from "../presets";
+import type { UnknownRecord } from "../types/common";
 
 export type CreativeTone = "neutral" | "heroic" | "dark" | "mystic" | "playful";
 
 export interface CreativeInput {
   schemaName: string;
-  schema?: any;
-  currentData: Record<string, any>;
+  schema?: UnknownRecord;
+  currentData: UnknownRecord;
   theme: string;
   tone: CreativeTone;
   keywords: string[];
@@ -16,7 +17,7 @@ export interface CreativeSuggestion {
   id: string;
   title: string;
   summary: string;
-  patch: Record<string, any>;
+  patch: UnknownRecord;
 }
 
 export interface CreativeGeneratorScope {
@@ -25,6 +26,6 @@ export interface CreativeGeneratorScope {
 }
 
 export interface CreativeApplyRequest {
-  patch: Record<string, any>;
+  patch: UnknownRecord;
   mode: PresetApplyMode;
 }

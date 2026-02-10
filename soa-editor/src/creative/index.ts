@@ -1,5 +1,6 @@
 import { creativeScopes } from "./generators";
 import type { CreativeInput, CreativeSuggestion } from "./types";
+import { asRecord, type UnknownRecord } from "../types/common";
 
 function matchesSchema(schemaName: string, scopeSchema: string): boolean {
   if (scopeSchema === "*") return true;
@@ -9,12 +10,13 @@ function matchesSchema(schemaName: string, scopeSchema: string): boolean {
   return schemaName === scopeSchema;
 }
 
-function filterPatchBySchema(patch: Record<string, any>, schema: any): Record<string, any> {
-  const properties = schema?.properties;
-  if (!properties || typeof properties !== "object") return patch;
-  const out: Record<string, any> = {};
-  for (const [key, value] of Object.entries(patch || {})) {
-    if (properties[key] !== undefined) {
+function filterPatchBySchema(patch: UnknownRecord, schema: unknown): UnknownRecord {
+  const schemaRecord = asRecord(schema);
+  const properties = asRecord(schemaRecord.properties);
+  if (Object.keys(properties).length === 0) return patch;
+  const out: UnknownRecord = {};
+  for (const [key, value] of Object.entries(asRecord(patch))) {
+    if (Object.prototype.hasOwnProperty.call(properties, key)) {
       out[key] = value;
     }
   }
@@ -35,7 +37,7 @@ export function generateCreativeSuggestions(input: CreativeInput): CreativeSugge
   return limited.map((suggestion, idx) => ({
     ...suggestion,
     id: suggestion.id || `${schemaName}-creative-${idx}`,
-    patch: filterPatchBySchema(suggestion.patch || {}, input.schema),
+    patch: filterPatchBySchema(asRecord(suggestion.patch), input.schema),
   }));
 }
 

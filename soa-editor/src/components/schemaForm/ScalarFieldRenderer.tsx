@@ -1,16 +1,17 @@
 import type { ReactNode } from 'react';
 import type { NumberValueType } from './helpers';
+import type { SchemaFieldUiConfig } from './types';
 
 interface ScalarFieldRendererProps {
   fieldKey: string;
   type: string;
-  ui: any;
+  ui: SchemaFieldUiConfig;
   label: string;
   description?: string;
-  value: any;
+  value: unknown;
   inputBaseClass: string;
-  handleChange: (key: string, value: any) => void;
-  getNumberInputValue: (key: string, value: any) => string;
+  handleChange: (key: string, value: unknown) => void;
+  getNumberInputValue: (key: string, value: unknown) => string;
   handleNumberChange: (key: string, raw: string) => void;
   handleNumberBlur: (
     key: string,

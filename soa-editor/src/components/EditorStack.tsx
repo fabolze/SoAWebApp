@@ -9,16 +9,17 @@ import {
 } from './EditorStackContext';
 import { apiFetch } from '../lib/api';
 import { BUTTON_CLASSES, BUTTON_SIZES } from '../styles/uiTokens';
+import { asRecord, type EntryData, type SchemaDefinition } from './schemaForm/types';
 
 type StackItem = OpenEditorArgs & {
   id: string;
   resolve: (result: CreatedResult | null) => void;
 };
 
-function getSummaryFields(data: Record<string, any>) {
+function getSummaryFields(data: EntryData) {
   const candidates = ['name', 'title', 'slug', 'id', 'type'];
   const fields = candidates
-    .filter((key) => data && data[key] !== undefined && data[key] !== '')
+    .filter((key) => data[key] !== undefined && data[key] !== '')
     .map((key) => ({ label: key, value: String(data[key]) }));
   return fields.slice(0, 4);
 }
@@ -58,23 +59,39 @@ function InlineSchemaEditor({
   onClose: () => void;
   onSaved: (result: CreatedResult) => void;
 }) {
-  const [schema, setSchema] = useState<any | null>(null);
-  const [data, setData] = useState<any>({ id: generateUlid() });
+  const [schema, setSchema] = useState<SchemaDefinition | null>(null);
+  const [data, setData] = useState<EntryData>({ id: generateUlid() });
   const [formValid, setFormValid] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   React.useEffect(() => {
-    import(`../../../backend/app/schemas/${schemaName}.json`).then(setSchema);
+    let isCancelled = false;
+    void import(`../../../backend/app/schemas/${schemaName}.json`)
+      .then((loaded: unknown) => {
+        if (isCancelled) return;
+        const maybeModule = loaded as { default?: unknown };
+        const resolved = maybeModule.default ?? loaded;
+        setSchema(asRecord(resolved) as SchemaDefinition);
+      })
+      .catch(() => {
+        if (isCancelled) return;
+        setSchema({ properties: {} });
+      });
+    return () => {
+      isCancelled = true;
+    };
   }, [schemaName]);
 
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     try {
-      const payload = { ...data };
-      if (!payload.slug && payload.name) {
-        payload.slug = generateSlug(payload.name);
+      const payload: EntryData = { ...data };
+      const payloadSlug = typeof payload.slug === 'string' ? payload.slug : '';
+      const payloadName = typeof payload.name === 'string' ? payload.name : '';
+      if (!payloadSlug && payloadName) {
+        payload.slug = generateSlug(payloadName);
       }
       const res = await apiFetch(`/api/${apiPath}`, {
         method: 'POST',
@@ -84,14 +101,21 @@ function InlineSchemaEditor({
       if (!res.ok) {
         let msg = 'Save failed';
         try {
-          const err = await res.json();
-          if (err && err.message) msg += `: ${err.message}`;
-        } catch {}
+          const err = asRecord(await res.json());
+          if (typeof err.message === 'string' && err.message.trim()) msg += `: ${err.message}`;
+        } catch {
+          // Ignore invalid JSON error payloads.
+        }
         throw new Error(msg);
       }
-      onSaved({ id: payload.id, data: payload });
-    } catch (e: any) {
-      setError(e.message || 'Save failed');
+      const savedId = typeof payload.id === 'string' ? payload.id : String(payload.id ?? '');
+      if (!savedId) {
+        throw new Error('Save failed: entry has no ID');
+      }
+      onSaved({ id: savedId, data: payload });
+    } catch (e: unknown) {
+      const message = e instanceof Error && e.message ? e.message : 'Save failed';
+      setError(message);
     } finally {
       setSaving(false);
     }
@@ -101,7 +125,7 @@ function InlineSchemaEditor({
     return <div className="p-6">Loading schema...</div>;
   }
 
-  const headerTitle = schema?.title || schemaName;
+  const headerTitle = typeof schema?.title === 'string' ? schema.title : schemaName;
 
   return (
     <div className="flex flex-col h-full">
