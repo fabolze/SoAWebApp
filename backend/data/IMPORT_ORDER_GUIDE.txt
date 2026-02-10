@@ -1,0 +1,42 @@
+CSV Import Order Guide
+======================
+
+Why order matters
+-----------------
+- CSV import is "replace-all" per table.
+- If referenced IDs are missing, import fails.
+- If a CSV is partial, rows not included in that file are deleted for that table.
+
+Current recommended order (for existing seed files)
+---------------------------------------------------
+1) stats
+2) attributes
+3) statuses
+4) abilities
+5) attribute_stat_links
+6) characterclasses
+7) currencies
+8) effects
+9) items
+
+If/when you add NPC/enemy gameplay CSVs:
+10) factions (if used by characters/rewards)
+11) locations (if used by characters)
+12) characters
+13) combat_profiles
+14) encounters
+
+General rule for new CSV files (going forward)
+----------------------------------------------
+1) Import independent "base tables" first (no foreign-key/reference dependencies).
+2) Then import tables that reference only base tables.
+3) Then import "composition/runtime" tables that reference many others.
+4) Keep each imported CSV complete for its table (to avoid accidental row deletion).
+
+Quick dependency examples
+-------------------------
+- effects depends on: statuses, stats, attributes (optional), items (optional in related_items)
+- items depends on: currencies (optional), effects (optional), stats/attributes (in modifiers)
+- combat_profiles depends on: characters, stats, abilities, items/currencies/factions/quests (optional)
+- encounters depends on: characters (+ combat_profiles for Combat context)
+
