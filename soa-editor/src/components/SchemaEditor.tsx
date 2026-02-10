@@ -454,6 +454,10 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     (window as any).__soaDirty = isDirty;
   }, [isDirty]);
 
+  const handleToggleEditor = useCallback(() => {
+    setShowEditor((v) => !v);
+  }, []);
+
   if (!schema) return <p className="p-4">Loading schema...</p>;
 
   // Import CSV handler.
@@ -490,10 +494,6 @@ export default function SchemaEditor({ schemaName, title, apiPath, idField = "id
     setImportFile(file || null);
     setImportFileName(file ? file.name : "");
   };
-
-  const handleToggleEditor = useCallback(() => {
-    setShowEditor((v) => !v);
-  }, []);
 
   return (
     <div className="flex flex-col h-full">
