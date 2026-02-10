@@ -1,0 +1,4 @@
+id,slug,name,type,description,code,symbol,decimal_precision,is_premium,icon_path,tags
+c1a4e7d9b2f34c6a8d1e5f7a9b3c2d10,gold,Gold,Soft,Primary world currency for trade and rewards.,GOLD,G,0,false,icons/currencies/gold.png,"[""core"",""economy"",""soft""]"
+e7b3c1d9a5f24e6b8c0d2f4a6e8b1c22,aether_gem,Aether Gem,Premium,Premium currency for special purchases.,GEM,◆,0,true,icons/currencies/aether_gem.png,"[""premium"",""shop""]"
+a9d2f4b6c8e14a3f9b5d7c1e3a6f8b33,covenant_mark,Covenant Mark,Token,Faction token used for reputation-bound rewards.,MARK,Mk,0,false,icons/currencies/covenant_mark.png,"[""token"",""faction""]"
