@@ -25,9 +25,11 @@ import {
   CpuChipIcon,
 } from '@heroicons/react/24/outline';
 import { TEXT_CLASSES } from '../styles/uiTokens';
+import { useDirtyState } from '../components/useDirtyState';
 
 
 const IndexPage = () => {
+  const { confirmNavigate } = useDirtyState();
   const pages = [
     { path: '/abilities', name: 'Abilities Editor' },
     { path: '/simulation', name: 'Simulation Sandbox' },
@@ -106,8 +108,7 @@ const pageIcons: Record<string, React.ElementType> = {
                 key={page.path}
                 to={page.path}
                 onClick={(e) => {
-                  const dirty = (window as any).__soaDirty;
-                  if (dirty && !window.confirm('You have unsaved changes. Discard them?')) {
+                  if (!confirmNavigate()) {
                     e.preventDefault();
                   }
                 }}

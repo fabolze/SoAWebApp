@@ -1,28 +1,36 @@
 import VirtualizedTable from "./VirtualizedTable";
 import { memo, useMemo, useState, useEffect } from "react";
 import { BUTTON_CLASSES, BUTTON_SIZES, TEXT_CLASSES } from "../styles/uiTokens";
+import type { EntryRecord, RecentEntry } from "../types/editorQol";
 
 interface EntryListPanelProps {
   schemaName: string;
-  entries: any[];
+  entries: EntryRecord[];
   listFields: string[];
   idField: string;
   editingId: string | null;
-  onEdit: (entry: any) => void;
-  onDuplicate: (entry: any) => void;
-  onDelete: (entry: any) => void;
+  onEdit: (entry: EntryRecord) => void;
+  onDuplicate: (entry: EntryRecord) => void;
+  onDelete: (entry: EntryRecord) => void;
   onAddNew: () => void;
   search: string;
   setSearch: (s: string) => void;
   searchField: string;
   setSearchField: (s: string) => void;
   fieldKeys: string[];
-  onBulkDelete: (entries: any[]) => void;
-  onBulkDuplicate: (entries: any[]) => void;
-  onBulkEdit: (entries: any[], field: string, value: string) => void;
+  onBulkDelete: (entries: EntryRecord[]) => void;
+  onBulkDuplicate: (entries: EntryRecord[]) => void;
+  onBulkEdit: (entries: EntryRecord[], field: string, value: string) => void;
   showEditor: boolean;
   onToggleEditor: () => void;
+  recentEntries: RecentEntry[];
+  onOpenRecentEntry: (id: string) => void;
 }
+
+const getEntryId = (entry: EntryRecord, idField: string): string => {
+  const rawId = entry[idField];
+  return typeof rawId === "string" ? rawId : String(rawId ?? "");
+};
 
 const EntryListPanel = ({
   schemaName,
@@ -44,6 +52,8 @@ const EntryListPanel = ({
   onBulkEdit,
   showEditor,
   onToggleEditor,
+  recentEntries,
+  onOpenRecentEntry,
 }: EntryListPanelProps) => (
   <EntryListPanelInternal
     schemaName={schemaName}
@@ -65,6 +75,8 @@ const EntryListPanel = ({
     onBulkEdit={onBulkEdit}
     showEditor={showEditor}
     onToggleEditor={onToggleEditor}
+    recentEntries={recentEntries}
+    onOpenRecentEntry={onOpenRecentEntry}
   />
 );
 
@@ -88,6 +100,8 @@ const EntryListPanelInternal = ({
   onBulkEdit,
   showEditor,
   onToggleEditor,
+  recentEntries,
+  onOpenRecentEntry,
 }: EntryListPanelProps) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
@@ -97,10 +111,10 @@ const EntryListPanelInternal = ({
   const [visibleFields, setVisibleFields] = useState<string[]>(listFields);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-  const allSelected = entries.length > 0 && selectedIds.length === entries.length;
+  const allSelected = entries.length > 0 && entries.every((entry) => selectedSet.has(getEntryId(entry, idField)));
 
   useEffect(() => {
-    setSelectedIds((prev) => prev.filter((id) => entries.some((e) => e[idField] === id)));
+    setSelectedIds((prev) => prev.filter((id) => entries.some((entry) => getEntryId(entry, idField) === id)));
   }, [entries, idField]);
 
   useEffect(() => {
@@ -108,12 +122,23 @@ const EntryListPanelInternal = ({
     const raw = localStorage.getItem(storageKey);
     if (raw) {
       try {
-        const parsed = JSON.parse(raw);
+        const parsed: unknown = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const parsedFields = parsed.filter(
+            (field): field is string => typeof field === "string" && listFields.includes(field)
+          );
+          if (parsedFields.length > 0) {
+            setVisibleFields(parsedFields);
+            return;
+          }
+        }
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setVisibleFields(parsed);
+          setVisibleFields(listFields);
           return;
         }
-      } catch {}
+      } catch {
+        // Ignore invalid localStorage payload.
+      }
     }
     setVisibleFields(listFields);
   }, [schemaName, listFields]);
@@ -133,11 +158,11 @@ const EntryListPanelInternal = ({
     if (allSelected) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(entries.map((e) => e[idField]));
+      setSelectedIds(entries.map((entry) => getEntryId(entry, idField)).filter((id) => id.length > 0));
     }
   };
 
-  const selectedEntries = entries.filter((e) => selectedSet.has(e[idField]));
+  const selectedEntries = entries.filter((entry) => selectedSet.has(getEntryId(entry, idField)));
 
   const allFields = fieldKeys;
   const isFieldVisible = (field: string) => visibleFields.includes(field);
@@ -240,6 +265,27 @@ const EntryListPanelInternal = ({
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        <div className={`text-[11px] ${TEXT_CLASSES.subtle}`}>
+          Shortcuts: <span className="font-medium">Ctrl/Cmd+S</span> save, <span className="font-medium">Ctrl/Cmd+N</span> new, <span className="font-medium">Ctrl/Cmd+D</span> duplicate
+        </div>
+        {recentEntries.length > 0 && (
+          <div className="rounded border border-slate-200 bg-slate-50 px-2 py-2">
+            <div className={`text-xs font-semibold mb-1 ${TEXT_CLASSES.muted}`}>Recent</div>
+            <div className="flex flex-wrap gap-1">
+              {recentEntries.slice(0, 8).map((recent) => (
+                <button
+                  key={recent.id}
+                  type="button"
+                  className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs} max-w-[220px] truncate`}
+                  title={`${recent.label} (${recent.id})`}
+                  onClick={() => onOpenRecentEntry(recent.id)}
+                >
+                  {recent.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto min-h-0">
         {entries.length > 100 ? (
@@ -274,47 +320,50 @@ const EntryListPanelInternal = ({
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
-                // Highlight the currently edited row.
-                <tr key={entry[idField]} className={editingId && entry[idField] === editingId ? "bg-yellow-100" : "hover:bg-blue-50"}>
-                  <td className="px-3 py-2 border-b whitespace-nowrap">
-                    <input
-                      type="checkbox"
-                      checked={selectedSet.has(entry[idField])}
-                      onChange={() => toggleSelect(entry[idField])}
-                    />
-                  </td>
-                  {visibleFields.map((key) => {
-                    const value = entry[key];
-                    const isImage = typeof value === 'string' && (value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && (value.startsWith('http') || value.startsWith('/')));
-                    return (
-                      <td key={key} className="px-3 py-2 border-b whitespace-nowrap max-w-xs overflow-x-auto text-slate-900">
-                        {isImage ? (
-                          <img src={value} alt="asset" style={{ maxHeight: '40px', maxWidth: '80px', objectFit: 'contain' }} />
-                        ) : (
-                          String(value ?? '')
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td className="px-3 py-2 border-b whitespace-nowrap">
-                    <button
-                      className={`mr-2 ${BUTTON_CLASSES.primary} ${BUTTON_SIZES.xs}`}
-                      onClick={() => onEdit(entry)}
-                    >Edit</button>
-                    <button
-                      className={`mr-2 ${BUTTON_CLASSES.violet} ${BUTTON_SIZES.xs}`}
-                      onClick={() => onDuplicate(entry)}
-                    >Duplicate</button>
-                    <button
-                      className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`}
-                      onClick={() => onDelete(entry)}
-                      type="button"
-                      aria-label="Delete entry"
-                    >Delete</button>
-                  </td>
-                </tr>
-              ))}
+              {entries.map((entry) => {
+                const entryId = getEntryId(entry, idField);
+                return (
+                  // Highlight the currently edited row.
+                  <tr key={entryId} className={editingId && entryId === editingId ? "bg-yellow-100" : "hover:bg-blue-50"}>
+                    <td className="px-3 py-2 border-b whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedSet.has(entryId)}
+                        onChange={() => toggleSelect(entryId)}
+                      />
+                    </td>
+                    {visibleFields.map((key) => {
+                      const value = entry[key];
+                      const isImage = typeof value === 'string' && (value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && (value.startsWith('http') || value.startsWith('/')));
+                      return (
+                        <td key={key} className="px-3 py-2 border-b whitespace-nowrap max-w-xs overflow-x-auto text-slate-900">
+                          {isImage ? (
+                            <img src={value} alt="asset" style={{ maxHeight: '40px', maxWidth: '80px', objectFit: 'contain' }} />
+                          ) : (
+                            String(value ?? '')
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="px-3 py-2 border-b whitespace-nowrap">
+                      <button
+                        className={`mr-2 ${BUTTON_CLASSES.primary} ${BUTTON_SIZES.xs}`}
+                        onClick={() => onEdit(entry)}
+                      >Edit</button>
+                      <button
+                        className={`mr-2 ${BUTTON_CLASSES.violet} ${BUTTON_SIZES.xs}`}
+                        onClick={() => onDuplicate(entry)}
+                      >Duplicate</button>
+                      <button
+                        className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`}
+                        onClick={() => onDelete(entry)}
+                        type="button"
+                        aria-label="Delete entry"
+                      >Delete</button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
