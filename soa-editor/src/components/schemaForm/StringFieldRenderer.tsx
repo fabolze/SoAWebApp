@@ -31,6 +31,7 @@ interface StringFieldRendererProps {
     onSelect: (id: string, createdData: EntryData) => void
   ) => Promise<void>;
   fetchReferenceAutocomplete: (refType: string, search: string) => Promise<unknown[]>;
+  fetchReferenceById: (refType: string, id: string) => Promise<unknown | null>;
   renderFieldLabel: (label: string, description?: string, action?: ReactNode) => ReactNode;
 }
 
@@ -53,6 +54,7 @@ export default function StringFieldRenderer({
   handleChange,
   handleCreateReference,
   fetchReferenceAutocomplete,
+  fetchReferenceById,
   renderFieldLabel,
 }: StringFieldRendererProps) {
   if (ui.widget === 'hidden') return null;
@@ -89,6 +91,7 @@ export default function StringFieldRenderer({
         }}
         onChange={(val) => handleChange(fieldKey, val)}
         fetchReferenceAutocomplete={fetchReferenceAutocomplete}
+        fetchReferenceById={fetchReferenceById}
         renderFieldLabel={renderFieldLabel}
       />
     );

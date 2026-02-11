@@ -26,6 +26,7 @@ interface ArrayStringFieldRendererProps {
     refType: string,
     onSelect: (id: string, createdData: EntryData) => void
   ) => Promise<void>;
+  fetchReferenceById: (refType: string, id: string) => Promise<unknown | null>;
   renderFieldLabel: (label: string, description?: string, action?: ReactNode) => ReactNode;
 }
 
@@ -43,6 +44,7 @@ export default function ArrayStringFieldRenderer({
   handleChange,
   markRecentlyAdded,
   handleCreateReference,
+  fetchReferenceById,
   renderFieldLabel,
 }: ArrayStringFieldRendererProps) {
   if (ui.widget === 'tags') {
@@ -102,6 +104,7 @@ export default function ArrayStringFieldRenderer({
       recentlyAddedId={recentlyAdded[fieldKey]}
       onChange={(next) => handleChange(fieldKey, next)}
       onCreateReference={onCreateReference}
+      fetchReferenceById={fetchReferenceById}
       onMarkRecentlyAdded={(id) => markRecentlyAdded(fieldKey, id)}
       renderFieldLabel={renderFieldLabel}
     />

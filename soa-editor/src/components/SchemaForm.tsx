@@ -119,6 +119,21 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
     []
   );
 
+  const fetchReferenceById = useCallback(
+    async (refType: string, id: string) => {
+      const normalizedId = String(id || '').trim();
+      if (!normalizedId) return null;
+      try {
+        const res = await apiFetch(`/api/${refType}/${encodeURIComponent(normalizedId)}`);
+        if (!res.ok) return null;
+        return res.json();
+      } catch {
+        return null;
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     // For each field with ui.reference or ui.options_source, fetch options from backend.
     const collectReferences = (schemaObj: SchemaDefinition | SchemaFieldConfig): string[] => {
@@ -427,6 +442,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
               handleChange={handleChange}
               handleCreateReference={handleCreateReference}
               fetchReferenceAutocomplete={fetchReferenceAutocomplete}
+              fetchReferenceById={fetchReferenceById}
               renderFieldLabel={renderFieldLabel}
             />
           );
@@ -464,6 +480,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
               handleChange={handleChange}
               markRecentlyAdded={markRecentlyAdded}
               handleCreateReference={handleCreateReference}
+              fetchReferenceById={fetchReferenceById}
               renderFieldLabel={renderFieldLabel}
             />
           );
@@ -504,6 +521,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
               referenceOptions={referenceOptions}
               canCreateReference={!!editorStack?.openEditor}
               handleCreateReference={(refType, onSelect) => handleCreateReference(refType, (id) => onSelect(id))}
+              fetchReferenceById={fetchReferenceById}
               handleChange={handleChange}
               getNumberInputValue={getNumberInputValue}
               handleNumberChange={handleNumberChange}

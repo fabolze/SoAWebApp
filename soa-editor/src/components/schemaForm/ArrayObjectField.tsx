@@ -33,6 +33,7 @@ interface ArrayObjectFieldProps {
   referenceOptions: ReferenceOptionsMap;
   canCreateReference: boolean;
   handleCreateReference: (refType: string, onSelect: (id: string) => void) => Promise<void> | void;
+  fetchReferenceById?: (refType: string, id: string) => Promise<unknown | null>;
   handleChange: (key: string, value: unknown) => void;
   getNumberInputValue: (key: string, value: unknown) => string;
   handleNumberChange: (key: string, raw: string) => void;
@@ -87,6 +88,7 @@ export default function ArrayObjectField({
   referenceOptions,
   canCreateReference,
   handleCreateReference,
+  fetchReferenceById,
   handleChange,
   getNumberInputValue,
   handleNumberChange,
@@ -285,6 +287,7 @@ export default function ArrayObjectField({
           refType={refType}
           onChange={(next) => updateRowValue(next)}
           onCreateReference={onCreateReference}
+          fetchReferenceById={fetchReferenceById}
           renderFieldLabel={renderFieldLabel}
         />
       );

@@ -1,7 +1,9 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import useDebouncedValue from '../hooks/useDebouncedValue';
 import { BUTTON_CLASSES, BUTTON_SIZES } from '../../styles/uiTokens';
 import { asRecord } from '../schemaForm/types';
+import ReferenceDetailsCard from './ReferenceDetailsCard';
+import FloatingReferenceInspector from './FloatingReferenceInspector';
 
 interface ArrayStringMultiSelectFieldProps {
   label: string;
@@ -12,6 +14,7 @@ interface ArrayStringMultiSelectFieldProps {
   recentlyAddedId?: string;
   onChange: (next: string[]) => void;
   onCreateReference?: () => Promise<string | null>;
+  fetchReferenceById?: (refType: string, id: string) => Promise<unknown | null>;
   onMarkRecentlyAdded?: (id: string) => void;
   renderFieldLabel: (label: string, description?: string, action?: ReactNode) => ReactNode;
 }
@@ -25,11 +28,20 @@ export default function ArrayStringMultiSelectField({
   recentlyAddedId,
   onChange,
   onCreateReference,
+  fetchReferenceById,
   onMarkRecentlyAdded,
   renderFieldLabel,
 }: ArrayStringMultiSelectFieldProps) {
   const [filter, setFilter] = useState('');
   const [bulkNotice, setBulkNotice] = useState<{ type: 'success' | 'warning'; message: string } | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewTargetId, setPreviewTargetId] = useState('');
+  const [previewEntry, setPreviewEntry] = useState<unknown | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const previewCacheRef = useRef<Map<string, unknown>>(new Map());
+  const requestSeqRef = useRef(0);
+  const inspectorIdRef = useRef(`ref-inspector-${Math.random().toString(36).slice(2)}`);
   const [scrollTop, setScrollTop] = useState(0);
   const currentValues = useMemo(() => (Array.isArray(value) ? value : []), [value]);
   const safeOptions = useMemo(() => (Array.isArray(options) ? options : []), [options]);
@@ -55,10 +67,48 @@ export default function ArrayStringMultiSelectField({
           record[`${refType?.slice(0, -1)}_id`] ||
           record[`${refType}_id`] ||
           opt;
-        return { label: String(display ?? ''), value: String(val ?? '') };
+        return { label: String(display ?? ''), value: String(val ?? ''), raw: opt };
       }),
     [safeOptions, refType]
   );
+  const optionByValue = useMemo(
+    () => new Map(normalizedOptions.map((opt) => [opt.value, opt])),
+    [normalizedOptions]
+  );
+
+  useEffect(() => {
+    normalizedOptions.forEach((opt) => {
+      if (opt.value && opt.raw !== null && opt.raw !== undefined) {
+        previewCacheRef.current.set(opt.value, opt.raw);
+      }
+    });
+  }, [normalizedOptions]);
+
+  useEffect(() => {
+    const onInspectorOpen = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string }>).detail;
+      if (!detail?.id || detail.id === inspectorIdRef.current) return;
+      setPreviewOpen(false);
+    };
+    window.addEventListener('soa:reference-inspector-open', onInspectorOpen as EventListener);
+    return () => {
+      window.removeEventListener('soa:reference-inspector-open', onInspectorOpen as EventListener);
+    };
+  }, []);
+
+  const handleTogglePreview = () => {
+    setPreviewOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        window.dispatchEvent(
+          new CustomEvent('soa:reference-inspector-open', {
+            detail: { id: inspectorIdRef.current },
+          })
+        );
+      }
+      return next;
+    });
+  };
 
   const filteredOptions = useMemo(() => {
     const query = debouncedFilter.toLowerCase().trim();
@@ -68,6 +118,11 @@ export default function ArrayStringMultiSelectField({
 
   const selectedSet = useMemo(() => new Set(currentValues.map((val) => String(val))), [currentValues]);
   const normalizedCurrentValues = useMemo(() => currentValues.map((val) => String(val)), [currentValues]);
+  const uniqueSelectedValues = useMemo(() => Array.from(new Set(normalizedCurrentValues)), [normalizedCurrentValues]);
+  const previewSelectId = useMemo(
+    () => `preview-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    [label]
+  );
   const isVirtualized = filteredOptions.length >= 150;
   const startIndex = isVirtualized ? Math.max(0, Math.floor(scrollTop / rowHeight) - overscan) : 0;
   const visibleCount = isVirtualized ? Math.ceil(viewportHeight / rowHeight) + overscan * 2 : filteredOptions.length;
@@ -183,6 +238,73 @@ export default function ArrayStringMultiSelectField({
     </button>
   ) : null;
 
+  useEffect(() => {
+    if (uniqueSelectedValues.length === 0) {
+      setPreviewTargetId('');
+      return;
+    }
+    if (!uniqueSelectedValues.includes(previewTargetId)) {
+      setPreviewTargetId(uniqueSelectedValues[0]);
+    }
+  }, [previewTargetId, uniqueSelectedValues]);
+
+  useEffect(() => {
+    if (!previewOpen) return;
+    if (!previewTargetId) {
+      setPreviewEntry(null);
+      setPreviewError(null);
+      setPreviewLoading(false);
+      return;
+    }
+    const cached = previewCacheRef.current.get(previewTargetId);
+    if (cached) {
+      setPreviewEntry(cached);
+      setPreviewError(null);
+      setPreviewLoading(false);
+      return;
+    }
+    const fromOptions = optionByValue.get(previewTargetId);
+    if (fromOptions?.raw) {
+      previewCacheRef.current.set(previewTargetId, fromOptions.raw);
+      setPreviewEntry(fromOptions.raw);
+      setPreviewError(null);
+      setPreviewLoading(false);
+      return;
+    }
+    if (!refType || !fetchReferenceById) {
+      setPreviewEntry(null);
+      setPreviewError('Unable to load details for this selection.');
+      setPreviewLoading(false);
+      return;
+    }
+
+    const requestId = ++requestSeqRef.current;
+    setPreviewLoading(true);
+    setPreviewError(null);
+    void fetchReferenceById(refType, previewTargetId)
+      .then((entry) => {
+        if (requestId !== requestSeqRef.current) return;
+        if (entry) {
+          previewCacheRef.current.set(previewTargetId, entry);
+          setPreviewEntry(entry);
+          setPreviewError(null);
+        } else {
+          setPreviewEntry(null);
+          setPreviewError('No details found for this selection.');
+        }
+      })
+      .catch(() => {
+        if (requestId !== requestSeqRef.current) return;
+        setPreviewEntry(null);
+        setPreviewError('Failed to load details.');
+      })
+      .finally(() => {
+        if (requestId === requestSeqRef.current) {
+          setPreviewLoading(false);
+        }
+      });
+  }, [fetchReferenceById, optionByValue, previewOpen, previewTargetId, refType]);
+
   return (
     <div className="form-field">
       {renderFieldLabel(label, description, createAction)}
@@ -225,7 +347,58 @@ export default function ArrayStringMultiSelectField({
           >
             Paste IDs/Labels
           </button>
+          <button
+            type="button"
+            className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+            onClick={handleTogglePreview}
+            disabled={uniqueSelectedValues.length === 0}
+          >
+            {previewOpen ? 'Hide Peek' : 'Quick Peek'}
+          </button>
         </div>
+        <FloatingReferenceInspector
+          open={previewOpen}
+          title={label}
+          subtitle={previewTargetId || undefined}
+          onClose={() => setPreviewOpen(false)}
+          controls={
+            uniqueSelectedValues.length === 0 ? (
+              <div className="text-xs text-slate-500">Select at least one entry to preview details.</div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-slate-700" htmlFor={previewSelectId}>
+                  Inspect
+                </label>
+                <select
+                  id={previewSelectId}
+                  className="flex-1 min-w-[180px] border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 bg-white"
+                  value={previewTargetId}
+                  onChange={(e) => setPreviewTargetId(e.target.value)}
+                >
+                  {uniqueSelectedValues.map((selectedValue) => {
+                    const option = optionByValue.get(selectedValue);
+                    const optionLabel = option?.label || selectedValue;
+                    return (
+                      <option key={selectedValue} value={selectedValue}>
+                        {optionLabel}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )
+          }
+        >
+          {uniqueSelectedValues.length === 0 ? (
+            <div className="text-xs text-slate-500">Select at least one entry to preview details.</div>
+          ) : previewLoading ? (
+            <div className="text-xs text-slate-500">Loading details...</div>
+          ) : previewEntry ? (
+            <ReferenceDetailsCard entry={previewEntry} refType={refType} />
+          ) : (
+            <div className="text-xs text-amber-700">{previewError || 'No details available.'}</div>
+          )}
+        </FloatingReferenceInspector>
         {bulkNotice && (
           <div
             className={`mb-2 rounded border px-2 py-1 text-xs ${
