@@ -2,10 +2,81 @@
 from flask import Blueprint, Response, abort, request, jsonify
 from backend.app.db.init_db import get_db_session
 from backend.app.models import ALL_MODELS
+from sqlalchemy.types import Enum as SAEnum, JSON as SAJSON
 import csv
+import enum
 import io
+import json
 
 bp = Blueprint("export", __name__)
+
+
+def _ordered_columns(model_class):
+    columns = [c.name for c in model_class.__table__.columns]
+    head = [c for c in ["id", "slug"] if c in columns]
+    tail = [c for c in columns if c not in head]
+    return head + tail
+
+
+def _resolve_row_key(columns):
+    if "slug" in columns:
+        return "slug"
+    if "id" in columns:
+        return "id"
+    return columns[0]
+
+
+def _serialize_csv_cell(value):
+    if isinstance(value, enum.Enum):
+        return value.value
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False)
+    if value is None:
+        return ""
+    return value
+
+
+def _parse_import_cell(raw_value, column):
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, str):
+        raw_value = raw_value.strip()
+    if raw_value == "":
+        return None
+
+    if isinstance(column.type, SAEnum):
+        enum_class = column.type.enum_class
+        candidate = raw_value
+        if isinstance(raw_value, str):
+            # Accept common UE/Python enum text shapes:
+            # - "Value"
+            # - "EnumType.Value"
+            # - "E_Enum::Value"
+            candidate = raw_value.split("::")[-1].split(".")[-1]
+        try:
+            return enum_class(candidate)
+        except Exception:
+            try:
+                return enum_class[str(candidate)]
+            except Exception:
+                # UE UserDefinedEnum CSV exports can use internal names like NewEnumerator3.
+                if isinstance(candidate, str) and candidate.startswith("NewEnumerator"):
+                    try:
+                        idx = int(candidate.replace("NewEnumerator", ""))
+                        members = list(enum_class)
+                        if 0 <= idx < len(members):
+                            return members[idx]
+                    except Exception:
+                        pass
+                return raw_value
+
+    if isinstance(column.type, SAJSON) and isinstance(raw_value, str):
+        try:
+            return json.loads(raw_value)
+        except Exception:
+            return raw_value
+
+    return raw_value
 
 @bp.route("/api/export/csv/<table_name>", methods=["GET"])
 def export_csv(table_name):
@@ -15,18 +86,15 @@ def export_csv(table_name):
     if model_class is None:
         abort(404, description=f"Table '{table_name}' not found.")
     rows = session.query(model_class).all()
-    columns = [c.name for c in model_class.__table__.columns]
-    # Ensure id and slug appear first if present
-    def order(cols):
-        head = [c for c in ["id", "slug"] if c in cols]
-        tail = [c for c in cols if c not in head]
-        return head + tail
-    columns = order(columns)
+    columns = _ordered_columns(model_class)
+    row_key = _resolve_row_key(columns)
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(columns)
+    # Canonical UE export format: first column is DataTable row key.
+    writer.writerow(["Name", *columns])
     for row in rows:
-        writer.writerow([getattr(row, col) for col in columns])
+        serialized = [_serialize_csv_cell(getattr(row, col)) for col in columns]
+        writer.writerow([_serialize_csv_cell(getattr(row, row_key)), *serialized])
     output.seek(0)
     response = Response(output.read(), mimetype="text/csv")
     response.headers["Content-Disposition"] = f"attachment; filename={table_name}.csv"
@@ -45,6 +113,7 @@ def import_csv(table_name):
         return jsonify({"error": "Empty file."}), 400
     stream = io.StringIO(file.stream.read().decode("utf-8"))
     reader = csv.DictReader(stream)
+    model_columns = {c.name: c for c in model_class.__table__.columns}
     # Simple slugify fallback if missing
     import re
     def slugify(s: str) -> str:
@@ -61,7 +130,11 @@ def import_csv(table_name):
         # Start transaction
         session.query(model_class).delete()
         for row in reader:
-            clean_row = {k: v for k, v in row.items() if k}
+            clean_row = {}
+            for key, value in row.items():
+                if not key or key not in model_columns:
+                    continue
+                clean_row[key] = _parse_import_cell(value, model_columns[key])
             # Validate id present
             if not clean_row.get("id"):
                 raise ValueError("Missing required column 'id' or empty id value")
