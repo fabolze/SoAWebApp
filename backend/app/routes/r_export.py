@@ -3,7 +3,12 @@ from flask import Blueprint, Response, abort, request, jsonify
 from backend.app.db.init_db import get_db_session
 from backend.app.models import ALL_MODELS
 from backend.app.routes.base_route import ROUTE_REGISTRY
-from backend.app.utils.csv_tools import build_csv_rows, write_csv_string, coerce_row_from_schema
+from backend.app.utils.csv_tools import (
+    UE_ROW_KEY_HEADER,
+    build_csv_rows,
+    write_csv_string,
+    coerce_row_from_schema,
+)
 import csv
 import io
 
@@ -63,6 +68,12 @@ def import_csv(table_name):
             for row in reader:
                 clean_row = {k: v for k, v in row.items() if k}
                 clean_row = coerce_row_from_schema(table_name, clean_row)
+
+                row_key_value = clean_row.get(UE_ROW_KEY_HEADER)
+                if row_key_value is not None and str(row_key_value).strip() != "":
+                    if not clean_row.get("slug"):
+                        clean_row["slug"] = str(row_key_value).strip().lower()
+                clean_row.pop(UE_ROW_KEY_HEADER, None)
 
                 # Validate id present
                 if not clean_row.get("id"):

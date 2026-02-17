@@ -3,9 +3,17 @@ import enum
 import io
 import json
 import os
+import re
+import unicodedata
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from sqlalchemy.types import Enum as SAEnum
+
 from backend.app.routes.base_route import ROUTE_REGISTRY
+
+UE_ROW_KEY_HEADER = "Name"
+ROW_KEY_SOURCE_FIELDS = ("slug", "slugName", "name", "title", "id")
+ROW_KEY_FALLBACK = "row"
 
 
 def _schema_path(table_name: str) -> str:
@@ -44,20 +52,116 @@ def serialize_items_for_table(table_name: str, model_class: Any, rows: Iterable[
 
 
 def _order_columns(columns: List[str]) -> List[str]:
-    head = [c for c in ["id", "slug"] if c in columns]
-    tail = [c for c in columns if c not in head]
-    return head + tail
+    ordered: List[str] = []
+    for key in [UE_ROW_KEY_HEADER, "id", "slug", "slugName"]:
+        if key in columns and key not in ordered:
+            ordered.append(key)
+    for key in columns:
+        if key not in ordered:
+            ordered.append(key)
+    return ordered
 
 
 def resolve_columns(table_name: str, items: List[Dict[str, Any]]) -> List[str]:
     columns = load_schema_columns(table_name)
     if not columns:
         columns = []
+    if UE_ROW_KEY_HEADER not in columns:
+        columns.insert(0, UE_ROW_KEY_HEADER)
     for item in items:
         for key in item.keys():
             if key not in columns:
                 columns.append(key)
     return _order_columns(columns)
+
+
+def _model_has_column(model_class: Any, column_name: str) -> bool:
+    try:
+        return any(col.name == column_name for col in model_class.__table__.columns)
+    except Exception:
+        return False
+
+
+def _to_slug_token(raw_value: Any) -> str:
+    text = str(raw_value or "").strip().lower()
+    if not text:
+        return ROW_KEY_FALLBACK
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = re.sub(r"[^a-z0-9]+", "-", text)
+    text = re.sub(r"^-+|-+$", "", text)
+    text = re.sub(r"-{2,}", "-", text)
+    return text or ROW_KEY_FALLBACK
+
+
+def _resolve_row_key_source(item: Dict[str, Any]) -> Any:
+    for key in ROW_KEY_SOURCE_FIELDS:
+        value = item.get(key)
+        if value is not None and str(value).strip() != "":
+            return value
+    return ROW_KEY_FALLBACK
+
+
+def _make_unique_row_key(base_key: str, used: set) -> str:
+    candidate = base_key
+    suffix = 2
+    while candidate in used:
+        candidate = f"{base_key}_{suffix}"
+        suffix += 1
+    used.add(candidate)
+    return candidate
+
+
+def _assign_row_keys(items: List[Dict[str, Any]], sync_slug: bool) -> None:
+    """Row key rules for UE DataTables:
+    - derive from slug/slugName/name/title/id (in that priority)
+    - trim + deterministic slug normalization
+    - enforce uniqueness with _2, _3, ... suffixes
+    """
+    used: set = set()
+    for item in items:
+        base_key = _to_slug_token(_resolve_row_key_source(item))
+        row_key = _make_unique_row_key(base_key, used)
+        item[UE_ROW_KEY_HEADER] = row_key
+        if sync_slug:
+            item["slug"] = row_key
+
+
+def _coerce_enum_token(enum_class: Any, raw_value: Any) -> Optional[str]:
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, enum.Enum):
+        return raw_value.name
+    if isinstance(raw_value, str):
+        token = raw_value.strip()
+        if token == "":
+            return None
+        try:
+            return enum_class(token).name
+        except Exception:
+            for member in enum_class:
+                if member.name.lower() == token.lower() or str(member.value).lower() == token.lower():
+                    return member.name
+    return None
+
+
+def _normalize_enum_columns(model_class: Any, items: List[Dict[str, Any]]) -> None:
+    try:
+        enum_columns = [
+            (column.name, column.type.enum_class)
+            for column in model_class.__table__.columns
+            if isinstance(column.type, SAEnum) and getattr(column.type, "enum_class", None) is not None
+        ]
+    except Exception:
+        enum_columns = []
+
+    for item in items:
+        for column_name, enum_class in enum_columns:
+            if column_name not in item:
+                continue
+            token = _coerce_enum_token(enum_class, item.get(column_name))
+            if token is not None:
+                item[column_name] = token
 
 
 def _serialize_cell(value: Any) -> Any:
@@ -75,6 +179,9 @@ def _serialize_cell(value: Any) -> Any:
 
 def build_csv_rows(table_name: str, model_class: Any, rows: Iterable[Any]) -> Tuple[List[str], List[List[Any]]]:
     items = serialize_items_for_table(table_name, model_class, rows)
+    items = [dict(item) for item in items]
+    _normalize_enum_columns(model_class, items)
+    _assign_row_keys(items, sync_slug=_model_has_column(model_class, "slug"))
     columns = resolve_columns(table_name, items)
     data_rows: List[List[Any]] = []
     for item in items:
