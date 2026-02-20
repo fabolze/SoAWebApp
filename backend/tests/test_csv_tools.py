@@ -1,3 +1,4 @@
+from backend.app.models.m_abilities_links import AbilityEffectLink
 from backend.app.models.m_stats import Stat
 from backend.app.models.m_story_arcs import StoryArc
 from backend.app.utils import csv_tools
@@ -72,6 +73,25 @@ def test_enum_columns_export_enum_name_tokens(monkeypatch):
     assert row[columns.index("type")] == "Main"
 
 
+def test_enum_none_member_token_strips_python_suffix(monkeypatch):
+    items = [
+        {
+            "id": "01LINK",
+            "attribute_id": "attr1",
+            "stat_id": "stat1",
+            "scale": "None",
+            "multiplier": 1.0,
+        }
+    ]
+    _mock_serialized_items(monkeypatch, items)
+
+    from backend.app.models.m_attribute_stat_link import AttributeStatLink
+    columns, data_rows = csv_tools.build_csv_rows("attribute_stat_links", AttributeStatLink, [])
+    row = data_rows[0]
+
+    assert row[columns.index("scale")] == "None"
+
+
 def test_row_key_falls_back_to_slug_name_when_slug_absent(monkeypatch):
     class _Column:
         def __init__(self, name):
@@ -93,3 +113,49 @@ def test_row_key_falls_back_to_slug_name_when_slug_absent(monkeypatch):
     assert columns[0] == csv_tools.UE_ROW_KEY_HEADER
     assert row[columns.index(csv_tools.UE_ROW_KEY_HEADER)] == "hero-primary"
     assert "slug" not in columns
+
+
+def test_slugless_template_row_keys_are_readable_and_unique(monkeypatch):
+    items = [
+        {
+            "id": "01A",
+            "ability_id": "ab1",
+            "effect_id": "ef1",
+            "ability_slug": "power_slash",
+            "effect_slug": "bleeding",
+        },
+        {
+            "id": "01B",
+            "ability_id": "ab1",
+            "effect_id": "ef1",
+            "ability_slug": "power_slash",
+            "effect_slug": "bleeding",
+        },
+    ]
+    _mock_serialized_items(monkeypatch, items)
+
+    columns, data_rows = csv_tools.build_csv_rows("ability_effect_links", AbilityEffectLink, [])
+    row_key_idx = columns.index(csv_tools.UE_ROW_KEY_HEADER)
+    row_keys = [row[row_key_idx] for row in data_rows]
+
+    assert row_keys == ["power-slash__bleeding", "power-slash__bleeding_2"]
+
+
+def test_transient_reference_slug_aliases_are_not_exported(monkeypatch):
+    items = [{"id": "01A", "ability_id": "ab1", "effect_id": "ef1"}]
+    _mock_serialized_items(monkeypatch, items)
+    monkeypatch.setattr(
+        csv_tools,
+        "_build_reference_slug_lookups",
+        lambda model_class, rows_list, current_items: {
+            "ability_id": {"ab1": "power_slash"},
+            "effect_id": {"ef1": "bleeding"},
+        },
+    )
+
+    columns, data_rows = csv_tools.build_csv_rows("ability_effect_links", AbilityEffectLink, [])
+    row = data_rows[0]
+
+    assert "ability_slug" not in columns
+    assert "effect_slug" not in columns
+    assert row[columns.index(csv_tools.UE_ROW_KEY_HEADER)] == "power-slash__bleeding"

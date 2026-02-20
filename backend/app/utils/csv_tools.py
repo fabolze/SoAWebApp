@@ -8,12 +8,26 @@ import unicodedata
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from sqlalchemy.types import Enum as SAEnum
+from sqlalchemy.orm import object_session
 
 from backend.app.routes.base_route import ROUTE_REGISTRY
 
 UE_ROW_KEY_HEADER = "Name"
 ROW_KEY_SOURCE_FIELDS = ("slug", "slugName", "name", "title", "id")
 ROW_KEY_FALLBACK = "row"
+ROW_KEY_TABLE_TEMPLATES: Dict[str, Tuple[str, ...]] = {
+    "ability_effect_links": ("ability_slug", "effect_slug"),
+    "ability_scaling_links": ("ability_slug", "stat_slug"),
+    "attribute_stat_links": ("attribute_slug", "stat_slug", "scale"),
+    "combat_profiles": ("character_slug", "enemy_type", "aggression"),
+    "interaction_profiles": ("character_slug", "role", "dialogue_tree_slug"),
+    "item_attribute_modifiers": ("item_slug", "attribute_slug", "order_index"),
+    "item_stat_modifiers": ("item_slug", "stat_slug", "order_index"),
+    "requirement_forbidden_flags": ("requirement_slug", "flag_slug"),
+    "requirement_required_flags": ("requirement_slug", "flag_slug"),
+    "requirement_min_faction_reputation": ("requirement_slug", "faction_slug", "min_value"),
+    "talent_node_links": ("tree_slug", "from_node_slug", "to_node_slug", "min_rank_required"),
+}
 
 
 def _schema_path(table_name: str) -> str:
@@ -62,10 +76,13 @@ def _order_columns(columns: List[str]) -> List[str]:
     return ordered
 
 
-def resolve_columns(table_name: str, items: List[Dict[str, Any]]) -> List[str]:
+def resolve_columns(table_name: str, model_class: Any, items: List[Dict[str, Any]]) -> List[str]:
     columns = load_schema_columns(table_name)
     if not columns:
-        columns = []
+        try:
+            columns = [col.name for col in model_class.__table__.columns]
+        except Exception:
+            columns = []
     if UE_ROW_KEY_HEADER not in columns:
         columns.insert(0, UE_ROW_KEY_HEADER)
     for item in items:
@@ -102,6 +119,186 @@ def _resolve_row_key_source(item: Dict[str, Any]) -> Any:
     return ROW_KEY_FALLBACK
 
 
+def _get_table_model_map() -> Dict[str, Any]:
+    try:
+        from backend.app.models import ALL_MODELS
+    except Exception:
+        return {}
+    return {
+        getattr(model, "__tablename__", ""): model
+        for model in ALL_MODELS
+        if getattr(model, "__tablename__", None)
+    }
+
+
+def _guess_target_table_for_id_field(field_name: str, table_map: Dict[str, Any]) -> Optional[str]:
+    if not field_name.endswith("_id"):
+        return None
+    stem = field_name[:-3]
+    candidates = [stem]
+    if stem.endswith("y"):
+        candidates.append(stem[:-1] + "ies")
+    else:
+        candidates.append(stem + "s")
+        candidates.append(stem + "es")
+    for candidate in candidates:
+        if candidate in table_map:
+            return candidate
+    return None
+
+
+def _get_target_table_from_fk(model_class: Any, field_name: str) -> Optional[str]:
+    try:
+        column = next((col for col in model_class.__table__.columns if col.name == field_name), None)
+        if column is None:
+            return None
+        for fk in column.foreign_keys:
+            table_name = getattr(getattr(fk, "column", None), "table", None)
+            table_name = getattr(table_name, "name", None)
+            if table_name:
+                return str(table_name)
+    except Exception:
+        return None
+    return None
+
+
+def _build_reference_slug_lookups(
+    model_class: Any,
+    rows_list: List[Any],
+    items: List[Dict[str, Any]],
+) -> Dict[str, Dict[str, str]]:
+    if not rows_list:
+        return {}
+    session = object_session(rows_list[0])
+    if session is None:
+        return {}
+
+    table_map = _get_table_model_map()
+    id_fields = sorted({
+        key
+        for item in items
+        for key in item.keys()
+        if isinstance(key, str) and key.endswith("_id")
+    })
+    lookups: Dict[str, Dict[str, str]] = {}
+
+    for field_name in id_fields:
+        target_table = _get_target_table_from_fk(model_class, field_name) or _guess_target_table_for_id_field(field_name, table_map)
+        if not target_table:
+            continue
+        target_model = table_map.get(target_table)
+        if target_model is None or not _model_has_column(target_model, "slug"):
+            continue
+
+        values = sorted({
+            str(item.get(field_name)).strip()
+            for item in items
+            if item.get(field_name) is not None and str(item.get(field_name)).strip() != ""
+        })
+        if not values:
+            continue
+
+        query_rows = (
+            session.query(target_model.id, target_model.slug)
+            .filter(target_model.id.in_(values))
+            .all()
+        )
+        field_lookup = {
+            str(entity_id): _to_slug_token(slug if slug is not None else entity_id)
+            for entity_id, slug in query_rows
+        }
+        if field_lookup:
+            lookups[field_name] = field_lookup
+
+    return lookups
+
+
+def _inject_reference_slug_aliases(items: List[Dict[str, Any]], lookups: Dict[str, Dict[str, str]]) -> set:
+    inserted_aliases: set = set()
+    for item in items:
+        for field_name, lookup in lookups.items():
+            raw_value = item.get(field_name)
+            if raw_value is None:
+                continue
+            raw_key = str(raw_value).strip()
+            if not raw_key:
+                continue
+            resolved_slug = lookup.get(raw_key)
+            if not resolved_slug:
+                continue
+            alias = f"{field_name[:-3]}_slug"
+            if alias not in item or str(item.get(alias) or "").strip() == "":
+                item[alias] = resolved_slug
+                inserted_aliases.add(alias)
+    return inserted_aliases
+
+
+def _strip_transient_alias_fields(items: List[Dict[str, Any]], alias_fields: set) -> None:
+    if not alias_fields:
+        return
+    for item in items:
+        for key in alias_fields:
+            item.pop(key, None)
+
+
+def _value_present(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip() != ""
+    return True
+
+
+def _pick_row_key_parts(table_name: str, item: Dict[str, Any], has_slug_column: bool) -> List[Any]:
+    if has_slug_column:
+        return [_resolve_row_key_source(item)]
+
+    template = ROW_KEY_TABLE_TEMPLATES.get(table_name)
+    if template:
+        parts = [item.get(field_name) for field_name in template if _value_present(item.get(field_name))]
+        if parts:
+            return parts
+
+    for key in ("slug", "slugName", "name", "title"):
+        if _value_present(item.get(key)):
+            return [item.get(key)]
+
+    slug_fields = sorted([
+        key for key, value in item.items()
+        if key.endswith("_slug") and _value_present(value)
+    ])
+    if slug_fields:
+        return [item[key] for key in slug_fields]
+
+    scalar_fields = sorted([
+        key for key, value in item.items()
+        if key != "id"
+        and not key.endswith("_id")
+        and _value_present(value)
+        and not isinstance(value, (dict, list))
+    ])
+    if scalar_fields:
+        return [item[key] for key in scalar_fields]
+
+    id_fields = sorted([
+        key for key, value in item.items()
+        if key.endswith("_id") and _value_present(value)
+    ])
+    if id_fields:
+        return [item[key] for key in id_fields]
+
+    return [_resolve_row_key_source(item)]
+
+
+def _compose_row_key(parts: List[Any]) -> str:
+    tokens = [_to_slug_token(part) for part in parts if _value_present(part)]
+    if not tokens:
+        return ROW_KEY_FALLBACK
+    if len(tokens) == 1:
+        return tokens[0]
+    return "__".join(tokens)
+
+
 def _make_unique_row_key(base_key: str, used: set) -> str:
     candidate = base_key
     suffix = 2
@@ -112,7 +309,7 @@ def _make_unique_row_key(base_key: str, used: set) -> str:
     return candidate
 
 
-def _assign_row_keys(items: List[Dict[str, Any]], sync_slug: bool) -> None:
+def _assign_row_keys(table_name: str, items: List[Dict[str, Any]], sync_slug: bool) -> None:
     """Row key rules for UE DataTables:
     - derive from slug/slugName/name/title/id (in that priority)
     - trim + deterministic slug normalization
@@ -120,7 +317,8 @@ def _assign_row_keys(items: List[Dict[str, Any]], sync_slug: bool) -> None:
     """
     used: set = set()
     for item in items:
-        base_key = _to_slug_token(_resolve_row_key_source(item))
+        key_parts = _pick_row_key_parts(table_name, item, has_slug_column=sync_slug)
+        base_key = _compose_row_key(key_parts)
         row_key = _make_unique_row_key(base_key, used)
         item[UE_ROW_KEY_HEADER] = row_key
         if sync_slug:
@@ -128,20 +326,23 @@ def _assign_row_keys(items: List[Dict[str, Any]], sync_slug: bool) -> None:
 
 
 def _coerce_enum_token(enum_class: Any, raw_value: Any) -> Optional[str]:
+    def _member_token(member: enum.Enum) -> str:
+        return member.name.rstrip("_")
+
     if raw_value is None:
         return None
     if isinstance(raw_value, enum.Enum):
-        return raw_value.name
+        return _member_token(raw_value)
     if isinstance(raw_value, str):
         token = raw_value.strip()
         if token == "":
             return None
         try:
-            return enum_class(token).name
+            return _member_token(enum_class(token))
         except Exception:
             for member in enum_class:
                 if member.name.lower() == token.lower() or str(member.value).lower() == token.lower():
-                    return member.name
+                    return _member_token(member)
     return None
 
 
@@ -178,11 +379,15 @@ def _serialize_cell(value: Any) -> Any:
 
 
 def build_csv_rows(table_name: str, model_class: Any, rows: Iterable[Any]) -> Tuple[List[str], List[List[Any]]]:
-    items = serialize_items_for_table(table_name, model_class, rows)
+    rows_list = list(rows)
+    items = serialize_items_for_table(table_name, model_class, rows_list)
     items = [dict(item) for item in items]
+    ref_slug_lookups = _build_reference_slug_lookups(model_class, rows_list, items)
+    transient_aliases = _inject_reference_slug_aliases(items, ref_slug_lookups)
     _normalize_enum_columns(model_class, items)
-    _assign_row_keys(items, sync_slug=_model_has_column(model_class, "slug"))
-    columns = resolve_columns(table_name, items)
+    _assign_row_keys(table_name, items, sync_slug=_model_has_column(model_class, "slug"))
+    _strip_transient_alias_fields(items, transient_aliases)
+    columns = resolve_columns(table_name, model_class, items)
     data_rows: List[List[Any]] = []
     for item in items:
         data_rows.append([_serialize_cell(item.get(col)) for col in columns])
