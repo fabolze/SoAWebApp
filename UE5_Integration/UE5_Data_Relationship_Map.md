@@ -8,12 +8,12 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 ### Stats (`backend/app/models/m_stats.py`)
 - **Key fields:** `id`, `slug`, `category`, `value_type`, `scaling_behavior`.
 - **Feeds:** Attribute-to-Stat links, Effects (`scaling_stat_id`), Item Stat Modifiers, CharacterClass `base_stats` or `stat_growth`, combat formula coefficients.
-- **Blueprint owners:** `BP_GameDataSubsystem` cache, `BP_LevelProgressionComponent`, `BP_CombatFormulaLibrary`.
+- **Blueprint owners:** `BP_GameDataService` cache (owned by `BP_GameInstance_SoA`), `BP_LevelProgressionComponent`, `BP_CombatFormulaLibrary`.
 
 ### Attributes (`m_attributes.py`)
 - **Key fields:** `id`, `slug`, `value_type`, `scaling`.
 - **Feeds:** AttributeStatLink, Item Attribute Modifiers, Effects (`attribute_id`), dialogue or stat checks.
-- **Blueprint owners:** Attribute resolver inside `BP_GameDataSubsystem`, `BP_EffectResolver`, character sheet UI.
+- **Blueprint owners:** Attribute resolver inside `BP_GameDataService` (`BP_GameInstance_SoA`), `BP_EffectResolver`, character sheet UI.
 
 ### Attribute-to-Stat Link (`m_attribute_stat_link.py`)
 - **Purpose:** Converts Attribute gains into derived Stat bonuses.
