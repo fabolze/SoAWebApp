@@ -1,4 +1,7 @@
 from backend.app.models.m_abilities_links import AbilityEffectLink
+from backend.app.models.m_abilities import Ability
+from backend.app.models.m_attributes import Attribute
+from backend.app.models.m_items import Item
 from backend.app.models.m_stats import Stat
 from backend.app.models.m_story_arcs import StoryArc
 from backend.app.utils import csv_tools
@@ -159,3 +162,65 @@ def test_transient_reference_slug_aliases_are_not_exported(monkeypatch):
     assert "ability_slug" not in columns
     assert "effect_slug" not in columns
     assert row[columns.index(csv_tools.UE_ROW_KEY_HEADER)] == "power-slash__bleeding"
+
+
+def test_attributes_export_omits_results_in_column(monkeypatch):
+    items = [
+        {
+            "id": "01ATTR",
+            "slug": "strength",
+            "name": "Strength",
+            "value_type": "float",
+            "results_in": [{"stat_id": "hp", "scale": "Linear", "multiplier": 1.0}],
+            "used_in": ["Character"],
+        }
+    ]
+    _mock_serialized_items(monkeypatch, items)
+
+    columns, data_rows = csv_tools.build_csv_rows("attributes", Attribute, [])
+    row = data_rows[0]
+
+    assert "results_in" not in columns
+    assert "used_in" in columns
+    assert row[columns.index(csv_tools.UE_ROW_KEY_HEADER)] == "strength"
+
+
+def test_abilities_export_omits_nested_link_columns(monkeypatch):
+    items = [
+        {
+            "id": "01ABL",
+            "slug": "power-slash",
+            "name": "Power Slash",
+            "type": "Active",
+            "effects": ["01EFF"],
+            "scaling": [{"stat_id": "01STAT", "multiplier": 0.8}],
+            "requirements": {"flags": []},
+        }
+    ]
+    _mock_serialized_items(monkeypatch, items)
+
+    columns, _ = csv_tools.build_csv_rows("abilities", Ability, [])
+
+    assert "effects" not in columns
+    assert "scaling" not in columns
+    assert "requirements" in columns
+
+
+def test_items_export_omits_modifier_payload_columns(monkeypatch):
+    items = [
+        {
+            "id": "01ITEM",
+            "slug": "iron-sword",
+            "name": "Iron Sword",
+            "type": "Weapon",
+            "stat_modifiers": [{"stat_id": "01STAT", "value": 3}],
+            "attribute_modifiers": [{"attribute_id": "01ATTR", "value": 1}],
+            "effects": [],
+        }
+    ]
+    _mock_serialized_items(monkeypatch, items)
+
+    columns, _ = csv_tools.build_csv_rows("items", Item, [])
+
+    assert "stat_modifiers" not in columns
+    assert "attribute_modifiers" not in columns
