@@ -400,11 +400,40 @@ def _serialize_cell(value: Any) -> Any:
     if isinstance(value, enum.Enum):
         return value.value
     if isinstance(value, (dict, list)):
-        try:
-            return json.dumps(value, ensure_ascii=False)
-        except Exception:
-            return str(value)
+        return _serialize_ue_property_text(value)
     return value
+
+
+def _escape_ue_string(value: str) -> str:
+    # UE property text strings use double quotes; keep escaping minimal.
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _serialize_ue_property_scalar(value: Any) -> str:
+    if isinstance(value, enum.Enum):
+        value = value.value
+    if value is None:
+        return '""'
+    if isinstance(value, bool):
+        return "True" if value else "False"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        return f'"{_escape_ue_string(value)}"'
+    return f'"{_escape_ue_string(str(value))}"'
+
+
+def _serialize_ue_property_text(value: Any) -> str:
+    if isinstance(value, list):
+        serialized_items = ",".join(_serialize_ue_property_text(item) for item in value)
+        return f"({serialized_items})"
+    if isinstance(value, dict):
+        serialized_pairs: List[str] = []
+        for key, item_value in value.items():
+            key_name = str(key)
+            serialized_pairs.append(f"{key_name}={_serialize_ue_property_text(item_value)}")
+        return f"({','.join(serialized_pairs)})"
+    return _serialize_ue_property_scalar(value)
 
 
 def build_csv_rows(table_name: str, model_class: Any, rows: Iterable[Any]) -> Tuple[List[str], List[List[Any]]]:

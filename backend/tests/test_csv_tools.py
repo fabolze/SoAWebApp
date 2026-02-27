@@ -224,3 +224,53 @@ def test_items_export_omits_modifier_payload_columns(monkeypatch):
 
     assert "stat_modifiers" not in columns
     assert "attribute_modifiers" not in columns
+
+
+def test_array_cells_use_ue_property_text_not_json(monkeypatch):
+    items = [
+        {
+            "id": "01ATTR",
+            "slug": "strength",
+            "name": "Strength",
+            "value_type": "float",
+            "used_in": ["Character", "Item"],
+            "tags": ["core", "combat"],
+        }
+    ]
+    _mock_serialized_items(monkeypatch, items)
+
+    columns, data_rows = csv_tools.build_csv_rows("attributes", Attribute, [])
+    row = data_rows[0]
+
+    used_in_cell = row[columns.index("used_in")]
+    tags_cell = row[columns.index("tags")]
+
+    assert used_in_cell == '("Character","Item")'
+    assert tags_cell == '("core","combat")'
+
+
+def test_nested_struct_arrays_use_ue_property_text(monkeypatch):
+    items = [
+        {
+            "id": "01CLASS",
+            "slug": "warrior",
+            "name": "Warrior",
+            "role": "Tank",
+            "base_stats": [
+                {"stat_id": "01HP", "value": 100},
+                {"stat_id": "01ATK", "value": 10},
+            ],
+            "stat_growth": [{"stat_id": "01HP", "value": 5}],
+        }
+    ]
+    _mock_serialized_items(monkeypatch, items)
+
+    from backend.app.models.m_characterclasses import CharacterClass
+    columns, data_rows = csv_tools.build_csv_rows("characterclasses", CharacterClass, [])
+    row = data_rows[0]
+
+    base_stats_cell = row[columns.index("base_stats")]
+    stat_growth_cell = row[columns.index("stat_growth")]
+
+    assert base_stats_cell == '((stat_id="01HP",value=100),(stat_id="01ATK",value=10))'
+    assert stat_growth_cell == '((stat_id="01HP",value=5))'
