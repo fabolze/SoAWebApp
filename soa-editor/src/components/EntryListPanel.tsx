@@ -32,6 +32,30 @@ const getEntryId = (entry: EntryRecord, idField: string): string => {
   return typeof rawId === "string" ? rawId : String(rawId ?? "");
 };
 
+const getEntryLabel = (entry: EntryRecord, idField: string): string => {
+  const candidates = [entry.name, entry.title, entry.slug, entry[idField]];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return "Untitled";
+};
+
+const getEntryBadges = (entry: EntryRecord): string[] => {
+  const candidates = [entry.type, entry.rarity, entry.category, entry.role, entry.enemy_type, entry.alignment];
+  return candidates
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean)
+    .slice(0, 3);
+};
+
+const formatCellValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (Array.isArray(value)) return value.map((item) => String(item)).join(", ");
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+};
+
 const EntryListPanel = ({
   schemaName,
   entries,
@@ -163,6 +187,7 @@ const EntryListPanelInternal = ({
   };
 
   const selectedEntries = entries.filter((entry) => selectedSet.has(getEntryId(entry, idField)));
+  const hasFilters = search.trim().length > 0 || searchField !== "__all__";
 
   const allFields = fieldKeys;
   const isFieldVisible = (field: string) => visibleFields.includes(field);
@@ -177,9 +202,14 @@ const EntryListPanelInternal = ({
   };
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col h-full max-h-full overflow-hidden border-r border-slate-200 bg-gray-50 p-6">
-      <div className="flex flex-col gap-2 p-4 border-b bg-white sticky top-0 z-10">
-        <div className="flex flex-wrap gap-2 items-center mb-2">
+    <div className="flex-1 min-w-0 flex flex-col h-full max-h-full overflow-hidden border-r border-slate-200 bg-slate-50">
+      <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-5 py-4 sticky top-0 z-10">
+        <div className="flex flex-wrap gap-2 items-center justify-between">
+          <div>
+            <div className="text-xs font-medium uppercase text-slate-500">{schemaName.replace(/_/g, " ")}</div>
+            <div className="text-lg font-semibold text-slate-950">{entries.length} entries</div>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
           <button className={`${BUTTON_CLASSES.success} ${BUTTON_SIZES.sm}`} onClick={onAddNew}>+ New</button>
           <button
             className={`${BUTTON_CLASSES.neutral} ${BUTTON_SIZES.xs}`}
@@ -195,12 +225,13 @@ const EntryListPanelInternal = ({
           </button>
           {selectedIds.length > 0 && (
             <>
-              <span className={`text-xs ${TEXT_CLASSES.muted}`}>{selectedIds.length} selected</span>
+              <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{selectedIds.length} selected</span>
               <button className={`${BUTTON_CLASSES.indigo} ${BUTTON_SIZES.xs}`} onClick={() => onBulkDuplicate(selectedEntries)}>Duplicate</button>
               <button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`} onClick={() => onBulkDelete(selectedEntries)}>Delete</button>
               <button className={`${BUTTON_CLASSES.neutral} ${BUTTON_SIZES.xs}`} onClick={() => setShowBulkEdit((v) => !v)}>Bulk edit</button>
             </>
           )}
+          </div>
         </div>
         {showBulkEdit && selectedIds.length > 0 && (
           <div className="flex flex-wrap gap-2 items-center bg-slate-50 p-2 rounded border border-slate-200">
@@ -246,7 +277,7 @@ const EntryListPanelInternal = ({
           </div>
         )}
         {/* Search controls for filtering entries in the list. */}
-        <div className="flex gap-2 items-center mb-2 bg-gray-100 p-2.5 rounded shadow">
+        <div className="flex gap-2 items-center bg-slate-100 p-2 rounded-md border border-slate-200">
           <select
             className="border rounded p-2 text-sm text-slate-900 bg-white"
             value={searchField}
@@ -287,8 +318,26 @@ const EntryListPanelInternal = ({
           </div>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto min-h-0">
-        {entries.length > 100 ? (
+      <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4">
+        {entries.length === 0 ? (
+          <div className="flex min-h-[260px] items-center justify-center rounded-md border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+            <div>
+              <div className="text-base font-semibold text-slate-900">
+                {hasFilters ? "No matching entries" : "No entries yet"}
+              </div>
+              <div className="mt-1 max-w-md text-sm text-slate-600">
+                {hasFilters
+                  ? "Adjust the search or field filter to bring entries back into view."
+                  : "Create the first entry for this dataset and use references, tags, and presets to keep it connected to the rest of the RPG data."}
+              </div>
+              {!hasFilters && (
+                <button className={`mt-4 ${BUTTON_CLASSES.success} ${BUTTON_SIZES.sm}`} onClick={onAddNew}>
+                  Create Entry
+                </button>
+              )}
+            </div>
+          </div>
+        ) : entries.length > 100 ? (
           <VirtualizedTable
             entries={entries}
             listFields={visibleFields}
@@ -303,10 +352,10 @@ const EntryListPanelInternal = ({
             allSelected={allSelected}
           />
         ) : (
-          <table className="min-w-full border text-sm text-slate-900">
+          <table className="min-w-full overflow-hidden rounded-md border border-slate-200 bg-white text-sm text-slate-900">
             <thead>
               <tr>
-                <th className="px-3 py-2 border-b bg-gray-50 font-semibold text-slate-700 whitespace-nowrap">
+                <th className="px-3 py-2 border-b border-slate-200 bg-slate-100 font-semibold text-slate-700 whitespace-nowrap">
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -314,18 +363,19 @@ const EntryListPanelInternal = ({
                   />
                 </th>
                 {visibleFields.map((key) => (
-                  <th key={key} className="px-3 py-2 border-b bg-gray-50 font-semibold text-slate-700 whitespace-nowrap">{key}</th>
+                  <th key={key} className="px-3 py-2 border-b border-slate-200 bg-slate-100 font-semibold text-slate-700 whitespace-nowrap">{key}</th>
                 ))}
-                <th className="px-3 py-2 border-b bg-gray-50 font-semibold text-slate-700">Actions</th>
+                <th className="px-3 py-2 border-b border-slate-200 bg-slate-100 font-semibold text-slate-700">Actions</th>
               </tr>
             </thead>
             <tbody>
               {entries.map((entry) => {
                 const entryId = getEntryId(entry, idField);
+                const isActive = !!editingId && entryId === editingId;
+                const badges = getEntryBadges(entry);
                 return (
-                  // Highlight the currently edited row.
-                  <tr key={entryId} className={editingId && entryId === editingId ? "bg-yellow-100" : "hover:bg-blue-50"}>
-                    <td className="px-3 py-2 border-b whitespace-nowrap">
+                  <tr key={entryId} className={`${isActive ? "bg-blue-50 ring-1 ring-inset ring-blue-300" : "hover:bg-slate-50"} transition-colors`}>
+                    <td className="px-3 py-2 border-b border-slate-100 whitespace-nowrap">
                       <input
                         type="checkbox"
                         checked={selectedSet.has(entryId)}
@@ -335,17 +385,34 @@ const EntryListPanelInternal = ({
                     {visibleFields.map((key) => {
                       const value = entry[key];
                       const isImage = typeof value === 'string' && (value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && (value.startsWith('http') || value.startsWith('/')));
+                      const cellText = formatCellValue(value);
+                      const isPrimaryField = key === "name" || key === "title" || key === "slug";
                       return (
-                        <td key={key} className="px-3 py-2 border-b whitespace-nowrap max-w-xs overflow-x-auto text-slate-900">
+                        <td key={key} className="px-3 py-2 border-b border-slate-100 whitespace-nowrap max-w-xs overflow-hidden text-slate-900">
                           {isImage ? (
                             <img src={value} alt="asset" style={{ maxHeight: '40px', maxWidth: '80px', objectFit: 'contain' }} />
+                          ) : isPrimaryField ? (
+                            <div className="min-w-0">
+                              <div className={`truncate ${isActive ? "font-semibold text-blue-950" : "font-medium text-slate-950"}`} title={cellText || getEntryLabel(entry, idField)}>
+                                {cellText || getEntryLabel(entry, idField)}
+                              </div>
+                              {badges.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {badges.map((badge) => (
+                                    <span key={badge} className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+                                      {badge}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           ) : (
-                            String(value ?? '')
+                            <span className="block truncate" title={cellText}>{cellText}</span>
                           )}
                         </td>
                       );
                     })}
-                    <td className="px-3 py-2 border-b whitespace-nowrap">
+                    <td className="px-3 py-2 border-b border-slate-100 whitespace-nowrap">
                       <button
                         className={`mr-2 ${BUTTON_CLASSES.primary} ${BUTTON_SIZES.xs}`}
                         onClick={() => onEdit(entry)}

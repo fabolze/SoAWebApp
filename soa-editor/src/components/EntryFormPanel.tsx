@@ -22,6 +22,37 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function getDisplayText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
+}
+
+function isEmptyValue(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") return value.trim() === "";
+  if (Array.isArray(value)) return value.length === 0;
+  if (isRecord(value)) return Object.keys(value).length === 0;
+  return false;
+}
+
+function getSchemaProperties(schema: Record<string, unknown>): Record<string, Record<string, unknown>> {
+  const properties = schema.properties;
+  if (!isRecord(properties)) return {};
+  return Object.fromEntries(
+    Object.entries(properties).filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
+  );
+}
+
+function getRequiredFields(schema: Record<string, unknown>): string[] {
+  return Array.isArray(schema.required) ? schema.required.filter((field): field is string => typeof field === "string") : [];
+}
+
+function collectReferenceFieldCount(properties: Record<string, Record<string, unknown>>): number {
+  return Object.values(properties).filter((config) => {
+    const ui = config.ui;
+    return isRecord(ui) && (typeof ui.reference === "string" || typeof ui.options_source === "string");
+  }).length;
+}
+
 interface EntryFormPanelProps {
   schemaName: string;
   schema: Record<string, unknown>;
@@ -80,6 +111,26 @@ export default function EntryFormPanel({
   const rawEntryId = data?.id;
   const currentEntryId = typeof rawEntryId === "string" ? rawEntryId : rawEntryId != null ? String(rawEntryId) : "";
   const hasExistingId = !isNew && currentEntryId.length > 0;
+  const schemaTitle = typeof schema.title === "string" && schema.title.trim() ? schema.title.trim() : schemaName;
+  const entryLabel = getDisplayText(data?.name) || getDisplayText(data?.title) || getDisplayText(data?.slug) || (isNew ? "New draft" : currentEntryId || "Untitled entry");
+  const entrySubtitle = [
+    getDisplayText(data?.type),
+    getDisplayText(data?.rarity),
+    getDisplayText(data?.category),
+    getDisplayText(data?.role),
+  ].filter(Boolean).slice(0, 2).join(" / ");
+  const schemaProperties = useMemo(() => getSchemaProperties(schema), [schema]);
+  const requiredFields = useMemo(() => getRequiredFields(schema), [schema]);
+  const missingRequiredFields = useMemo(
+    () => requiredFields.filter((field) => isEmptyValue(data?.[field])),
+    [data, requiredFields]
+  );
+  const referenceFieldCount = useMemo(() => collectReferenceFieldCount(schemaProperties), [schemaProperties]);
+  const qualityStatus = !formValid || missingRequiredFields.length > 0
+    ? "Needs attention"
+    : isDirty
+      ? "Draft changed"
+      : "Ready";
 
   const showUtilityNotice = useCallback((type: "success" | "error", message: string) => {
     setUtilityNotice({ type, message });
@@ -342,17 +393,101 @@ export default function EntryFormPanel({
   );
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col h-full max-h-full overflow-hidden bg-white p-6">
-      <div className="sticky top-0 z-10 bg-white p-4 border-b">
-        <h1 className="text-xl font-bold mb-2 text-slate-900">{formHeader}</h1>
-        {hasExistingId && (
-          <span className="ml-2 text-slate-700 font-semibold">Editing: {currentEntryId}</span>
-        )}
-        {isDirty && (
-          <span className="ml-2 text-amber-600 font-semibold">Unsaved changes</span>
-        )}
+    <div className="flex-1 min-w-0 flex flex-col h-full max-h-full overflow-hidden bg-white">
+      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span>{schemaTitle}</span>
+              <span className={`rounded-full px-2 py-0.5 font-medium ${
+                qualityStatus === "Ready"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : qualityStatus === "Draft changed"
+                    ? "bg-amber-50 text-amber-700"
+                    : "bg-red-50 text-red-700"
+              }`}>
+                {qualityStatus}
+              </span>
+              {hasExistingId && <span className="font-mono text-[11px] text-slate-500">{currentEntryId}</span>}
+            </div>
+            <h1 className="mt-1 truncate text-xl font-semibold text-slate-950" title={entryLabel}>
+              {entryLabel}
+            </h1>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+              <span>{formHeader}</span>
+              {entrySubtitle && <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700">{entrySubtitle}</span>}
+              {changedFieldKeys.length > 0 && <span>{changedFieldKeys.length} changed field{changedFieldKeys.length === 1 ? "" : "s"}</span>}
+              {referenceSummary && <span>{referenceSummary.total} inbound reference{referenceSummary.total === 1 ? "" : "s"}</span>}
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`}
+              onClick={() => setCommandPaletteOpen(true)}
+            >
+              Commands
+            </button>
+            {hasExistingId && (
+              <button
+                type="button"
+                className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`}
+                onClick={() => {
+                  void handleCopyId();
+                }}
+              >
+                Copy ID
+              </button>
+            )}
+            {!isNew && (
+              <button
+                type="button"
+                className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`}
+                onClick={onCancel}
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              type="button"
+              className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.md}`}
+              onClick={onSave}
+              disabled={!formValid}
+            >
+              {isDirty ? "Save Changes" : "Save"}
+            </button>
+          </div>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto min-h-0 p-4">
+        <div className="grid gap-3 mb-4 lg:grid-cols-4">
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="text-xs font-medium uppercase text-slate-500">Required</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">
+              {requiredFields.length - missingRequiredFields.length}/{requiredFields.length}
+            </div>
+            {missingRequiredFields.length > 0 && (
+              <div className="mt-1 truncate text-xs text-amber-700" title={missingRequiredFields.join(", ")}>
+                Missing: {missingRequiredFields.slice(0, 3).join(", ")}
+              </div>
+            )}
+          </div>
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="text-xs font-medium uppercase text-slate-500">References</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{referenceSummary?.total ?? 0}</div>
+            <div className="mt-1 text-xs text-slate-600">{referenceFieldCount} reference field{referenceFieldCount === 1 ? "" : "s"} in schema</div>
+          </div>
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="text-xs font-medium uppercase text-slate-500">Changes</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{changedFieldKeys.length}</div>
+            <div className="mt-1 text-xs text-slate-600">{isDirty ? "Unsaved draft" : "No unsaved edits"}</div>
+          </div>
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="text-xs font-medium uppercase text-slate-500">Authoring</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{presets.length}</div>
+            <div className="mt-1 text-xs text-slate-600">preset{presets.length === 1 ? "" : "s"} available</div>
+          </div>
+        </div>
         <PresetToolbar
           schemaName={schemaName}
           presets={presets}
@@ -384,7 +519,7 @@ export default function EntryFormPanel({
           schemaName={schemaName}
           data={(data || {}) as Record<string, unknown>}
         />
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 mb-4">
+        <div className="mb-4 border-y border-slate-200 bg-slate-50 px-3 py-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div>
               <div className="text-sm font-semibold text-slate-800">Authoring Utilities</div>
@@ -443,7 +578,7 @@ export default function EntryFormPanel({
           )}
         </div>
         {hasExistingId && (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 mb-4">
+          <div className="mb-4 border-y border-slate-200 bg-slate-50 px-3 py-3">
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
                 <div className="text-sm font-semibold text-slate-800">Reference Insights</div>
@@ -475,7 +610,7 @@ export default function EntryFormPanel({
                 ) : (
                   <div className="space-y-2">
                     {referenceSummary.groups.map((group) => (
-                      <div key={group.schemaName} className="rounded border border-slate-200 bg-white p-2">
+                      <div key={group.schemaName} className="border-t border-slate-200 bg-white/60 px-2 py-2 first:border-t-0">
                         <div className="text-xs font-semibold text-slate-700 mb-1">
                           {group.schemaLabel} ({group.count})
                         </div>

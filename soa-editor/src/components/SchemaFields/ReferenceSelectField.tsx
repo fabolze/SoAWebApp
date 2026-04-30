@@ -46,13 +46,15 @@ export default function ReferenceSelectField({
   const previewCacheRef = useRef<Map<string, unknown>>(new Map());
   const requestSeqRef = useRef(0);
   const inspectorIdRef = useRef(`ref-inspector-${Math.random().toString(36).slice(2)}`);
-  const safeOptions = Array.isArray(options) ? options : [];
-  const mappedOptions = safeOptions.map((opt) => {
-    return {
-      label: getReferenceOptionLabel(opt, refType),
-      value: getReferenceOptionValue(opt, refType),
-    };
-  });
+  const safeOptions = useMemo(() => (Array.isArray(options) ? options : []), [options]);
+  const mappedOptions = useMemo(
+    () =>
+      safeOptions.map((opt) => ({
+        label: getReferenceOptionLabel(opt, refType),
+        value: getReferenceOptionValue(opt, refType),
+      })),
+    [refType, safeOptions]
+  );
   const selectedId = value ? String(value) : '';
   const selectedEntryFromOptions = useMemo(
     () => safeOptions.find((opt) => getReferenceOptionValue(opt, refType) === selectedId) ?? null,

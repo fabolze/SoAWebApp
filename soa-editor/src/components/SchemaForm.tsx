@@ -55,6 +55,35 @@ function isVisibleByRule(ui: SchemaFieldUiConfig, sourceData: EntryData): boolea
   return true;
 }
 
+function inferSectionName(key: string, config: SchemaFieldConfig): string {
+  const explicit = config.ui?.section;
+  if (typeof explicit === 'string' && explicit.trim()) return explicit.trim();
+
+  const normalized = key.toLowerCase();
+  if (normalized === 'id' || normalized === 'slug' || normalized === 'name' || normalized === 'title' || normalized === 'description' || normalized === 'summary') {
+    return 'Identity';
+  }
+  if (normalized.includes('requirement') || normalized.includes('flag') || normalized.includes('condition')) {
+    return 'Gating';
+  }
+  if (normalized.includes('reward') || normalized.includes('currency') || normalized.includes('price') || normalized.includes('cost') || normalized.includes('loot') || normalized.includes('xp')) {
+    return 'Economy';
+  }
+  if (normalized.includes('effect') || normalized.includes('status') || normalized.includes('modifier') || normalized.includes('scaling') || normalized.includes('stat') || normalized.includes('attribute') || normalized.includes('damage') || normalized.includes('cooldown') || normalized.includes('target')) {
+    return 'Mechanics';
+  }
+  if (normalized.includes('location') || normalized.includes('biome') || normalized.includes('faction') || normalized.includes('character') || normalized.includes('encounter') || normalized.includes('event') || normalized.includes('quest') || normalized.includes('dialogue')) {
+    return 'World Links';
+  }
+  if (normalized.includes('tag') || normalized.includes('icon') || normalized.includes('notes') || normalized.includes('content_pack')) {
+    return 'Metadata';
+  }
+  if (config.type === 'array' || config.type === 'object') {
+    return 'Details';
+  }
+  return 'Core';
+}
+
 export default function SchemaForm({ schema, data, onChange, referenceOptions: parentReferenceOptions, fetchReferenceOptions: parentFetchReferenceOptions, isValidCallback, parentSummary, isNested = false, changedFieldKeys = [] }: SchemaFormProps) {
   const fields = Object.entries(schema.properties || {}) as [string, SchemaFieldConfig][];
   const editorStack = useEditorStack();
@@ -74,6 +103,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
   const [numberInputs, setNumberInputs] = useState<Record<string, string>>({});
   const [fieldFilter, setFieldFilter] = useState('');
   const [fieldViewMode, setFieldViewMode] = useState<'all' | 'missing' | 'changed'>('all');
+  const [activeSection, setActiveSection] = useState<string>('All');
   const debouncedFieldFilter = useDebouncedValue(fieldFilter, 120);
 
   // Fetch reference options, but only if not provided by parent
@@ -228,6 +258,33 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
     }, 0);
   }, [data, fields, shouldIncludeField]);
 
+  const sectionGroups = useMemo(() => {
+    const groups = new Map<string, { total: number; filtered: number; missing: number; changed: number }>();
+    for (const [key, config] of fields) {
+      const ui = config.ui || {};
+      if (!isVisibleByRule(ui, data || {})) continue;
+      const sectionName = inferSectionName(key, config);
+      const label = ui.label || key;
+      const description = ui.description || config.description;
+      const existing = groups.get(sectionName) || { total: 0, filtered: 0, missing: 0, changed: 0 };
+      existing.total += 1;
+      if (missingFieldSet.has(key)) existing.missing += 1;
+      if (changedFieldSet.has(key)) existing.changed += 1;
+      if (shouldIncludeField(key, label, description)) existing.filtered += 1;
+      groups.set(sectionName, existing);
+    }
+    return Array.from(groups.entries()).map(([name, counts]) => ({ name, ...counts }));
+  }, [changedFieldSet, data, fields, missingFieldSet, shouldIncludeField]);
+
+  const availableSections = useMemo(() => ['All', ...sectionGroups.map((group) => group.name)], [sectionGroups]);
+
+  useEffect(() => {
+    if (isNested) return;
+    if (!availableSections.includes(activeSection)) {
+      setActiveSection('All');
+    }
+  }, [activeSection, availableSections, isNested]);
+
   // Auto-fill slug from name when slug is empty; do NOT auto-generate id
   const handleChange = (key: string, value: unknown) => {
     // setTouched((prev) => ({ ...prev, [key]: true }));
@@ -314,9 +371,9 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
 
   return (
-    <form className="space-y-6 bg-white rounded-lg shadow-sm p-6">
+    <form className="space-y-5">
       {!isNested && (
-        <div className="sticky top-0 z-20 rounded-lg border border-slate-200 bg-slate-50/95 px-3 py-2 backdrop-blur mb-2">
+        <div className="sticky top-0 z-20 border-y border-slate-200 bg-slate-50/95 px-3 py-2 backdrop-blur">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className="text-sm font-medium text-slate-800">
               Required fields: {requiredCompleted}/{requiredTotal}
@@ -362,7 +419,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
         </div>
       )}
       {!isNested && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="border-y border-slate-200 bg-slate-50 p-3">
           <div className="flex items-center gap-2 flex-wrap">
             <input
               type="text"
@@ -407,6 +464,38 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           <div className="mt-2 text-xs text-slate-600">
             Showing {filteredVisibleCount} / {totalVisibleByRules} visible fields
           </div>
+          {sectionGroups.length > 1 && (
+            <div className="mt-3 flex flex-wrap gap-1 border-t border-slate-200 pt-3">
+              {availableSections.map((sectionName) => {
+                const group = sectionGroups.find((section) => section.name === sectionName);
+                const count = sectionName === 'All' ? filteredVisibleCount : group?.filtered || 0;
+                const missingCount = sectionName === 'All' ? missingFields.length : group?.missing || 0;
+                const changedCount = sectionName === 'All' ? changedFieldSet.size : group?.changed || 0;
+                const active = activeSection === sectionName;
+                return (
+                  <button
+                    key={sectionName}
+                    type="button"
+                    className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${
+                      active
+                        ? 'border-blue-600 bg-blue-600 text-white'
+                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                    }`}
+                    onClick={() => setActiveSection(sectionName)}
+                  >
+                    <span>{sectionName}</span>
+                    <span className={active ? 'text-blue-100' : 'text-slate-500'}>{count}</span>
+                    {missingCount > 0 && (
+                      <span className={active ? 'text-amber-100' : 'text-amber-700'}>{missingCount} missing</span>
+                    )}
+                    {changedCount > 0 && (
+                      <span className={active ? 'text-emerald-100' : 'text-emerald-700'}>{changedCount} changed</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
       {fields.map(([key, config]) => {
@@ -418,6 +507,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
 
         if (!isVisibleByRule(ui, data || {})) return null;
         if (!shouldIncludeField(key, label, description)) return null;
+        if (!isNested && activeSection !== 'All' && inferSectionName(key, config) !== activeSection) return null;
 
         let fieldNode: ReactNode = null;
 
