@@ -1,71 +1,93 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Lore Entry",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "description": "Unique ID for this lore entry",
-        "ui": { "widget": "hidden" }
-      },
-      "slug": {
-        "type": "string",
-        "ui": { "widget": "text", "label": "ID/Slug" }
-      },
-      "title": {
-        "type": "string",
-        "description": "Title of the lore entry",
-        "ui": { "widget": "text", "label": "Title" }
-      },
-      "text": {
-        "type": "string",
-        "description": "Main text/content of the lore entry",
-        "ui": { "widget": "textarea", "label": "Lore Text" }
-      },
-      "location_id": {
-        "type": "string",
-        "description": "Optional: location where this lore is found",
-        "ui": {
-          "widget": "reference",
-          "reference": "locations",
-          "label": "Location"
-        }
-      },
-      "timeline_id": {
-        "type": "string",
-        "description": "Optional: timeline era this lore belongs to",
-        "ui": {
-          "widget": "reference",
-          "reference": "timelines",
-          "label": "Timeline Era"
-        }
-      },
-      "related_story_arcs": {
-        "type": "array",
-        "description": "Optional: related story arcs",
-        "items": {
-          "type": "string"
-        },
-        "ui": {
-          "widget": "multiselect",
-          "reference": "story-arcs",
-          "label": "Related Story Arcs"
-        }
-      },
-      "tags": {
-        "type": "array",
-        "description": "Tags for filtering/searching/categorization",
-        "items": { "type": "string" },
-        "ui": { "widget": "tags", "label": "Tags" }
-      },
-      "image_path": {
-        "type": "string",
-        "description": "Optional illustration or image for this lore entry",
-        "ui": {
-          "widget": "filepicker",
-          "label": "Image"
-        }
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Lore Entry",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique ID for this lore entry",
+      "ui": {
+        "widget": "hidden"
       }
     },
-    "required": ["id", "slug", "title", "text"]
-  }
+    "slug": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Stable identifier used to reference this lore entry from content packs and narrative links."
+    },
+    "title": {
+      "type": "string",
+      "description": "Title of the lore entry",
+      "ui": {
+        "widget": "text",
+        "label": "Title"
+      }
+    },
+    "text": {
+      "type": "string",
+      "description": "Main text/content of the lore entry",
+      "ui": {
+        "widget": "textarea",
+        "label": "Lore Text"
+      }
+    },
+    "location_id": {
+      "type": "string",
+      "description": "Optional: location where this lore is found",
+      "ui": {
+        "widget": "reference",
+        "reference": "locations",
+        "label": "Location"
+      }
+    },
+    "timeline_id": {
+      "type": "string",
+      "description": "Optional: timeline era this lore belongs to",
+      "ui": {
+        "widget": "reference",
+        "reference": "timelines",
+        "label": "Timeline Era"
+      }
+    },
+    "related_story_arcs": {
+      "type": "array",
+      "description": "Optional: related story arcs",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "reference": "story-arcs",
+        "label": "Related Story Arcs"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching/categorization",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    },
+    "image_path": {
+      "type": "string",
+      "description": "Optional illustration or image for this lore entry",
+      "ui": {
+        "widget": "filepicker",
+        "label": "Image"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "slug",
+    "title",
+    "text"
+  ]
+}

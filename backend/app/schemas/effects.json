@@ -7,11 +7,16 @@
       "type": "string",
       "ui": {
         "widget": "hidden"
-      }
+      },
+      "description": "Stable unique identifier for this effect."
     },
     "slug": {
       "type": "string",
-      "ui": { "widget": "text", "label": "ID/Slug" }
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Readable identifier used by abilities, items, statuses, and other effect references."
     },
     "name": {
       "type": "string",
@@ -24,14 +29,28 @@
     "type": {
       "type": "string",
       "enum": [
-        "Status", "Damage", "Heal", "Modifier", "Reflect", "Summon", "Shield", "Control"
+        "Status",
+        "Damage",
+        "Heal",
+        "Modifier",
+        "Reflect",
+        "Summon",
+        "Shield",
+        "Control"
       ],
       "description": "Category of effect",
       "ui": {
         "widget": "select",
         "label": "Effect Type",
         "options": [
-          "Status", "Damage", "Heal", "Modifier", "Reflect", "Summon", "Shield", "Control"
+          "Status",
+          "Damage",
+          "Heal",
+          "Modifier",
+          "Reflect",
+          "Summon",
+          "Shield",
+          "Control"
         ]
       }
     },
@@ -46,13 +65,23 @@
     "target": {
       "type": "string",
       "enum": [
-        "Self", "Enemy", "Ally", "All", "Area"
+        "Self",
+        "Enemy",
+        "Ally",
+        "All",
+        "Area"
       ],
       "description": "Who the effect applies to",
       "ui": {
         "widget": "select",
         "label": "Target",
-        "options": ["Self", "Enemy", "Ally", "All", "Area"]
+        "options": [
+          "Self",
+          "Enemy",
+          "Ally",
+          "All",
+          "Area"
+        ]
       }
     },
     "duration": {
@@ -65,12 +94,20 @@
     },
     "value_type": {
       "type": "string",
-      "enum": ["Flat", "Percentage", "None"],
+      "enum": [
+        "Flat",
+        "Percentage",
+        "None"
+      ],
       "description": "How to interpret the value (flat number or percent)",
       "ui": {
         "widget": "select",
         "label": "Value Type",
-        "options": ["Flat", "Percentage", "None"]
+        "options": [
+          "Flat",
+          "Percentage",
+          "None"
+        ]
       }
     },
     "value": {
@@ -89,7 +126,9 @@
         "label": "Status",
         "reference": "statuses",
         "visible_if": {
-          "type": ["Status"]
+          "type": [
+            "Status"
+          ]
         }
       }
     },
@@ -100,7 +139,9 @@
         "widget": "number",
         "label": "Apply Chance (%)",
         "visible_if": {
-          "type": ["Status"]
+          "type": [
+            "Status"
+          ]
         }
       }
     },
@@ -112,7 +153,10 @@
         "label": "Affected Attribute",
         "reference": "attributes",
         "visible_if": {
-          "type": ["Modifier", "Shield"]
+          "type": [
+            "Modifier",
+            "Shield"
+          ]
         }
       }
     },
@@ -127,12 +171,26 @@
     },
     "trigger_condition": {
       "type": "string",
-      "enum": ["None", "On Hit", "When Damaged", "On Kill", "On Cast", "Passive"],
+      "enum": [
+        "None",
+        "On Hit",
+        "When Damaged",
+        "On Kill",
+        "On Cast",
+        "Passive"
+      ],
       "description": "Trigger condition for this effect",
       "ui": {
         "widget": "select",
         "label": "Trigger Condition",
-        "options": ["None", "On Hit", "When Damaged", "On Kill", "On Cast", "Passive"]
+        "options": [
+          "None",
+          "On Hit",
+          "When Damaged",
+          "On Kill",
+          "On Cast",
+          "Passive"
+        ]
       }
     },
     "stackable": {
@@ -174,9 +232,20 @@
     "tags": {
       "type": "array",
       "description": "Tags for filtering/searching/categorization",
-      "items": { "type": "string" },
-      "ui": { "widget": "tags", "label": "Tags" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
     }
   },
-  "required": ["id", "slug", "name", "type", "target"]
+  "required": [
+    "id",
+    "slug",
+    "name",
+    "type",
+    "target"
+  ]
 }

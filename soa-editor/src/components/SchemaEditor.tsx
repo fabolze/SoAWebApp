@@ -2,6 +2,13 @@
 // This file acts as a template for the other pages
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
+import {
+  ArchiveBoxArrowDownIcon,
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
+  BeakerIcon,
+  DocumentIcon,
+} from "@heroicons/react/24/outline";
 import EntryListPanel from "./EntryListPanel";
 import EntryFormPanel from "./EntryFormPanel";
 import { generateUlid, generateSlug } from "../utils/generateId";
@@ -1009,34 +1016,48 @@ export default function SchemaEditor({
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-6 pb-0">
-        <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
-        <div className="flex gap-2 items-center">
+    <div className="flex h-full flex-col bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <div className="p-6 pb-0">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Dataset</div>
+            <h2 className="mt-1 truncate text-2xl font-semibold text-slate-950 dark:text-slate-100">{title}</h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-2 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           {sandboxEligible && (
-            <Link to={sandboxQuery} className={`${BUTTON_CLASSES.neutral} ${BUTTON_SIZES.sm}`}>
-              Open Sandbox
+            <Link
+              to={sandboxQuery}
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <BeakerIcon className="h-4 w-4" />
+              Sandbox
             </Link>
           )}
           <a
             href={buildApiUrl(`/api/export/all-csv-zip`)}
-            className={`${BUTTON_CLASSES.indigo} ${BUTTON_SIZES.sm}`}
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 text-sm font-medium text-indigo-700 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-200 dark:hover:bg-indigo-900"
             download
           >
-            Download All (ZIP)
+            <ArchiveBoxArrowDownIcon className="h-4 w-4" />
+            All ZIP
           </a>
           <a
             href={buildApiUrl(`/api/export/csv/${schemaName}`)}
-            className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`}
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200 dark:hover:bg-blue-900"
             download
           >
-            Download CSV
+            <ArrowDownTrayIcon className="h-4 w-4" />
+            CSV
           </a>
-          <form onSubmit={handleImportCSV} className="flex items-center gap-2">
-            <label htmlFor="csvFile" className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs} cursor-pointer`}>
+          <form onSubmit={handleImportCSV} className="flex min-w-0 flex-wrap items-center gap-2 border-l border-slate-200 pl-2 dark:border-slate-700">
+            <label
+              htmlFor={`csvFile-${schemaName}`}
+              className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <DocumentIcon className="h-4 w-4" />
               Choose CSV
               <input
-                id="csvFile"
+                id={`csvFile-${schemaName}`}
                 name="csvFile"
                 type="file"
                 accept=".csv"
@@ -1044,17 +1065,30 @@ export default function SchemaEditor({
                 onChange={handleFileChange}
               />
             </label>
-            <span className={`text-xs min-w-[80px] truncate ${TEXT_CLASSES.muted}`} title={importFileName}>
-              {importFileName || "No file chosen"}
+            <span
+              className={`max-w-[180px] truncate rounded-md border px-2 py-1 text-xs ${
+                importFileName
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
+                  : `border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800 ${TEXT_CLASSES.muted}`
+              }`}
+              title={importFileName}
+            >
+              {importFileName || "No CSV selected"}
             </span>
-            <button type="submit" className={`${BUTTON_CLASSES.success} ${BUTTON_SIZES.sm}`} disabled={!importFile}>
-              Import CSV
+            <button
+              type="submit"
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+              disabled={!importFile}
+            >
+              <ArrowUpTrayIcon className="h-4 w-4" />
+              Import
             </button>
           </form>
+          </div>
         </div>
       </div>
       {entriesError && (
-        <div className="mx-6 mt-4 rounded border border-red-200 bg-red-50 text-red-800 px-4 py-2 text-sm">
+        <div className="mx-6 mt-4 rounded border border-red-200 bg-red-50 text-red-800 px-4 py-2 text-sm dark:border-red-900 dark:bg-red-950 dark:text-red-300">
           {entriesError}
         </div>
       )}

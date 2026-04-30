@@ -7,21 +7,24 @@
       "type": "string",
       "ui": {
         "widget": "hidden"
-      }
+      },
+      "description": "Stable unique identifier for this item."
     },
     "slug": {
       "type": "string",
       "ui": {
         "widget": "text",
         "label": "ID/Slug"
-      }
+      },
+      "description": "Readable identifier used by rewards, shops, loot tables, and references."
     },
     "name": {
       "type": "string",
       "ui": {
         "widget": "text",
         "label": "Item Name"
-      }
+      },
+      "description": "Player-facing item name."
     },
     "type": {
       "type": "string",
@@ -52,7 +55,8 @@
           "SetPiece",
           "Misc"
         ]
-      }
+      },
+      "description": "Broad item category used for filtering, equipment rules, and rewards."
     },
     "rarity": {
       "type": "string",
@@ -66,14 +70,16 @@
       "ui": {
         "widget": "select",
         "label": "Rarity"
-      }
+      },
+      "description": "Rarity tier used for balance, loot, shops, and presentation."
     },
     "description": {
       "type": "string",
       "ui": {
         "widget": "textarea",
         "label": "Description"
-      }
+      },
+      "description": "Player-facing or designer-facing explanation of what the item is."
     },
     "base_price": {
       "type": "number",
@@ -123,7 +129,8 @@
             "Tool"
           ]
         }
-      }
+      },
+      "description": "Equipment slot this item occupies when equipped."
     },
     "weapon_type": {
       "type": "string",
@@ -160,7 +167,8 @@
             "Weapon"
           ]
         }
-      }
+      },
+      "description": "Weapon family or handling type for combat rules."
     },
     "damage_type": {
       "type": "string",
@@ -185,7 +193,8 @@
             "Weapon"
           ]
         }
-      }
+      },
+      "description": "Damage type dealt or modified by this item."
     },
     "weapon_range_type": {
       "type": "string",
@@ -201,7 +210,8 @@
             "Weapon"
           ]
         }
-      }
+      },
+      "description": "How this weapon reaches targets, such as melee, ranged, or area."
     },
     "weapon_range": {
       "type": "integer",
@@ -213,7 +223,8 @@
             "Weapon"
           ]
         }
-      }
+      },
+      "description": "Effective range or reach value used by combat rules."
     },
     "stat_modifiers": {
       "type": "array",
@@ -225,7 +236,8 @@
             "type": "string",
             "ui": {
               "widget": "hidden"
-            }
+            },
+            "description": "Stable identifier for this stat modifier row."
           },
           "stat_id": {
             "type": "string",
@@ -233,14 +245,16 @@
               "widget": "reference",
               "reference": "stats",
               "label": "Stat"
-            }
+            },
+            "description": "Stat changed by this item modifier."
           },
           "value": {
             "type": "number",
             "ui": {
               "widget": "number",
               "label": "Value"
-            }
+            },
+            "description": "Amount added, removed, or otherwise applied to the selected stat."
           },
           "value_type": {
             "type": "string",
@@ -274,14 +288,16 @@
                 "Logarithmic",
                 "Custom"
               ]
-            }
+            },
+            "description": "How this stat modifier scales or stacks over time."
           },
           "notes": {
             "type": "string",
             "ui": {
               "widget": "textarea",
               "label": "Designer Notes"
-            }
+            },
+            "description": "Designer notes explaining intent, balance, or special cases for this modifier."
           }
         },
         "required": [
@@ -304,7 +320,8 @@
             "type": "string",
             "ui": {
               "widget": "hidden"
-            }
+            },
+            "description": "Stable identifier for this attribute modifier row."
           },
           "attribute_id": {
             "type": "string",
@@ -312,14 +329,16 @@
               "widget": "reference",
               "reference": "attributes",
               "label": "Attribute"
-            }
+            },
+            "description": "Attribute changed by this item modifier."
           },
           "value": {
             "type": "number",
             "ui": {
               "widget": "number",
               "label": "Value"
-            }
+            },
+            "description": "Amount added, removed, or otherwise applied to the selected attribute."
           },
           "scaling": {
             "type": "string",
@@ -333,14 +352,16 @@
             "ui": {
               "widget": "select",
               "label": "Scaling"
-            }
+            },
+            "description": "How this attribute modifier scales or stacks over time."
           },
           "notes": {
             "type": "string",
             "ui": {
               "widget": "textarea",
               "label": "Designer Notes"
-            }
+            },
+            "description": "Designer notes explaining intent, balance, or special cases for this modifier."
           }
         },
         "required": [
@@ -362,7 +383,8 @@
         "widget": "multiselect",
         "label": "Effects",
         "options_source": "schemas/effects.json"
-      }
+      },
+      "description": "Effects triggered, granted, or applied by this item."
     },
     "requirements_id": {
       "type": "string",

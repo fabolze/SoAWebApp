@@ -2,7 +2,7 @@ export const BUTTON_CLASSES = {
   primary:
     "inline-flex items-center justify-center rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 transition-colors disabled:cursor-not-allowed disabled:bg-blue-200 disabled:text-blue-800 disabled:opacity-100",
   secondary:
-    "inline-flex items-center justify-center rounded-md bg-slate-200 text-slate-900 hover:bg-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 transition-colors disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-100",
+    "inline-flex items-center justify-center rounded-md bg-slate-200 text-slate-900 hover:bg-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 transition-colors disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-100 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-500",
   neutral:
     "inline-flex items-center justify-center rounded-md bg-slate-700 text-white hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 transition-colors disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-700 disabled:opacity-100",
   success:
@@ -14,7 +14,7 @@ export const BUTTON_CLASSES = {
   violet:
     "inline-flex items-center justify-center rounded-md bg-violet-600 text-white hover:bg-violet-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 transition-colors disabled:cursor-not-allowed disabled:bg-violet-200 disabled:text-violet-800 disabled:opacity-100",
   outline:
-    "inline-flex items-center justify-center rounded-md border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 transition-colors disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-100",
+    "inline-flex items-center justify-center rounded-md border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 transition-colors disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:disabled:bg-slate-800 dark:disabled:text-slate-500",
 } as const;
 
 export const BUTTON_SIZES = {
@@ -25,9 +25,9 @@ export const BUTTON_SIZES = {
 } as const;
 
 export const TEXT_CLASSES = {
-  heading: "text-slate-900",
-  body: "text-slate-800",
-  muted: "text-slate-600",
-  subtle: "text-slate-500",
+  heading: "text-slate-900 dark:text-slate-100",
+  body: "text-slate-800 dark:text-slate-200",
+  muted: "text-slate-600 dark:text-slate-400",
+  subtle: "text-slate-500 dark:text-slate-500",
   onDark: "text-slate-100",
 } as const;

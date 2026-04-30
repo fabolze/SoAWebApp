@@ -1,18 +1,34 @@
 import { abilitiesPresets } from './abilities';
 import { charactersPresets } from './characters';
+import { combatProfilesPresets } from './combatProfiles';
 import { dialoguesPresets } from './dialogues';
 import { dialogueNodesPresets } from './dialogueNodes';
+import { effectsPresets } from './effects';
+import { encountersPresets } from './encounters';
 import { itemsPresets } from './items';
+import { questsPresets } from './quests';
+import { requirementsPresets } from './requirements';
+import { shopsPresets } from './shops';
+import { statusesPresets } from './statuses';
 import { storyArcsPresets } from './storyArcs';
+import { talentNodesPresets } from './talentNodes';
 import type { EntityPreset, PresetScope } from './types';
 
 const presetScopes: PresetScope[] = [
   abilitiesPresets,
+  effectsPresets,
+  statusesPresets,
   itemsPresets,
   dialogueNodesPresets,
   dialoguesPresets,
   charactersPresets,
+  combatProfilesPresets,
+  encountersPresets,
+  questsPresets,
+  requirementsPresets,
+  shopsPresets,
   storyArcsPresets,
+  talentNodesPresets,
   // Wildcard examples for future expansion:
   // { schema: 'story_*', presets: [...] },
   // { schema: 'npc_*', presets: [...] },

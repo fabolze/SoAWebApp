@@ -24,7 +24,6 @@ import {
   UserGroupIcon,
   UsersIcon,
 } from '@heroicons/react/24/outline';
-import DarkModeToggle from '../components/DarkModeToggle';
 import { useDirtyState } from '../components/useDirtyState';
 import { TEXT_CLASSES } from '../styles/uiTokens';
 
@@ -110,37 +109,36 @@ export default function IndexPage() {
   const totalPages = pageGroups.reduce((count, group) => count + group.pages.length, 0);
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen bg-slate-50 font-sans dark:bg-slate-950">
       <main className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-6">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-5">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-5 dark:border-slate-800">
           <div>
-            <div className="flex items-center gap-2 text-xs font-medium uppercase text-slate-500">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase text-slate-500 dark:text-slate-400">
               <HomeIcon className="h-4 w-4" />
               SoA Editor
             </div>
             <h1 className={`mt-1 text-2xl font-semibold ${TEXT_CLASSES.heading}`}>
               Authoring Workspace
             </h1>
-            <p className="mt-1 max-w-3xl text-sm text-slate-600">
+            <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
               {totalPages} editors grouped by how RPG content is usually authored and connected.
             </p>
           </div>
-          <DarkModeToggle />
         </div>
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           {pageGroups.map((group) => (
-            <section key={group.label} className="border-y border-slate-200 bg-white">
-              <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-100 px-4 py-3">
+            <section key={group.label} className="border-y border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-100 px-4 py-3 dark:border-slate-800 dark:bg-slate-800">
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-900">{group.label}</h2>
-                  <p className="mt-0.5 text-xs text-slate-600">{group.description}</p>
+                  <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{group.label}</h2>
+                  <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">{group.description}</p>
                 </div>
-                <span className="rounded-full bg-white px-2 py-1 text-xs font-medium text-slate-600">
+                <span className="rounded-full bg-white px-2 py-1 text-xs font-medium text-slate-600 dark:bg-slate-900 dark:text-slate-300">
                   {group.pages.length}
                 </span>
               </div>
-              <div className="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+              <div className="grid grid-cols-1 divide-y divide-slate-100 dark:divide-slate-800 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                 {group.pages.map((page) => {
                   const Icon = page.icon;
                   return (
@@ -150,10 +148,10 @@ export default function IndexPage() {
                       onClick={(e) => {
                         if (!confirmNavigate()) e.preventDefault();
                       }}
-                      className="flex min-h-14 items-center gap-3 px-4 py-3 text-sm text-slate-800 transition-colors hover:bg-blue-50 hover:text-blue-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                      className="flex min-h-14 items-center gap-3 px-4 py-3 text-sm text-slate-800 transition-colors hover:bg-blue-50 hover:text-blue-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-200"
                       aria-label={page.name}
                     >
-                      <Icon className="h-5 w-5 shrink-0 text-slate-500" />
+                      <Icon className="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" />
                       <span className="font-medium">{page.name}</span>
                     </Link>
                   );

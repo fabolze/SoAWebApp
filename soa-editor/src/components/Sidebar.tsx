@@ -44,6 +44,7 @@ import {
   UsersIcon,
 } from "@heroicons/react/24/outline";
 import { useDirtyState } from "./useDirtyState";
+import DarkModeToggle from "./DarkModeToggle";
 
 type SidebarItem = {
   to: string;
@@ -358,7 +359,7 @@ export default function Sidebar({
 
   return (
     <nav
-      className={`flex flex-col h-screen ${collapsed ? "w-16" : "w-64"} bg-slate-800 text-white border-r border-slate-700 shadow-md transition-all duration-300`}
+      className={`flex flex-col h-screen ${collapsed ? "w-16" : "w-64"} bg-slate-800 text-white border-r border-slate-700 shadow-md transition-all duration-300 dark:bg-slate-950 dark:border-slate-800`}
     >
       <div
         className={`flex items-center gap-2 px-4 py-4 mb-2 border-b border-slate-700 ${collapsed ? "justify-center" : ""}`}
@@ -373,10 +374,13 @@ export default function Sidebar({
       >
         {collapsed ? <ChevronDoubleRightIcon className="w-5 h-5" /> : <ChevronDoubleLeftIcon className="w-5 h-5" />}
       </button>
+      <div className={`mx-2 mb-3 flex ${collapsed ? "justify-center" : "justify-start"}`}>
+        <DarkModeToggle compact={collapsed} />
+      </div>
       {!collapsed && (
         <input
           type="text"
-          className="mb-4 w-full px-3 py-2 rounded-md border border-slate-600 text-black dark:text-white bg-white dark:bg-slate-800"
+          className="mb-4 w-full px-3 py-2 rounded-md border border-slate-600 text-slate-900 dark:text-white bg-white dark:bg-slate-900 dark:border-slate-700"
           placeholder="Filter..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}

@@ -1,22 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SchemaForm from "./SchemaForm";
 import { ParentSummary } from "./EditorStackContext";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
-import PresetToolbar from "./presets/PresetToolbar";
-import { applyPresetData } from "../presets/apply";
-import { getPresetsForSchema, type PresetApplyMode } from "../presets";
-import CreativePromptPanel from "./creative/CreativePromptPanel";
-import CloneMutatePanel from "./creative/CloneMutatePanel";
-import {
-  buildMutatedClone,
-  defaultCloneMutateOptions,
-  estimateMutatedCloneChangeCount,
-  type CloneMutateOptions,
-} from "../creative/cloneMutate";
+import { getPresetsForSchema } from "../presets";
 import CommandPalette, { type CommandPaletteItem } from "./command/CommandPalette";
-import useDebouncedValue from "./hooks/useDebouncedValue";
 import ContextSimulationPanel from "./simulation/ContextSimulationPanel";
+import AuthoringStudio from "./authoring/AuthoringStudio";
 import type { EntryRecord, ReferenceHit, ReferenceSummary } from "../types/editorQol";
+import type { SchemaFieldConfig } from "./schemaForm/types";
+
+type EditorViewMode = "simple" | "generate" | "advanced";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -51,6 +44,72 @@ function collectReferenceFieldCount(properties: Record<string, Record<string, un
     const ui = config.ui;
     return isRecord(ui) && (typeof ui.reference === "string" || typeof ui.options_source === "string");
   }).length;
+}
+
+function editorViewStorageKey(schemaName: string): string {
+  return `soa.editorView.${schemaName}`;
+}
+
+function readStoredEditorView(schemaName: string): EditorViewMode | null {
+  try {
+    const stored = localStorage.getItem(editorViewStorageKey(schemaName));
+    return stored === "simple" || stored === "generate" || stored === "advanced" ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredEditorView(schemaName: string, view: EditorViewMode) {
+  try {
+    localStorage.setItem(editorViewStorageKey(schemaName), view);
+  } catch {
+    // Ignore storage failures; view switching should still work.
+  }
+}
+
+function hasMeaningfulDraftData(data: EntryRecord): boolean {
+  return Object.entries(data || {}).some(([key, value]) => key !== "id" && !isEmptyValue(value));
+}
+
+function getDefaultEditorView(schemaName: string, isNew: boolean, data: EntryRecord): EditorViewMode {
+  const stored = readStoredEditorView(schemaName);
+  if (stored) return stored;
+  return isNew && !hasMeaningfulDraftData(data) ? "generate" : "simple";
+}
+
+function getFieldSection(key: string, config: Record<string, unknown>): string {
+  const ui = isRecord(config.ui) ? config.ui : {};
+  const explicit = ui.section;
+  if (typeof explicit === "string" && explicit.trim()) return explicit.trim().toLowerCase();
+  const normalized = key.toLowerCase();
+  if (["id", "slug", "name", "title", "description", "summary"].includes(normalized)) return "identity";
+  if (normalized.includes("requirement") || normalized.includes("flag") || normalized.includes("condition")) return "gating";
+  if (normalized.includes("reward") || normalized.includes("currency") || normalized.includes("price") || normalized.includes("cost") || normalized.includes("loot") || normalized.includes("xp")) return "economy";
+  if (normalized.includes("effect") || normalized.includes("status") || normalized.includes("modifier") || normalized.includes("scaling") || normalized.includes("stat") || normalized.includes("attribute") || normalized.includes("damage") || normalized.includes("cooldown") || normalized.includes("target")) return "mechanics";
+  if (normalized.includes("location") || normalized.includes("biome") || normalized.includes("faction") || normalized.includes("character") || normalized.includes("encounter") || normalized.includes("event") || normalized.includes("quest") || normalized.includes("dialogue")) return "world links";
+  if (normalized.includes("tag") || normalized.includes("icon") || normalized.includes("notes") || normalized.includes("content_pack")) return "metadata";
+  if (config.type === "array" || config.type === "object") return "details";
+  return "core";
+}
+
+function isSimpleField(key: string, config: SchemaFieldConfig, requiredFields: string[], changedFieldKeys: string[], data: EntryRecord): boolean {
+  if (requiredFields.includes(key)) return true;
+  if (changedFieldKeys.includes(key)) return true;
+  if (requiredFields.includes(key) && isEmptyValue(data?.[key])) return true;
+
+  const normalized = key.toLowerCase();
+  if (["id", "slug", "name", "title", "description", "summary", "type", "category", "role", "rarity", "level", "tags"].includes(normalized)) {
+    return true;
+  }
+
+  const section = getFieldSection(key, config);
+  if (section === "identity" || section === "core") return true;
+
+  const ui = config.ui || {};
+  if (ui.list_display) return true;
+  if (typeof ui.widget === "string" && ["textarea", "markdown", "tags"].includes(ui.widget)) return true;
+
+  return false;
 }
 
 interface EntryFormPanelProps {
@@ -97,17 +156,10 @@ export default function EntryFormPanel({
   changedFieldKeys,
 }: EntryFormPanelProps) {
   const presets = useMemo(() => getPresetsForSchema(schemaName), [schemaName]);
-  const [selectedPresetId, setSelectedPresetId] = useState<string>("");
-  const [applyMode, setApplyMode] = useState<PresetApplyMode>("fill_empty");
-  const [undoSnapshot, setUndoSnapshot] = useState<EntryRecord | null>(null);
-  const [creativeUndoSnapshot, setCreativeUndoSnapshot] = useState<EntryRecord | null>(null);
-  const [cloneUndoSnapshot, setCloneUndoSnapshot] = useState<EntryRecord | null>(null);
-  const [jsonMergeUndoSnapshot, setJsonMergeUndoSnapshot] = useState<EntryRecord | null>(null);
   const [utilityNotice, setUtilityNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  const [cloneOptions, setCloneOptions] = useState<CloneMutateOptions>(defaultCloneMutateOptions);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const debouncedCloneData = useDebouncedValue(data || {}, 250);
-  const debouncedCloneOptions = useDebouncedValue(cloneOptions, 250);
+  const [editorView, setEditorView] = useState<EditorViewMode>(() => getDefaultEditorView(schemaName, isNew, data || {}));
+  const latestDataRef = useRef(data || {});
   const rawEntryId = data?.id;
   const currentEntryId = typeof rawEntryId === "string" ? rawEntryId : rawEntryId != null ? String(rawEntryId) : "";
   const hasExistingId = !isNew && currentEntryId.length > 0;
@@ -126,89 +178,41 @@ export default function EntryFormPanel({
     [data, requiredFields]
   );
   const referenceFieldCount = useMemo(() => collectReferenceFieldCount(schemaProperties), [schemaProperties]);
+  const simpleFieldKeys = useMemo(() => {
+    return Object.entries(schemaProperties)
+      .filter(([key, config]) => isSimpleField(key, config as SchemaFieldConfig, requiredFields, changedFieldKeys, data || {}))
+      .map(([key]) => key);
+  }, [changedFieldKeys, data, requiredFields, schemaProperties]);
+  const visibleSimpleFieldSet = useMemo(() => new Set(simpleFieldKeys), [simpleFieldKeys]);
+  const hiddenSimpleFieldCount = Math.max(0, Object.keys(schemaProperties).length - visibleSimpleFieldSet.size);
   const qualityStatus = !formValid || missingRequiredFields.length > 0
     ? "Needs attention"
     : isDirty
       ? "Draft changed"
       : "Ready";
 
+  useEffect(() => {
+    latestDataRef.current = data || {};
+  }, [data]);
+
+  useEffect(() => {
+    setEditorView(getDefaultEditorView(schemaName, isNew, latestDataRef.current));
+  }, [schemaName, isNew]);
+
+  const switchEditorView = useCallback((view: EditorViewMode) => {
+    setEditorView(view);
+    writeStoredEditorView(schemaName, view);
+  }, [schemaName]);
+
   const showUtilityNotice = useCallback((type: "success" | "error", message: string) => {
     setUtilityNotice({ type, message });
   }, []);
-
-  useEffect(() => {
-    if (!presets.length) {
-      setSelectedPresetId("");
-      setUndoSnapshot(null);
-      setCreativeUndoSnapshot(null);
-      setCloneUndoSnapshot(null);
-      setJsonMergeUndoSnapshot(null);
-      return;
-    }
-    const first = presets[0];
-    setSelectedPresetId(first.id);
-    setApplyMode(first.defaultMode || "fill_empty");
-    setUndoSnapshot(null);
-    setCreativeUndoSnapshot(null);
-    setCloneUndoSnapshot(null);
-    setJsonMergeUndoSnapshot(null);
-  }, [schemaName, presets]);
 
   useEffect(() => {
     if (!utilityNotice) return;
     const timeout = setTimeout(() => setUtilityNotice(null), 3500);
     return () => clearTimeout(timeout);
   }, [utilityNotice]);
-
-  const selectedPreset = presets.find((preset) => preset.id === selectedPresetId) || presets[0] || null;
-
-  const handleSelectPreset = useCallback((presetId: string) => {
-    setSelectedPresetId(presetId);
-    const next = presets.find((preset) => preset.id === presetId);
-    if (next?.defaultMode) setApplyMode(next.defaultMode);
-  }, [presets]);
-
-  const handleApplyPreset = useCallback(() => {
-    if (!selectedPreset) return;
-    setUndoSnapshot(data || {});
-    const next = applyPresetData(data || {}, selectedPreset.data, applyMode);
-    onChange(next);
-  }, [selectedPreset, data, applyMode, onChange]);
-
-  const handleUndoPreset = useCallback(() => {
-    if (!undoSnapshot) return;
-    onChange(undoSnapshot);
-    setUndoSnapshot(null);
-  }, [undoSnapshot, onChange]);
-
-  const handleApplyCreativePatch = useCallback((patch: EntryRecord, mode: PresetApplyMode) => {
-    setCreativeUndoSnapshot(data || {});
-    const next = applyPresetData(data || {}, patch, mode);
-    onChange(next);
-  }, [data, onChange]);
-
-  const handleUndoCreative = useCallback(() => {
-    if (!creativeUndoSnapshot) return;
-    onChange(creativeUndoSnapshot);
-    setCreativeUndoSnapshot(null);
-  }, [creativeUndoSnapshot, onChange]);
-
-  const estimatedCloneChanges = useMemo(
-    () => estimateMutatedCloneChangeCount(schema, debouncedCloneData, debouncedCloneOptions),
-    [schema, debouncedCloneData, debouncedCloneOptions]
-  );
-
-  const handleApplyClone = useCallback(() => {
-    const immediateClone = buildMutatedClone(schema, data || {}, cloneOptions);
-    setCloneUndoSnapshot(data || {});
-    onChange(immediateClone.nextData);
-  }, [schema, data, cloneOptions, onChange]);
-
-  const handleUndoClone = useCallback(() => {
-    if (!cloneUndoSnapshot) return;
-    onChange(cloneUndoSnapshot);
-    setCloneUndoSnapshot(null);
-  }, [cloneUndoSnapshot, onChange]);
 
   const handleCopyJson = useCallback(async () => {
     const payload = JSON.stringify(data || {}, null, 2);
@@ -243,40 +247,6 @@ export default function EntryFormPanel({
     }
   }, [currentEntryId, hasExistingId, showUtilityNotice]);
 
-  const handleMergeJsonPatch = useCallback(() => {
-    const raw = window.prompt("Paste JSON object to merge into this entry:");
-    if (raw === null) return;
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      showUtilityNotice("error", "Invalid JSON.");
-      return;
-    }
-
-    if (!isRecord(parsed)) {
-      showUtilityNotice("error", "JSON patch must be an object.");
-      return;
-    }
-    const patch = parsed as EntryRecord;
-    if (Object.keys(patch).length === 0) {
-      showUtilityNotice("error", "JSON patch is empty.");
-      return;
-    }
-
-    setJsonMergeUndoSnapshot(data || {});
-    onChange({ ...(data || {}), ...patch });
-    showUtilityNotice("success", `Merged ${Object.keys(patch).length} field(s).`);
-  }, [data, onChange, showUtilityNotice]);
-
-  const handleUndoJsonMerge = useCallback(() => {
-    if (!jsonMergeUndoSnapshot) return;
-    onChange(jsonMergeUndoSnapshot);
-    setJsonMergeUndoSnapshot(null);
-    showUtilityNotice("success", "Reverted JSON merge.");
-  }, [jsonMergeUndoSnapshot, onChange, showUtilityNotice]);
-
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
@@ -301,65 +271,11 @@ export default function EntryFormPanel({
         },
       },
       {
-        id: "apply-preset",
-        title: "Apply Selected Preset",
-        subtitle: selectedPreset ? selectedPreset.label : "No preset available",
-        keywords: ["preset", "template"],
-        disabled: !selectedPreset,
-        run: handleApplyPreset,
-      },
-      {
-        id: "undo-preset",
-        title: "Undo Preset",
-        subtitle: "Revert last preset application",
-        keywords: ["undo", "preset"],
-        disabled: !undoSnapshot,
-        run: handleUndoPreset,
-      },
-      {
-        id: "undo-creative",
-        title: "Undo Creative Patch",
-        subtitle: "Revert last creative apply action",
-        keywords: ["creative", "undo"],
-        disabled: !creativeUndoSnapshot,
-        run: handleUndoCreative,
-      },
-      {
-        id: "create-variant",
-        title: "Create Variant Draft",
-        subtitle: `Clone and mutate current data (${estimatedCloneChanges} estimated changes)`,
-        keywords: ["clone", "mutate", "variant"],
-        run: handleApplyClone,
-      },
-      {
-        id: "undo-clone",
-        title: "Undo Clone + Mutate",
-        subtitle: "Revert last clone/mutate action",
-        keywords: ["clone", "undo", "mutate"],
-        disabled: !cloneUndoSnapshot,
-        run: handleUndoClone,
-      },
-      {
         id: "copy-json",
         title: "Copy Entry JSON",
         subtitle: "Copy current entry payload to clipboard",
         keywords: ["copy", "json", "clipboard"],
         run: handleCopyJson,
-      },
-      {
-        id: "merge-json",
-        title: "Merge JSON Patch",
-        subtitle: "Paste a JSON object and merge fields",
-        keywords: ["merge", "json", "patch"],
-        run: handleMergeJsonPatch,
-      },
-      {
-        id: "undo-json-merge",
-        title: "Undo JSON Merge",
-        subtitle: "Revert last JSON merge action",
-        keywords: ["undo", "json", "merge"],
-        disabled: !jsonMergeUndoSnapshot,
-        run: handleUndoJsonMerge,
       },
       {
         id: "cancel",
@@ -373,49 +289,36 @@ export default function EntryFormPanel({
     [
       formValid,
       onSave,
-      selectedPreset,
-      handleApplyPreset,
-      undoSnapshot,
-      handleUndoPreset,
-      creativeUndoSnapshot,
-      handleUndoCreative,
-      estimatedCloneChanges,
-      handleApplyClone,
-      cloneUndoSnapshot,
-      handleUndoClone,
       handleCopyJson,
-      handleMergeJsonPatch,
-      jsonMergeUndoSnapshot,
-      handleUndoJsonMerge,
       isNew,
       onCancel,
     ]
   );
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col h-full max-h-full overflow-hidden bg-white">
-      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+    <div className="flex-1 min-w-0 flex flex-col h-full max-h-full overflow-hidden bg-white dark:bg-slate-950">
+      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
               <span>{schemaTitle}</span>
               <span className={`rounded-full px-2 py-0.5 font-medium ${
                 qualityStatus === "Ready"
-                  ? "bg-emerald-50 text-emerald-700"
+                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
                   : qualityStatus === "Draft changed"
-                    ? "bg-amber-50 text-amber-700"
-                    : "bg-red-50 text-red-700"
+                    ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                    : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
               }`}>
                 {qualityStatus}
               </span>
-              {hasExistingId && <span className="font-mono text-[11px] text-slate-500">{currentEntryId}</span>}
+              {hasExistingId && <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{currentEntryId}</span>}
             </div>
-            <h1 className="mt-1 truncate text-xl font-semibold text-slate-950" title={entryLabel}>
+            <h1 className="mt-1 truncate text-xl font-semibold text-slate-950 dark:text-slate-100" title={entryLabel}>
               {entryLabel}
             </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
               <span>{formHeader}</span>
-              {entrySubtitle && <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700">{entrySubtitle}</span>}
+              {entrySubtitle && <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{entrySubtitle}</span>}
               {changedFieldKeys.length > 0 && <span>{changedFieldKeys.length} changed field{changedFieldKeys.length === 1 ? "" : "s"}</span>}
               {referenceSummary && <span>{referenceSummary.total} inbound reference{referenceSummary.total === 1 ? "" : "s"}</span>}
             </div>
@@ -460,206 +363,273 @@ export default function EntryFormPanel({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto min-h-0 p-4">
-        <div className="grid gap-3 mb-4 lg:grid-cols-4">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-            <div className="text-xs font-medium uppercase text-slate-500">Required</div>
-            <div className="mt-1 text-lg font-semibold text-slate-900">
-              {requiredFields.length - missingRequiredFields.length}/{requiredFields.length}
-            </div>
-            {missingRequiredFields.length > 0 && (
-              <div className="mt-1 truncate text-xs text-amber-700" title={missingRequiredFields.join(", ")}>
-                Missing: {missingRequiredFields.slice(0, 3).join(", ")}
-              </div>
-            )}
-          </div>
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-            <div className="text-xs font-medium uppercase text-slate-500">References</div>
-            <div className="mt-1 text-lg font-semibold text-slate-900">{referenceSummary?.total ?? 0}</div>
-            <div className="mt-1 text-xs text-slate-600">{referenceFieldCount} reference field{referenceFieldCount === 1 ? "" : "s"} in schema</div>
-          </div>
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-            <div className="text-xs font-medium uppercase text-slate-500">Changes</div>
-            <div className="mt-1 text-lg font-semibold text-slate-900">{changedFieldKeys.length}</div>
-            <div className="mt-1 text-xs text-slate-600">{isDirty ? "Unsaved draft" : "No unsaved edits"}</div>
-          </div>
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-            <div className="text-xs font-medium uppercase text-slate-500">Authoring</div>
-            <div className="mt-1 text-lg font-semibold text-slate-900">{presets.length}</div>
-            <div className="mt-1 text-xs text-slate-600">preset{presets.length === 1 ? "" : "s"} available</div>
+        <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-900">
+          <div className="grid gap-2 sm:grid-cols-3">
+            {[
+              { id: "simple" as const, label: "Simple", detail: "Core fields and required fixes" },
+              { id: "generate" as const, label: "Generate", detail: "Kits, ideas, variants, saved presets" },
+              { id: "advanced" as const, label: "Advanced", detail: "Full schema, references, simulation" },
+            ].map((view) => {
+              const active = editorView === view.id;
+              return (
+                <button
+                  key={view.id}
+                  type="button"
+                  className={`rounded-md border px-3 py-2 text-left transition ${
+                    active
+                      ? "border-blue-500 bg-white text-blue-900 shadow-sm dark:bg-slate-800 dark:text-blue-200"
+                      : "border-transparent bg-transparent text-slate-700 hover:border-slate-200 hover:bg-white dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800"
+                  }`}
+                  onClick={() => switchEditorView(view.id)}
+                >
+                  <div className="text-sm font-semibold">{view.label}</div>
+                  <div className={`mt-0.5 text-xs ${active ? "text-blue-700 dark:text-blue-300" : "text-slate-500 dark:text-slate-400"}`}>{view.detail}</div>
+                </button>
+              );
+            })}
           </div>
         </div>
-        <PresetToolbar
-          schemaName={schemaName}
-          presets={presets}
-          selectedPresetId={selectedPreset?.id || ""}
-          applyMode={applyMode}
-          canUndo={!!undoSnapshot}
-          onSelectPreset={handleSelectPreset}
-          onModeChange={setApplyMode}
-          onApply={handleApplyPreset}
-          onUndo={handleUndoPreset}
-        />
-        <CreativePromptPanel
-          schemaName={schemaName}
-          schema={schema}
-          data={data || {}}
-          canUndo={!!creativeUndoSnapshot}
-          onUndo={handleUndoCreative}
-          onApplyPatch={handleApplyCreativePatch}
-        />
-        <CloneMutatePanel
-          options={cloneOptions}
-          changedCount={estimatedCloneChanges}
-          canUndo={!!cloneUndoSnapshot}
-          onChangeOptions={setCloneOptions}
-          onApply={handleApplyClone}
-          onUndo={handleUndoClone}
-        />
-        <ContextSimulationPanel
-          schemaName={schemaName}
-          data={(data || {}) as Record<string, unknown>}
-        />
-        <div className="mb-4 border-y border-slate-200 bg-slate-50 px-3 py-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div>
-              <div className="text-sm font-semibold text-slate-800">Authoring Utilities</div>
-              <div className="text-xs text-slate-600 mt-1">
-                Changed fields: <span className="font-semibold text-slate-800">{changedFieldKeys.length}</span>
+
+        {editorView === "simple" && (
+          <div className="mx-auto max-w-4xl">
+            <div className="mb-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Required</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {requiredFields.length - missingRequiredFields.length}/{requiredFields.length}
+                </div>
+                {missingRequiredFields.length > 0 && (
+                  <div className="mt-1 truncate text-xs text-amber-700 dark:text-amber-300" title={missingRequiredFields.join(", ")}>
+                    Missing: {missingRequiredFields.slice(0, 3).join(", ")}
+                  </div>
+                )}
               </div>
-            </div>
-            <div className="flex items-center gap-1 flex-wrap">
-              {hasExistingId && (
+              <div className="rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Changes</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{changedFieldKeys.length}</div>
+                <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">{isDirty ? "Unsaved draft" : "No unsaved edits"}</div>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Hidden Details</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{hiddenSimpleFieldCount}</div>
                 <button
                   type="button"
-                  className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
-                  onClick={() => {
-                    void handleCopyId();
-                  }}
+                  className="mt-1 text-xs font-medium text-blue-700 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-200"
+                  onClick={() => switchEditorView("advanced")}
                 >
-                  Copy ID
+                  Open Advanced
                 </button>
-              )}
-              <button
-                type="button"
-                className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
-                onClick={() => {
-                  void handleCopyJson();
-                }}
-              >
-                Copy JSON
-              </button>
-              <button
-                type="button"
-                className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
-                onClick={handleMergeJsonPatch}
-              >
-                Merge JSON
-              </button>
-              <button
-                type="button"
-                className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
-                onClick={handleUndoJsonMerge}
-                disabled={!jsonMergeUndoSnapshot}
-              >
-                Undo Merge
-              </button>
+              </div>
             </div>
+            <SchemaForm
+              schema={schema}
+              data={data}
+              onChange={onChange}
+              referenceOptions={undefined}
+              fetchReferenceOptions={undefined}
+              isValidCallback={setFormValid}
+              key={`simple-${referenceOptionsVersion}`}
+              parentSummary={parentSummary}
+              changedFieldKeys={changedFieldKeys}
+              includedFieldKeys={simpleFieldKeys}
+              compactControls
+            />
           </div>
-          {utilityNotice && (
-            <div
-              className={`mt-2 rounded border px-2 py-1 text-xs ${
-                utilityNotice.type === "success"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-red-200 bg-red-50 text-red-700"
-              }`}
-            >
-              {utilityNotice.message}
+        )}
+
+        {editorView === "generate" && (
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-4 rounded-md border border-blue-100 bg-blue-50 px-4 py-3 dark:border-blue-900 dark:bg-blue-950">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-blue-950 dark:text-blue-100">Create from a stronger starting point</div>
+                  <div className="mt-1 text-xs text-blue-800 dark:text-blue-300">
+                    Apply curated kits, generate local ideas, make variants, or reuse saved presets. Every change still goes through preview.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`}
+                  onClick={() => switchEditorView("simple")}
+                >
+                  Edit Fields
+                </button>
+              </div>
             </div>
-          )}
-        </div>
-        {hasExistingId && (
-          <div className="mb-4 border-y border-slate-200 bg-slate-50 px-3 py-3">
-            <div className="flex items-start justify-between gap-3 flex-wrap">
-              <div>
-                <div className="text-sm font-semibold text-slate-800">Reference Insights</div>
-                <div className="text-xs mt-1 text-slate-600">
-                  Find where this entry is referenced across all authoring datasets.
+            <AuthoringStudio
+              schemaName={schemaName}
+              schema={schema}
+              data={data || {}}
+              presets={presets}
+              onChange={onChange}
+            />
+          </div>
+        )}
+
+        {editorView === "advanced" && (
+          <div>
+            <div className="grid gap-3 mb-4 lg:grid-cols-4">
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
+                <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Required</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {requiredFields.length - missingRequiredFields.length}/{requiredFields.length}
+                </div>
+                {missingRequiredFields.length > 0 && (
+                  <div className="mt-1 truncate text-xs text-amber-700 dark:text-amber-300" title={missingRequiredFields.join(", ")}>
+                    Missing: {missingRequiredFields.slice(0, 3).join(", ")}
+                  </div>
+                )}
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
+                <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">References</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{referenceSummary?.total ?? 0}</div>
+                <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">{referenceFieldCount} reference field{referenceFieldCount === 1 ? "" : "s"} in schema</div>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
+                <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Changes</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{changedFieldKeys.length}</div>
+                <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">{isDirty ? "Unsaved draft" : "No unsaved edits"}</div>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
+                <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Authoring</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{presets.length}</div>
+                <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">preset{presets.length === 1 ? "" : "s"} available</div>
+              </div>
+            </div>
+            <ContextSimulationPanel
+              schemaName={schemaName}
+              data={(data || {}) as Record<string, unknown>}
+            />
+            <div className="mb-4 border-y border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">Authoring Utilities</div>
+                  <div className="text-xs text-slate-600 mt-1 dark:text-slate-400">
+                    Changed fields: <span className="font-semibold text-slate-800 dark:text-slate-200">{changedFieldKeys.length}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {hasExistingId && (
+                    <button
+                      type="button"
+                      className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
+                      onClick={() => {
+                        void handleCopyId();
+                      }}
+                    >
+                      Copy ID
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
+                    onClick={() => {
+                      void handleCopyJson();
+                    }}
+                  >
+                    Copy JSON
+                  </button>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">JSON patch preview lives in Generate / Saved.</span>
                 </div>
               </div>
-              <button
-                type="button"
-                className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
-                onClick={onRefreshReferences}
-                disabled={referenceLoading}
-              >
-                {referenceLoading ? "Scanning..." : "Refresh"}
-              </button>
-            </div>
-            {referenceError && (
-              <div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
-                {referenceError}
-              </div>
-            )}
-            {referenceSummary && (
-              <div className="mt-2">
-                <div className="text-xs text-slate-600 mb-2">
-                  {referenceSummary.total} references found for <span className="font-semibold text-slate-800">{referenceSummary.targetId}</span>.
+              {utilityNotice && (
+                <div
+                  className={`mt-2 rounded border px-2 py-1 text-xs ${
+                    utilityNotice.type === "success"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
+                      : "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+                  }`}
+                >
+                  {utilityNotice.message}
                 </div>
-                {referenceSummary.groups.length === 0 ? (
-                  <div className="text-xs text-slate-500">No references detected.</div>
-                ) : (
-                  <div className="space-y-2">
-                    {referenceSummary.groups.map((group) => (
-                      <div key={group.schemaName} className="border-t border-slate-200 bg-white/60 px-2 py-2 first:border-t-0">
-                        <div className="text-xs font-semibold text-slate-700 mb-1">
-                          {group.schemaLabel} ({group.count})
-                        </div>
-                        <div className="space-y-1">
-                          {group.hits.slice(0, 5).map((hit) => (
-                            <div key={`${group.schemaName}-${hit.sourceId}`} className="flex items-center justify-between gap-2 text-xs">
-                              <div className="min-w-0">
-                                <div className="truncate text-slate-800" title={`${hit.sourceLabel} (${hit.sourceId})`}>
-                                  {hit.sourceLabel}
-                                </div>
-                                <div className="truncate text-slate-500" title={hit.paths.join(", ")}>
-                                  {hit.paths.slice(0, 2).join(", ")}
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
-                                onClick={() => onOpenReferenceHit(hit)}
-                              >
-                                Open
-                              </button>
+              )}
+            </div>
+            {hasExistingId && (
+              <div className="mb-4 border-y border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">Reference Insights</div>
+                    <div className="text-xs mt-1 text-slate-600 dark:text-slate-400">
+                      Find where this entry is referenced across all authoring datasets.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
+                    onClick={onRefreshReferences}
+                    disabled={referenceLoading}
+                  >
+                    {referenceLoading ? "Scanning..." : "Refresh"}
+                  </button>
+                </div>
+                {referenceError && (
+                  <div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+                    {referenceError}
+                  </div>
+                )}
+                {referenceSummary && (
+                  <div className="mt-2">
+                    <div className="text-xs text-slate-600 mb-2 dark:text-slate-400">
+                      {referenceSummary.total} references found for <span className="font-semibold text-slate-800 dark:text-slate-200">{referenceSummary.targetId}</span>.
+                    </div>
+                    {referenceSummary.groups.length === 0 ? (
+                      <div className="text-xs text-slate-500 dark:text-slate-400">No references detected.</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {referenceSummary.groups.map((group) => (
+                          <div key={group.schemaName} className="border-t border-slate-200 bg-white/60 px-2 py-2 first:border-t-0 dark:border-slate-800 dark:bg-slate-950/40">
+                            <div className="text-xs font-semibold text-slate-700 mb-1 dark:text-slate-300">
+                              {group.schemaLabel} ({group.count})
                             </div>
-                          ))}
-                          {group.hits.length > 5 && (
-                            <div className="text-[11px] text-slate-500">
-                              +{group.hits.length - 5} more
+                            <div className="space-y-1">
+                              {group.hits.slice(0, 5).map((hit) => (
+                                <div key={`${group.schemaName}-${hit.sourceId}`} className="flex items-center justify-between gap-2 text-xs">
+                                  <div className="min-w-0">
+                                    <div className="truncate text-slate-800 dark:text-slate-200" title={`${hit.sourceLabel} (${hit.sourceId})`}>
+                                      {hit.sourceLabel}
+                                    </div>
+                                    <div className="truncate text-slate-500 dark:text-slate-400" title={hit.paths.join(", ")}>
+                                      {hit.paths.slice(0, 2).join(", ")}
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+                                    onClick={() => onOpenReferenceHit(hit)}
+                                  >
+                                    Open
+                                  </button>
+                                </div>
+                              ))}
+                              {group.hits.length > 5 && (
+                                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                                  +{group.hits.length - 5} more
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>
             )}
+            <SchemaForm
+              schema={schema}
+              data={data}
+              onChange={onChange}
+              referenceOptions={undefined}
+              fetchReferenceOptions={undefined}
+              isValidCallback={setFormValid}
+              key={`advanced-${referenceOptionsVersion}`}
+              parentSummary={parentSummary}
+              changedFieldKeys={changedFieldKeys}
+            />
           </div>
         )}
-        <SchemaForm
-          schema={schema}
-          data={data}
-          onChange={onChange}
-          referenceOptions={undefined}
-          fetchReferenceOptions={undefined}
-          isValidCallback={setFormValid}
-          key={referenceOptionsVersion}
-          parentSummary={parentSummary}
-          changedFieldKeys={changedFieldKeys}
-        />
-        <div className="flex gap-2 mt-4">
+
+        <div className="mt-4 flex gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
           <button
             className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.md}`}
             onClick={onSave}

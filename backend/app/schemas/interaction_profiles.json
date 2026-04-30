@@ -5,25 +5,64 @@
   "properties": {
     "id": {
       "type": "string",
-      "ui": { "widget": "hidden" }
+      "ui": {
+        "widget": "hidden"
+      },
+      "description": "Stable unique identifier for this interaction profile."
     },
     "character_id": {
       "type": "string",
-      "ui": { "widget": "reference", "label": "Character", "reference": "characters" }
+      "ui": {
+        "widget": "reference",
+        "label": "Character",
+        "reference": "characters"
+      },
+      "description": "Character that owns or uses this interaction profile."
     },
     "role": {
       "type": "string",
-      "enum": ["Questgiver", "Merchant", "Trainer", "Companion", "Story", "Background"],
-      "ui": { "widget": "select", "label": "Role", "options": ["Questgiver", "Merchant", "Trainer", "Companion", "Story", "Background"] }
+      "enum": [
+        "Questgiver",
+        "Merchant",
+        "Trainer",
+        "Companion",
+        "Story",
+        "Background"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Role",
+        "options": [
+          "Questgiver",
+          "Merchant",
+          "Trainer",
+          "Companion",
+          "Story",
+          "Background"
+        ]
+      },
+      "description": "Interaction role, such as merchant, quest giver, trainer, or companion."
     },
     "dialogue_tree_id": {
       "type": "string",
-      "ui": { "widget": "reference", "label": "Dialogue Tree", "reference": "dialogues" }
+      "ui": {
+        "widget": "reference",
+        "label": "Dialogue Tree",
+        "reference": "dialogues"
+      },
+      "description": "Dialogue tree opened when interacting with this character."
     },
     "available_quests": {
       "type": "array",
-      "items": { "type": "string" },
-      "ui": { "widget": "multiselect", "label": "Quests", "reference": "quests" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Quests",
+        "reference": "quests"
+      },
+      "description": "Quests this interaction can offer, start, or expose."
     },
     "inventory": {
       "type": "array",
@@ -32,24 +71,59 @@
         "properties": {
           "item_id": {
             "type": "string",
-            "ui": { "widget": "reference", "label": "Item", "reference": "items" }
+            "ui": {
+              "widget": "reference",
+              "label": "Item",
+              "reference": "items"
+            },
+            "description": "Item available through this interaction inventory."
           },
-          "price": { "type": "number", "ui": { "widget": "number", "label": "Price" } }
+          "price": {
+            "type": "number",
+            "ui": {
+              "widget": "number",
+              "label": "Price"
+            },
+            "description": "Base price for the selected inventory item."
+          }
         },
-        "required": ["item_id", "price"]
+        "required": [
+          "item_id",
+          "price"
+        ]
       },
-      "ui": { "widget": "item_price_table", "label": "Merchant Inventory" }
+      "ui": {
+        "widget": "item_price_table",
+        "label": "Merchant Inventory"
+      },
+      "description": "Items sold, traded, or otherwise exposed by this interaction."
     },
     "flags_set_on_interaction": {
       "type": "array",
-      "items": { "type": "string" },
-      "ui": { "widget": "multiselect", "label": "Flags Set", "reference": "flags" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Flags Set",
+        "reference": "flags"
+      },
+      "description": "Flags set when this interaction happens."
     },
     "tags": {
       "type": "array",
-      "items": { "type": "string" },
-      "ui": { "widget": "tags", "label": "Tags" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      },
+      "description": "Freeform labels for filtering and interaction rules."
     }
   },
-  "required": ["id", "character_id"]
+  "required": [
+    "id",
+    "character_id"
+  ]
 }

@@ -1,49 +1,62 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Timeline Era",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "description": "Unique ID for the timeline era",
-        "ui": {
-          "widget": "hidden"
-        }
-      },
-      "slug": {
-        "type": "string",
-        "ui": { "widget": "text", "label": "ID/Slug" }
-      },
-      "name": {
-        "type": "string",
-        "description": "Name of the timeline as shown to the player",
-        "ui": {
-          "widget": "text",
-          "label": "Era Name"
-        }
-      },
-      "description": {
-        "type": "string",
-        "description": "Optional lore-rich description for the era",
-        "ui": {
-          "widget": "textarea",
-          "label": "Description"
-        }
-      },
-      "start_year": {
-        "type": "integer",
-        "description": "Optional: starting year (for chronological sorting)"
-      },
-      "end_year": {
-        "type": "integer",
-        "description": "Optional: ending year (null if ongoing or undefined)"
-      },
-      "tags": {
-        "type": "array",
-        "description": "Tags for filtering/searching/categorization",
-        "items": { "type": "string" },
-        "ui": { "widget": "tags", "label": "Tags" }
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Timeline Era",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique ID for the timeline era",
+      "ui": {
+        "widget": "hidden"
       }
     },
-    "required": ["id", "slug", "name"]
-  }
+    "slug": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Stable identifier used to reference this timeline from story arcs and events."
+    },
+    "name": {
+      "type": "string",
+      "description": "Name of the timeline as shown to the player",
+      "ui": {
+        "widget": "text",
+        "label": "Era Name"
+      }
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional lore-rich description for the era",
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      }
+    },
+    "start_year": {
+      "type": "integer",
+      "description": "Optional: starting year (for chronological sorting)"
+    },
+    "end_year": {
+      "type": "integer",
+      "description": "Optional: ending year (null if ongoing or undefined)"
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching/categorization",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "slug",
+    "name"
+  ]
+}

@@ -10,8 +10,8 @@ export default function FieldLabel({ label, description, action }: FieldLabelPro
   return (
     <div className="mb-1 flex items-start justify-between gap-2">
       <div>
-        <span className="font-medium text-gray-800">{label}</span>
-        {description && <p className="text-sm text-gray-500 mt-0.5">{description}</p>}
+        <span className="font-medium text-gray-800 dark:text-slate-200">{label}</span>
+        {description && <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{description}</p>}
       </div>
       {action}
     </div>

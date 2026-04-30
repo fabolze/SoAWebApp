@@ -38,6 +38,8 @@ interface SchemaFormProps {
   parentSummary?: ParentSummary;
   isNested?: boolean;
   changedFieldKeys?: string[];
+  includedFieldKeys?: string[];
+  compactControls?: boolean;
 }
 
 function isVisibleByRule(ui: SchemaFieldUiConfig, sourceData: EntryData): boolean {
@@ -84,10 +86,14 @@ function inferSectionName(key: string, config: SchemaFieldConfig): string {
   return 'Core';
 }
 
-export default function SchemaForm({ schema, data, onChange, referenceOptions: parentReferenceOptions, fetchReferenceOptions: parentFetchReferenceOptions, isValidCallback, parentSummary, isNested = false, changedFieldKeys = [] }: SchemaFormProps) {
+export default function SchemaForm({ schema, data, onChange, referenceOptions: parentReferenceOptions, fetchReferenceOptions: parentFetchReferenceOptions, isValidCallback, parentSummary, isNested = false, changedFieldKeys = [], includedFieldKeys, compactControls = false }: SchemaFormProps) {
   const fields = Object.entries(schema.properties || {}) as [string, SchemaFieldConfig][];
   const editorStack = useEditorStack();
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const includedFieldSet = useMemo(() => {
+    if (isNested || !includedFieldKeys) return null;
+    return new Set(includedFieldKeys);
+  }, [includedFieldKeys, isNested]);
 
   // Determine the id field name (e.g. id)
   const idField = Object.keys(schema.properties || {}).find(
@@ -253,16 +259,18 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
       const label = ui.label || key;
       const description = ui.description || config.description;
       if (!isVisibleByRule(ui, data || {})) return count;
+      if (includedFieldSet && !includedFieldSet.has(key)) return count;
       if (!shouldIncludeField(key, label, description)) return count;
       return count + 1;
     }, 0);
-  }, [data, fields, shouldIncludeField]);
+  }, [data, fields, includedFieldSet, shouldIncludeField]);
 
   const sectionGroups = useMemo(() => {
     const groups = new Map<string, { total: number; filtered: number; missing: number; changed: number }>();
     for (const [key, config] of fields) {
       const ui = config.ui || {};
       if (!isVisibleByRule(ui, data || {})) continue;
+      if (includedFieldSet && !includedFieldSet.has(key)) continue;
       const sectionName = inferSectionName(key, config);
       const label = ui.label || key;
       const description = ui.description || config.description;
@@ -274,7 +282,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
       groups.set(sectionName, existing);
     }
     return Array.from(groups.entries()).map(([name, counts]) => ({ name, ...counts }));
-  }, [changedFieldSet, data, fields, missingFieldSet, shouldIncludeField]);
+  }, [changedFieldSet, data, fields, includedFieldSet, missingFieldSet, shouldIncludeField]);
 
   const availableSections = useMemo(() => ['All', ...sectionGroups.map((group) => group.name)], [sectionGroups]);
 
@@ -336,7 +344,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
     <FieldLabel label={label} description={description} action={action} />
   );
 
-  const inputBaseClass = "w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-white text-gray-800 transition-all duration-200 ease-in-out focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none hover:border-gray-400";
+  const inputBaseClass = "w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-white text-gray-800 transition-all duration-200 ease-in-out focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none hover:border-gray-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-600 dark:focus:ring-blue-900";
 
   const handleCreateReference = async (
     refType: string,
@@ -373,17 +381,17 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
   return (
     <form className="space-y-5">
       {!isNested && (
-        <div className="sticky top-0 z-20 border-y border-slate-200 bg-slate-50/95 px-3 py-2 backdrop-blur">
+        <div className="sticky top-0 z-20 border-y border-slate-200 bg-slate-50/95 px-3 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span className="text-sm font-medium text-slate-800">
+            <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
               Required fields: {requiredCompleted}/{requiredTotal}
             </span>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-600">{requiredProgress}% complete</span>
+              <span className="text-xs text-slate-600 dark:text-slate-400">{requiredProgress}% complete</span>
               {firstMissingField && (
                 <button
                   type="button"
-                  className="text-xs px-2 py-1 rounded border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                  className="text-xs px-2 py-1 rounded border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
                   onClick={() => scrollToField(firstMissingField)}
                 >
                   Jump to first missing
@@ -391,7 +399,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
               )}
             </div>
           </div>
-          <div className="mt-2 h-1.5 w-full rounded bg-slate-200">
+          <div className="mt-2 h-1.5 w-full rounded bg-slate-200 dark:bg-slate-800">
             <div
               className={`h-1.5 rounded ${requiredProgress === 100 ? 'bg-emerald-500' : 'bg-amber-500'}`}
               style={{ width: `${requiredProgress}%` }}
@@ -403,7 +411,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                 <button
                   key={missingKey}
                   type="button"
-                  className="text-xs px-2 py-1 rounded bg-white border border-amber-200 text-amber-800 hover:bg-amber-50"
+                  className="text-xs px-2 py-1 rounded bg-white border border-amber-200 text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:bg-slate-900 dark:text-amber-300"
                   onClick={() => scrollToField(missingKey)}
                 >
                   {missingKey}
@@ -419,53 +427,68 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
         </div>
       )}
       {!isNested && (
-        <div className="border-y border-slate-200 bg-slate-50 p-3">
+        <div className="border-y border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-2 flex-wrap">
-            <input
-              type="text"
-              className="flex-1 min-w-[220px] border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-900 bg-white"
-              placeholder="Filter fields (name, label, description)"
-              value={fieldFilter}
-              onChange={(e) => setFieldFilter(e.target.value)}
-            />
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                className={`${fieldViewMode === 'all' ? BUTTON_CLASSES.primary : BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
-                onClick={() => setFieldViewMode('all')}
-              >
-                All
-              </button>
-              <button
-                type="button"
-                className={`${fieldViewMode === 'missing' ? BUTTON_CLASSES.primary : BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
-                onClick={() => setFieldViewMode('missing')}
-              >
-                Missing ({missingFields.length})
-              </button>
-              <button
-                type="button"
-                className={`${fieldViewMode === 'changed' ? BUTTON_CLASSES.primary : BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
-                onClick={() => setFieldViewMode('changed')}
-              >
-                Changed ({changedFieldSet.size})
-              </button>
-              {fieldFilter && (
+            {!compactControls && (
+              <input
+                type="text"
+                className="flex-1 min-w-[220px] border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-900 bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                placeholder="Filter fields (name, label, description)"
+                value={fieldFilter}
+                onChange={(e) => setFieldFilter(e.target.value)}
+              />
+            )}
+            {!compactControls && (
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
-                  onClick={() => setFieldFilter('')}
+                  className={`${fieldViewMode === 'all' ? BUTTON_CLASSES.primary : BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+                  onClick={() => setFieldViewMode('all')}
                 >
-                  Clear
+                  All
                 </button>
-              )}
+                <button
+                  type="button"
+                  className={`${fieldViewMode === 'missing' ? BUTTON_CLASSES.primary : BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+                  onClick={() => setFieldViewMode('missing')}
+                >
+                  Missing ({missingFields.length})
+                </button>
+                <button
+                  type="button"
+                  className={`${fieldViewMode === 'changed' ? BUTTON_CLASSES.primary : BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+                  onClick={() => setFieldViewMode('changed')}
+                >
+                  Changed ({changedFieldSet.size})
+                </button>
+                {fieldFilter && (
+                  <button
+                    type="button"
+                    className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
+                    onClick={() => setFieldFilter('')}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
+            {compactControls && firstMissingField && (
+                <button
+                  type="button"
+                  className="text-xs px-2 py-1 rounded border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                  onClick={() => scrollToField(firstMissingField)}
+                >
+                  Jump to first missing
+                </button>
+            )}
+          </div>
+          {!compactControls && (
+            <div className="mt-2 text-xs text-slate-600">
+              Showing {filteredVisibleCount} / {totalVisibleByRules} visible fields
             </div>
-          </div>
-          <div className="mt-2 text-xs text-slate-600">
-            Showing {filteredVisibleCount} / {totalVisibleByRules} visible fields
-          </div>
-          {sectionGroups.length > 1 && (
-            <div className="mt-3 flex flex-wrap gap-1 border-t border-slate-200 pt-3">
+          )}
+          {!compactControls && sectionGroups.length > 1 && (
+            <div className="mt-3 flex flex-wrap gap-1 border-t border-slate-200 pt-3 dark:border-slate-800">
               {availableSections.map((sectionName) => {
                 const group = sectionGroups.find((section) => section.name === sectionName);
                 const count = sectionName === 'All' ? filteredVisibleCount : group?.filtered || 0;
@@ -479,7 +502,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
                     className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${
                       active
                         ? 'border-blue-600 bg-blue-600 text-white'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800'
                     }`}
                     onClick={() => setActiveSection(sectionName)}
                   >
@@ -506,6 +529,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
         const value = data[key];
 
         if (!isVisibleByRule(ui, data || {})) return null;
+        if (includedFieldSet && !includedFieldSet.has(key)) return null;
         if (!shouldIncludeField(key, label, description)) return null;
         if (!isNested && activeSection !== 'All' && inferSectionName(key, config) !== activeSection) return null;
 
@@ -632,7 +656,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
               fieldRefs.current[key] = el;
             }}
             data-schema-field={key}
-            className={isMissing ? 'rounded-md ring-1 ring-amber-300 p-1' : undefined}
+          className={isMissing ? 'rounded-md ring-1 ring-amber-300 p-1 dark:ring-amber-700' : undefined}
           >
             {fieldNode}
           </div>

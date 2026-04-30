@@ -15,7 +15,8 @@
       "ui": {
         "widget": "text",
         "label": "ID/Slug"
-      }
+      },
+      "description": "Stable identifier used to reference this shop from locations, interactions, and inventories."
     },
     "name": {
       "type": "string",
@@ -191,7 +192,8 @@
                 "Flag",
                 "QuestState"
               ]
-            }
+            },
+            "description": "Type of price adjustment applied by this shop rule."
           },
           "reference_id": {
             "type": "string",

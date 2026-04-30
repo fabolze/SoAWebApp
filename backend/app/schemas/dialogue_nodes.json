@@ -1,86 +1,127 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Dialogue Node",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "description": "Unique ID for this dialogue node",
-        "ui": { "widget": "hidden" }
-      },
-      "slug": {
-        "type": "string",
-        "ui": { "widget": "text", "label": "ID/Slug" }
-      },
-      "dialogue_id": {
-        "type": "string",
-        "description": "Parent dialogue this node belongs to",
-        "ui": { "widget": "reference", "reference": "dialogues", "label": "Dialogue" }
-      },
-      "speaker": {
-        "type": "string",
-        "description": "Who is speaking at this node",
-        "ui": { "widget": "text", "label": "Speaker" }
-      },
-      "text": {
-        "type": "string",
-        "description": "The dialogue text",
-        "ui": { "widget": "textarea", "label": "Dialogue Text" }
-      },
-      "choices": {
-        "type": "array",
-        "description": "List of choices or automatic next nodes",
-        "items": {
-          "type": "object",
-          "properties": {
-            "choice_text": { "type": "string", "description": "Text shown for this choice (optional for auto-continue)" },
-            "next_node_id": { "type": "string", "description": "ID of the next dialogue node" },
-            "requirements_id": {
-              "type": "string",
-              "description": "Requirement to unlock this choice",
-              "ui": {
-                "widget": "reference",
-                "reference": "requirements",
-                "label": "Requirements"
-              }
-            },
-            "set_flags": {
-              "type": "array",
-              "items": { "type": "string" },
-              "ui": {
-                "widget": "multiselect",
-                "reference": "flags",
-                "label": "Flags Set (Choice)"
-              }
-            }
-          },
-          "required": ["next_node_id"]
-        }
-      },
-      "requirements_id": {
-        "type": "string",
-        "description": "Requirement to unlock this node",
-        "ui": {
-          "widget": "reference",
-          "reference": "requirements",
-          "label": "Requirements"
-        }
-      },
-      "set_flags": {
-        "type": "array",
-        "items": { "type": "string" },
-        "ui": {
-          "widget": "multiselect",
-          "reference": "flags",
-          "label": "Flags Set (Node)"
-        }
-      },
-      "tags": {
-        "type": "array",
-        "description": "Tags for filtering/searching/categorization",
-        "items": { "type": "string" },
-        "ui": { "widget": "tags", "label": "Tags" }
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Dialogue Node",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique ID for this dialogue node",
+      "ui": {
+        "widget": "hidden"
       }
     },
-    "required": ["id", "slug", "dialogue_id", "speaker", "text"]
-  }
+    "slug": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Stable identifier used when linking dialogue flow to this node."
+    },
+    "dialogue_id": {
+      "type": "string",
+      "description": "Parent dialogue this node belongs to",
+      "ui": {
+        "widget": "reference",
+        "reference": "dialogues",
+        "label": "Dialogue"
+      }
+    },
+    "speaker": {
+      "type": "string",
+      "description": "Who is speaking at this node",
+      "ui": {
+        "widget": "text",
+        "label": "Speaker"
+      }
+    },
+    "text": {
+      "type": "string",
+      "description": "The dialogue text",
+      "ui": {
+        "widget": "textarea",
+        "label": "Dialogue Text"
+      }
+    },
+    "choices": {
+      "type": "array",
+      "description": "List of choices or automatic next nodes",
+      "items": {
+        "type": "object",
+        "properties": {
+          "choice_text": {
+            "type": "string",
+            "description": "Text shown for this choice (optional for auto-continue)"
+          },
+          "next_node_id": {
+            "type": "string",
+            "description": "ID of the next dialogue node"
+          },
+          "requirements_id": {
+            "type": "string",
+            "description": "Requirement to unlock this choice",
+            "ui": {
+              "widget": "reference",
+              "reference": "requirements",
+              "label": "Requirements"
+            }
+          },
+          "set_flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "ui": {
+              "widget": "multiselect",
+              "reference": "flags",
+              "label": "Flags Set (Choice)"
+            },
+            "description": "Flags set when the player chooses this response."
+          }
+        },
+        "required": [
+          "next_node_id"
+        ]
+      }
+    },
+    "requirements_id": {
+      "type": "string",
+      "description": "Requirement to unlock this node",
+      "ui": {
+        "widget": "reference",
+        "reference": "requirements",
+        "label": "Requirements"
+      }
+    },
+    "set_flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "reference": "flags",
+        "label": "Flags Set (Node)"
+      },
+      "description": "Flags set when this dialogue node is reached or resolved."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching/categorization",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "slug",
+    "dialogue_id",
+    "speaker",
+    "text"
+  ]
+}

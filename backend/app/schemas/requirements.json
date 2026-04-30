@@ -1,57 +1,93 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Requirements",
-    "type": "object",
-    "description": "Shared logic for unlocking quests, items, events, shops, etc.",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Requirements",
+  "type": "object",
+  "description": "Shared logic for unlocking quests, items, events, shops, etc.",
   "properties": {
     "id": {
       "type": "string",
-      "ui": { "widget": "hidden" }
+      "ui": {
+        "widget": "hidden"
+      },
+      "description": "Stable unique identifier for this requirement set."
     },
     "slug": {
       "type": "string",
-      "ui": { "widget": "text", "label": "ID/Slug" }
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Readable identifier used when linking this requirement set from content."
     },
-      "required_flags": {
-        "type": "array",
-        "description": "Flags the player must have",
-        "items": { "type": "string" },
-        "ui": { "widget": "multiselect", "label": "Required Flags" }
+    "required_flags": {
+      "type": "array",
+      "description": "Flags the player must have",
+      "items": {
+        "type": "string"
       },
-      "forbidden_flags": {
-        "type": "array",
-        "description": "Flags that must NOT be set",
-        "items": { "type": "string" },
-        "ui": { "widget": "multiselect", "label": "Forbidden Flags" }
+      "ui": {
+        "widget": "multiselect",
+        "label": "Required Flags"
+      }
+    },
+    "forbidden_flags": {
+      "type": "array",
+      "description": "Flags that must NOT be set",
+      "items": {
+        "type": "string"
       },
-      "min_faction_reputation": {
-        "type": "array",
-        "description": "Minimum reputation per faction",
-        "items": {
-          "type": "object",
-          "properties": {
-            "faction_id": {
-              "type": "string",
-              "ui": { "widget": "reference", "reference": "factions" }
+      "ui": {
+        "widget": "multiselect",
+        "label": "Forbidden Flags"
+      }
+    },
+    "min_faction_reputation": {
+      "type": "array",
+      "description": "Minimum reputation per faction",
+      "items": {
+        "type": "object",
+        "properties": {
+          "faction_id": {
+            "type": "string",
+            "ui": {
+              "widget": "reference",
+              "reference": "factions"
             },
-            "min": {
-              "type": "number",
-              "ui": { "widget": "number", "label": "Minimum Rep" }
-            }
+            "description": "Faction checked by this reputation requirement."
           },
-          "required": ["faction_id", "min"]
+          "min": {
+            "type": "number",
+            "ui": {
+              "widget": "number",
+              "label": "Minimum Rep"
+            },
+            "description": "Minimum reputation value required for the selected faction."
+          }
         },
-        "ui": {
-          "widget": "table",
-          "label": "Faction Reputation"
-        }
+        "required": [
+          "faction_id",
+          "min"
+        ]
       },
-      "tags": {
-        "type": "array",
-        "description": "Tags for filtering/searching/categorization",
-        "items": { "type": "string" },
-        "ui": { "widget": "tags", "label": "Tags" }
+      "ui": {
+        "widget": "table",
+        "label": "Faction Reputation"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching/categorization",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    }
   },
-  "required": ["id", "slug"]
+  "required": [
+    "id",
+    "slug"
+  ]
 }
-  }

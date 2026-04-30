@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Story Arc",
   "type": "object",
@@ -6,30 +6,52 @@
     "id": {
       "type": "string",
       "description": "Unique ID for this story arc",
-      "ui": { "widget": "hidden" }
+      "ui": {
+        "widget": "hidden"
+      }
     },
     "slug": {
       "type": "string",
-      "ui": { "widget": "text", "label": "ID/Slug" }
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Stable identifier used to reference this story arc from timelines and content packs."
     },
     "title": {
       "type": "string",
       "description": "Title of the story arc",
-      "ui": { "widget": "text", "label": "Title" }
+      "ui": {
+        "widget": "text",
+        "label": "Title"
+      }
     },
     "summary": {
       "type": "string",
       "description": "Short summary of the story arc",
-      "ui": { "widget": "textarea", "label": "Summary" }
+      "ui": {
+        "widget": "textarea",
+        "label": "Summary"
+      }
     },
     "type": {
       "type": "string",
       "description": "Type of arc",
-      "enum": ["Main Story", "Side Arc", "Faction Arc", "DLC Arc"],
+      "enum": [
+        "Main Story",
+        "Side Arc",
+        "Faction Arc",
+        "DLC Arc"
+      ],
       "ui": {
         "widget": "select",
         "label": "Arc Type",
-        "options": ["Main Story", "Side Arc", "Faction Arc", "DLC Arc"]
+        "options": [
+          "Main Story",
+          "Side Arc",
+          "Faction Arc",
+          "DLC Arc"
+        ]
       }
     },
     "content_pack_id": {
@@ -47,7 +69,8 @@
         "widget": "reference",
         "reference": "timelines",
         "label": "Timeline Era"
-      }
+      },
+      "description": "Timeline era or sequence this story arc belongs to."
     },
     "related_quests": {
       "type": "array",
@@ -67,7 +90,10 @@
       "items": {
         "type": "object",
         "properties": {
-          "quest_id": { "type": "string", "description": "Quest where branching happens" },
+          "quest_id": {
+            "type": "string",
+            "description": "Quest where branching happens"
+          },
           "branches": {
             "type": "array",
             "items": {
@@ -82,10 +108,17 @@
                     "label": "Branching Flag"
                   }
                 },
-                "next_quest_id": { "type": "string", "description": "Next quest if flag condition is met" }
+                "next_quest_id": {
+                  "type": "string",
+                  "description": "Next quest if flag condition is met"
+                }
               },
-              "required": ["condition_flag", "next_quest_id"]
-            }
+              "required": [
+                "condition_flag",
+                "next_quest_id"
+              ]
+            },
+            "description": "Available branch identifiers or outcomes from this story point."
           }
         }
       }
@@ -105,8 +138,13 @@
     "tags": {
       "type": "array",
       "description": "Tags for filtering/searching/categorization",
-      "items": { "type": "string" },
-      "ui": { "widget": "tags", "label": "Tags" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
     },
     "banner_image": {
       "type": "string",
@@ -127,5 +165,3 @@
     "required_flags"
   ]
 }
-
-

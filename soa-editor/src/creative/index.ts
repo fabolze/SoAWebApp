@@ -1,5 +1,5 @@
 import { creativeScopes } from "./generators";
-import type { CreativeInput, CreativeSuggestion } from "./types";
+import type { CreativeInput, CreativeSuggestion, GenerationProvider } from "./types";
 import { asRecord, type UnknownRecord } from "../types/common";
 
 function matchesSchema(schemaName: string, scopeSchema: string): boolean {
@@ -37,8 +37,16 @@ export function generateCreativeSuggestions(input: CreativeInput): CreativeSugge
   return limited.map((suggestion, idx) => ({
     ...suggestion,
     id: suggestion.id || `${schemaName}-creative-${idx}`,
+    source: suggestion.source || "local",
+    confidence: suggestion.confidence ?? 0.7,
     patch: filterPatchBySchema(asRecord(suggestion.patch), input.schema),
   }));
 }
+
+export const localGenerationProvider: GenerationProvider = {
+  id: "local",
+  label: "Local deterministic",
+  generate: generateCreativeSuggestions,
+};
 
 export * from "./types";

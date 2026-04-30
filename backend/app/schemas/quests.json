@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Quest",
   "type": "object",
@@ -6,21 +6,33 @@
     "id": {
       "type": "string",
       "description": "Unique ID for the quest",
-      "ui": { "widget": "hidden" }
+      "ui": {
+        "widget": "hidden"
+      }
     },
     "slug": {
       "type": "string",
-      "ui": { "widget": "text", "label": "ID/Slug" }
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Stable identifier used to reference this quest from dialogue, events, requirements, and rewards."
     },
     "title": {
       "type": "string",
       "description": "Quest title",
-      "ui": { "widget": "text", "label": "Title" }
+      "ui": {
+        "widget": "text",
+        "label": "Title"
+      }
     },
     "description": {
       "type": "string",
       "description": "Quest description shown to player",
-      "ui": { "widget": "textarea", "label": "Description" }
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      }
     },
     "story_arc_id": {
       "type": "string",
@@ -46,8 +58,14 @@
       "items": {
         "type": "object",
         "properties": {
-          "objective_id": { "type": "string", "description": "Internal ID for this objective" },
-          "description": { "type": "string", "description": "Player-facing description of this objective" },
+          "objective_id": {
+            "type": "string",
+            "description": "Internal ID for this objective"
+          },
+          "description": {
+            "type": "string",
+            "description": "Player-facing description of this objective"
+          },
           "requirements_id": {
             "type": "string",
             "description": "Requirement to unlock this objective",
@@ -60,7 +78,9 @@
           "flags_set": {
             "type": "array",
             "description": "Flags to set when this objective is completed",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "ui": {
               "widget": "multiselect",
               "label": "Flags Set",
@@ -68,14 +88,22 @@
             }
           }
         },
-        "required": ["objective_id", "description"]
+        "required": [
+          "objective_id",
+          "description"
+        ]
       },
-      "ui": { "widget": "objectives_editor", "label": "Objectives" }
+      "ui": {
+        "widget": "objectives_editor",
+        "label": "Objectives"
+      }
     },
     "flags_set_on_completion": {
       "type": "array",
       "description": "Flags to set when the quest is fully completed",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "ui": {
         "widget": "multiselect",
         "label": "Flags Set on Completion",
@@ -85,7 +113,10 @@
     "xp_reward": {
       "type": "number",
       "description": "XP granted when the quest is completed",
-      "ui": { "widget": "number", "label": "Experience" }
+      "ui": {
+        "widget": "number",
+        "label": "Experience"
+      }
     },
     "currency_rewards": {
       "type": "array",
@@ -99,14 +130,22 @@
               "widget": "reference",
               "reference": "currencies",
               "label": "Currency"
-            }
+            },
+            "description": "Currency granted when this quest reward is paid out."
           },
           "amount": {
             "type": "number",
-            "ui": { "widget": "number", "label": "Amount" }
+            "ui": {
+              "widget": "number",
+              "label": "Amount"
+            },
+            "description": "Amount of the selected currency awarded."
           }
         },
-        "required": ["currency_id", "amount"]
+        "required": [
+          "currency_id",
+          "amount"
+        ]
       }
     },
     "reputation_rewards": {
@@ -121,15 +160,22 @@
               "widget": "reference",
               "reference": "factions",
               "label": "Faction"
-            }
+            },
+            "description": "Faction whose reputation changes after this quest."
           },
           "amount": {
             "type": "number",
             "description": "Positive or negative reputation delta",
-            "ui": { "widget": "number", "label": "Delta" }
+            "ui": {
+              "widget": "number",
+              "label": "Delta"
+            }
           }
         },
-        "required": ["faction_id", "amount"]
+        "required": [
+          "faction_id",
+          "amount"
+        ]
       }
     },
     "item_rewards": {
@@ -144,22 +190,40 @@
               "widget": "reference",
               "reference": "items",
               "label": "Item"
-            }
+            },
+            "description": "Item granted by this quest reward."
           },
           "quantity": {
             "type": "number",
-            "ui": { "widget": "number", "label": "Quantity" }
+            "ui": {
+              "widget": "number",
+              "label": "Quantity"
+            },
+            "description": "Number of copies of the selected item awarded."
           }
         },
-        "required": ["item_id", "quantity"]
+        "required": [
+          "item_id",
+          "quantity"
+        ]
       }
     },
     "tags": {
       "type": "array",
       "description": "Tags for filtering/searching/categorisation",
-      "items": { "type": "string" },
-      "ui": { "widget": "tags", "label": "Tags" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
     }
   },
-  "required": ["id", "slug", "title", "description"]
+  "required": [
+    "id",
+    "slug",
+    "title",
+    "description"
+  ]
 }

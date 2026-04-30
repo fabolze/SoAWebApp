@@ -65,7 +65,7 @@ const Row = memo(({ index, style, data }: ListChildComponentProps<RowData>) => {
   return (
     <div
       style={{ ...style, display: "grid", gridTemplateColumns: data.gridTemplateColumns }}
-      className={`items-center border-b border-slate-100 transition-colors ${isActive ? "bg-blue-50 ring-1 ring-inset ring-blue-300" : "hover:bg-slate-50"}`}
+      className={`items-center border-b border-slate-100 transition-colors dark:border-slate-800 ${isActive ? "bg-blue-50 ring-1 ring-inset ring-blue-300 dark:bg-blue-950/60 dark:ring-blue-800" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
     >
       <div className="px-3 py-2">
         <input
@@ -78,16 +78,16 @@ const Row = memo(({ index, style, data }: ListChildComponentProps<RowData>) => {
         const cellText = formatCellValue(entry[fieldKey]);
         const isPrimaryField = fieldKey === "name" || fieldKey === "title" || fieldKey === "slug";
         return (
-          <div key={`${entryId}-${fieldKey}`} className="px-3 py-2 text-slate-900 truncate" title={cellText}>
+          <div key={`${entryId}-${fieldKey}`} className="px-3 py-2 text-slate-900 truncate dark:text-slate-100" title={cellText}>
             {isPrimaryField ? (
               <div className="min-w-0">
-                <div className={`truncate ${isActive ? "font-semibold text-blue-950" : "font-medium text-slate-950"}`}>
+                <div className={`truncate ${isActive ? "font-semibold text-blue-950 dark:text-blue-200" : "font-medium text-slate-950 dark:text-slate-100"}`}>
                   {cellText}
                 </div>
                 {badges.length > 0 && (
                   <div className="mt-0.5 flex gap-1">
                     {badges.map((badge) => (
-                      <span key={badge} className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+                      <span key={badge} className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                         {badge}
                       </span>
                     ))}
@@ -171,11 +171,11 @@ export default function VirtualizedTable({
   );
 
   return (
-    <div className="rounded-md bg-white border border-slate-200 overflow-hidden">
+    <div className="rounded-md bg-white border border-slate-200 overflow-hidden dark:border-slate-800 dark:bg-slate-900">
       <div className="overflow-x-auto">
         <div className="min-w-[780px]">
           <div
-            className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200 text-slate-700 text-xs font-semibold uppercase"
+            className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200 text-slate-700 text-xs font-semibold uppercase dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300"
             style={{ display: "grid", gridTemplateColumns }}
           >
             <div className="px-3 py-2">
@@ -189,7 +189,7 @@ export default function VirtualizedTable({
             <div className="px-3 py-2">Actions</div>
           </div>
           {rowCount === 0 ? (
-            <div className="px-3 py-6 text-sm text-slate-500">No entries found.</div>
+            <div className="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">No entries found.</div>
           ) : (
             <List height={listHeight} itemCount={rowCount} itemSize={ROW_HEIGHT} width="100%" itemData={rowData}>
               {Row}

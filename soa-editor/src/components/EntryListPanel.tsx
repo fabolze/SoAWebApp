@@ -202,12 +202,12 @@ const EntryListPanelInternal = ({
   };
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col h-full max-h-full overflow-hidden border-r border-slate-200 bg-slate-50">
-      <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-5 py-4 sticky top-0 z-10">
+    <div className="flex-1 min-w-0 flex flex-col h-full max-h-full overflow-hidden border-r border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
+      <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-5 py-4 sticky top-0 z-10 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-wrap gap-2 items-center justify-between">
           <div>
-            <div className="text-xs font-medium uppercase text-slate-500">{schemaName.replace(/_/g, " ")}</div>
-            <div className="text-lg font-semibold text-slate-950">{entries.length} entries</div>
+            <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">{schemaName.replace(/_/g, " ")}</div>
+            <div className="text-lg font-semibold text-slate-950 dark:text-slate-100">{entries.length} entries</div>
           </div>
           <div className="flex flex-wrap gap-2 items-center">
           <button className={`${BUTTON_CLASSES.success} ${BUTTON_SIZES.sm}`} onClick={onAddNew}>+ New</button>
@@ -225,7 +225,7 @@ const EntryListPanelInternal = ({
           </button>
           {selectedIds.length > 0 && (
             <>
-              <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{selectedIds.length} selected</span>
+              <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">{selectedIds.length} selected</span>
               <button className={`${BUTTON_CLASSES.indigo} ${BUTTON_SIZES.xs}`} onClick={() => onBulkDuplicate(selectedEntries)}>Duplicate</button>
               <button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`} onClick={() => onBulkDelete(selectedEntries)}>Delete</button>
               <button className={`${BUTTON_CLASSES.neutral} ${BUTTON_SIZES.xs}`} onClick={() => setShowBulkEdit((v) => !v)}>Bulk edit</button>
@@ -234,9 +234,9 @@ const EntryListPanelInternal = ({
           </div>
         </div>
         {showBulkEdit && selectedIds.length > 0 && (
-          <div className="flex flex-wrap gap-2 items-center bg-slate-50 p-2 rounded border border-slate-200">
+          <div className="flex flex-wrap gap-2 items-center bg-slate-50 p-2 rounded border border-slate-200 dark:border-slate-800 dark:bg-slate-800">
             <select
-              className="border rounded p-2 text-sm text-slate-900 bg-white"
+              className="border rounded p-2 text-sm text-slate-900 bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               value={bulkField}
               onChange={(e) => setBulkField(e.target.value)}
             >
@@ -247,7 +247,7 @@ const EntryListPanelInternal = ({
             </select>
             <input
               type="text"
-              className="border rounded p-2 text-sm text-slate-900 bg-white flex-1 min-w-[200px]"
+              className="border rounded p-2 text-sm text-slate-900 bg-white flex-1 min-w-[200px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               placeholder="Value (use comma for arrays)"
               value={bulkValue}
               onChange={(e) => setBulkValue(e.target.value)}
@@ -263,9 +263,9 @@ const EntryListPanelInternal = ({
           </div>
         )}
         {showColumns && (
-          <div className="flex flex-wrap gap-3 items-center bg-slate-50 p-2 rounded border border-slate-200">
+          <div className="flex flex-wrap gap-3 items-center bg-slate-50 p-2 rounded border border-slate-200 dark:border-slate-800 dark:bg-slate-800">
             {allFields.map((field) => (
-              <label key={field} className="flex items-center gap-2 text-xs text-slate-700">
+              <label key={field} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
                 <input
                   type="checkbox"
                   checked={isFieldVisible(field)}
@@ -277,9 +277,9 @@ const EntryListPanelInternal = ({
           </div>
         )}
         {/* Search controls for filtering entries in the list. */}
-        <div className="flex gap-2 items-center bg-slate-100 p-2 rounded-md border border-slate-200">
+        <div className="flex gap-2 items-center bg-slate-100 p-2 rounded-md border border-slate-200 dark:border-slate-800 dark:bg-slate-800">
           <select
-            className="border rounded p-2 text-sm text-slate-900 bg-white"
+            className="border rounded p-2 text-sm text-slate-900 bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             value={searchField}
             onChange={e => setSearchField(e.target.value)}
           >
@@ -291,7 +291,7 @@ const EntryListPanelInternal = ({
           <input
             type="text"
             placeholder={searchField === "__all__" ? `Search all fields...` : `Search ${searchField}...`}
-            className="w-full p-2 border rounded text-slate-900 bg-white placeholder:text-slate-500"
+            className="w-full p-2 border rounded text-slate-900 bg-white placeholder:text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -300,7 +300,7 @@ const EntryListPanelInternal = ({
           Shortcuts: <span className="font-medium">Ctrl/Cmd+S</span> save, <span className="font-medium">Ctrl/Cmd+N</span> new, <span className="font-medium">Ctrl/Cmd+D</span> duplicate
         </div>
         {recentEntries.length > 0 && (
-          <div className="rounded border border-slate-200 bg-slate-50 px-2 py-2">
+          <div className="rounded border border-slate-200 bg-slate-50 px-2 py-2 dark:border-slate-800 dark:bg-slate-800">
             <div className={`text-xs font-semibold mb-1 ${TEXT_CLASSES.muted}`}>Recent</div>
             <div className="flex flex-wrap gap-1">
               {recentEntries.slice(0, 8).map((recent) => (
@@ -320,12 +320,12 @@ const EntryListPanelInternal = ({
       </div>
       <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4">
         {entries.length === 0 ? (
-          <div className="flex min-h-[260px] items-center justify-center rounded-md border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+          <div className="flex min-h-[260px] items-center justify-center rounded-md border border-dashed border-slate-300 bg-white px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-900">
             <div>
-              <div className="text-base font-semibold text-slate-900">
+              <div className="text-base font-semibold text-slate-900 dark:text-slate-100">
                 {hasFilters ? "No matching entries" : "No entries yet"}
               </div>
-              <div className="mt-1 max-w-md text-sm text-slate-600">
+              <div className="mt-1 max-w-md text-sm text-slate-600 dark:text-slate-400">
                 {hasFilters
                   ? "Adjust the search or field filter to bring entries back into view."
                   : "Create the first entry for this dataset and use references, tags, and presets to keep it connected to the rest of the RPG data."}
@@ -352,10 +352,10 @@ const EntryListPanelInternal = ({
             allSelected={allSelected}
           />
         ) : (
-          <table className="min-w-full overflow-hidden rounded-md border border-slate-200 bg-white text-sm text-slate-900">
+          <table className="min-w-full overflow-hidden rounded-md border border-slate-200 bg-white text-sm text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
             <thead>
               <tr>
-                <th className="px-3 py-2 border-b border-slate-200 bg-slate-100 font-semibold text-slate-700 whitespace-nowrap">
+                <th className="px-3 py-2 border-b border-slate-200 bg-slate-100 font-semibold text-slate-700 whitespace-nowrap dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -363,9 +363,9 @@ const EntryListPanelInternal = ({
                   />
                 </th>
                 {visibleFields.map((key) => (
-                  <th key={key} className="px-3 py-2 border-b border-slate-200 bg-slate-100 font-semibold text-slate-700 whitespace-nowrap">{key}</th>
+                  <th key={key} className="px-3 py-2 border-b border-slate-200 bg-slate-100 font-semibold text-slate-700 whitespace-nowrap dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">{key}</th>
                 ))}
-                <th className="px-3 py-2 border-b border-slate-200 bg-slate-100 font-semibold text-slate-700">Actions</th>
+                <th className="px-3 py-2 border-b border-slate-200 bg-slate-100 font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -374,8 +374,8 @@ const EntryListPanelInternal = ({
                 const isActive = !!editingId && entryId === editingId;
                 const badges = getEntryBadges(entry);
                 return (
-                  <tr key={entryId} className={`${isActive ? "bg-blue-50 ring-1 ring-inset ring-blue-300" : "hover:bg-slate-50"} transition-colors`}>
-                    <td className="px-3 py-2 border-b border-slate-100 whitespace-nowrap">
+                  <tr key={entryId} className={`${isActive ? "bg-blue-50 ring-1 ring-inset ring-blue-300 dark:bg-blue-950/60 dark:ring-blue-800" : "hover:bg-slate-50 dark:hover:bg-slate-800"} transition-colors`}>
+                    <td className="px-3 py-2 border-b border-slate-100 whitespace-nowrap dark:border-slate-800">
                       <input
                         type="checkbox"
                         checked={selectedSet.has(entryId)}
@@ -388,18 +388,18 @@ const EntryListPanelInternal = ({
                       const cellText = formatCellValue(value);
                       const isPrimaryField = key === "name" || key === "title" || key === "slug";
                       return (
-                        <td key={key} className="px-3 py-2 border-b border-slate-100 whitespace-nowrap max-w-xs overflow-hidden text-slate-900">
+                        <td key={key} className="px-3 py-2 border-b border-slate-100 whitespace-nowrap max-w-xs overflow-hidden text-slate-900 dark:border-slate-800 dark:text-slate-100">
                           {isImage ? (
                             <img src={value} alt="asset" style={{ maxHeight: '40px', maxWidth: '80px', objectFit: 'contain' }} />
                           ) : isPrimaryField ? (
                             <div className="min-w-0">
-                              <div className={`truncate ${isActive ? "font-semibold text-blue-950" : "font-medium text-slate-950"}`} title={cellText || getEntryLabel(entry, idField)}>
+                              <div className={`truncate ${isActive ? "font-semibold text-blue-950 dark:text-blue-200" : "font-medium text-slate-950 dark:text-slate-100"}`} title={cellText || getEntryLabel(entry, idField)}>
                                 {cellText || getEntryLabel(entry, idField)}
                               </div>
                               {badges.length > 0 && (
                                 <div className="mt-1 flex flex-wrap gap-1">
                                   {badges.map((badge) => (
-                                    <span key={badge} className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+                                    <span key={badge} className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                                       {badge}
                                     </span>
                                   ))}
@@ -412,7 +412,7 @@ const EntryListPanelInternal = ({
                         </td>
                       );
                     })}
-                    <td className="px-3 py-2 border-b border-slate-100 whitespace-nowrap">
+                    <td className="px-3 py-2 border-b border-slate-100 whitespace-nowrap dark:border-slate-800">
                       <button
                         className={`mr-2 ${BUTTON_CLASSES.primary} ${BUTTON_SIZES.xs}`}
                         onClick={() => onEdit(entry)}

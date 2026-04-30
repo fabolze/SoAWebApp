@@ -7,6 +7,15 @@ export interface EntityPreset {
   label: string;
   description?: string;
   tags?: string[];
+  category?: string;
+  intent?: string;
+  difficulty?: 'starter' | 'intermediate' | 'advanced';
+  schema?: string;
+  recommendedMode?: PresetApplyMode;
+  fieldGroups?: Record<string, string[]>;
+  source?: 'curated' | 'custom';
+  createdAt?: number;
+  updatedAt?: number;
   defaultMode?: PresetApplyMode;
   data: UnknownRecord;
 }

@@ -15,7 +15,8 @@
       "ui": {
         "widget": "text",
         "label": "ID/Slug"
-      }
+      },
+      "description": "Stable identifier used to reference this location from characters, quests, events, and encounters."
     },
     "name": {
       "type": "string",
@@ -76,7 +77,8 @@
           "Fungal Undergrowth",
           "Abyss"
         ]
-      }
+      },
+      "description": "Environmental type or region category for this location."
     },
     "biome_modifier": {
       "type": "string",
@@ -113,10 +115,12 @@
       "description": "Recommended level range for encounters",
       "properties": {
         "min": {
-          "type": "number"
+          "type": "number",
+          "description": "Lowest suggested player or content level for this location."
         },
         "max": {
-          "type": "number"
+          "type": "number",
+          "description": "Highest suggested player or content level for this location."
         }
       }
     },
@@ -125,10 +129,12 @@
       "description": "Position on world map",
       "properties": {
         "x": {
-          "type": "number"
+          "type": "number",
+          "description": "Horizontal map coordinate for placing this location."
         },
         "y": {
-          "type": "number"
+          "type": "number",
+          "description": "Vertical map coordinate for placing this location."
         }
       }
     },

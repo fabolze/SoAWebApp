@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Event",
   "type": "object",
@@ -6,25 +6,48 @@
     "id": {
       "type": "string",
       "description": "Unique ID for the event",
-      "ui": { "widget": "hidden" }
+      "ui": {
+        "widget": "hidden"
+      }
     },
     "slug": {
       "type": "string",
-      "ui": { "widget": "text", "label": "ID/Slug" }
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Stable identifier used to reference this event from timelines, quests, and scripts."
     },
     "title": {
       "type": "string",
       "description": "Internal title for the event",
-      "ui": { "widget": "text", "label": "Title" }
+      "ui": {
+        "widget": "text",
+        "label": "Title"
+      }
     },
     "type": {
       "type": "string",
       "description": "Type of event logic",
-      "enum": ["Encounter", "ItemReward", "LoreDiscovery", "Dialogue", "Teleport", "ScriptedScene"],
+      "enum": [
+        "Encounter",
+        "ItemReward",
+        "LoreDiscovery",
+        "Dialogue",
+        "Teleport",
+        "ScriptedScene"
+      ],
       "ui": {
         "widget": "select",
         "label": "Event Type",
-        "options": ["Encounter", "ItemReward", "LoreDiscovery", "Dialogue", "Teleport", "ScriptedScene"]
+        "options": [
+          "Encounter",
+          "ItemReward",
+          "LoreDiscovery",
+          "Dialogue",
+          "Teleport",
+          "ScriptedScene"
+        ]
       }
     },
     "requirements_id": {
@@ -84,20 +107,31 @@
               "widget": "reference",
               "reference": "items",
               "label": "Item"
-            }
+            },
+            "description": "Item granted when this event resolves."
           },
           "quantity": {
             "type": "number",
-            "ui": { "widget": "number", "label": "Quantity" }
+            "ui": {
+              "widget": "number",
+              "label": "Quantity"
+            },
+            "description": "Number of copies of the selected item awarded."
           }
         },
-        "required": ["item_id", "quantity"]
+        "required": [
+          "item_id",
+          "quantity"
+        ]
       }
     },
     "xp_reward": {
       "type": "number",
       "description": "XP granted after completing the event",
-      "ui": { "widget": "number", "label": "Experience" }
+      "ui": {
+        "widget": "number",
+        "label": "Experience"
+      }
     },
     "currency_rewards": {
       "type": "array",
@@ -111,14 +145,22 @@
               "widget": "reference",
               "reference": "currencies",
               "label": "Currency"
-            }
+            },
+            "description": "Currency granted when this event resolves."
           },
           "amount": {
             "type": "number",
-            "ui": { "widget": "number", "label": "Amount" }
+            "ui": {
+              "widget": "number",
+              "label": "Amount"
+            },
+            "description": "Amount of the selected currency awarded."
           }
         },
-        "required": ["currency_id", "amount"]
+        "required": [
+          "currency_id",
+          "amount"
+        ]
       }
     },
     "reputation_rewards": {
@@ -133,21 +175,30 @@
               "widget": "reference",
               "reference": "factions",
               "label": "Faction"
-            }
+            },
+            "description": "Faction whose reputation changes when this event resolves."
           },
           "amount": {
             "type": "number",
             "description": "Positive or negative reputation delta",
-            "ui": { "widget": "number", "label": "Delta" }
+            "ui": {
+              "widget": "number",
+              "label": "Delta"
+            }
           }
         },
-        "required": ["faction_id", "amount"]
+        "required": [
+          "faction_id",
+          "amount"
+        ]
       }
     },
     "flags_set": {
       "type": "array",
       "description": "Flags that will be set when the event completes",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "ui": {
         "widget": "multiselect",
         "label": "Flags Set",
@@ -166,9 +217,19 @@
     "tags": {
       "type": "array",
       "description": "Tags for filtering/searching/categorisation",
-      "items": { "type": "string" },
-      "ui": { "widget": "tags", "label": "Tags" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
     }
   },
-  "required": ["id", "slug", "title", "type"]
+  "required": [
+    "id",
+    "slug",
+    "title",
+    "type"
+  ]
 }

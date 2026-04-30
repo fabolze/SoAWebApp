@@ -61,10 +61,10 @@ export default function CommandPalette({
   return (
     <div className="fixed inset-0 z-[120] flex items-start justify-center bg-black/40 px-4 pt-24" onClick={onClose}>
       <div
-        className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-2xl"
+        className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="border-b border-slate-200 px-4 py-3">
+        <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-800">
           <div className={`text-sm font-semibold ${TEXT_CLASSES.body}`}>{title}</div>
           <input
             ref={inputRef}
@@ -87,7 +87,7 @@ export default function CommandPalette({
               }
             }}
             placeholder="Type a command..."
-            className="mt-2 w-full border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900"
+            className="mt-2 w-full border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           />
         </div>
         <div className="max-h-80 overflow-y-auto">
@@ -102,9 +102,9 @@ export default function CommandPalette({
                   type="button"
                   disabled={item.disabled}
                   onClick={() => runItem(item)}
-                  className={`w-full text-left px-4 py-3 border-b border-slate-100 ${
-                    active ? "bg-slate-100" : "bg-white"
-                  } ${item.disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-slate-50"}`}
+                  className={`w-full text-left px-4 py-3 border-b border-slate-100 dark:border-slate-800 ${
+                    active ? "bg-slate-100 dark:bg-slate-800" : "bg-white dark:bg-slate-900"
+                  } ${item.disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                 >
                   <div className={`text-sm font-medium ${TEXT_CLASSES.body}`}>{item.title}</div>
                   {item.subtitle && <div className={`text-xs mt-0.5 ${TEXT_CLASSES.muted}`}>{item.subtitle}</div>}
@@ -113,7 +113,7 @@ export default function CommandPalette({
             })
           )}
         </div>
-        <div className={`px-4 py-2 text-xs ${TEXT_CLASSES.subtle} bg-slate-50 rounded-b-xl`}>
+        <div className={`px-4 py-2 text-xs ${TEXT_CLASSES.subtle} bg-slate-50 rounded-b-xl dark:bg-slate-950`}>
           `Ctrl+K` open, `Enter` run, `Esc` close
         </div>
       </div>

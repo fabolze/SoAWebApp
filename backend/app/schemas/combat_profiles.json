@@ -5,21 +5,54 @@
   "properties": {
     "id": {
       "type": "string",
-      "ui": { "widget": "hidden" }
+      "ui": {
+        "widget": "hidden"
+      },
+      "description": "Stable unique identifier for this combat profile."
     },
     "character_id": {
       "type": "string",
-      "ui": { "widget": "reference", "label": "Character", "reference": "characters" }
+      "ui": {
+        "widget": "reference",
+        "label": "Character",
+        "reference": "characters"
+      },
+      "description": "Character that uses this combat behavior and reward profile."
     },
     "enemy_type": {
       "type": "string",
-      "enum": ["beast", "undead", "humanoid", "elemental", "machine", "boss", "demon", "dragon", "giant", "spirit", "emanation", "other"],
-      "ui": { "widget": "select", "label": "Enemy Type" }
+      "enum": [
+        "beast",
+        "undead",
+        "humanoid",
+        "elemental",
+        "machine",
+        "boss",
+        "demon",
+        "dragon",
+        "giant",
+        "spirit",
+        "emanation",
+        "other"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Enemy Type"
+      },
+      "description": "Broad enemy or actor type used for tuning and encounter logic."
     },
     "aggression": {
       "type": "string",
-      "enum": ["Hostile", "Neutral", "Friendly"],
-      "ui": { "widget": "select", "label": "Aggression" }
+      "enum": [
+        "Hostile",
+        "Neutral",
+        "Friendly"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Aggression"
+      },
+      "description": "How actively this profile initiates, pursues, or escalates combat."
     },
     "custom_stats": {
       "type": "array",
@@ -28,17 +61,40 @@
         "properties": {
           "stat_id": {
             "type": "string",
-            "ui": { "widget": "reference", "reference": "stats", "label": "Stat" }
+            "ui": {
+              "widget": "reference",
+              "reference": "stats",
+              "label": "Stat"
+            },
+            "description": "Stat to override or add for this combat profile."
           },
-          "value": { "type": "number", "ui": { "widget": "number", "label": "Value" } }
+          "value": {
+            "type": "number",
+            "ui": {
+              "widget": "number",
+              "label": "Value"
+            },
+            "description": "Value assigned to the selected combat stat."
+          }
         },
-        "required": ["stat_id", "value"]
-      }
+        "required": [
+          "stat_id",
+          "value"
+        ]
+      },
+      "description": "Optional stat overrides that adjust this profile beyond its linked character or class."
     },
     "custom_abilities": {
       "type": "array",
-      "items": { "type": "string" },
-      "ui": { "widget": "multiselect", "label": "Abilities", "reference": "abilities" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Abilities",
+        "reference": "abilities"
+      },
+      "description": "Abilities available to this combat profile."
     },
     "loot_table": {
       "type": "array",
@@ -47,13 +103,32 @@
         "properties": {
           "item_id": {
             "type": "string",
-            "ui": { "widget": "reference", "reference": "items", "label": "Item" }
+            "ui": {
+              "widget": "reference",
+              "reference": "items",
+              "label": "Item"
+            },
+            "description": "Item that can drop from this combat profile."
           },
-          "drop_chance": { "type": "number", "ui": { "widget": "number", "label": "Drop Chance" } }
+          "drop_chance": {
+            "type": "number",
+            "ui": {
+              "widget": "number",
+              "label": "Drop Chance"
+            },
+            "description": "Chance that this item reward is granted."
+          }
         },
-        "required": ["item_id", "drop_chance"]
+        "required": [
+          "item_id",
+          "drop_chance"
+        ]
       },
-      "ui": { "widget": "item_drop_table", "label": "Loot" }
+      "ui": {
+        "widget": "item_drop_table",
+        "label": "Loot"
+      },
+      "description": "Item drops that can be awarded after defeating or resolving this profile."
     },
     "currency_rewards": {
       "type": "array",
@@ -62,13 +137,36 @@
         "properties": {
           "currency_id": {
             "type": "string",
-            "ui": { "widget": "reference", "reference": "currencies", "label": "Currency" }
+            "ui": {
+              "widget": "reference",
+              "reference": "currencies",
+              "label": "Currency"
+            },
+            "description": "Currency type awarded by this profile."
           },
-          "amount": { "type": "number", "ui": { "widget": "number", "label": "Amount" } },
-          "drop_chance": { "type": "number", "ui": { "widget": "number", "label": "Drop Chance" } }
+          "amount": {
+            "type": "number",
+            "ui": {
+              "widget": "number",
+              "label": "Amount"
+            },
+            "description": "Amount of the selected currency awarded."
+          },
+          "drop_chance": {
+            "type": "number",
+            "ui": {
+              "widget": "number",
+              "label": "Drop Chance"
+            },
+            "description": "Chance that this currency reward is granted."
+          }
         },
-        "required": ["currency_id", "amount"]
-      }
+        "required": [
+          "currency_id",
+          "amount"
+        ]
+      },
+      "description": "Currency rewards that can be granted by this profile."
     },
     "reputation_rewards": {
       "type": "array",
@@ -77,22 +175,56 @@
         "properties": {
           "faction_id": {
             "type": "string",
-            "ui": { "widget": "reference", "reference": "factions", "label": "Faction" }
+            "ui": {
+              "widget": "reference",
+              "reference": "factions",
+              "label": "Faction"
+            },
+            "description": "Faction whose reputation is changed."
           },
-          "amount": { "type": "number", "ui": { "widget": "number", "label": "Delta" } },
-          "drop_chance": { "type": "number", "ui": { "widget": "number", "label": "Drop Chance" } }
+          "amount": {
+            "type": "number",
+            "ui": {
+              "widget": "number",
+              "label": "Delta"
+            },
+            "description": "Positive or negative reputation amount applied."
+          },
+          "drop_chance": {
+            "type": "number",
+            "ui": {
+              "widget": "number",
+              "label": "Drop Chance"
+            },
+            "description": "Chance that this reputation change is applied."
+          }
         },
-        "required": ["faction_id", "amount"]
-      }
+        "required": [
+          "faction_id",
+          "amount"
+        ]
+      },
+      "description": "Faction reputation changes granted by this profile."
     },
     "xp_reward": {
       "type": "number",
-      "ui": { "widget": "number", "label": "Experience" }
+      "ui": {
+        "widget": "number",
+        "label": "Experience"
+      },
+      "description": "Experience awarded when this profile is defeated or completed."
     },
     "related_quests": {
       "type": "array",
-      "items": { "type": "string" },
-      "ui": { "widget": "multiselect", "label": "Related Quests", "reference": "quests" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Related Quests",
+        "reference": "quests"
+      },
+      "description": "Quests that use, unlock, or are affected by this combat profile."
     },
     "companion_config": {
       "type": "object",
@@ -100,13 +232,32 @@
       "properties": {
         "class_id": {
           "type": "string",
-          "ui": { "widget": "reference", "label": "Combat Class", "reference": "characterclasses" }
+          "ui": {
+            "widget": "reference",
+            "label": "Combat Class",
+            "reference": "characterclasses"
+          },
+          "description": "Class used when this character acts as a companion."
         },
-        "level": { "type": "number", "ui": { "widget": "number", "label": "Level" } },
+        "level": {
+          "type": "number",
+          "ui": {
+            "widget": "number",
+            "label": "Level"
+          },
+          "description": "Starting or suggested companion level."
+        },
         "custom_abilities": {
           "type": "array",
-          "items": { "type": "string" },
-          "ui": { "widget": "multiselect", "label": "Abilities", "reference": "abilities" }
+          "items": {
+            "type": "string"
+          },
+          "ui": {
+            "widget": "multiselect",
+            "label": "Abilities",
+            "reference": "abilities"
+          },
+          "description": "Abilities available when this character is used as a companion."
         },
         "custom_stats": {
           "type": "array",
@@ -115,18 +266,40 @@
             "properties": {
               "stat_id": {
                 "type": "string",
-                "ui": { "widget": "reference", "reference": "stats", "label": "Stat" }
+                "ui": {
+                  "widget": "reference",
+                  "reference": "stats",
+                  "label": "Stat"
+                },
+                "description": "Companion stat to override or grow."
               },
-              "value": { "type": "number", "ui": { "widget": "number", "label": "Value" } }
+              "value": {
+                "type": "number",
+                "ui": {
+                  "widget": "number",
+                  "label": "Value"
+                },
+                "description": "Value assigned to the selected companion stat."
+              }
             },
-            "required": ["stat_id", "value"]
-          }
+            "required": [
+              "stat_id",
+              "value"
+            ]
+          },
+          "description": "Stat overrides applied when this character is used as a companion."
         },
         "progression": {
           "type": "object",
           "properties": {
-            "level_cap": { "type": "number" },
-            "xp_multiplier": { "type": "number" },
+            "level_cap": {
+              "type": "number",
+              "description": "Maximum level this companion can reach."
+            },
+            "xp_multiplier": {
+              "type": "number",
+              "description": "Multiplier applied to companion experience gain."
+            },
             "stat_growth": {
               "type": "array",
               "items": {
@@ -134,22 +307,48 @@
                 "properties": {
                   "stat_id": {
                     "type": "string",
-                    "ui": { "widget": "reference", "reference": "stats", "label": "Stat" }
+                    "ui": {
+                      "widget": "reference",
+                      "reference": "stats",
+                      "label": "Stat"
+                    },
+                    "description": "Companion stat that increases with progression."
                   },
-                  "value": { "type": "number", "ui": { "widget": "number", "label": "Per Level" } }
+                  "value": {
+                    "type": "number",
+                    "ui": {
+                      "widget": "number",
+                      "label": "Per Level"
+                    },
+                    "description": "Amount added to the selected companion stat per level."
+                  }
                 },
-                "required": ["stat_id", "value"]
-              }
+                "required": [
+                  "stat_id",
+                  "value"
+                ]
+              },
+              "description": "Stat growth applied as the companion gains levels."
             }
-          }
+          },
+          "description": "Rules that control how this companion grows over time."
         }
       }
     },
     "tags": {
       "type": "array",
-      "items": { "type": "string" },
-      "ui": { "widget": "tags", "label": "Tags" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      },
+      "description": "Freeform labels for filtering and encounter-building rules."
     }
   },
-  "required": ["id", "character_id"]
+  "required": [
+    "id",
+    "character_id"
+  ]
 }
