@@ -194,21 +194,21 @@ export default function ArrayObjectField({
     if (isDropTable) {
       const isOverflow = dropChanceSum > 100;
       return (
-        <div className={`text-xs px-2 py-1 rounded border ${isOverflow ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+        <div className={`text-xs px-2 py-1 rounded border ${isOverflow ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-200' : 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-200'}`}>
           Total Drop Chance: {formatCompactNumber(dropChanceSum)}%
         </div>
       );
     }
     if (isPriceTable) {
       return (
-        <div className="text-xs px-2 py-1 rounded border bg-sky-50 border-sky-200 text-sky-700">
+        <div className="text-xs px-2 py-1 rounded border bg-sky-50 border-sky-200 text-sky-700 dark:bg-sky-950/40 dark:border-sky-800 dark:text-sky-200">
           Price Preview uses item base price + shop modifiers + row overrides.
         </div>
       );
     }
     if (isObjectivesEditor) {
       return (
-        <div className="text-xs px-2 py-1 rounded border bg-indigo-50 border-indigo-200 text-indigo-700">
+        <div className="text-xs px-2 py-1 rounded border bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-200">
           Define objective order with drag-style controls (up/down) and duplicate for faster authoring.
         </div>
       );
@@ -297,10 +297,10 @@ export default function ArrayObjectField({
   };
 
   return (
-    <fieldset className="border border-gray-200 rounded-lg p-4 bg-gray-50 mb-6 shadow-sm">
+    <fieldset className="border border-gray-200 rounded-lg p-4 bg-gray-50 mb-6 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
       <legend className="px-2 text-base font-semibold text-primary mb-2">{label}</legend>
       <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
-        {description ? <p className="text-sm text-gray-500">{description}</p> : <span />}
+        {description ? <p className="text-sm text-gray-500 dark:text-slate-400">{description}</p> : <span />}
         {renderSpecialTopInfo()}
       </div>
       <div className="space-y-4">
@@ -311,20 +311,20 @@ export default function ArrayObjectField({
           const invalidDrop = isDropTable && (dropChance === null || dropChance < 0 || dropChance > 100);
 
           return (
-            <div key={idx} className="relative p-4 border border-gray-200 rounded-lg bg-white">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2">
+            <div key={idx} className="relative p-4 border border-gray-200 rounded-lg bg-white dark:border-slate-700 dark:bg-slate-950/60">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2 dark:border-slate-800">
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-gray-800 truncate">{headline.title}</div>
-                  {headline.subtitle && <div className="text-xs text-gray-500 truncate">{headline.subtitle}</div>}
+                  <div className="text-sm font-semibold text-gray-800 truncate dark:text-slate-100">{headline.title}</div>
+                  {headline.subtitle && <div className="text-xs text-gray-500 truncate dark:text-slate-400">{headline.subtitle}</div>}
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
                   {pricePreview !== null && (
-                    <span className="text-xs px-2 py-1 rounded border bg-slate-50 border-slate-200 text-slate-700">
+                    <span className="text-xs px-2 py-1 rounded border bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300">
                       Preview: {formatCompactNumber(pricePreview)}
                     </span>
                   )}
                   {invalidDrop && (
-                    <span className="text-xs px-2 py-1 rounded border bg-rose-50 border-rose-200 text-rose-700">
+                    <span className="text-xs px-2 py-1 rounded border bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-200">
                       Drop chance should be 0-100
                     </span>
                   )}
@@ -394,7 +394,7 @@ export default function ArrayObjectField({
                   return (
                     <div key={itemKey} className="form-field mb-2">
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <label className="block text-sm font-medium text-gray-700">{itemLabel}</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">{itemLabel}</label>
                         {canCreateReference && (
                           <button
                             type="button"
@@ -413,7 +413,7 @@ export default function ArrayObjectField({
                         disabled={mappedOptions.length === 0}
                       />
                       {isPriceTable && itemKey === 'item_id' && Boolean(itemValue) && (
-                        <div className="mt-1 text-xs text-gray-500">
+                        <div className="mt-1 text-xs text-gray-500 dark:text-slate-400">
                           {(() => {
                             const opt = itemById.get(String(itemValue));
                             if (!opt) return null;
@@ -431,7 +431,7 @@ export default function ArrayObjectField({
                   const mappedOptions = mapSelectOptions(itemUi.options || itemConfig.enum || []);
                   return (
                     <div key={itemKey} className="form-field mb-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">{itemLabel}</label>
                       <SearchableSelect
                         value={String(itemValue ?? '')}
                         onChange={(val) => updateValue(val)}
@@ -448,7 +448,7 @@ export default function ArrayObjectField({
                   const itemNumberType: NumberValueType = itemConfig.type === 'integer' ? 'integer' : 'number';
                   return (
                     <div key={itemKey} className="form-field mb-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">{itemLabel}</label>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -467,7 +467,7 @@ export default function ArrayObjectField({
                 if (itemConfig.type === 'boolean' || itemUi.widget === 'checkbox') {
                   return (
                     <div key={itemKey} className="form-field mb-2">
-                      <label className="inline-flex items-center gap-2 text-gray-800">
+                      <label className="inline-flex items-center gap-2 text-gray-800 dark:text-slate-200">
                         <input
                           type="checkbox"
                           className="h-4 w-4 rounded border-slate-300 text-slate-700 accent-slate-600 focus:ring-slate-400"
@@ -484,13 +484,13 @@ export default function ArrayObjectField({
                   const currentText = String(itemValue || '');
                   return (
                     <div key={itemKey} className="form-field mb-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">{itemLabel}</label>
                       <textarea
                         className={`${inputBaseClass} resize-y min-h-[80px]`}
                         value={currentText}
                         onChange={(e) => updateValue(e.target.value)}
                       />
-                      <div className="mt-1 text-xs text-gray-500">{currentText.length} chars</div>
+                      <div className="mt-1 text-xs text-gray-500 dark:text-slate-400">{currentText.length} chars</div>
                     </div>
                   );
                 }
@@ -498,7 +498,7 @@ export default function ArrayObjectField({
                 if (itemConfig.type === 'string' && itemUi.widget === 'date') {
                   return (
                     <div key={itemKey} className="form-field mb-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">{itemLabel}</label>
                       <input type="date" className={inputBaseClass} value={String(itemValue ?? '')} onChange={(e) => updateValue(e.target.value)} />
                     </div>
                   );
@@ -507,7 +507,7 @@ export default function ArrayObjectField({
                 if (itemConfig.type === 'string') {
                   return (
                     <div key={itemKey} className="form-field mb-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{itemLabel}</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">{itemLabel}</label>
                       <input
                         type="text"
                         className={inputBaseClass}

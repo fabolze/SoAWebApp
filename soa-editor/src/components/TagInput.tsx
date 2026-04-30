@@ -43,15 +43,15 @@ const TagInput: React.FC<TagInputProps> = ({ value, onChange, label = "Tags", pl
 
   return (
     <div className="form-field">
-      {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
+      {label && <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">{label}</label>}
       <div className="flex flex-wrap gap-2 mb-2">
         {safeValue.map((tag) => (
-          <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+          <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200">
             {tag}
             {!disabled && (
               <button
                 type="button"
-                className="ml-1 text-blue-600 hover:text-blue-800"
+                className="ml-1 text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-100"
                 onClick={() => removeTag(tag)}
                 aria-label={`Remove tag ${tag}`}
               >
@@ -63,7 +63,7 @@ const TagInput: React.FC<TagInputProps> = ({ value, onChange, label = "Tags", pl
       </div>
       <input
         type="text"
-        className="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-white text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+        className="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-white text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-blue-900"
         value={input}
         onChange={handleInputChange}
         onKeyDown={handleInputKeyDown}

@@ -42,7 +42,7 @@ export default function ScalarFieldRenderer({
     return (
       <div key={fieldKey} className="form-field">
         {renderFieldLabel(label, description)}
-        <label className="inline-flex items-center gap-2 text-gray-800">
+        <label className="inline-flex items-center gap-2 text-gray-800 dark:text-slate-200">
           <input
             type="checkbox"
             className="h-4 w-4 rounded border-slate-300 text-slate-700 accent-slate-600 focus:ring-slate-400"

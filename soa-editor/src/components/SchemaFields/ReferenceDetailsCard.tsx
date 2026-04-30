@@ -150,27 +150,27 @@ export default function ReferenceDetailsCard({
   const rows = useMemo(() => getPreviewRows(entry, maxRows), [entry, maxRows]);
 
   return (
-    <div className={`rounded-md border border-slate-200 bg-slate-50 p-3 ${className || ''}`}>
+    <div className={`rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/80 ${className || ''}`}>
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 text-sm font-semibold text-slate-900 truncate">{displayName}</div>
+        <div className="min-w-0 text-sm font-semibold text-slate-900 truncate dark:text-slate-100">{displayName}</div>
         {displayId && (
-          <code className="text-[11px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 shrink-0">
+          <code className="text-[11px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 shrink-0 dark:bg-slate-800 dark:text-slate-300">
             {displayId}
           </code>
         )}
       </div>
-      {summary && <p className="mt-1 text-xs text-slate-600 leading-relaxed">{summary}</p>}
+      {summary && <p className="mt-1 text-xs text-slate-600 leading-relaxed dark:text-slate-300">{summary}</p>}
       {rows.length > 0 ? (
         <dl className="mt-2 grid grid-cols-1 gap-1.5">
           {rows.map((row) => (
             <div key={row.key} className="flex items-start gap-2 text-xs">
-              <dt className="w-32 shrink-0 text-slate-500">{row.label}</dt>
-              <dd className="text-slate-800 break-words">{row.value}</dd>
+              <dt className="w-32 shrink-0 text-slate-500 dark:text-slate-400">{row.label}</dt>
+              <dd className="text-slate-800 break-words dark:text-slate-200">{row.value}</dd>
             </div>
           ))}
         </dl>
       ) : (
-        <div className="mt-2 text-xs text-slate-500">No additional structured fields available.</div>
+        <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">No additional structured fields available.</div>
       )}
     </div>
   );

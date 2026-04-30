@@ -155,6 +155,18 @@ npm run lint
 - The `scripts` folder is currently empty.
 - UE5 docs are design/reference material, not executable code, but they define expected data relationships and export assumptions.
 
+## Improvement Backlog
+
+Prioritized UX/data-authoring improvements captured on 2026-04-30:
+
+1. Reference Health + Data Quality: broken references, duplicate IDs/slugs, missing required fields, empty important arrays, invalid reward/link setups.
+2. Finish dark mode in nested controls: array editors, multiselects, autocomplete, tag inputs, reference inspectors, editor stack drawers.
+3. Make nested arrays easier: row summaries, duplicate-row actions, collapsed row editing, and row presets for rewards, stat modifiers, participants, choices, and progression.
+4. Schema navigation / relationship view: outbound references, inbound references, related quests/dialogues/encounters/items, and quick-open links.
+5. Better Authoring Studio presets: richer recipes for common RPG authoring tasks such as NPC vendors, quest starters, elite encounters, status combos, and themed shops.
+6. Import preview + safer CSV tools: preview changed/added rows, show validation errors, and support rollback-oriented workflows.
+7. Generated IDs / slug policy: predictable generation, collision detection, and regenerate-from-name controls.
+
 ## Fast Lookup
 
 - Backend app factory: `backend/app/__init__.py`

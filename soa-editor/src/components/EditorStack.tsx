@@ -27,20 +27,20 @@ function getSummaryFields(data: EntryData) {
 function ParentSummaryPanel({ summary }: { summary: ParentSummary }) {
   const fields = getSummaryFields(summary.data || {});
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-      <div className="font-semibold text-slate-700 mb-2">Parent entry</div>
-      <div className="text-slate-600 mb-2">{summary.title}</div>
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-900/80">
+      <div className="font-semibold text-slate-700 mb-2 dark:text-slate-200">Parent entry</div>
+      <div className="text-slate-600 mb-2 dark:text-slate-300">{summary.title}</div>
       {fields.length > 0 ? (
         <div className="grid grid-cols-1 gap-1">
           {fields.map((f) => (
             <div key={f.label} className="flex items-center gap-2">
-              <span className="text-slate-500 w-20">{f.label}</span>
-              <span className="text-slate-800 truncate">{f.value}</span>
+              <span className="text-slate-500 w-20 dark:text-slate-400">{f.label}</span>
+              <span className="text-slate-800 truncate dark:text-slate-100">{f.value}</span>
             </div>
           ))}
         </div>
       ) : (
-        <div className="text-slate-500">No details yet.</div>
+        <div className="text-slate-500 dark:text-slate-400">No details yet.</div>
       )}
     </div>
   );
@@ -122,19 +122,19 @@ function InlineSchemaEditor({
   };
 
   if (!schema) {
-    return <div className="p-6">Loading schema...</div>;
+    return <div className="p-6 text-slate-700 dark:text-slate-300">Loading schema...</div>;
   }
 
   const headerTitle = typeof schema?.title === 'string' ? schema.title : schemaName;
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-4 border-b">
-        <div className="text-lg font-semibold text-slate-900">{headerTitle}</div>
+      <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+        <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">{headerTitle}</div>
         {parentSummary && <div className="mt-3"><ParentSummaryPanel summary={parentSummary} /></div>}
       </div>
       <div className="flex-1 overflow-y-auto p-4">
-        {error && <div className="mb-3 rounded bg-red-50 text-red-700 p-2 text-sm">{error}</div>}
+        {error && <div className="mb-3 rounded bg-red-50 text-red-700 p-2 text-sm dark:bg-red-950/40 dark:text-red-200">{error}</div>}
         <SchemaForm
           schema={schema}
           data={data}
@@ -143,7 +143,7 @@ function InlineSchemaEditor({
           parentSummary={parentSummary}
         />
       </div>
-      <div className="p-4 border-t flex items-center gap-2 justify-end">
+      <div className="p-4 border-t border-slate-200 flex items-center gap-2 justify-end dark:border-slate-700">
         <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} onClick={onClose}>
           Cancel
         </button>
@@ -175,7 +175,7 @@ function EditorDrawer({
   return (
     <div className="fixed inset-0 flex" style={{ zIndex }}>
       {isTop && <div className="absolute inset-0 bg-black/40" onClick={onClose} />}
-      <div className="ml-auto h-full w-full max-w-2xl bg-white text-slate-900 shadow-2xl relative">
+      <div className="ml-auto h-full w-full max-w-2xl bg-white text-slate-900 shadow-2xl relative dark:bg-slate-950 dark:text-slate-100">
         <InlineSchemaEditor
           schemaName={item.schemaName}
           apiPath={item.apiPath}

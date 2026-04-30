@@ -25,6 +25,7 @@ import {
   UsersIcon,
 } from '@heroicons/react/24/outline';
 import { useDirtyState } from '../components/useDirtyState';
+import ProjectHealthPanel from '../components/health/ProjectHealthPanel';
 import { TEXT_CLASSES } from '../styles/uiTokens';
 
 type IconComponent = ForwardRefExoticComponent<
@@ -125,6 +126,8 @@ export default function IndexPage() {
             </p>
           </div>
         </div>
+
+        <ProjectHealthPanel onNavigateRequest={confirmNavigate} />
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           {pageGroups.map((group) => (

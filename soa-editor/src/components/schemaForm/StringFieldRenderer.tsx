@@ -125,7 +125,7 @@ export default function StringFieldRenderer({
           onChange={(e) => handleChange(fieldKey, e.target.value)}
           placeholder={`Enter ${label.toLowerCase()}...`}
         />
-        <div className="mt-1 text-xs text-gray-500">{currentText.length} chars</div>
+        <div className="mt-1 text-xs text-gray-500 dark:text-slate-400">{currentText.length} chars</div>
       </div>
     );
   }
@@ -150,7 +150,7 @@ export default function StringFieldRenderer({
         {renderFieldLabel(label, description)}
         <input
           type="text"
-          className={inputBaseClass + ' bg-gray-100 text-gray-500 cursor-not-allowed'}
+          className={inputBaseClass + ' bg-gray-100 text-gray-500 cursor-not-allowed dark:bg-slate-800 dark:text-slate-500'}
           value={String(value ?? '')}
           readOnly
           tabIndex={-1}
@@ -185,7 +185,7 @@ export default function StringFieldRenderer({
             <img src={previewUrls[fieldKey]} alt="preview" style={{ maxHeight: '60px' }} />
             <button
               type="button"
-              className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs"
+              className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-900"
               onClick={() => {
                 handleChange(fieldKey, '');
                 setPreviewUrls((prev) => {
@@ -201,10 +201,10 @@ export default function StringFieldRenderer({
         )}
         {typeof value === 'string' && !value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) && (
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-xs text-gray-500">{String(value)}</span>
+            <span className="text-xs text-gray-500 dark:text-slate-400">{String(value)}</span>
             <button
               type="button"
-              className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs"
+              className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-xs dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-900"
               onClick={() => {
                 handleChange(fieldKey, '');
                 setPreviewUrls((prev) => {

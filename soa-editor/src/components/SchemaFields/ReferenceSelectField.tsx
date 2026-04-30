@@ -217,13 +217,13 @@ export default function ReferenceSelectField({
           onClose={() => setPreviewOpen(false)}
         >
           {!selectedId ? (
-            <div className="text-xs text-slate-500">Select an entry to preview details.</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Select an entry to preview details.</div>
           ) : previewLoading ? (
-            <div className="text-xs text-slate-500">Loading details...</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Loading details...</div>
           ) : previewEntry ? (
             <ReferenceDetailsCard entry={previewEntry} refType={refType} />
           ) : (
-            <div className="text-xs text-amber-700">{previewError || 'No details available.'}</div>
+            <div className="text-xs text-amber-700 dark:text-amber-300">{previewError || 'No details available.'}</div>
           )}
         </FloatingReferenceInspector>
       </div>
@@ -258,17 +258,17 @@ export default function ReferenceSelectField({
         onClose={() => setPreviewOpen(false)}
       >
         {!selectedId ? (
-          <div className="text-xs text-slate-500">Select an entry to preview details.</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">Select an entry to preview details.</div>
         ) : previewLoading ? (
-          <div className="text-xs text-slate-500">Loading details...</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">Loading details...</div>
         ) : previewEntry ? (
           <ReferenceDetailsCard entry={previewEntry} refType={refType} />
         ) : (
-          <div className="text-xs text-amber-700">{previewError || 'No details available.'}</div>
+          <div className="text-xs text-amber-700 dark:text-amber-300">{previewError || 'No details available.'}</div>
         )}
       </FloatingReferenceInspector>
       {showEmptyCreate && (
-        <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">
+        <div className="mt-2 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
           <span>No options yet.</span>
           <button
             type="button"
