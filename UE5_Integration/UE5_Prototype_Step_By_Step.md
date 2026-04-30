@@ -277,10 +277,46 @@ This phase is intentionally detailed because it becomes the foundation for stats
 
 ---
 
-## Phase 3 - Targeting System (2-3 evenings)
+## Sequencing Note For Combat Phases
+- Build the first combat loop with one manually placed `BP_EnemyCharacter` in the arena.
+- Do not block targeting/basic attacks on `DT_Characters`, `DT_CombatProfiles`, or `DT_Encounters`.
+- Bring data-driven spawning online later in Encounter Flow, after the manual combat loop already works.
+
+---
+
+## Phase 3 - Combatant Foundation and Test Enemy (2-3 evenings)
+Goal: Player and one enemy exist as combatants in the arena.
+
+### Step 3.1 - Create a shared combatant base
+- Do: Create `BP_BattleCharacter` from `Character`.
+- Move only shared combat-facing pieces here first:
+  - common helper functions for combat components
+  - team/faction placeholder data
+  - sockets/components both player and enemy will need later
+- Reparent `BP_PlayerCharacter` to `BP_BattleCharacter` once movement/camera still work.
+- Done when: Player control still works after the reparent.
+
+### Step 3.2 - Create a prototype enemy actor
+- Do: Create `BP_EnemyCharacter` from `BP_BattleCharacter`.
+- Keep the first version intentionally simple:
+  - place it manually in the arena
+  - use a visible placeholder mesh if needed
+  - no full AI required yet
+- Done when: PIE always starts with at least one enemy actor present.
+
+### Step 3.3 - Add a fast arena reset path
+- Do: Add one reset path in Level Blueprint, `BP_GameMode_Prototype`, or a tiny `BP_PrototypeArenaDirector`.
+- First version can:
+  - respawn the test enemy, or
+  - restore its transform/health
+- Done when: You can reset the arena without manual repositioning in the editor.
+
+---
+
+## Phase 4 - Targeting System (2-3 evenings)
 Goal: Soft target + hard lock works in the arena.
 
-### Step 3.1 - Targetable interface and component
+### Step 4.1 - Targetable interface and component
 - Do: Create `BPI_Targetable`.
 - Do: Create `BP_TargetableComponent` with basic metadata:
   - display name (optional)
@@ -288,7 +324,7 @@ Goal: Soft target + hard lock works in the arena.
   - targetable enabled bool
 - Done when: A test enemy can implement/contain targetable behavior.
 
-### Step 3.2 - Targeting component
+### Step 4.2 - Targeting component
 - Do: Add `BP_TargetingComponent` to player controller or player character (pick one owner and keep it consistent).
 - Implement:
   - `FindNearestTarget`
@@ -297,25 +333,27 @@ Goal: Soft target + hard lock works in the arena.
   - `CycleNextTarget`
 - Done when: Target cycles and lock persists until target invalidates.
 
-### Step 3.3 - Visual feedback
+### Step 4.3 - Visual feedback
 - Do: Add simple target indicator (widget or outline).
 - Done when: You can always tell which target is locked.
 
 ---
 
-## Phase 4 - Combat Scaffolding (3-5 evenings)
+## Phase 5 - Combat Scaffolding (3-5 evenings)
 Goal: Basic damage works and health changes are visible.
 
-### Step 4.1 - Stats and health components
-- Add `BP_StatsComponent` and `BP_HealthComponent` to player and enemy.
+### Step 5.1 - Stats and health components
+- Add `BP_StatsComponent` and `BP_HealthComponent` to `BP_BattleCharacter` if possible, otherwise to both player and enemy.
 - Start with a very small API:
   - `SetBaseStats`
   - `ApplyFlatModifier` (optional)
   - `ApplyDamage`
-- Done when: `OnHealthChanged` fires and UI/debug prints react.
+- Done when:
+  - both player and enemy expose the same health API,
+  - `OnHealthChanged` fires and UI/debug prints react.
 
-### Step 4.2 - Combat component
-- Add `BP_CombatComponent`.
+### Step 5.2 - Combat component
+- Add `BP_CombatComponent` to `BP_BattleCharacter` or both combatant children.
 - Implement one basic attack path:
   - validate target
   - range check
@@ -323,7 +361,7 @@ Goal: Basic damage works and health changes are visible.
   - call resolver
 - Done when: Player can damage a test enemy.
 
-### Step 4.3 - Effect resolver hook
+### Step 5.3 - Effect resolver hook
 - Create a minimal `BP_EffectResolver` function library.
 - One function first:
   - `ApplyDamageEffect(Source, Target, Payload)`
@@ -331,82 +369,101 @@ Goal: Basic damage works and health changes are visible.
 
 ---
 
-## Phase 5 - Able Integration (3-6 evenings)
+## Phase 6 - Able Integration (3-6 evenings)
 Goal: Ability activation, cooldowns, and telegraphs work.
 
-### Step 5.1 - Able component setup
+### Step 6.1 - Able component setup
 - Add `BP_AbleAbilityComponent` to player and enemy.
 - Create one test ability (single target or small AOE).
+- Keep this phase prototype-driven:
+  - assign the first ability directly in Blueprint if that is faster,
+  - do not wait for data-driven loadout assembly yet
 - Done when: Ability can activate from input.
 
-### Step 5.2 - Wrap the plugin behind your own API
+### Step 6.2 - Wrap the plugin behind your own API
 - In `BP_CombatComponent`, add wrapper functions:
   - `TryActivateAbility`
   - `CancelAbility`
   - `GetCooldownRemaining`
 - Done when: UI/input call your wrapper, not plugin nodes directly.
 
-### Step 5.3 - Telegraph
+### Step 6.3 - Telegraph
 - Add `BP_TelegraphActor` or component.
 - Spawn during pre-hit timing.
 - Done when: Telegraph appears/disappears correctly and is easy to iterate.
 
 ---
 
-## Phase 6 - Character Build Systems (3-6 evenings)
+## Phase 7 - Character Build Systems (3-6 evenings)
 Goal: Gear and talents modify stats and combat output.
 
-### Step 6.1 - Inventory and equipment
+### Step 7.1 - Minimal build data import
+- Import only the smallest item/talent dataset needed for the prototype.
+- Extend `BP_GameDataService` with the typed getters those systems need before wiring UI.
+- Done when: Inventory/equipment/talent logic stops hardcoding item or talent definitions.
+
+### Step 7.2 - Inventory and equipment
 - Add `BP_InventoryComponent` and `BP_EquipmentComponent` to player.
 - Use `BP_GameDataService` lookups for item data (no direct table reads in components).
 - Done when: Equip/unequip changes stats via `BP_StatsComponent`.
 
-### Step 6.2 - Talent manager
+### Step 7.3 - Talent manager
 - Add `BP_TalentManager` (GameInstance-owned manager or `BP_GameInstance_SoA` function group).
 - Import a tiny talent dataset.
 - Done when: Unlocking a talent changes a stat or grants an ability.
 
 ---
 
-## Phase 7 - Encounter Flow (3-6 evenings)
+## Phase 8 - Encounter Flow (3-6 evenings)
 Goal: Spawn boss + companions, fight, and reset fast.
 
-### Step 7.1 - Encounter director
+### Step 8.1 - Character and encounter data prerequisites
+- Import the minimum data needed for data-driven combat:
+  - `characters`
+  - `combat_profiles`
+  - `encounters`
+- Extend `BP_GameDataService` with typed caches/getters for:
+  - characters by id/slug
+  - combat profile by character id
+  - encounter by id or slug
+- Done when: `BP_EncounterDirector` can resolve a participant without direct table reads.
+
+### Step 8.2 - Encounter director
 - Implement `BP_EncounterDirector` using `FEncounterData`.
 - Resolve data through `BP_GameDataService`:
   - encounter -> participants
   - participant -> character/combat profile
 - Done when: Encounter spawns the right actors and teams.
 
-### Step 7.2 - Boss AI
+### Step 8.3 - Boss AI
 - Add a simple state machine or behavior logic in `BP_EnemyBrain`.
 - Start with 1-2 abilities.
 - Done when: Boss attacks and can be defeated.
 
-### Step 7.3 - Reset loop
+### Step 8.4 - Reset loop
 - Add one reset path (debug key/button/cheat).
 - Done when: You can reset encounter in under 5 seconds.
 
 ---
 
-## Phase 8 - UI (2-4 evenings)
+## Phase 9 - UI (2-4 evenings)
 Goal: Minimal UI supports combat and testing.
 
-### Step 8.1 - HUD
+### Step 9.1 - HUD
 - Add HP/resource bars and ability cooldowns.
 - Bind to component events where possible (avoid per-frame polling first).
 - Done when: UI visibly reacts to damage and cooldown changes.
 
-### Step 8.2 - Target frame
+### Step 9.2 - Target frame
 - Add target name/HP frame.
 - Done when: Switching targets updates the target frame reliably.
 
 ---
 
-## Phase 9 - Save/Load (2-3 evenings)
+## Phase 10 - Save/Load (2-3 evenings)
 Goal: Minimal persistence for build testing.
 
-### Step 9.1 - SaveGame
+### Step 10.1 - SaveGame
 - Add `BP_SaveGame_SoA` (prototype subset only).
 - Save:
   - equipped items
@@ -417,12 +474,13 @@ Goal: Minimal persistence for build testing.
 
 ---
 
-## Phase 10 - Debug Tools (ongoing)
+## Phase 11 - Debug Tools (ongoing)
 Goal: Fast iteration without editor-only tweaking.
 
 ### First debug commands to add
 - `GiveItem`
 - `SetTalent`
+- `SpawnTestEnemy`
 - `SpawnBoss`
 - `ResetEncounter`
 - `DebugLookupRow`
@@ -455,15 +513,19 @@ Notes:
 1. Finish `BP_GameInstance_SoA` + `BP_GameDataService` object construction flow.
 2. Build `DT_Stats` + `DT_Attributes` caches and typed getters.
 3. Add `BFL_SoAHelpers.GetGameDataService`.
-4. Prove one component/widget can read data without touching DataTables directly.
-5. Only then expand into items/talents/encounters.
+4. Create `BP_BattleCharacter` and reparent `BP_PlayerCharacter`.
+5. Place one `BP_EnemyCharacter` in the arena and add a reset path.
+6. Build targeting, health, and one basic attack against that manual enemy.
+7. Only then expand into items, talents, and data-driven encounters.
 
 ---
 
 ## Minimal Playable Loop Checklist
 You are done with the first prototype loop when:
-- You can move, target, cast, and defeat a boss in one arena.
+- You can move, target, basic-attack, and defeat a test enemy in one arena.
+- The arena can be reset quickly.
+- Able abilities can be triggered through your combat wrapper.
+- Encounter data can later spawn the same fight without hand-placing enemies.
 - Gear or talents visibly change combat results.
-- Encounter can be reset quickly.
 - Imports are stable (no DataTable warnings).
 - Runtime systems read through `BP_GameDataService` instead of ad-hoc table lookups.
