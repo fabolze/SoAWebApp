@@ -155,13 +155,38 @@ npm run lint
 - The `scripts` folder is currently empty.
 - UE5 docs are design/reference material, not executable code, but they define expected data relationships and export assumptions.
 
+## Recently Completed UX Work
+
+Completed on 2026-04-30:
+
+- Added a Project Health dashboard to the editor landing page via `soa-editor/src/health/projectHealth.ts` and `soa-editor/src/components/health/ProjectHealthPanel.tsx`.
+- Project Health scans all `EDITOR_DATASETS` for broken references, duplicate `id`/`slug` values, missing required fields, empty important arrays, and suspicious reward/chance values.
+- Project Health issue rows can jump directly to the affected dataset and entry through `IndexPageEditor`.
+- Finished the nested-control dark mode pass for form internals that were still light-only:
+  - `Autocomplete`
+  - `TagInput`
+  - `ReferenceSelectField`
+  - `FloatingReferenceInspector`
+  - `ReferenceDetailsCard`
+  - `EditorStack` inline drawer
+  - `ArrayStringMultiSelectField`
+  - `ArrayObjectField`
+  - `ObjectFieldRenderer`
+  - `ScalarFieldRenderer`
+  - `StringFieldRenderer`
+- Frontend validation after these passes:
+  - `npm run lint` passed.
+  - `npm run build` passed.
+  - Build still reports the existing Vite chunk-size warning for the main bundle.
+- Backend pytest was attempted earlier, but `pytest` is not installed in the current Python environment.
+
 ## Improvement Backlog
 
 Prioritized UX/data-authoring improvements captured on 2026-04-30:
 
-1. Reference Health + Data Quality: broken references, duplicate IDs/slugs, missing required fields, empty important arrays, invalid reward/link setups.
-2. Finish dark mode in nested controls: array editors, multiselects, autocomplete, tag inputs, reference inspectors, editor stack drawers.
-3. Make nested arrays easier: row summaries, duplicate-row actions, collapsed row editing, and row presets for rewards, stat modifiers, participants, choices, and progression.
+1. Done: Reference Health + Data Quality: broken references, duplicate IDs/slugs, missing required fields, empty important arrays, invalid reward/link setups.
+2. Done: Finish dark mode in nested controls: array editors, multiselects, autocomplete, tag inputs, reference inspectors, editor stack drawers.
+3. Next: Make nested arrays easier: row summaries, duplicate-row actions, collapsed row editing, and row presets for rewards, stat modifiers, participants, choices, and progression.
 4. Schema navigation / relationship view: outbound references, inbound references, related quests/dialogues/encounters/items, and quick-open links.
 5. Better Authoring Studio presets: richer recipes for common RPG authoring tasks such as NPC vendors, quest starters, elite encounters, status combos, and themed shops.
 6. Import preview + safer CSV tools: preview changed/added rows, show validation errors, and support rollback-oriented workflows.
@@ -178,6 +203,8 @@ Prioritized UX/data-authoring improvements captured on 2026-04-30:
 - Sidebar/navigation: `soa-editor/src/components/Sidebar.tsx`
 - Generic editor: `soa-editor/src/components/SchemaEditor.tsx`
 - Generic form: `soa-editor/src/components/SchemaForm.tsx`
+- Project health scanner: `soa-editor/src/health/projectHealth.ts`
+- Project health UI: `soa-editor/src/components/health/ProjectHealthPanel.tsx`
 - Dataset registry: `soa-editor/src/config/editorDatasets.ts`
 - API helper: `soa-editor/src/lib/api.ts`
 - Simulation engine: `soa-editor/src/simulation/engine.ts`
