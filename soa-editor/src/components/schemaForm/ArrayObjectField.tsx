@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import SearchableSelect from '../SearchableSelect';
 import ArrayStringMultiSelectField from '../SchemaFields/ArrayStringMultiSelectField';
 import TagInput from '../TagInput';
 import { BUTTON_CLASSES, BUTTON_SIZES } from '../../styles/uiTokens';
+import { getRowPresets } from '../../presets/rowPresets';
 import {
   formatCompactNumber,
   mapReferenceOptions,
@@ -22,6 +23,8 @@ import {
 
 interface ArrayObjectFieldProps {
   fieldKey: string;
+  schemaName?: string;
+  fieldPath?: string;
   label: string;
   description?: string;
   value: UnknownRecord[];
@@ -75,8 +78,29 @@ function shouldShowByVisibleIf(visibleIf: unknown, rowData: UnknownRecord): bool
   return true;
 }
 
+function cloneRecord(value: UnknownRecord): UnknownRecord {
+  return JSON.parse(JSON.stringify(value || {}));
+}
+
+function isEmptyValue(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === 'string') return value.trim() === '';
+  if (Array.isArray(value)) return value.length === 0;
+  return false;
+}
+
+function fillEmptyRow(current: UnknownRecord, patch: UnknownRecord): UnknownRecord {
+  const next = { ...current };
+  for (const [key, value] of Object.entries(patch)) {
+    if (isEmptyValue(next[key])) next[key] = value;
+  }
+  return next;
+}
+
 export default function ArrayObjectField({
   fieldKey,
+  schemaName = '',
+  fieldPath,
   label,
   description,
   value,
@@ -97,6 +121,12 @@ export default function ArrayObjectField({
   renderFieldLabel,
 }: ArrayObjectFieldProps) {
   const safeValue = Array.isArray(value) ? value : [];
+  const resolvedFieldPath = fieldPath || fieldKey;
+  const rowPresets = useMemo(() => getRowPresets(schemaName, resolvedFieldPath), [schemaName, resolvedFieldPath]);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(() => {
+    if (safeValue.length > 2) return new Set();
+    return new Set(safeValue.map((_, index) => index));
+  });
   const isPriceTable = widget === 'item_price_table';
   const isDropTable = widget === 'item_drop_table';
   const isObjectivesEditor = widget === 'objectives_editor';
@@ -122,12 +152,14 @@ export default function ArrayObjectField({
         ? { objective_id: `obj_${nextIndex}`, description: '' }
         : {};
     handleChange(fieldKey, [...safeValue, defaultRow]);
+    setExpandedRows(new Set([nextIndex - 1]));
   };
 
   const removeRow = (idx: number) => {
     const next = [...safeValue];
     next.splice(idx, 1);
     handleChange(fieldKey, next);
+    setExpandedRows((prev) => new Set([...prev].filter((rowIndex) => rowIndex !== idx).map((rowIndex) => rowIndex > idx ? rowIndex - 1 : rowIndex)));
   };
 
   const duplicateRow = (idx: number) => {
@@ -139,6 +171,7 @@ export default function ArrayObjectField({
     const next = [...safeValue];
     next.splice(idx + 1, 0, clone);
     handleChange(fieldKey, next);
+    setExpandedRows(new Set([idx + 1]));
   };
 
   const moveRow = (idx: number, direction: -1 | 1) => {
@@ -148,6 +181,45 @@ export default function ArrayObjectField({
     const [row] = next.splice(idx, 1);
     next.splice(target, 0, row);
     handleChange(fieldKey, next);
+    setExpandedRows((prev) => {
+      const nextExpanded = new Set<number>();
+      prev.forEach((rowIndex) => {
+        if (rowIndex === idx) nextExpanded.add(target);
+        else if (rowIndex === target) nextExpanded.add(idx);
+        else nextExpanded.add(rowIndex);
+      });
+      return nextExpanded;
+    });
+  };
+
+  useEffect(() => {
+    setExpandedRows((prev) => new Set([...prev].filter((rowIndex) => rowIndex < safeValue.length)));
+  }, [safeValue.length]);
+
+  const toggleRow = (idx: number) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  const applyRowPreset = (idx: number, presetIndex: number) => {
+    const preset = rowPresets[presetIndex];
+    if (!preset) return;
+    const next = [...safeValue];
+    const patch = cloneRecord(preset.data);
+    if (preset.mode === 'append') {
+      if (isObjectivesEditor && !patch.objective_id) patch.objective_id = `obj_${safeValue.length + 1}`;
+      next.splice(idx + 1, 0, patch);
+      handleChange(fieldKey, next);
+      setExpandedRows(new Set([idx + 1]));
+      return;
+    }
+    next[idx] = preset.mode === 'fillEmptyRow' ? fillEmptyRow(next[idx] || {}, patch) : patch;
+    handleChange(fieldKey, next);
+    setExpandedRows(new Set([idx]));
   };
 
   const computePricePreview = (row: UnknownRecord): number | null => {
@@ -187,7 +259,30 @@ export default function ArrayObjectField({
       const itemName = item ? String(item?.name || item?.title || item?.slug || itemId) : itemId;
       return { title: itemName || `${label} ${idx + 1}`, subtitle: '' };
     }
-    return { title: `${label} ${idx + 1}`, subtitle: '' };
+    const props = itemSchema.properties || {};
+    const refKeys = ['item_id', 'currency_id', 'faction_id', 'stat_id', 'attribute_id', 'character_id', 'quest_id', 'dialogue_id', 'next_node_id'];
+    const firstRefKey = refKeys.find((key) => row?.[key]);
+    const title = firstRefKey ? String(row[firstRefKey]) : `${label} ${idx + 1}`;
+    return { title, subtitle: buildRowSummary(row, props) };
+  };
+
+  const buildMissingRequired = (row: UnknownRecord) => {
+    const required = Array.isArray(itemSchema.required) ? itemSchema.required : [];
+    return required.filter((key) => isEmptyValue(row[key]));
+  };
+
+  const buildRowSummary = (row: UnknownRecord, props: Record<string, SchemaFieldConfig>) => {
+    const summaryKeys = ['amount', 'quantity', 'value', 'drop_chance', 'value_type', 'scaling', 'scaling_behavior', 'combat_side', 'modifier_type', 'operator'];
+    const parts = summaryKeys
+      .filter((key) => Object.prototype.hasOwnProperty.call(props, key) && !isEmptyValue(row[key]))
+      .map((key) => `${props[key]?.ui?.label || key}: ${Array.isArray(row[key]) ? (row[key] as unknown[]).join(', ') : String(row[key])}`);
+    for (const [key, config] of Object.entries(props)) {
+      if (parts.length >= 3) break;
+      if (config.type === 'array' && Array.isArray(row[key]) && row[key].length > 0) {
+        parts.push(`${config.ui?.label || key}: ${row[key].length}`);
+      }
+    }
+    return parts.slice(0, 3).join(' · ');
   };
 
   const renderSpecialTopInfo = () => {
@@ -304,20 +399,35 @@ export default function ArrayObjectField({
         {renderSpecialTopInfo()}
       </div>
       <div className="space-y-4">
+        {safeValue.length === 0 && (
+          <div className="rounded-md border border-dashed border-slate-300 bg-white px-4 py-5 text-center dark:border-slate-700 dark:bg-slate-950">
+            <div className="text-sm font-medium text-slate-800 dark:text-slate-200">No {label.toLowerCase()} yet</div>
+            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Add a row or start from a row preset.</div>
+          </div>
+        )}
         {safeValue.map((item, idx: number) => {
           const headline = getRowHeadline(item, idx);
+          const isExpanded = expandedRows.has(idx);
+          const missingRequired = buildMissingRequired(item);
           const pricePreview = computePricePreview(item);
           const dropChance = toNumberOrNull(item?.drop_chance);
           const invalidDrop = isDropTable && (dropChance === null || dropChance < 0 || dropChance > 100);
 
           return (
-            <div key={idx} className="relative p-4 border border-gray-200 rounded-lg bg-white dark:border-slate-700 dark:bg-slate-950/60">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2 dark:border-slate-800">
+            <div key={idx} className="relative border border-gray-200 rounded-lg bg-white dark:border-slate-700 dark:bg-slate-950/60">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3 dark:border-slate-800">
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-gray-800 truncate dark:text-slate-100">{headline.title}</div>
+                  <button type="button" className="text-left text-sm font-semibold text-gray-800 truncate hover:text-blue-700 dark:text-slate-100 dark:hover:text-blue-300" onClick={() => toggleRow(idx)}>
+                    {isExpanded ? '▾' : '▸'} {headline.title}
+                  </button>
                   {headline.subtitle && <div className="text-xs text-gray-500 truncate dark:text-slate-400">{headline.subtitle}</div>}
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
+                  {missingRequired.length > 0 && (
+                    <span className="text-xs px-2 py-1 rounded border bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-200">
+                      Missing: {missingRequired.slice(0, 2).join(', ')}
+                    </span>
+                  )}
                   {pricePreview !== null && (
                     <span className="text-xs px-2 py-1 rounded border bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300">
                       Preview: {formatCompactNumber(pricePreview)}
@@ -353,6 +463,13 @@ export default function ArrayObjectField({
                   </button>
                   <button
                     type="button"
+                    className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+                    onClick={() => toggleRow(idx)}
+                  >
+                    {isExpanded ? 'Collapse' : 'Edit'}
+                  </button>
+                  <button
+                    type="button"
                     className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`}
                     onClick={() => removeRow(idx)}
                   >
@@ -361,6 +478,27 @@ export default function ArrayObjectField({
                 </div>
               </div>
 
+              {isExpanded && rowPresets.length > 0 && (
+                <div className="border-b border-slate-100 px-4 py-2 dark:border-slate-800">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="mr-1 text-xs font-medium text-slate-500 dark:text-slate-400">Row presets</span>
+                    {rowPresets.slice(0, 5).map((preset, presetIndex) => (
+                      <button
+                        key={`${preset.label}-${presetIndex}`}
+                        type="button"
+                        className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+                        title={preset.description}
+                        onClick={() => applyRowPreset(idx, presetIndex)}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isExpanded && (
+                <div className="p-4">
               {Object.entries(itemSchema.properties || {}).map(([itemKey, rawItemConfig]) => {
                 const itemConfig = rawItemConfig as SchemaFieldConfig;
                 const itemUi = (itemConfig.ui || {}) as SchemaFieldUiConfig;
@@ -480,6 +618,35 @@ export default function ArrayObjectField({
                   );
                 }
 
+                if (itemConfig.type === 'array' && itemConfig.items?.type === 'object') {
+                  return (
+                    <ArrayObjectField
+                      key={itemKey}
+                      fieldKey={`${fieldKey}.${idx}.${itemKey}`}
+                      schemaName={schemaName}
+                      fieldPath={`${resolvedFieldPath}.${itemKey}`}
+                      label={itemLabel}
+                      description={itemConfig.description}
+                      value={Array.isArray(itemValue) ? itemValue.map((row) => asRecord(row)) : []}
+                      itemSchema={itemConfig.items || {}}
+                      widget={itemUi.widget}
+                      inputBaseClass={inputBaseClass}
+                      parentData={parentData}
+                      parentReferenceOptions={parentReferenceOptions}
+                      referenceOptions={referenceOptions}
+                      canCreateReference={canCreateReference}
+                      handleCreateReference={handleCreateReference}
+                      fetchReferenceById={fetchReferenceById}
+                      handleChange={(_, nextValue) => updateValue(nextValue)}
+                      getNumberInputValue={getNumberInputValue}
+                      handleNumberChange={handleNumberChange}
+                      handleNumberBlur={handleNumberBlur}
+                      getNumberPlaceholder={getNumberPlaceholder}
+                      renderFieldLabel={renderFieldLabel}
+                    />
+                  );
+                }
+
                 if (itemConfig.type === 'string' && itemUi.widget === 'textarea') {
                   const currentText = String(itemValue || '');
                   return (
@@ -519,6 +686,8 @@ export default function ArrayObjectField({
                 }
                 return null;
               })}
+                </div>
+              )}
             </div>
           );
         })}

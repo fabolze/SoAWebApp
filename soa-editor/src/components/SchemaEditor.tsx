@@ -18,8 +18,9 @@ import { BUTTON_CLASSES, BUTTON_SIZES, TEXT_CLASSES } from "../styles/uiTokens";
 import useDebouncedValue from "./hooks/useDebouncedValue";
 import { isSimulationSchemaName } from "../simulation";
 import { useDirtyState } from "./useDirtyState";
-import { EDITOR_DATASETS, findDatasetBySchema } from "../config/editorDatasets";
-import type { EntryRecord, RecentEntry, ReferenceHit, ReferenceSummary } from "../types/editorQol";
+import { buildRelationshipIndex, summarizeEntryRelationships, type EntryRelationshipSummary, type RelationshipIndex } from "../relationships";
+import type { EntryRecord, RecentEntry } from "../types/editorQol";
+import type { StudioBundle } from "../studio/types";
 
 interface SchemaEditorProps {
   schemaName: string;
@@ -51,6 +52,20 @@ interface WorkspaceState {
   searchField?: string;
   showEditor?: boolean;
   selectedEntryId?: string;
+}
+
+interface CsvImportPreview {
+  status: "ok" | "error";
+  table: string;
+  counts: {
+    added: number;
+    updated: number;
+    deleted: number;
+    unchanged: number;
+  };
+  errors: Array<{ row?: number; id?: string; message: string; field?: string }>;
+  warnings: Array<{ row?: number; field?: string; message: string }>;
+  changes: Array<Record<string, unknown>>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -105,40 +120,6 @@ function toSearchText(value: unknown): string {
   return String(value ?? "").toLowerCase();
 }
 
-function isPrimitiveReferenceMatch(value: unknown, targetId: string): boolean {
-  return typeof value === "string" && value === targetId;
-}
-
-function collectReferencePaths(
-  value: unknown,
-  targetId: string,
-  currentPath: string,
-  paths: string[],
-  seen: WeakSet<object>,
-  maxPaths: number
-) {
-  if (paths.length >= maxPaths) return;
-  if (isPrimitiveReferenceMatch(value, targetId)) {
-    paths.push(currentPath);
-    return;
-  }
-  if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; i += 1) {
-      if (paths.length >= maxPaths) return;
-      collectReferencePaths(value[i], targetId, `${currentPath}[${i}]`, paths, seen, maxPaths);
-    }
-    return;
-  }
-  if (!isRecord(value)) return;
-  if (seen.has(value)) return;
-  seen.add(value);
-  for (const [key, nested] of Object.entries(value)) {
-    if (paths.length >= maxPaths) return;
-    const nextPath = currentPath ? `${currentPath}.${key}` : key;
-    collectReferencePaths(nested, targetId, nextPath, paths, seen, maxPaths);
-  }
-}
-
 export default function SchemaEditor({
   schemaName,
   title,
@@ -158,19 +139,22 @@ export default function SchemaEditor({
   const confirmRef = useRef<HTMLDialogElement>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importFileName, setImportFileName] = useState<string>("");
+  const [importPreview, setImportPreview] = useState<CsvImportPreview | null>(null);
+  const [importPreviewLoading, setImportPreviewLoading] = useState(false);
   const [originalData, setOriginalData] = useState<EntryRecord>({});
   const [isDirty, setIsDirty] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [showEditor, setShowEditor] = useState(true);
   const [recentEntries, setRecentEntries] = useState<RecentEntry[]>([]);
-  const [referenceSummary, setReferenceSummary] = useState<ReferenceSummary | null>(null);
+  const [relationshipSummary, setRelationshipSummary] = useState<EntryRelationshipSummary | null>(null);
   const [referenceLoading, setReferenceLoading] = useState(false);
   const [referenceError, setReferenceError] = useState<string | null>(null);
   const confirmDelete = useRef<EntryRecord | null>(null);
   const originalSerializedRef = useRef("{}");
   const dirtySourceId = useRef(`schema-editor-${generateUlid()}`);
   const pendingWorkspaceSelectionRef = useRef<string | null>(null);
-  const referenceCacheRef = useRef<Map<string, ReferenceSummary>>(new Map());
+  const referenceCacheRef = useRef<Map<string, EntryRelationshipSummary>>(new Map());
+  const relationshipIndexRef = useRef<RelationshipIndex | null>(null);
   const debouncedSearch = useDebouncedValue(search, 120);
   const debouncedData = useDebouncedValue(data, 200);
   const debouncedDraftData = useDebouncedValue(data, 1200);
@@ -305,7 +289,8 @@ export default function SchemaEditor({
 
   useEffect(() => {
     referenceCacheRef.current.clear();
-    setReferenceSummary(null);
+    relationshipIndexRef.current = null;
+    setRelationshipSummary(null);
     setReferenceError(null);
     setReferenceLoading(false);
   }, [schemaName]);
@@ -513,8 +498,19 @@ export default function SchemaEditor({
     pendingWorkspaceSelectionRef.current = null;
     if (matchingEntry) {
       handleEdit(matchingEntry);
+      return;
     }
-  }, [entries, getEntryId, handleEdit]);
+    const draftKey = `soa.draft.${schemaName}.${pendingSelectionId}`;
+    const draft = parseDraftData(localStorage.getItem(draftKey));
+    if (draft) {
+      setData(draft);
+      setOriginalData(draft);
+      originalSerializedRef.current = stringifyStable(draft);
+      setIsDirty(false);
+      setDraftRestored(true);
+      setShowEditor(true);
+    }
+  }, [entries, getEntryId, handleEdit, schemaName]);
 
   // Delete entry handler.
   const handleDelete = useCallback((entry: EntryRecord) => {
@@ -690,7 +686,7 @@ export default function SchemaEditor({
   const runReferenceScan = useCallback(
     async (targetId: string, forceRefresh = false) => {
       if (!targetId) {
-        setReferenceSummary(null);
+        setRelationshipSummary(null);
         setReferenceError(null);
         setReferenceLoading(false);
         return;
@@ -698,7 +694,7 @@ export default function SchemaEditor({
 
       const cached = referenceCacheRef.current.get(targetId);
       if (cached && !forceRefresh) {
-        setReferenceSummary(cached);
+        setRelationshipSummary(cached);
         setReferenceError(null);
         setReferenceLoading(false);
         return;
@@ -708,86 +704,22 @@ export default function SchemaEditor({
       setReferenceError(null);
 
       try {
-        const datasets = await Promise.all(
-          EDITOR_DATASETS.map(async (dataset) => {
-            try {
-              const res = await apiFetch(`/api/${dataset.apiPath}`);
-              const payload = await readJsonSafe(res);
-              return {
-                dataset,
-                payload: Array.isArray(payload) ? payload : [],
-              };
-            } catch {
-              return {
-                dataset,
-                payload: [] as unknown[],
-              };
-            }
-          })
-        );
-
-        const hits: ReferenceHit[] = [];
-
-        for (const { dataset, payload } of datasets) {
-          for (let index = 0; index < payload.length; index += 1) {
-            const raw = payload[index];
-            if (!isRecord(raw)) continue;
-            const sourceId = typeof raw.id === "string" ? raw.id : "";
-            if (!sourceId) continue;
-            if (dataset.schemaName === schemaName && sourceId === targetId) continue;
-
-            const paths: string[] = [];
-            collectReferencePaths(raw, targetId, "$", paths, new WeakSet<object>(), 8);
-            if (paths.length === 0) continue;
-
-            hits.push({
-              schemaName: dataset.schemaName,
-              routePath: dataset.routePath,
-              apiPath: dataset.apiPath,
-              schemaLabel: dataset.label,
-              sourceId,
-              sourceLabel: getEntryLabel(raw),
-              paths,
-            });
-          }
-        }
-
-        const groupedMap = new Map<string, ReferenceHit[]>();
-        for (const hit of hits) {
-          const group = groupedMap.get(hit.schemaName) || [];
-          group.push(hit);
-          groupedMap.set(hit.schemaName, group);
-        }
-
-        const groups = Array.from(groupedMap.entries())
-          .map(([groupSchemaName, groupHits]) => {
-            const dataset = findDatasetBySchema(groupSchemaName);
-            return {
-              schemaName: groupSchemaName,
-              schemaLabel: dataset?.label || groupSchemaName,
-              routePath: dataset?.routePath || "",
-              count: groupHits.length,
-              hits: groupHits.sort((a, b) => a.sourceLabel.localeCompare(b.sourceLabel)),
-            };
-          })
-          .sort((a, b) => b.count - a.count);
-
-        const summary: ReferenceSummary = {
-          targetId,
-          total: hits.length,
-          scannedAt: Date.now(),
-          groups,
-        };
+        const index = forceRefresh || !relationshipIndexRef.current
+          ? await buildRelationshipIndex()
+          : relationshipIndexRef.current;
+        relationshipIndexRef.current = index;
+        const selectedEntry = entries.find((entry) => getEntryId(entry) === targetId) || data;
+        const summary = summarizeEntryRelationships(index, schemaName, selectedEntry);
 
         referenceCacheRef.current.set(targetId, summary);
-        setReferenceSummary(summary);
+        setRelationshipSummary(summary);
       } catch (err) {
         setReferenceError(`Reference scan failed: ${errorMessage(err, "Unknown error")}`);
       } finally {
         setReferenceLoading(false);
       }
     },
-    [getEntryLabel, schemaName]
+    [data, entries, getEntryId, schemaName]
   );
 
   const handleOpenRecentEntry = useCallback(
@@ -798,15 +730,15 @@ export default function SchemaEditor({
     [entries, getEntryId, handleEdit]
   );
 
-  const handleOpenReferenceHit = useCallback(
-    (hit: ReferenceHit) => {
-      if (hit.schemaName === schemaName) {
-        const localMatch = entries.find((entry) => getEntryId(entry) === hit.sourceId);
+  const handleOpenRelationshipEntry = useCallback(
+    (targetSchemaName: string, routePath: string, entryId: string) => {
+      if (targetSchemaName === schemaName) {
+        const localMatch = entries.find((entry) => getEntryId(entry) === entryId);
         if (localMatch) handleEdit(localMatch);
         return;
       }
 
-      const targetWorkspaceKey = `soa.workspace.${hit.schemaName}`;
+      const targetWorkspaceKey = `soa.workspace.${targetSchemaName}`;
       const existingRaw = localStorage.getItem(targetWorkspaceKey);
       let nextWorkspace: WorkspaceState = {};
       if (existingRaw) {
@@ -824,17 +756,45 @@ export default function SchemaEditor({
           nextWorkspace = {};
         }
       }
-      nextWorkspace.selectedEntryId = hit.sourceId;
+      nextWorkspace.selectedEntryId = entryId;
       localStorage.setItem(targetWorkspaceKey, JSON.stringify(nextWorkspace));
-      window.location.assign(`/${hit.routePath}`);
+      window.location.assign(`/${routePath}`);
     },
     [entries, getEntryId, handleEdit, schemaName]
   );
 
+  const handleCreateBundleDrafts = useCallback((bundle: StudioBundle, selectedIds: Set<string>) => {
+    const selectedEntries = bundle.entries.filter((entry) => selectedIds.has(entry.tempId));
+    if (selectedEntries.length === 0) return;
+    for (const entry of selectedEntries) {
+      const draftKey = `soa.draft.${entry.schemaName}.${entry.tempId}`;
+      const lastKey = `soa.draft.last.${entry.schemaName}`;
+      localStorage.setItem(draftKey, JSON.stringify({ data: entry.data, ts: Date.now(), bundleId: bundle.id }));
+      localStorage.setItem(lastKey, draftKey);
+    }
+    const first = selectedEntries[0];
+    const targetWorkspaceKey = `soa.workspace.${first.schemaName}`;
+    localStorage.setItem(targetWorkspaceKey, JSON.stringify({
+      search: "",
+      searchField: "__all__",
+      showEditor: true,
+      selectedEntryId: first.tempId,
+    }));
+    if (first.schemaName === schemaName) {
+      setData(first.data);
+      setOriginalData(first.data);
+      originalSerializedRef.current = stringifyStable(first.data);
+      setIsDirty(false);
+      setShowEditor(true);
+      return;
+    }
+    window.location.assign(`/${first.routePath}`);
+  }, [schemaName]);
+
   const handleRefreshReferences = useCallback(() => {
     const targetId = getEntryId(data);
     if (!targetId) {
-      setReferenceSummary(null);
+      setRelationshipSummary(null);
       return;
     }
     referenceCacheRef.current.delete(targetId);
@@ -941,7 +901,7 @@ export default function SchemaEditor({
 
   useEffect(() => {
     if (!debouncedReferenceTargetId) {
-      setReferenceSummary(null);
+      setRelationshipSummary(null);
       setReferenceError(null);
       setReferenceLoading(false);
       return;
@@ -985,10 +945,36 @@ export default function SchemaEditor({
 
   if (!schema) return <p className="p-4">Loading schema...</p>;
 
+  const handlePreviewImportCSV = async () => {
+    if (!importFile) return;
+    setImportPreviewLoading(true);
+    const formData = new FormData();
+    formData.append("file", importFile);
+    try {
+      const res = await apiFetch(`/api/import/csv/${schemaName}/preview`, {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await readJsonSafe(res);
+      if (res.ok && isRecord(payload)) {
+        setImportPreview(payload as unknown as CsvImportPreview);
+      } else {
+        setImportPreview(null);
+        setToast({ type: "error", message: asMessage(payload) || "Import preview failed" });
+      }
+    } finally {
+      setImportPreviewLoading(false);
+    }
+  };
+
   // Import CSV handler.
   const handleImportCSV = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!importFile) return;
+    if (!importPreview || importPreview.status !== "ok") {
+      await handlePreviewImportCSV();
+      return;
+    }
     const formData = new FormData();
     formData.append("file", importFile);
     const res = await apiFetch(`/api/import/csv/${schemaName}`, {
@@ -1007,12 +993,14 @@ export default function SchemaEditor({
     toastTimeout.current = setTimeout(() => setToast(null), 3000);
     setImportFile(null);
     setImportFileName("");
+    setImportPreview(null);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files && e.target.files[0];
     setImportFile(file || null);
     setImportFileName(file ? file.name : "");
+    setImportPreview(null);
   };
 
   return (
@@ -1076,17 +1064,54 @@ export default function SchemaEditor({
               {importFileName || "No CSV selected"}
             </span>
             <button
+              type="button"
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              disabled={!importFile || importPreviewLoading}
+              onClick={() => {
+                void handlePreviewImportCSV();
+              }}
+            >
+              {importPreviewLoading ? "Previewing..." : "Preview"}
+            </button>
+            <button
               type="submit"
               className="inline-flex h-9 items-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
-              disabled={!importFile}
+              disabled={!importFile || !importPreview || importPreview.status !== "ok"}
             >
               <ArrowUpTrayIcon className="h-4 w-4" />
-              Import
+              Confirm Import
             </button>
           </form>
           </div>
         </div>
       </div>
+      {importPreview && (
+        <div className={`mx-6 mt-4 rounded border px-4 py-3 text-sm ${importPreview.status === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200" : "border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200"}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="font-semibold">
+              Import preview: {importPreview.counts.added} added, {importPreview.counts.updated} updated, {importPreview.counts.deleted} deleted, {importPreview.counts.unchanged} unchanged
+            </div>
+            {importPreview.counts.deleted > 0 && <span className="rounded bg-red-100 px-2 py-1 text-xs font-semibold text-red-800 dark:bg-red-900 dark:text-red-100">Replace-all will delete {importPreview.counts.deleted}</span>}
+          </div>
+          {importPreview.errors.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {importPreview.errors.slice(0, 5).map((error, index) => (
+                <div key={index} className="text-xs">Row {error.row || "?"}: {error.message}</div>
+              ))}
+            </div>
+          )}
+          {importPreview.warnings.length > 0 && (
+            <div className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+              {importPreview.warnings.slice(0, 3).map((warning) => `Row ${warning.row || "?"}: ${warning.message}`).join(" · ")}
+            </div>
+          )}
+          {importPreview.changes.length > 0 && (
+            <div className="mt-2 text-xs opacity-80">
+              Showing {Math.min(importPreview.changes.length, 100)} sample changed row{importPreview.changes.length === 1 ? "" : "s"}.
+            </div>
+          )}
+        </div>
+      )}
       {entriesError && (
         <div className="mx-6 mt-4 rounded border border-red-200 bg-red-50 text-red-800 px-4 py-2 text-sm dark:border-red-900 dark:bg-red-950 dark:text-red-300">
           {entriesError}
@@ -1131,11 +1156,13 @@ export default function SchemaEditor({
             referenceOptionsVersion={referenceOptionsVersion}
             parentSummary={parentSummary}
             isDirty={isDirty}
-            referenceSummary={referenceSummary}
+            entries={entries}
+            relationshipSummary={relationshipSummary}
             referenceLoading={referenceLoading}
             referenceError={referenceError}
             onRefreshReferences={handleRefreshReferences}
-            onOpenReferenceHit={handleOpenReferenceHit}
+            onOpenRelationshipEntry={handleOpenRelationshipEntry}
+            onCreateBundleDrafts={handleCreateBundleDrafts}
             changedFieldKeys={changedFieldKeys}
           />
         )}

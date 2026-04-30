@@ -2,6 +2,9 @@ from backend.app.models.m_abilities_links import AbilityEffectLink
 from backend.app.models.m_stats import Stat
 from backend.app.models.m_story_arcs import StoryArc
 from backend.app.utils import csv_tools
+from backend.app.routes import r_export
+from flask import Flask
+from io import BytesIO
 
 
 def _mock_serialized_items(monkeypatch, items):
@@ -159,3 +162,99 @@ def test_transient_reference_slug_aliases_are_not_exported(monkeypatch):
     assert "ability_slug" not in columns
     assert "effect_slug" not in columns
     assert row[columns.index(csv_tools.UE_ROW_KEY_HEADER)] == "power-slash__bleeding"
+
+
+class _PreviewColumn:
+    def __init__(self, name):
+        self.name = name
+
+
+class _PreviewTable:
+    columns = [_PreviewColumn("id"), _PreviewColumn("slug"), _PreviewColumn("name"), _PreviewColumn("tags")]
+
+
+class _PreviewModel:
+    __tablename__ = "preview_items"
+    __table__ = _PreviewTable()
+
+    def __init__(self, id, slug, name, tags=None):
+        self.id = id
+        self.slug = slug
+        self.name = name
+        self.tags = tags or []
+
+
+class _PreviewQuery:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def all(self):
+        return self.rows
+
+
+class _PreviewSession:
+    def __init__(self, rows):
+        self.rows = rows
+        self.committed = False
+
+    def query(self, model):
+        return _PreviewQuery(self.rows)
+
+    def close(self):
+        pass
+
+    def commit(self):
+        self.committed = True
+
+
+def _preview_client(monkeypatch, rows):
+    session = _PreviewSession(rows)
+    monkeypatch.setattr(r_export, "ALL_MODELS", [_PreviewModel])
+    monkeypatch.setattr(r_export, "get_db_session", lambda: session)
+    monkeypatch.setattr(r_export, "load_schema", lambda table_name: {
+        "properties": {
+            "id": {"type": "string"},
+            "slug": {"type": "string"},
+            "name": {"type": "string"},
+            "tags": {"type": "array"},
+        }
+    })
+    app = Flask(__name__)
+    app.register_blueprint(r_export.bp)
+    return app.test_client(), session
+
+
+def test_csv_import_preview_counts_changes_without_commit(monkeypatch):
+    client, session = _preview_client(monkeypatch, [
+        _PreviewModel("01A", "alpha", "Alpha", ["old"]),
+        _PreviewModel("01B", "beta", "Beta", []),
+    ])
+    payload = b"id,slug,name,tags\n01A,alpha,Alpha Updated,\"[\"\"new\"\"]\"\n01C,gamma,Gamma,\"[\"\"fresh\"\"]\"\n"
+
+    response = client.post(
+        "/api/import/csv/preview_items/preview",
+        data={"file": (BytesIO(payload), "preview_items.csv")},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["status"] == "ok"
+    assert body["counts"] == {"added": 1, "updated": 1, "deleted": 1, "unchanged": 0}
+    assert session.committed is False
+
+
+def test_csv_import_preview_reports_duplicate_ids(monkeypatch):
+    client, _session = _preview_client(monkeypatch, [])
+    payload = b"id,slug,name\n01A,alpha,Alpha\n01A,alpha-2,Alpha Two\n"
+
+    response = client.post(
+        "/api/import/csv/preview_items/preview",
+        data={"file": (BytesIO(payload), "preview_items.csv")},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["status"] == "error"
+    assert "Duplicate id" in body["errors"][0]["message"]

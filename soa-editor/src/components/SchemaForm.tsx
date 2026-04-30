@@ -30,6 +30,7 @@ import {
 
 interface SchemaFormProps {
   schema: SchemaDefinition;
+  schemaName?: string;
   data: EntryData;
   onChange: (updated: EntryData) => void;
   referenceOptions?: ReferenceOptionsMap;
@@ -86,7 +87,7 @@ function inferSectionName(key: string, config: SchemaFieldConfig): string {
   return 'Core';
 }
 
-export default function SchemaForm({ schema, data, onChange, referenceOptions: parentReferenceOptions, fetchReferenceOptions: parentFetchReferenceOptions, isValidCallback, parentSummary, isNested = false, changedFieldKeys = [], includedFieldKeys, compactControls = false }: SchemaFormProps) {
+export default function SchemaForm({ schema, schemaName = '', data, onChange, referenceOptions: parentReferenceOptions, fetchReferenceOptions: parentFetchReferenceOptions, isValidCallback, parentSummary, isNested = false, changedFieldKeys = [], includedFieldKeys, compactControls = false }: SchemaFormProps) {
   const fields = Object.entries(schema.properties || {}) as [string, SchemaFieldConfig][];
   const editorStack = useEditorStack();
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -610,6 +611,7 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
               renderNestedForm={(fieldKeyValue, nestedPropsValue, nestedValue) => (
                 <SchemaForm
                   schema={{ properties: nestedPropsValue }}
+                  schemaName={schemaName}
                   data={nestedValue}
                   onChange={(val) => handleChange(fieldKeyValue, val)}
                   referenceOptions={parentReferenceOptions || referenceOptions}
@@ -624,6 +626,8 @@ export default function SchemaForm({ schema, data, onChange, referenceOptions: p
           fieldNode = (
             <ArrayObjectField
               fieldKey={key}
+              schemaName={schemaName}
+              fieldPath={key}
               label={label}
               description={description}
               value={Array.isArray(value) ? value.map((row) => asRecord(row)) : []}

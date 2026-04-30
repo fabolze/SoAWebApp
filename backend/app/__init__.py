@@ -38,6 +38,7 @@ from backend.app.routes.r_talent_node_links import bp as talent_node_links_bp
 from backend.app.routes.r_export import bp as export_bp
 from backend.app.routes.r_bulk_export import bp as bulk_export_bp
 from backend.app.routes.r_db_admin import bp as db_admin_bp
+from backend.app.routes.r_authoring import bp as authoring_bp
 
 __all__ = ["create_app", "generate_ulid"]
 
@@ -96,7 +97,8 @@ def create_app() -> Flask:
         talent_node_links_bp,
         export_bp,
         bulk_export_bp,
-        db_admin_bp
+        db_admin_bp,
+        authoring_bp
     ]
     
     for blueprint in blueprints:

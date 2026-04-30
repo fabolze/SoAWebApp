@@ -17,6 +17,12 @@ export interface EntityPreset {
   createdAt?: number;
   updatedAt?: number;
   defaultMode?: PresetApplyMode;
+  scope?: 'entry' | 'bundle' | 'row';
+  outputKind?: 'patch' | 'bundle';
+  requiredContext?: string[];
+  riskLevel?: 'low' | 'medium' | 'high';
+  createsReferences?: boolean;
+  estimatedEntities?: number;
   data: UnknownRecord;
 }
 

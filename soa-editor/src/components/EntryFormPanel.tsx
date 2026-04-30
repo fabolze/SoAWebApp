@@ -6,8 +6,12 @@ import { getPresetsForSchema } from "../presets";
 import CommandPalette, { type CommandPaletteItem } from "./command/CommandPalette";
 import ContextSimulationPanel from "./simulation/ContextSimulationPanel";
 import AuthoringStudio from "./authoring/AuthoringStudio";
-import type { EntryRecord, ReferenceHit, ReferenceSummary } from "../types/editorQol";
+import RelationshipPanel from "./relationships/RelationshipPanel";
+import { collectUsedSlugs, findSlugCollision, getIdentitySource, makeUniqueSlug } from "../utils/identity";
+import type { EntryRecord } from "../types/editorQol";
 import type { SchemaFieldConfig } from "./schemaForm/types";
+import type { EntryRelationshipSummary } from "../relationships";
+import type { StudioBundle } from "../studio/types";
 
 type EditorViewMode = "simple" | "generate" | "advanced";
 
@@ -126,11 +130,13 @@ interface EntryFormPanelProps {
   referenceOptionsVersion: number;
   parentSummary?: ParentSummary;
   isDirty?: boolean;
-  referenceSummary: ReferenceSummary | null;
+  entries: EntryRecord[];
+  relationshipSummary: EntryRelationshipSummary | null;
   referenceLoading: boolean;
   referenceError: string | null;
   onRefreshReferences: () => void;
-  onOpenReferenceHit: (hit: ReferenceHit) => void;
+  onOpenRelationshipEntry: (schemaName: string, routePath: string, entryId: string) => void;
+  onCreateBundleDrafts: (bundle: StudioBundle, selectedIds: Set<string>) => void;
   changedFieldKeys: string[];
 }
 
@@ -148,11 +154,13 @@ export default function EntryFormPanel({
   referenceOptionsVersion,
   parentSummary,
   isDirty,
-  referenceSummary,
+  entries,
+  relationshipSummary,
   referenceLoading,
   referenceError,
   onRefreshReferences,
-  onOpenReferenceHit,
+  onOpenRelationshipEntry,
+  onCreateBundleDrafts,
   changedFieldKeys,
 }: EntryFormPanelProps) {
   const presets = useMemo(() => getPresetsForSchema(schemaName), [schemaName]);
@@ -172,6 +180,9 @@ export default function EntryFormPanel({
     getDisplayText(data?.role),
   ].filter(Boolean).slice(0, 2).join(" / ");
   const schemaProperties = useMemo(() => getSchemaProperties(schema), [schema]);
+  const hasSlugField = Object.prototype.hasOwnProperty.call(schemaProperties, "slug");
+  const currentSlug = typeof data?.slug === "string" ? data.slug : "";
+  const slugCollision = useMemo(() => findSlugCollision(entries, currentSlug, currentEntryId), [currentEntryId, currentSlug, entries]);
   const requiredFields = useMemo(() => getRequiredFields(schema), [schema]);
   const missingRequiredFields = useMemo(
     () => requiredFields.filter((field) => isEmptyValue(data?.[field])),
@@ -320,7 +331,7 @@ export default function EntryFormPanel({
               <span>{formHeader}</span>
               {entrySubtitle && <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{entrySubtitle}</span>}
               {changedFieldKeys.length > 0 && <span>{changedFieldKeys.length} changed field{changedFieldKeys.length === 1 ? "" : "s"}</span>}
-              {referenceSummary && <span>{referenceSummary.total} inbound reference{referenceSummary.total === 1 ? "" : "s"}</span>}
+              {relationshipSummary && <span>{relationshipSummary.inbound.reduce((sum, group) => sum + group.count, 0)} inbound reference{relationshipSummary.inbound.reduce((sum, group) => sum + group.count, 0) === 1 ? "" : "s"}</span>}
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -363,6 +374,40 @@ export default function EntryFormPanel({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto min-h-0 p-4">
+        {hasSlugField && (
+          <div className={`mb-4 rounded-md border px-3 py-2 ${slugCollision ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Slug Policy</div>
+                <div className={`mt-1 truncate text-sm ${slugCollision ? "text-amber-800 dark:text-amber-200" : "text-slate-700 dark:text-slate-300"}`}>
+                  {slugCollision ? `Collision with ${getDisplayText(slugCollision.name) || getDisplayText(slugCollision.title) || getDisplayText(slugCollision.slug) || getDisplayText(slugCollision.id)}` : currentSlug || "No slug set"}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
+                  onClick={() => {
+                    const source = getIdentitySource(data || {});
+                    onChange({ ...data, slug: makeUniqueSlug(source, collectUsedSlugs(entries, currentEntryId)) });
+                  }}
+                >
+                  Generate from Name
+                </button>
+                <button
+                  type="button"
+                  className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+                  onClick={() => {
+                    const source = currentSlug || getIdentitySource(data || {});
+                    onChange({ ...data, slug: makeUniqueSlug(source, collectUsedSlugs(entries, currentEntryId)) });
+                  }}
+                >
+                  Regenerate Unique
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-900">
           <div className="grid gap-2 sm:grid-cols-3">
             {[
@@ -423,6 +468,7 @@ export default function EntryFormPanel({
             </div>
             <SchemaForm
               schema={schema}
+              schemaName={schemaName}
               data={data}
               onChange={onChange}
               referenceOptions={undefined}
@@ -462,6 +508,8 @@ export default function EntryFormPanel({
               data={data || {}}
               presets={presets}
               onChange={onChange}
+              relationshipSummary={relationshipSummary}
+              onCreateBundleDrafts={onCreateBundleDrafts}
             />
           </div>
         )}
@@ -482,7 +530,7 @@ export default function EntryFormPanel({
               </div>
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
                 <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">References</div>
-                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{referenceSummary?.total ?? 0}</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{relationshipSummary?.inbound.reduce((sum, group) => sum + group.count, 0) ?? 0}</div>
                 <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">{referenceFieldCount} reference field{referenceFieldCount === 1 ? "" : "s"} in schema</div>
               </div>
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
@@ -545,78 +593,17 @@ export default function EntryFormPanel({
               )}
             </div>
             {hasExistingId && (
-              <div className="mb-4 border-y border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">Reference Insights</div>
-                    <div className="text-xs mt-1 text-slate-600 dark:text-slate-400">
-                      Find where this entry is referenced across all authoring datasets.
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
-                    onClick={onRefreshReferences}
-                    disabled={referenceLoading}
-                  >
-                    {referenceLoading ? "Scanning..." : "Refresh"}
-                  </button>
-                </div>
-                {referenceError && (
-                  <div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-                    {referenceError}
-                  </div>
-                )}
-                {referenceSummary && (
-                  <div className="mt-2">
-                    <div className="text-xs text-slate-600 mb-2 dark:text-slate-400">
-                      {referenceSummary.total} references found for <span className="font-semibold text-slate-800 dark:text-slate-200">{referenceSummary.targetId}</span>.
-                    </div>
-                    {referenceSummary.groups.length === 0 ? (
-                      <div className="text-xs text-slate-500 dark:text-slate-400">No references detected.</div>
-                    ) : (
-                      <div className="space-y-2">
-                        {referenceSummary.groups.map((group) => (
-                          <div key={group.schemaName} className="border-t border-slate-200 bg-white/60 px-2 py-2 first:border-t-0 dark:border-slate-800 dark:bg-slate-950/40">
-                            <div className="text-xs font-semibold text-slate-700 mb-1 dark:text-slate-300">
-                              {group.schemaLabel} ({group.count})
-                            </div>
-                            <div className="space-y-1">
-                              {group.hits.slice(0, 5).map((hit) => (
-                                <div key={`${group.schemaName}-${hit.sourceId}`} className="flex items-center justify-between gap-2 text-xs">
-                                  <div className="min-w-0">
-                                    <div className="truncate text-slate-800 dark:text-slate-200" title={`${hit.sourceLabel} (${hit.sourceId})`}>
-                                      {hit.sourceLabel}
-                                    </div>
-                                    <div className="truncate text-slate-500 dark:text-slate-400" title={hit.paths.join(", ")}>
-                                      {hit.paths.slice(0, 2).join(", ")}
-                                    </div>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
-                                    onClick={() => onOpenReferenceHit(hit)}
-                                  >
-                                    Open
-                                  </button>
-                                </div>
-                              ))}
-                              {group.hits.length > 5 && (
-                                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                                  +{group.hits.length - 5} more
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <RelationshipPanel
+                summary={relationshipSummary}
+                loading={referenceLoading}
+                error={referenceError}
+                onRefresh={onRefreshReferences}
+                onOpenEntry={onOpenRelationshipEntry}
+              />
             )}
             <SchemaForm
               schema={schema}
+              schemaName={schemaName}
               data={data}
               onChange={onChange}
               referenceOptions={undefined}

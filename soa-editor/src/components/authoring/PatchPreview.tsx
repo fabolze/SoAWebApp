@@ -142,6 +142,9 @@ export default function PatchPreview({
           <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             {hasChanges ? `${selectedCount}/${rows.length} changed fields selected` : hasPatch ? "Patch has no visible changes in this apply mode." : "Patch is empty."}
           </div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Apply mode: <span className="font-semibold">{mode}</span>. Only checked fields will be applied.
+          </div>
         </div>
         <button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={onClose}>
           Close

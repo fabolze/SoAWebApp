@@ -12,6 +12,21 @@ import { shopsPresets } from './shops';
 import { statusesPresets } from './statuses';
 import { storyArcsPresets } from './storyArcs';
 import { talentNodesPresets } from './talentNodes';
+import {
+  combatProfileElitePreset,
+  eliteEncounterPreset,
+  npcVendorPreset,
+  questStarterPreset,
+  statusComboPreset,
+  themedShopPreset,
+} from './rpgRecipes';
+import {
+  fantasyAbilityPresets,
+  fantasyEncounterPresets,
+  fantasyItemPresets,
+  fantasyQuestPresets,
+  fantasyWorldPresets,
+} from './fantasyRpg';
 import type { EntityPreset, PresetScope } from './types';
 
 const presetScopes: PresetScope[] = [
@@ -29,6 +44,17 @@ const presetScopes: PresetScope[] = [
   shopsPresets,
   storyArcsPresets,
   talentNodesPresets,
+  fantasyAbilityPresets,
+  fantasyItemPresets,
+  fantasyQuestPresets,
+  fantasyEncounterPresets,
+  ...fantasyWorldPresets,
+  npcVendorPreset,
+  questStarterPreset,
+  eliteEncounterPreset,
+  combatProfileElitePreset,
+  statusComboPreset,
+  themedShopPreset,
   // Wildcard examples for future expansion:
   // { schema: 'story_*', presets: [...] },
   // { schema: 'npc_*', presets: [...] },
