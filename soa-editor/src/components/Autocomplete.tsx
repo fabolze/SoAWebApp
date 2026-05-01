@@ -171,12 +171,12 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
 
   return (
     <div className="form-field relative">
-      {!hideLabel && <label className="font-medium text-gray-800 mb-1 block">{label}</label>}
-      {!hideDescription && description && <p className="text-sm text-gray-500 mb-1">{description}</p>}
+      {!hideLabel && <label className="font-medium text-gray-800 mb-1 block dark:text-slate-200">{label}</label>}
+      {!hideDescription && description && <p className="text-sm text-gray-500 mb-1 dark:text-slate-400">{description}</p>}
       <input
         ref={inputRef}
         type="text"
-        className="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-white text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+        className="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-white text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
         value={showDropdown ? inputValue : selectedLabel || ''}
         onChange={handleInputChange}
         onFocus={() => {
@@ -192,16 +192,16 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
       {showDropdown && (
         <div
           ref={dropdownRef}
-          className="absolute z-10 left-0 right-0 bg-white border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto mt-1"
+          className="absolute z-10 left-0 right-0 bg-white border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto mt-1 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
         >
           {loading ? (
-            <div className="p-2 text-gray-500 text-sm flex items-center gap-2">
+            <div className="p-2 text-gray-500 text-sm flex items-center gap-2 dark:text-slate-400">
               <span className="loading loading-spinner loading-sm"></span>
               Loading...
             </div>
           ) : options.length === 0 ? (
-            <div className="p-2 text-gray-500 text-sm">No results</div>
+            <div className="p-2 text-gray-500 text-sm dark:text-slate-400">No results</div>
           ) : isVirtualized ? (
             <div style={{ height: totalHeight, position: 'relative' }}>
               <div style={{ position: 'absolute', top: startIndex * rowHeight, left: 0, right: 0 }}>
@@ -210,7 +210,7 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
                   return (
                     <div
                       key={String(getOptionValue(option))}
-                      className={`px-3 py-2 cursor-pointer hover:bg-primary hover:text-white ${highlightedIndex === absoluteIndex ? 'bg-primary text-white' : ''}`}
+                      className={`px-3 py-2 cursor-pointer hover:bg-primary hover:text-white dark:hover:bg-blue-700 ${highlightedIndex === absoluteIndex ? 'bg-primary text-white dark:bg-blue-700' : 'dark:text-slate-100'}`}
                       style={{ height: rowHeight }}
                       onMouseDown={() => handleSelect(option)}
                     >
@@ -224,7 +224,7 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
             visibleOptions.map((option, index) => (
               <div
                 key={getOptionValue(option)}
-                className={`px-3 py-2 cursor-pointer hover:bg-primary hover:text-white ${highlightedIndex === index ? 'bg-primary text-white' : ''}`}
+                className={`px-3 py-2 cursor-pointer hover:bg-primary hover:text-white dark:hover:bg-blue-700 ${highlightedIndex === index ? 'bg-primary text-white dark:bg-blue-700' : 'dark:text-slate-100'}`}
                 onMouseDown={() => handleSelect(option)}
               >
                 {getOptionLabel(option)}

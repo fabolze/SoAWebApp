@@ -17,11 +17,20 @@ export interface CreativeSuggestion {
   id: string;
   title: string;
   summary: string;
+  source?: string;
+  confidence?: number;
+  tags?: string[];
   patch: UnknownRecord;
 }
 
 export interface CreativeGeneratorScope {
   schema: string;
+  generate: (input: CreativeInput) => CreativeSuggestion[];
+}
+
+export interface GenerationProvider {
+  id: string;
+  label: string;
   generate: (input: CreativeInput) => CreativeSuggestion[];
 }
 

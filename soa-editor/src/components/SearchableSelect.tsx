@@ -143,7 +143,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       <input
         ref={inputRef}
         type="text"
-        className="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-white text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+        className="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-white text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
         value={showDropdown ? inputValue : selectedLabel || ''}
         onChange={(e) => setInputValue(e.target.value)}
         onFocus={handleFocus}
@@ -156,11 +156,11 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       {showDropdown && (
         <div
           ref={dropdownRef}
-          className="absolute z-10 left-0 right-0 bg-white text-slate-900 border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto mt-1"
+          className="absolute z-10 left-0 right-0 bg-white text-slate-900 border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto mt-1 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
         >
           {filteredOptions.length === 0 ? (
-            <div className="p-2 text-gray-500 text-sm">No results</div>
+            <div className="p-2 text-gray-500 text-sm dark:text-slate-400">No results</div>
           ) : isVirtualized ? (
             <div style={{ height: totalHeight, position: 'relative' }}>
               <div style={{ position: 'absolute', top: startIndex * rowHeight, left: 0, right: 0 }}>
@@ -169,7 +169,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                   return (
                     <div
                       key={option.value}
-                      className={`px-3 py-2 cursor-pointer text-slate-900 hover:bg-slate-100 ${highlightedIndex === absoluteIndex ? 'bg-slate-100' : ''}`}
+                      className={`px-3 py-2 cursor-pointer text-slate-900 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800 ${highlightedIndex === absoluteIndex ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
                       style={{ height: rowHeight }}
                       onMouseDown={() => {
                         onChange(option.value);
@@ -187,7 +187,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             visibleOptions.map((option, index) => (
               <div
                 key={option.value}
-                className={`px-3 py-2 cursor-pointer text-slate-900 hover:bg-slate-100 ${highlightedIndex === index ? 'bg-slate-100' : ''}`}
+                className={`px-3 py-2 cursor-pointer text-slate-900 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800 ${highlightedIndex === index ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
                 onMouseDown={() => {
                   onChange(option.value);
                   setInputValue(option.label);

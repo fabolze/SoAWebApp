@@ -15,7 +15,8 @@
       "ui": {
         "widget": "text",
         "label": "ID/Slug"
-      }
+      },
+      "description": "Stable identifier used to reference this shop inventory entry."
     },
     "shop_id": {
       "type": "string",

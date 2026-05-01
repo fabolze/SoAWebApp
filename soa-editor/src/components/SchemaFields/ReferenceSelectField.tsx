@@ -46,13 +46,15 @@ export default function ReferenceSelectField({
   const previewCacheRef = useRef<Map<string, unknown>>(new Map());
   const requestSeqRef = useRef(0);
   const inspectorIdRef = useRef(`ref-inspector-${Math.random().toString(36).slice(2)}`);
-  const safeOptions = Array.isArray(options) ? options : [];
-  const mappedOptions = safeOptions.map((opt) => {
-    return {
-      label: getReferenceOptionLabel(opt, refType),
-      value: getReferenceOptionValue(opt, refType),
-    };
-  });
+  const safeOptions = useMemo(() => (Array.isArray(options) ? options : []), [options]);
+  const mappedOptions = useMemo(
+    () =>
+      safeOptions.map((opt) => ({
+        label: getReferenceOptionLabel(opt, refType),
+        value: getReferenceOptionValue(opt, refType),
+      })),
+    [refType, safeOptions]
+  );
   const selectedId = value ? String(value) : '';
   const selectedEntryFromOptions = useMemo(
     () => safeOptions.find((opt) => getReferenceOptionValue(opt, refType) === selectedId) ?? null,
@@ -215,13 +217,13 @@ export default function ReferenceSelectField({
           onClose={() => setPreviewOpen(false)}
         >
           {!selectedId ? (
-            <div className="text-xs text-slate-500">Select an entry to preview details.</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Select an entry to preview details.</div>
           ) : previewLoading ? (
-            <div className="text-xs text-slate-500">Loading details...</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Loading details...</div>
           ) : previewEntry ? (
             <ReferenceDetailsCard entry={previewEntry} refType={refType} />
           ) : (
-            <div className="text-xs text-amber-700">{previewError || 'No details available.'}</div>
+            <div className="text-xs text-amber-700 dark:text-amber-300">{previewError || 'No details available.'}</div>
           )}
         </FloatingReferenceInspector>
       </div>
@@ -256,17 +258,17 @@ export default function ReferenceSelectField({
         onClose={() => setPreviewOpen(false)}
       >
         {!selectedId ? (
-          <div className="text-xs text-slate-500">Select an entry to preview details.</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">Select an entry to preview details.</div>
         ) : previewLoading ? (
-          <div className="text-xs text-slate-500">Loading details...</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">Loading details...</div>
         ) : previewEntry ? (
           <ReferenceDetailsCard entry={previewEntry} refType={refType} />
         ) : (
-          <div className="text-xs text-amber-700">{previewError || 'No details available.'}</div>
+          <div className="text-xs text-amber-700 dark:text-amber-300">{previewError || 'No details available.'}</div>
         )}
       </FloatingReferenceInspector>
       {showEmptyCreate && (
-        <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">
+        <div className="mt-2 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
           <span>No options yet.</span>
           <button
             type="button"

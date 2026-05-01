@@ -42,11 +42,17 @@ function toSlug(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+const fantasyRelicNouns = ["Relic", "Blade", "Lantern", "Charm", "Talisman", "Grimoire", "Aegis", "Key"];
+const fantasySites = ["Sealed Vault", "Moonlit Crypt", "Sunken Hall", "Ashen Keep", "Runebound Gate", "Forgotten Shrine"];
+const fantasyOrders = ["Lantern Order", "Silver Compact", "Vowbound Circle", "Thornwatch Wardens", "Sable Archivists"];
+const fantasyThreatFrames = ["cult uprising", "cursed vault", "haunted ruin", "borderland raid", "forbidden rite", "ancient oath"];
+const fantasyShopNouns = ["Apothecary", "Armory", "Reliquary", "Provisioner", "Writ Market", "Lantern Stall"];
+
 function abilitySuggestions(input: CreativeInput): CreativeSuggestion[] {
   const theme = splitTheme(input.theme);
   const seed = hashString(`${input.theme}|${input.tone}|${input.keywords.join(",")}`);
-  const cores = ["Burst", "Strike", "Nova", "Pulse", "Rend", "Lance"];
-  const damageTypes = ["Fire", "Water", "Air", "Earth", "Light", "Shadow"];
+  const cores = ["Bolt", "Ward", "Oath", "Brand", "Rite", "Lance", "Smite", "Step"];
+  const damageTypes = ["Fire", "Cold", "Lightning", "Earth", "Light", "Shadow"];
   const targetings = ["Single", "Area", "Enemies"];
 
   return Array.from({ length: Math.max(1, input.count) }).map((_, idx) => {
@@ -68,8 +74,8 @@ function abilitySuggestions(input: CreativeInput): CreativeSuggestion[] {
         damage_type: damage,
         resource_cost: 10 + (absolute % 12),
         cooldown: 1 + (absolute % 4),
-        description: `A ${input.tone} ${targeting.toLowerCase()} skill shaped by ${theme}. Keywords: ${joinKeywords(input.keywords)}.`,
-        tags: [theme.toLowerCase(), input.tone, "generated"].concat(input.keywords.slice(0, 3)),
+        description: `A ${input.tone} ${targeting.toLowerCase()} fantasy ability shaped by ${theme}. Keywords: ${joinKeywords(input.keywords)}.`,
+        tags: [theme.toLowerCase(), input.tone, "fantasy", "generated"].concat(input.keywords.slice(0, 3)),
       },
     };
   });
@@ -80,7 +86,7 @@ function itemSuggestions(input: CreativeInput): CreativeSuggestion[] {
   const seed = hashString(`${input.theme}|${input.tone}|${input.keywords.join(",")}|items`);
   const itemTypes = ["Weapon", "Armor", "Consumable", "Accessory", "Material"];
   const rarities = ["Common", "Uncommon", "Rare", "Epic"];
-  const nouns = ["Relic", "Charm", "Blade", "Tonic", "Sigil", "Plate"];
+  const nouns = fantasyRelicNouns;
 
   return Array.from({ length: Math.max(1, input.count) }).map((_, idx) => {
     const absolute = seed + idx;
@@ -98,8 +104,8 @@ function itemSuggestions(input: CreativeInput): CreativeSuggestion[] {
         type,
         rarity,
         base_price: basePrice,
-        description: `${rarity} ${type.toLowerCase()} aligned with ${theme}. Keywords: ${joinKeywords(input.keywords)}.`,
-        tags: [type.toLowerCase(), rarity.toLowerCase(), theme.toLowerCase(), input.tone].concat(input.keywords.slice(0, 2)),
+        description: `${rarity} ${type.toLowerCase()} from a high-fantasy adventure site aligned with ${theme}. Keywords: ${joinKeywords(input.keywords)}.`,
+        tags: [type.toLowerCase(), rarity.toLowerCase(), theme.toLowerCase(), input.tone, "fantasy"].concat(input.keywords.slice(0, 2)),
       },
     };
   });
@@ -218,8 +224,8 @@ function characterSuggestions(input: CreativeInput): CreativeSuggestion[] {
         slug: toSlug(fullName),
         title: roleTitle,
         level: archetype.levelBase + (absolute % 6),
-        description: `${fullName} is a ${roleTitle.toLowerCase()} tied to ${theme}. Keywords: ${joinKeywords(input.keywords)}.`,
-        tags: ["npc", theme.toLowerCase(), input.tone, ...archetype.tags].concat(input.keywords.slice(0, 2)),
+        description: `${fullName} is a ${roleTitle.toLowerCase()} tied to ${theme}, useful as a patron, rival, guide, or dungeon contact. Keywords: ${joinKeywords(input.keywords)}.`,
+        tags: ["npc", "fantasy", theme.toLowerCase(), input.tone, ...archetype.tags].concat(input.keywords.slice(0, 2)),
       },
     };
   });
@@ -287,6 +293,194 @@ function storySuggestions(input: CreativeInput): CreativeSuggestion[] {
   return storyArcSuggestions(input);
 }
 
+function questSuggestions(input: CreativeInput): CreativeSuggestion[] {
+  const theme = splitTheme(input.theme);
+  const seed = hashString(`${input.theme}|${input.tone}|quests`);
+  const hooks = ["Contract", "Oath", "Expedition", "Recovery", "Investigation", "Rescue"];
+  return Array.from({ length: Math.max(1, input.count) }).map((_, idx) => {
+    const absolute = seed + idx;
+    const hook = pick(hooks, absolute);
+    const site = pick(fantasySites, absolute + 2);
+    const title = `${hook}: ${theme} ${site}`;
+    return {
+      id: `quest-${idx}`,
+      title,
+      summary: `${input.tone} fantasy quest scaffold with objectives and rewards.`,
+      patch: {
+        title,
+        slug: toSlug(title),
+        description: `A ${input.tone} ${hook.toLowerCase()} sends the party toward the ${site.toLowerCase()} to confront a ${pick(fantasyThreatFrames, absolute)}. Keywords: ${joinKeywords(input.keywords)}.`,
+        objectives: [
+          { objective_id: "obj_1", description: `Reach the ${site}.` },
+          { objective_id: "obj_2", description: `Resolve the ${theme.toLowerCase()} threat.` },
+          { objective_id: "obj_3", description: "Return with proof and claim the reward." },
+        ],
+        xp_reward: 100 + (absolute % 8) * 50,
+        currency_rewards: [{ currency_id: "", amount: 30 + (absolute % 10) * 10 }],
+        item_rewards: [{ item_id: "", quantity: 1 }],
+        tags: ["quest", "fantasy", theme.toLowerCase(), input.tone].concat(input.keywords.slice(0, 3)),
+      },
+    };
+  });
+}
+
+function encounterSuggestions(input: CreativeInput): CreativeSuggestion[] {
+  const theme = splitTheme(input.theme);
+  const seed = hashString(`${input.theme}|${input.tone}|encounters`);
+  const frames = ["Ambush", "Guardian Trial", "Ritual Defense", "Vault Breach", "Bridge Hold", "Final Stand"];
+  return Array.from({ length: Math.max(1, input.count) }).map((_, idx) => {
+    const absolute = seed + idx;
+    const frame = pick(frames, absolute);
+    const title = `${theme} ${frame}`;
+    return {
+      id: `encounter-${idx}`,
+      title,
+      summary: `${input.tone} dungeon encounter with participant and reward placeholders.`,
+      patch: {
+        name: title,
+        slug: toSlug(title),
+        encounter_type: "Combat",
+        description: `A ${input.tone} ${frame.toLowerCase()} built for a high-fantasy dungeon scene. Keywords: ${joinKeywords(input.keywords)}.`,
+        participants: [{ character_id: "", contexts: ["Combat"], combat_side: "Hostile" }],
+        rewards: { xp: 80 + (absolute % 10) * 30, items: [{ item_id: "", quantity: 1 }], currencies: [{ currency_id: "", amount: 20 + (absolute % 8) * 10 }], reputation: [], flags_set: [] },
+        tags: ["encounter", "combat", "fantasy", theme.toLowerCase(), input.tone].concat(input.keywords.slice(0, 2)),
+      },
+    };
+  });
+}
+
+function locationSuggestions(input: CreativeInput): CreativeSuggestion[] {
+  const theme = splitTheme(input.theme);
+  const seed = hashString(`${input.theme}|${input.tone}|locations`);
+  return Array.from({ length: Math.max(1, input.count) }).map((_, idx) => {
+    const absolute = seed + idx;
+    const site = `${theme} ${pick(fantasySites, absolute)}`;
+    return {
+      id: `location-${idx}`,
+      title: site,
+      summary: `${input.tone} adventure location with dungeon hooks.`,
+      patch: {
+        name: site,
+        slug: toSlug(site),
+        description: `A ${input.tone} high-fantasy location with sealed chambers, faction interest, and encounter space. Keywords: ${joinKeywords(input.keywords)}.`,
+        tags: ["location", "adventure_site", "fantasy", theme.toLowerCase(), input.tone].concat(input.keywords.slice(0, 2)),
+      },
+    };
+  });
+}
+
+function factionSuggestions(input: CreativeInput): CreativeSuggestion[] {
+  const theme = splitTheme(input.theme);
+  const seed = hashString(`${input.theme}|${input.tone}|factions`);
+  return Array.from({ length: Math.max(1, input.count) }).map((_, idx) => {
+    const absolute = seed + idx;
+    const name = `${theme} ${pick(fantasyOrders, absolute)}`;
+    return {
+      id: `faction-${idx}`,
+      title: name,
+      summary: `${input.tone} fantasy faction for patrons, rivals, and reputation hooks.`,
+      patch: {
+        name,
+        slug: toSlug(name),
+        description: `A ${input.tone} order with interests in ${theme.toLowerCase()}, old ruins, dangerous contracts, and political leverage. Keywords: ${joinKeywords(input.keywords)}.`,
+        tags: ["faction", "fantasy", theme.toLowerCase(), input.tone].concat(input.keywords.slice(0, 3)),
+      },
+    };
+  });
+}
+
+function shopSuggestions(input: CreativeInput): CreativeSuggestion[] {
+  const theme = splitTheme(input.theme);
+  const seed = hashString(`${input.theme}|${input.tone}|shops`);
+  return Array.from({ length: Math.max(1, input.count) }).map((_, idx) => {
+    const absolute = seed + idx;
+    const title = `${theme} ${pick(fantasyShopNouns, absolute)}`;
+    return {
+      id: `shop-${idx}`,
+      title,
+      summary: `${input.tone} fantasy shop with inventory and pricing placeholders.`,
+      patch: {
+        name: title,
+        slug: toSlug(title),
+        description: `A ${input.tone} shop for adventurers preparing for ${theme.toLowerCase()} expeditions. Keywords: ${joinKeywords(input.keywords)}.`,
+        inventory: [{ item_id: "", stock: 5, price_multiplier: 1 }, { item_id: "", stock: 1, price_multiplier: 1.25 }],
+        price_modifiers: [{ modifier_type: "Flag", reference_id: "", operator: "eq", value: 1, price_multiplier: 0.9 }],
+        tags: ["shop", "fantasy", theme.toLowerCase(), input.tone].concat(input.keywords.slice(0, 2)),
+      },
+    };
+  });
+}
+
+function loreSuggestions(input: CreativeInput): CreativeSuggestion[] {
+  const theme = splitTheme(input.theme);
+  const seed = hashString(`${input.theme}|${input.tone}|lore_entries`);
+  const forms = ["Rumor", "Tomb Inscription", "Archivist Note", "Old Ballad", "Sealed Warning", "Map Annotation"];
+  return Array.from({ length: Math.max(1, input.count) }).map((_, idx) => {
+    const absolute = seed + idx;
+    const form = pick(forms, absolute);
+    const title = `${theme} ${form}`;
+    return {
+      id: `lore-${idx}`,
+      title,
+      summary: `${input.tone} lore seed for clues, journals, or environmental storytelling.`,
+      patch: {
+        title,
+        slug: toSlug(title),
+        content: `The ${theme.toLowerCase()} was not lost by accident. The final record points toward a locked lower chamber and a debt still unpaid.`,
+        description: `${form} tied to ${theme}. Keywords: ${joinKeywords(input.keywords)}.`,
+        tags: ["lore", "fantasy", theme.toLowerCase(), input.tone].concat(input.keywords.slice(0, 2)),
+      },
+    };
+  });
+}
+
+function statusSuggestions(input: CreativeInput): CreativeSuggestion[] {
+  const theme = splitTheme(input.theme);
+  const seed = hashString(`${input.theme}|${input.tone}|statuses`);
+  const suffixes = ["Mark", "Hex", "Ward", "Brand", "Vow", "Fatigue"];
+  return Array.from({ length: Math.max(1, input.count) }).map((_, idx) => {
+    const absolute = seed + idx;
+    const name = `${theme} ${pick(suffixes, absolute)}`;
+    return {
+      id: `status-${idx}`,
+      title: name,
+      summary: `${input.tone} status effect hook for fantasy combat combos.`,
+      patch: {
+        name,
+        slug: toSlug(name),
+        category: absolute % 2 === 0 ? "Debuff" : "Buff",
+        description: `A ${input.tone} status tied to ${theme.toLowerCase()}, useful for ability and item synergies.`,
+        max_stacks: 1 + (absolute % 3),
+        is_dispellable: true,
+        tags: ["status", "fantasy", theme.toLowerCase(), input.tone].concat(input.keywords.slice(0, 2)),
+      },
+    };
+  });
+}
+
+function effectSuggestions(input: CreativeInput): CreativeSuggestion[] {
+  const theme = splitTheme(input.theme);
+  const seed = hashString(`${input.theme}|${input.tone}|effects`);
+  const types = ["Damage", "Heal", "ApplyStatus", "StatModifier"];
+  return Array.from({ length: Math.max(1, input.count) }).map((_, idx) => {
+    const absolute = seed + idx;
+    const effectType = pick(types, absolute);
+    const name = `${toneWord(input.tone, absolute)} ${theme} ${effectType}`;
+    return {
+      id: `effect-${idx}`,
+      title: name,
+      summary: `${input.tone} fantasy effect for abilities, statuses, and items.`,
+      patch: {
+        name,
+        slug: toSlug(name),
+        effect_type: effectType,
+        description: `A ${input.tone} ${effectType.toLowerCase()} effect shaped by ${theme}. Keywords: ${joinKeywords(input.keywords)}.`,
+        tags: ["effect", "fantasy", theme.toLowerCase(), input.tone].concat(input.keywords.slice(0, 2)),
+      },
+    };
+  });
+}
+
 function genericSuggestions(input: CreativeInput): CreativeSuggestion[] {
   const theme = splitTheme(input.theme);
   const seed = hashString(`${input.theme}|${input.tone}|generic`);
@@ -314,6 +508,14 @@ function genericSuggestions(input: CreativeInput): CreativeSuggestion[] {
 export const creativeScopes: CreativeGeneratorScope[] = [
   { schema: "abilities", generate: abilitySuggestions },
   { schema: "items", generate: itemSuggestions },
+  { schema: "quests", generate: questSuggestions },
+  { schema: "encounters", generate: encounterSuggestions },
+  { schema: "locations", generate: locationSuggestions },
+  { schema: "factions", generate: factionSuggestions },
+  { schema: "shops", generate: shopSuggestions },
+  { schema: "lore_entries", generate: loreSuggestions },
+  { schema: "statuses", generate: statusSuggestions },
+  { schema: "effects", generate: effectSuggestions },
   { schema: "dialogue_nodes", generate: dialogueNodeSuggestions },
   { schema: "dialogues", generate: dialoguesSuggestions },
   { schema: "characters", generate: characterSuggestions },

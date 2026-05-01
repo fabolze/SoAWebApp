@@ -1,95 +1,127 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Faction",
-    "type": "object",
-    "properties": {
-      "id": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Faction",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Internal unique ID for the faction",
+      "ui": {
+        "widget": "hidden"
+      }
+    },
+    "slug": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Stable identifier used to reference this faction from characters, quests, and reputation rules."
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name of the faction",
+      "ui": {
+        "widget": "text",
+        "label": "Faction Name"
+      }
+    },
+    "description": {
+      "type": "string",
+      "description": "Lore or dev-facing description",
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      }
+    },
+    "alignment": {
+      "type": "string",
+      "enum": [
+        "Hostile",
+        "Neutral",
+        "Friendly"
+      ],
+      "description": "General stance toward the player at start",
+      "ui": {
+        "widget": "select",
+        "label": "Default Alignment",
+        "options": [
+          "Hostile",
+          "Neutral",
+          "Friendly"
+        ]
+      }
+    },
+    "relationships": {
+      "type": "object",
+      "description": "Optional mapping of other factions to their relationship with this faction",
+      "additionalProperties": {
         "type": "string",
-        "description": "Internal unique ID for the faction",
-        "ui": {
-          "widget": "hidden"
-        }
-      },
-      "slug": {
-        "type": "string",
-        "ui": { "widget": "text", "label": "ID/Slug" }
-      },
-      "name": {
-        "type": "string",
-        "description": "Display name of the faction",
-        "ui": {
-          "widget": "text",
-          "label": "Faction Name"
-        }
-      },
-      "description": {
-        "type": "string",
-        "description": "Lore or dev-facing description",
-        "ui": {
-          "widget": "textarea",
-          "label": "Description"
-        }
-      },
-      "alignment": {
-        "type": "string",
-        "enum": ["Hostile", "Neutral", "Friendly"],
-        "description": "General stance toward the player at start",
-        "ui": {
-          "widget": "select",
-          "label": "Default Alignment",
-          "options": ["Hostile", "Neutral", "Friendly"]
-        }
-      },
-      "relationships": {
-        "type": "object",
-        "description": "Optional mapping of other factions to their relationship with this faction",
-        "additionalProperties": {
-          "type": "string",
-          "enum": ["Hostile", "Neutral", "Friendly"]
-        }
-      },
-      "reputation_config": {
-        "type": "object",
-        "description": "Optional: defines how reputation with this faction is structured",
-        "properties": {
-          "min": {
-            "type": "number",
-            "default": 0,
-            "description": "Minimum possible reputation (usually 0)"
-          },
-          "max": {
-            "type": "number",
-            "default": 100,
-            "description": "Maximum possible reputation (e.g., 100 for trusted ally)"
-          },
-          "thresholds": {
-            "type": "object",
-            "description": "Named reputation ranks",
-            "properties": {
-              "friendly": { "type": "number", "description": "Minimum for 'Friendly'" },
-              "trusted": { "type": "number", "description": "Minimum for 'Trusted'" },
-              "ally": { "type": "number", "description": "Minimum for 'Ally'" }
+        "enum": [
+          "Hostile",
+          "Neutral",
+          "Friendly"
+        ]
+      }
+    },
+    "reputation_config": {
+      "type": "object",
+      "description": "Optional: defines how reputation with this faction is structured",
+      "properties": {
+        "min": {
+          "type": "number",
+          "default": 0,
+          "description": "Minimum possible reputation (usually 0)"
+        },
+        "max": {
+          "type": "number",
+          "default": 100,
+          "description": "Maximum possible reputation (e.g., 100 for trusted ally)"
+        },
+        "thresholds": {
+          "type": "object",
+          "description": "Named reputation ranks",
+          "properties": {
+            "friendly": {
+              "type": "number",
+              "description": "Minimum for 'Friendly'"
+            },
+            "trusted": {
+              "type": "number",
+              "description": "Minimum for 'Trusted'"
+            },
+            "ally": {
+              "type": "number",
+              "description": "Minimum for 'Ally'"
             }
           }
         }
-      },
-      "tags": {
-        "type": "array",
-        "description": "Tags for filtering/searching/categorization",
-        "items": { "type": "string" },
-        "ui": {
-          "widget": "tags",
-          "label": "Tags"
-        }
-      },
-      "icon_path": {
-        "type": "string",
-        "description": "Optional icon or badge for maps and UI",
-        "ui": {
-          "widget": "filepicker",
-          "label": "Icon"
-        }
       }
     },
-    "required": ["id", "slug", "name", "alignment"]
-  }
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching/categorization",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    },
+    "icon_path": {
+      "type": "string",
+      "description": "Optional icon or badge for maps and UI",
+      "ui": {
+        "widget": "filepicker",
+        "label": "Icon"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "slug",
+    "name",
+    "alignment"
+  ]
+}

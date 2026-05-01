@@ -160,7 +160,7 @@ export default function SimulationWorkbench({
   const summaryText = result ? getSimulationSummary(result.metrics) : "Run a simulation to get balancing feedback.";
 
   return (
-    <div className={`rounded-lg border border-slate-200 bg-white ${compact ? "p-3 mb-4" : "p-6"}`}>
+    <div className={`rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${compact ? "p-3 mb-4" : "p-6"}`}>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <div className={`font-semibold ${compact ? "text-sm" : "text-lg"} ${TEXT_CLASSES.body}`}>{title}</div>
@@ -193,7 +193,7 @@ export default function SimulationWorkbench({
           <div>
             <label className={`block text-xs font-medium mb-1 ${TEXT_CLASSES.muted}`}>Domain</label>
             <select
-              className="w-full border border-slate-300 rounded-md px-2 py-2 text-sm text-slate-900 bg-white"
+              className="w-full border border-slate-300 rounded-md px-2 py-2 text-sm text-slate-900 bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               value={schemaName}
               onChange={(e) => setSchemaName(e.target.value as SimulationSchemaName)}
             >
@@ -210,7 +210,7 @@ export default function SimulationWorkbench({
           <div className={compact ? "md:col-span-2" : "md:col-span-2"}>
             <label className={`block text-xs font-medium mb-1 ${TEXT_CLASSES.muted}`}>Entity</label>
             <select
-              className="w-full border border-slate-300 rounded-md px-2 py-2 text-sm text-slate-900 bg-white"
+              className="w-full border border-slate-300 rounded-md px-2 py-2 text-sm text-slate-900 bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               value={selectedEntityId}
               onChange={(e) => setSelectedEntityId(e.target.value)}
               disabled={loading || entities.length === 0}
@@ -231,7 +231,7 @@ export default function SimulationWorkbench({
         <div>
           <label className={`block text-xs font-medium mb-1 ${TEXT_CLASSES.muted}`}>Scenario</label>
           <select
-            className="w-full border border-slate-300 rounded-md px-2 py-2 text-sm text-slate-900 bg-white"
+            className="w-full border border-slate-300 rounded-md px-2 py-2 text-sm text-slate-900 bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             value={scenarioId}
             onChange={(e) => setScenarioId(e.target.value)}
           >
@@ -250,7 +250,7 @@ export default function SimulationWorkbench({
             min={50}
             max={2000}
             step={50}
-            className="w-full border border-slate-300 rounded-md px-2 py-2 text-sm text-slate-900 bg-white"
+            className="w-full border border-slate-300 rounded-md px-2 py-2 text-sm text-slate-900 bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             value={runs}
             onChange={(e) => setRuns(boundedRuns(parseInt(e.target.value, 10) || 0))}
           />
@@ -260,7 +260,7 @@ export default function SimulationWorkbench({
           <label className={`block text-xs font-medium mb-1 ${TEXT_CLASSES.muted}`}>Seed</label>
           <input
             type="number"
-            className="w-full border border-slate-300 rounded-md px-2 py-2 text-sm text-slate-900 bg-white"
+            className="w-full border border-slate-300 rounded-md px-2 py-2 text-sm text-slate-900 bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             value={seed}
             onChange={(e) => setSeed(parseInt(e.target.value, 10) || 1)}
           />
@@ -270,9 +270,9 @@ export default function SimulationWorkbench({
       {draftMode && (
         <div className="mt-2 flex items-center justify-between gap-2">
           <div className={`text-xs ${TEXT_CLASSES.muted}`}>
-            Simulating current draft: <span className="font-medium text-slate-700">{entityOptionLabel(debouncedDraftEntity)}</span>
+            Simulating current draft: <span className="font-medium text-slate-700 dark:text-slate-300">{entityOptionLabel(debouncedDraftEntity)}</span>
           </div>
-          <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+          <label className="inline-flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
             <input
               type="checkbox"
               checked={autoRefresh}
@@ -284,10 +284,10 @@ export default function SimulationWorkbench({
       )}
 
       {loading && <div className={`mt-3 text-sm ${TEXT_CLASSES.muted}`}>Loading datasets for simulation...</div>}
-      {error && <div className="mt-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
+      {error && <div className="mt-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300">{error}</div>}
 
       {!loading && (
-        <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3">
+        <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
           <div className={`text-sm ${TEXT_CLASSES.body}`}>{summaryText}</div>
           {result && (
             <>
@@ -298,12 +298,12 @@ export default function SimulationWorkbench({
                 {METRIC_LABELS.map(({ key, label }) => {
                   const metricValue = result.metrics[key];
                   return (
-                    <div key={key} className="rounded border border-slate-200 bg-white p-2">
+                    <div key={key} className="rounded border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
                       <div className="flex items-center justify-between text-xs mb-1">
                         <span className={TEXT_CLASSES.muted}>{label}</span>
-                        <span className="font-semibold text-slate-800">{metricValue.toFixed(1)}</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{metricValue.toFixed(1)}</span>
                       </div>
-                      <div className="h-2 rounded bg-slate-200">
+                      <div className="h-2 rounded bg-slate-200 dark:bg-slate-800">
                         <div
                           className={`h-2 rounded ${metricTone(metricValue)}`}
                           style={{ width: `${Math.max(2, Math.min(100, metricValue))}%` }}
@@ -315,9 +315,9 @@ export default function SimulationWorkbench({
               </div>
 
               {result.warnings.length > 0 && (
-                <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-2">
-                  <div className="text-xs font-semibold text-amber-900">Warnings</div>
-                  <ul className="mt-1 text-xs text-amber-800 list-disc list-inside">
+                <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-2 dark:border-amber-900 dark:bg-amber-950">
+                  <div className="text-xs font-semibold text-amber-900 dark:text-amber-300">Warnings</div>
+                  <ul className="mt-1 text-xs text-amber-800 list-disc list-inside dark:text-amber-200">
                     {result.warnings.map((warning) => (
                       <li key={warning}>{warning}</li>
                     ))}
@@ -326,9 +326,9 @@ export default function SimulationWorkbench({
               )}
 
               {result.notes.length > 0 && (
-                <div className="mt-2 rounded border border-slate-200 bg-white p-2">
-                  <div className="text-xs font-semibold text-slate-800">Notes</div>
-                  <ul className="mt-1 text-xs text-slate-600 list-disc list-inside">
+                <div className="mt-2 rounded border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
+                  <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">Notes</div>
+                  <ul className="mt-1 text-xs text-slate-600 list-disc list-inside dark:text-slate-400">
                     {result.notes.map((note) => (
                       <li key={note}>{note}</li>
                     ))}

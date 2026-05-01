@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Encounter",
   "type": "object",
@@ -6,30 +6,50 @@
     "id": {
       "type": "string",
       "description": "Unique ID for the encounter",
-      "ui": { "widget": "hidden" }
+      "ui": {
+        "widget": "hidden"
+      }
     },
     "slug": {
       "type": "string",
-      "ui": { "widget": "text", "label": "ID/Slug" }
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Stable identifier used to reference this encounter from quests, events, and locations."
     },
     "name": {
       "type": "string",
       "description": "Name of the encounter (internal or for UI)",
-      "ui": { "widget": "text", "label": "Name" }
+      "ui": {
+        "widget": "text",
+        "label": "Name"
+      }
     },
     "description": {
       "type": "string",
       "description": "Optional description of the encounter (for devs)",
-      "ui": { "widget": "textarea", "label": "Description" }
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      }
     },
     "encounter_type": {
       "type": "string",
       "description": "Type of encounter",
-      "enum": ["Combat", "Dialogue", "Event"],
+      "enum": [
+        "Combat",
+        "Dialogue",
+        "Event"
+      ],
       "ui": {
         "widget": "select",
         "label": "Encounter Type",
-        "options": ["Combat", "Dialogue", "Event"]
+        "options": [
+          "Combat",
+          "Dialogue",
+          "Event"
+        ]
       }
     },
     "requirements_id": {
@@ -53,24 +73,46 @@
               "widget": "reference",
               "label": "Character",
               "reference": "characters"
-            }
+            },
+            "description": "Character participating in this encounter."
           },
           "contexts": {
             "type": "array",
-            "items": { "type": "string", "enum": ["Combat", "Interaction"] },
+            "items": {
+              "type": "string",
+              "enum": [
+                "Combat",
+                "Interaction"
+              ]
+            },
             "ui": {
               "widget": "multiselect",
               "label": "Contexts",
-              "options": ["Combat", "Interaction"]
-            }
+              "options": [
+                "Combat",
+                "Interaction"
+              ]
+            },
+            "description": "Situation tags that describe how this participant appears or behaves."
           },
           "combat_side": {
             "type": "string",
-            "enum": ["Hostile", "Friendly", "Neutral"],
-            "ui": { "widget": "select", "label": "Combat Side" }
+            "enum": [
+              "Hostile",
+              "Friendly",
+              "Neutral"
+            ],
+            "ui": {
+              "widget": "select",
+              "label": "Combat Side"
+            },
+            "description": "Team or allegiance used during encounter resolution."
           }
         },
-        "required": ["character_id", "contexts"]
+        "required": [
+          "character_id",
+          "contexts"
+        ]
       }
     },
     "rewards": {
@@ -80,7 +122,10 @@
         "xp": {
           "type": "number",
           "description": "Experience points granted to the player",
-          "ui": { "widget": "number", "label": "Experience" }
+          "ui": {
+            "widget": "number",
+            "label": "Experience"
+          }
         },
         "items": {
           "type": "array",
@@ -94,14 +139,22 @@
                   "widget": "reference",
                   "reference": "items",
                   "label": "Item"
-                }
+                },
+                "description": "Item granted by this encounter reward."
               },
               "quantity": {
                 "type": "number",
-                "ui": { "widget": "number", "label": "Quantity" }
+                "ui": {
+                  "widget": "number",
+                  "label": "Quantity"
+                },
+                "description": "Number of copies of the selected item awarded."
               }
             },
-            "required": ["item_id", "quantity"]
+            "required": [
+              "item_id",
+              "quantity"
+            ]
           }
         },
         "currencies": {
@@ -116,14 +169,22 @@
                   "widget": "reference",
                   "reference": "currencies",
                   "label": "Currency"
-                }
+                },
+                "description": "Currency granted by this encounter reward."
               },
               "amount": {
                 "type": "number",
-                "ui": { "widget": "number", "label": "Amount" }
+                "ui": {
+                  "widget": "number",
+                  "label": "Amount"
+                },
+                "description": "Amount of the selected currency awarded."
               }
             },
-            "required": ["currency_id", "amount"]
+            "required": [
+              "currency_id",
+              "amount"
+            ]
           }
         },
         "reputation": {
@@ -138,21 +199,30 @@
                   "widget": "reference",
                   "reference": "factions",
                   "label": "Faction"
-                }
+                },
+                "description": "Faction whose reputation changes after this encounter."
               },
               "amount": {
                 "type": "number",
                 "description": "Positive or negative reputation delta",
-                "ui": { "widget": "number", "label": "Delta" }
+                "ui": {
+                  "widget": "number",
+                  "label": "Delta"
+                }
               }
             },
-            "required": ["faction_id", "amount"]
+            "required": [
+              "faction_id",
+              "amount"
+            ]
           }
         },
         "flags_set": {
           "type": "array",
           "description": "Flags set after completing the encounter",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "ui": {
             "widget": "multiselect",
             "label": "Flags Set",
@@ -164,9 +234,19 @@
     "tags": {
       "type": "array",
       "description": "Tags for filtering/searching/categorisation",
-      "items": { "type": "string" },
-      "ui": { "widget": "tags", "label": "Tags" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
     }
   },
-  "required": ["id", "slug", "name", "encounter_type"]
+  "required": [
+    "id",
+    "slug",
+    "name",
+    "encounter_type"
+  ]
 }

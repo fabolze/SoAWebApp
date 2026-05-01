@@ -6,11 +6,17 @@
     "id": {
       "type": "string",
       "description": "Unique ID for the node",
-      "ui": { "widget": "hidden" }
+      "ui": {
+        "widget": "hidden"
+      }
     },
     "slug": {
       "type": "string",
-      "ui": { "widget": "text", "label": "ID/Slug" }
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Stable identifier used to reference this talent node in trees and links."
     },
     "tree_id": {
       "type": "string",
@@ -24,32 +30,54 @@
     "name": {
       "type": "string",
       "description": "Node name",
-      "ui": { "widget": "text", "label": "Name" }
+      "ui": {
+        "widget": "text",
+        "label": "Name"
+      }
     },
     "description": {
       "type": "string",
       "description": "Node description",
-      "ui": { "widget": "textarea", "label": "Description" }
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      }
     },
     "node_type": {
       "type": "string",
-      "enum": ["Passive", "Active", "Keystone", "Utility"],
+      "enum": [
+        "Passive",
+        "Active",
+        "Keystone",
+        "Utility"
+      ],
       "description": "Node category",
       "ui": {
         "widget": "select",
         "label": "Node Type",
-        "options": ["Passive", "Active", "Keystone", "Utility"]
+        "options": [
+          "Passive",
+          "Active",
+          "Keystone",
+          "Utility"
+        ]
       }
     },
     "max_rank": {
       "type": "number",
       "description": "Maximum ranks for this node",
-      "ui": { "widget": "number", "label": "Max Rank" }
+      "ui": {
+        "widget": "number",
+        "label": "Max Rank"
+      }
     },
     "point_cost": {
       "type": "number",
       "description": "Points required per rank",
-      "ui": { "widget": "number", "label": "Point Cost" }
+      "ui": {
+        "widget": "number",
+        "label": "Point Cost"
+      }
     },
     "requirements_id": {
       "type": "string",
@@ -63,7 +91,9 @@
     "granted_abilities": {
       "type": "array",
       "description": "Abilities granted when this node is learned",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "ui": {
         "widget": "multiselect",
         "label": "Granted Abilities",
@@ -88,20 +118,34 @@
           "value": {
             "type": "number",
             "description": "Modifier value",
-            "ui": { "widget": "number", "label": "Value" }
+            "ui": {
+              "widget": "number",
+              "label": "Value"
+            }
           },
           "value_type": {
             "type": "string",
-            "enum": ["Flat", "Percentage", "Multiplier"],
+            "enum": [
+              "Flat",
+              "Percentage",
+              "Multiplier"
+            ],
             "description": "How the value applies",
             "ui": {
               "widget": "select",
               "label": "Value Type",
-              "options": ["Flat", "Percentage", "Multiplier"]
+              "options": [
+                "Flat",
+                "Percentage",
+                "Multiplier"
+              ]
             }
           }
         },
-        "required": ["stat_id", "value"]
+        "required": [
+          "stat_id",
+          "value"
+        ]
       }
     },
     "attribute_modifiers": {
@@ -122,36 +166,79 @@
           "value": {
             "type": "number",
             "description": "Modifier value",
-            "ui": { "widget": "number", "label": "Value" }
+            "ui": {
+              "widget": "number",
+              "label": "Value"
+            }
           },
           "scaling": {
             "type": "string",
-            "enum": ["None", "Linear", "Exponential", "Logarithmic", "Custom"],
+            "enum": [
+              "None",
+              "Linear",
+              "Exponential",
+              "Logarithmic",
+              "Custom"
+            ],
             "description": "Scaling behavior",
             "ui": {
               "widget": "select",
               "label": "Scaling",
-              "options": ["None", "Linear", "Exponential", "Logarithmic", "Custom"]
+              "options": [
+                "None",
+                "Linear",
+                "Exponential",
+                "Logarithmic",
+                "Custom"
+              ]
             }
           }
         },
-        "required": ["attribute_id", "value"]
+        "required": [
+          "attribute_id",
+          "value"
+        ]
       }
     },
     "ui_position": {
       "type": "object",
       "description": "Optional node position for UI layout",
       "properties": {
-        "x": { "type": "number", "ui": { "widget": "number", "label": "X" } },
-        "y": { "type": "number", "ui": { "widget": "number", "label": "Y" } }
+        "x": {
+          "type": "number",
+          "ui": {
+            "widget": "number",
+            "label": "X"
+          },
+          "description": "Horizontal position of this node in the talent tree editor."
+        },
+        "y": {
+          "type": "number",
+          "ui": {
+            "widget": "number",
+            "label": "Y"
+          },
+          "description": "Vertical position of this node in the talent tree editor."
+        }
       }
     },
     "tags": {
       "type": "array",
       "description": "Tags for filtering/searching",
-      "items": { "type": "string" },
-      "ui": { "widget": "tags", "label": "Tags" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
     }
   },
-  "required": ["id", "slug", "tree_id", "name", "node_type"]
+  "required": [
+    "id",
+    "slug",
+    "tree_id",
+    "name",
+    "node_type"
+  ]
 }

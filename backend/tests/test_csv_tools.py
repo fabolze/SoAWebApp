@@ -5,6 +5,9 @@ from backend.app.models.m_items import Item
 from backend.app.models.m_stats import Stat
 from backend.app.models.m_story_arcs import StoryArc
 from backend.app.utils import csv_tools
+from backend.app.routes import r_export
+from flask import Flask
+from io import BytesIO
 
 
 def _mock_serialized_items(monkeypatch, items):

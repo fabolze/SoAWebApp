@@ -1,109 +1,196 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Character Attribute",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "ui": { "widget": "hidden" }
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Character Attribute",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "ui": {
+        "widget": "hidden"
       },
-      "slug": {
-        "type": "string",
-        "ui": { "widget": "text", "label": "ID/Slug" }
+      "description": "Stable unique identifier for this attribute."
+    },
+    "slug": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
       },
-      "name": {
-        "type": "string",
-        "ui": { "widget": "text", "label": "Attribute Name" }
+      "description": "Readable identifier used by references and imports."
+    },
+    "name": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "Attribute Name"
       },
-      "description": {
-        "type": "string",
-        "ui": { "widget": "textarea", "label": "Description" }
+      "description": "Player-facing or designer-facing name of the attribute."
+    },
+    "description": {
+      "type": "string",
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
       },
-      "value_type": {
-        "type": "string",
-        "enum": ["int", "float"],
-        "ui": {
-          "widget": "select",
-          "label": "Value Type",
-          "options": ["int", "float"]
-        }
+      "description": "Short explanation of what this attribute represents in gameplay."
+    },
+    "value_type": {
+      "type": "string",
+      "enum": [
+        "int",
+        "float"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Value Type",
+        "options": [
+          "int",
+          "float"
+        ]
       },
-      "default_value": {
-        "type": "number",
-        "ui": { "widget": "number", "label": "Default Value" }
+      "description": "Defines whether this attribute stores numbers, percentages, text, or another value style."
+    },
+    "default_value": {
+      "type": "number",
+      "ui": {
+        "widget": "number",
+        "label": "Default Value"
       },
-      "min_value": {
-        "type": "number",
-        "ui": { "widget": "number", "label": "Min Value" }
+      "description": "Starting value used when an entity does not override this attribute."
+    },
+    "min_value": {
+      "type": "number",
+      "ui": {
+        "widget": "number",
+        "label": "Min Value"
       },
-      "max_value": {
-        "type": "number",
-        "ui": { "widget": "number", "label": "Max Value" }
+      "description": "Lowest allowed or expected value for this attribute."
+    },
+    "max_value": {
+      "type": "number",
+      "ui": {
+        "widget": "number",
+        "label": "Max Value"
       },
-      "scaling": {
-        "type": "string",
-        "enum": ["None", "Linear", "Exponential", "Logarithmic", "Custom"],
-        "ui": {
-          "widget": "select",
-          "label": "Scaling Type",
-          "options": ["None", "Linear", "Exponential", "Logarithmic", "Custom"]
-        }
+      "description": "Highest allowed or expected value for this attribute."
+    },
+    "scaling": {
+      "type": "string",
+      "enum": [
+        "None",
+        "Linear",
+        "Exponential",
+        "Logarithmic",
+        "Custom"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Scaling Type",
+        "options": [
+          "None",
+          "Linear",
+          "Exponential",
+          "Logarithmic",
+          "Custom"
+        ]
       },
-      "results_in": {
-        "type": "array",
-        "description": "Which stats this attribute contributes to, and how",
-        "items": {
-          "type": "object",
-          "properties": {
-            "stat_id": {
-              "type": "string",
-              "description": "ID of the affected stat (referencing stats.json)",
-              "ui": {
-                "widget": "select",
-                "label": "Stat",
-                "reference": "stats"
-              }
-            },
-            "scale": {
-              "type": "string",
-              "enum": ["None", "Linear", "Exponential", "Logarithmic", "Custom"],
-              "description": "Scaling model",
-              "ui": {
-                "widget": "select",
-                "label": "Scale Type",
-                "options": ["None", "Linear", "Exponential", "Logarithmic", "Custom"]
-              }
-            },
-            "multiplier": {
-              "type": "number",
-              "description": "How much 1 point of this attribute adds to the stat",
-              "ui": {
-                "widget": "number",
-                "label": "Multiplier"
-              }
+      "description": "How this attribute should grow, stack, or be interpreted over progression."
+    },
+    "results_in": {
+      "type": "array",
+      "description": "Which stats this attribute contributes to, and how",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stat_id": {
+            "type": "string",
+            "description": "ID of the affected stat (referencing stats.json)",
+            "ui": {
+              "widget": "select",
+              "label": "Stat",
+              "reference": "stats"
             }
           },
-          "required": ["stat_id", "scale", "multiplier"]
-        }
-      },
-      "used_in": {
-        "type": "array",
-        "items": {
-          "type": "string",
-          "enum": ["Character", "Item", "Effect", "Ability", "Class"]
+          "scale": {
+            "type": "string",
+            "enum": [
+              "None",
+              "Linear",
+              "Exponential",
+              "Logarithmic",
+              "Custom"
+            ],
+            "description": "Scaling model",
+            "ui": {
+              "widget": "select",
+              "label": "Scale Type",
+              "options": [
+                "None",
+                "Linear",
+                "Exponential",
+                "Logarithmic",
+                "Custom"
+              ]
+            }
+          },
+          "multiplier": {
+            "type": "number",
+            "description": "How much 1 point of this attribute adds to the stat",
+            "ui": {
+              "widget": "number",
+              "label": "Multiplier"
+            }
+          }
         },
-        "ui": { "widget": "multiselect", "label": "Used In" }
-      },
-      "icon_path": {
-        "type": "string",
-        "ui": { "widget": "filepicker", "label": "Icon" }
-      },
-      "tags": {
-        "type": "array",
-        "description": "Tags for filtering/searching/categorization",
-        "items": { "type": "string" },
-        "ui": { "widget": "tags", "label": "Tags" }
+        "required": [
+          "stat_id",
+          "scale",
+          "multiplier"
+        ]
       }
     },
-    "required": ["id", "slug", "name", "value_type"]
-  }
+    "used_in": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "Character",
+          "Item",
+          "Effect",
+          "Ability",
+          "Class"
+        ]
+      },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Used In"
+      },
+      "description": "Gameplay systems or content types that rely on this attribute."
+    },
+    "icon_path": {
+      "type": "string",
+      "ui": {
+        "widget": "filepicker",
+        "label": "Icon"
+      },
+      "description": "Optional icon asset used to represent this attribute in UI."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching/categorization",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "slug",
+    "name",
+    "value_type"
+  ]
+}

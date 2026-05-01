@@ -6,49 +6,100 @@
     "id": {
       "type": "string",
       "description": "Unique ID",
-      "ui": { "widget": "hidden" }
+      "ui": {
+        "widget": "hidden"
+      }
     },
     "slug": {
       "type": "string",
-      "ui": { "widget": "text", "label": "ID/Slug" }
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Stable identifier used to reference this character from encounters, quests, dialogues, and profiles."
     },
     "name": {
       "type": "string",
-      "ui": { "widget": "text", "label": "Name" }
+      "ui": {
+        "widget": "text",
+        "label": "Name"
+      },
+      "description": "Primary display name for this character."
     },
     "title": {
       "type": "string",
-      "ui": { "widget": "text", "label": "Title" }
+      "ui": {
+        "widget": "text",
+        "label": "Title"
+      },
+      "description": "Optional epithet, job title, or honorific shown alongside the character name."
     },
     "description": {
       "type": "string",
-      "ui": { "widget": "textarea", "label": "Bio / Notes" }
+      "ui": {
+        "widget": "textarea",
+        "label": "Bio / Notes"
+      },
+      "description": "Short biography, role notes, or authoring context for this character."
     },
     "image_path": {
       "type": "string",
-      "ui": { "widget": "filepicker", "label": "Portrait" }
+      "ui": {
+        "widget": "filepicker",
+        "label": "Portrait"
+      },
+      "description": "Portrait or character image asset path."
     },
     "level": {
       "type": "number",
-      "ui": { "widget": "number", "label": "Level" }
+      "ui": {
+        "widget": "number",
+        "label": "Level"
+      },
+      "description": "Approximate gameplay level used for balance, rewards, and simulations."
     },
     "class_id": {
       "type": "string",
-      "ui": { "widget": "reference", "label": "Combat Class", "reference": "characterclasses" }
+      "ui": {
+        "widget": "reference",
+        "label": "Combat Class",
+        "reference": "characterclasses"
+      },
+      "description": "Combat class that defines this character's baseline role and progression."
     },
     "faction_id": {
       "type": "string",
-      "ui": { "widget": "reference", "label": "Faction", "reference": "factions" }
+      "ui": {
+        "widget": "reference",
+        "label": "Faction",
+        "reference": "factions"
+      },
+      "description": "Faction this character belongs to or primarily represents."
     },
     "home_location_id": {
       "type": "string",
-      "ui": { "widget": "reference", "label": "Home Location", "reference": "locations" }
+      "ui": {
+        "widget": "reference",
+        "label": "Home Location",
+        "reference": "locations"
+      },
+      "description": "Location most closely associated with this character."
     },
     "tags": {
       "type": "array",
-      "items": { "type": "string" },
-      "ui": { "widget": "tags", "label": "Tags" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      },
+      "description": "Freeform labels for filtering, grouping, and content rules."
     }
   },
-  "required": ["id", "slug", "name"]
+  "required": [
+    "id",
+    "slug",
+    "name"
+  ]
 }

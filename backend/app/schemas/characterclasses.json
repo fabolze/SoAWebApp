@@ -1,120 +1,182 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Character Class",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "description": "Unique identifier for this class",
-        "ui": { "widget": "hidden" }
-      },
-      "slug": {
-        "type": "string",
-        "ui": { "widget": "text", "label": "ID/Slug" }
-      },
-      "name": {
-        "type": "string",
-        "description": "Class name (e.g., Knight, Mage)",
-        "ui": { "widget": "text", "label": "Class Name" }
-      },
-      "description": {
-        "type": "string",
-        "description": "Summary of class role and flavor",
-        "ui": { "widget": "textarea", "label": "Description" }
-      },
-      "role": {
-        "type": "string",
-        "enum": ["Tank", "Damage", "Healer", "Support", "Hybrid"],
-        "ui": {
-          "widget": "select",
-          "label": "Combat Role",
-          "options": ["Tank", "Damage", "Healer", "Support", "Hybrid"]
-        }
-      },
-      "base_stats": {
-        "type": "array",
-        "description": "Initial combat stats at level 1",
-        "items": {
-          "type": "object",
-          "properties": {
-            "stat_id": {
-              "type": "string",
-              "ui": { "widget": "reference", "reference": "stats", "label": "Stat" }
-            },
-            "value": {
-              "type": "number",
-              "ui": { "widget": "number", "label": "Value" }
-            }
-          },
-          "required": ["stat_id", "value"]
-        }
-      },
-      "stat_growth": {
-        "type": "array",
-        "description": "Per-level stat increase",
-        "items": {
-          "type": "object",
-          "properties": {
-            "stat_id": {
-              "type": "string",
-              "ui": { "widget": "reference", "reference": "stats", "label": "Stat" }
-            },
-            "value": {
-              "type": "number",
-              "ui": { "widget": "number", "label": "Per Level" }
-            }
-          },
-          "required": ["stat_id", "value"]
-        }
-      },
-      "starting_abilities": {
-        "type": "array",
-        "description": "Ability IDs available at level 1",
-        "items": { "type": "string" },
-        "ui": {
-          "widget": "multiselect",
-          "label": "Abilities",
-          "reference": "abilities"
-        }
-      },
-      "preferred_attributes": {
-        "type": "array",
-        "description": "Attributes this class scales well with",
-        "items": {
-          "type": "string"
-        },
-        "ui": {
-          "widget": "multiselect",
-          "label": "Preferred Attributes",
-          "reference": "attributes"
-        }
-      },
-      "starting_equipment": {
-        "type": "array",
-        "description": "Item IDs for gear given at class creation",
-        "items": {
-          "type": "string"
-        },
-        "ui": {
-          "widget": "multiselect",
-          "label": "Starting Gear",
-          "reference": "items"
-        }
-      },
-      "tags": {
-        "type": "array",
-        "description": "Tags for filtering/searching/categorization",
-        "items": { "type": "string" },
-        "ui": { "widget": "tags", "label": "Tags" }
-      },
-      "icon_path": {
-        "type": "string",
-        "description": "Optional icon for this class",
-        "ui": {
-          "widget": "filepicker",
-          "label": "Icon"
-        }
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Character Class",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for this class",
+      "ui": {
+        "widget": "hidden"
       }
     },
-    "required": ["id", "slug", "name", "role", "base_stats"]
-  }
+    "slug": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Stable identifier used when assigning this class to characters or companions."
+    },
+    "name": {
+      "type": "string",
+      "description": "Class name (e.g., Knight, Mage)",
+      "ui": {
+        "widget": "text",
+        "label": "Class Name"
+      }
+    },
+    "description": {
+      "type": "string",
+      "description": "Summary of class role and flavor",
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      }
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "Tank",
+        "Damage",
+        "Healer",
+        "Support",
+        "Hybrid"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Combat Role",
+        "options": [
+          "Tank",
+          "Damage",
+          "Healer",
+          "Support",
+          "Hybrid"
+        ]
+      },
+      "description": "Primary combat or party function this class is designed to fill."
+    },
+    "base_stats": {
+      "type": "array",
+      "description": "Initial combat stats at level 1",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stat_id": {
+            "type": "string",
+            "ui": {
+              "widget": "reference",
+              "reference": "stats",
+              "label": "Stat"
+            },
+            "description": "Stat that receives a starting value for this class."
+          },
+          "value": {
+            "type": "number",
+            "ui": {
+              "widget": "number",
+              "label": "Value"
+            },
+            "description": "Starting value for the selected stat."
+          }
+        },
+        "required": [
+          "stat_id",
+          "value"
+        ]
+      }
+    },
+    "stat_growth": {
+      "type": "array",
+      "description": "Per-level stat increase",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stat_id": {
+            "type": "string",
+            "ui": {
+              "widget": "reference",
+              "reference": "stats",
+              "label": "Stat"
+            },
+            "description": "Stat that increases as this class gains levels."
+          },
+          "value": {
+            "type": "number",
+            "ui": {
+              "widget": "number",
+              "label": "Per Level"
+            },
+            "description": "Amount added to the selected stat per level."
+          }
+        },
+        "required": [
+          "stat_id",
+          "value"
+        ]
+      }
+    },
+    "starting_abilities": {
+      "type": "array",
+      "description": "Ability IDs available at level 1",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Abilities",
+        "reference": "abilities"
+      }
+    },
+    "preferred_attributes": {
+      "type": "array",
+      "description": "Attributes this class scales well with",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Preferred Attributes",
+        "reference": "attributes"
+      }
+    },
+    "starting_equipment": {
+      "type": "array",
+      "description": "Item IDs for gear given at class creation",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "multiselect",
+        "label": "Starting Gear",
+        "reference": "items"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "description": "Tags for filtering/searching/categorization",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    },
+    "icon_path": {
+      "type": "string",
+      "description": "Optional icon for this class",
+      "ui": {
+        "widget": "filepicker",
+        "label": "Icon"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "slug",
+    "name",
+    "role",
+    "base_stats"
+  ]
+}

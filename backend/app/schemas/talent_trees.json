@@ -6,21 +6,33 @@
     "id": {
       "type": "string",
       "description": "Unique ID for the talent tree",
-      "ui": { "widget": "hidden" }
+      "ui": {
+        "widget": "hidden"
+      }
     },
     "slug": {
       "type": "string",
-      "ui": { "widget": "text", "label": "ID/Slug" }
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Stable identifier used to reference this talent tree from classes and progression rules."
     },
     "name": {
       "type": "string",
       "description": "Display name for this talent tree",
-      "ui": { "widget": "text", "label": "Name" }
+      "ui": {
+        "widget": "text",
+        "label": "Name"
+      }
     },
     "description": {
       "type": "string",
       "description": "Short description of this tree",
-      "ui": { "widget": "textarea", "label": "Description" }
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      }
     },
     "class_id": {
       "type": "string",
@@ -51,9 +63,18 @@
     "tags": {
       "type": "array",
       "description": "Tags for filtering/searching",
-      "items": { "type": "string" },
-      "ui": { "widget": "tags", "label": "Tags" }
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
     }
   },
-  "required": ["id", "slug", "name"]
+  "required": [
+    "id",
+    "slug",
+    "name"
+  ]
 }

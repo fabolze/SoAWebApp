@@ -308,10 +308,10 @@ export default function ArrayStringMultiSelectField({
   return (
     <div className="form-field">
       {renderFieldLabel(label, description, createAction)}
-      <div className="border border-gray-300 rounded-md p-3 bg-white">
+      <div className="border border-gray-300 rounded-md p-3 bg-white dark:border-slate-700 dark:bg-slate-950/60">
         <input
           type="text"
-          className="mb-2 w-full border border-gray-200 rounded px-2 py-1 text-sm text-gray-800 placeholder:text-gray-500"
+          className="mb-2 w-full border border-gray-200 rounded px-2 py-1 text-sm text-gray-800 placeholder:text-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
           placeholder={`Type to filter ${label}...`}
           value={filter}
           onChange={(e) => {
@@ -320,7 +320,7 @@ export default function ArrayStringMultiSelectField({
             if (listRef.current) listRef.current.scrollTop = 0;
           }}
         />
-        <div className="mb-2 text-xs text-gray-500">
+        <div className="mb-2 text-xs text-gray-500 dark:text-slate-400">
           Selected: {selectedSet.size} / Matches: {filteredOptions.length}
         </div>
         <div className="mb-2 flex items-center gap-1 flex-wrap">
@@ -363,15 +363,15 @@ export default function ArrayStringMultiSelectField({
           onClose={() => setPreviewOpen(false)}
           controls={
             uniqueSelectedValues.length === 0 ? (
-              <div className="text-xs text-slate-500">Select at least one entry to preview details.</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">Select at least one entry to preview details.</div>
             ) : (
               <div className="flex items-center gap-2">
-                <label className="text-xs font-medium text-slate-700" htmlFor={previewSelectId}>
+                <label className="text-xs font-medium text-slate-700 dark:text-slate-300" htmlFor={previewSelectId}>
                   Inspect
                 </label>
                 <select
                   id={previewSelectId}
-                  className="flex-1 min-w-[180px] border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 bg-white"
+                  className="flex-1 min-w-[180px] border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   value={previewTargetId}
                   onChange={(e) => setPreviewTargetId(e.target.value)}
                 >
@@ -390,28 +390,28 @@ export default function ArrayStringMultiSelectField({
           }
         >
           {uniqueSelectedValues.length === 0 ? (
-            <div className="text-xs text-slate-500">Select at least one entry to preview details.</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Select at least one entry to preview details.</div>
           ) : previewLoading ? (
-            <div className="text-xs text-slate-500">Loading details...</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Loading details...</div>
           ) : previewEntry ? (
             <ReferenceDetailsCard entry={previewEntry} refType={refType} />
           ) : (
-            <div className="text-xs text-amber-700">{previewError || 'No details available.'}</div>
+            <div className="text-xs text-amber-700 dark:text-amber-300">{previewError || 'No details available.'}</div>
           )}
         </FloatingReferenceInspector>
         {bulkNotice && (
           <div
             className={`mb-2 rounded border px-2 py-1 text-xs ${
               bulkNotice.type === 'success'
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                : 'border-amber-200 bg-amber-50 text-amber-800'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+                : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200'
             }`}
           >
             {bulkNotice.message}
           </div>
         )}
         {filteredOptions.length === 0 ? (
-          <p className="text-sm text-gray-500">No options available</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">No options available</p>
         ) : (
           <div
             ref={listRef}
@@ -431,7 +431,7 @@ export default function ArrayStringMultiSelectField({
                   return (
                     <label
                       key={`${val}-${isVirtualized ? startIndex + index : index}`}
-                      className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors ${checked ? 'bg-blue-100 border border-blue-200' : 'hover:bg-blue-50'} ${isRecent ? 'ring-2 ring-emerald-300 bg-emerald-50 border border-emerald-200' : ''}`}
+                      className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors ${checked ? 'bg-blue-100 border border-blue-200 dark:bg-blue-950/50 dark:border-blue-800' : 'hover:bg-blue-50 dark:hover:bg-slate-900'} ${isRecent ? 'ring-2 ring-emerald-300 bg-emerald-50 border border-emerald-200 dark:ring-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-800' : ''}`}
                       style={isVirtualized ? { height: rowHeight } : undefined}
                     >
                       <input
@@ -446,7 +446,7 @@ export default function ArrayStringMultiSelectField({
                           }
                         }}
                       />
-                      <span className="text-sm text-gray-800">{opt.label}</span>
+                      <span className="text-sm text-gray-800 dark:text-slate-200">{opt.label}</span>
                     </label>
                   );
                 })}

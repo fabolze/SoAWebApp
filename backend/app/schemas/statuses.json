@@ -7,21 +7,24 @@
       "type": "string",
       "ui": {
         "widget": "hidden"
-      }
+      },
+      "description": "Stable unique identifier for this status."
     },
     "slug": {
       "type": "string",
       "ui": {
         "widget": "text",
         "label": "ID/Slug"
-      }
+      },
+      "description": "Readable identifier used by effects, abilities, items, and combat rules."
     },
     "name": {
       "type": "string",
       "ui": {
         "widget": "text",
         "label": "Status Name"
-      }
+      },
+      "description": "Player-facing or designer-facing status name."
     },
     "category": {
       "type": "string",
@@ -42,14 +45,16 @@
           "DoT",
           "Other"
         ]
-      }
+      },
+      "description": "Status grouping used for stacking, filtering, and UI presentation."
     },
     "description": {
       "type": "string",
       "ui": {
         "widget": "textarea",
         "label": "Description"
-      }
+      },
+      "description": "Short explanation of what the status does or represents."
     },
     "default_duration": {
       "type": "number",
@@ -80,7 +85,8 @@
       "ui": {
         "widget": "filepicker",
         "label": "Icon"
-      }
+      },
+      "description": "Optional icon asset used to represent this status in UI."
     },
     "tags": {
       "type": "array",
