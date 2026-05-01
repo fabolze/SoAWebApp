@@ -13,7 +13,7 @@ Arbeitsmodus: "Heute zu tun" Checkliste (damit klar ist, wo du stehst)
 3) Struct(s) anlegen und Felder exakt wie Export benennen (siehe Struct-Index).
 4) DataTable erstellen und Import testen (1-2 Beispielzeilen, siehe DataTable-Index).
 5) Validation-Notiz: Welche IDs verlinken auf andere Tabellen?
-6) Im BP_GameDataSubsystem: Cache-Map fuer diesen Block anlegen.
+6) Im BP_GameDataService (in `BP_GameInstance_SoA`): Cache-Map fuer diesen Block anlegen.
 7) Ergebnis markieren: "Block X fertig importiert + gecacht".
 
 Runtime-Architektur (Lyra-inspiriert, Blueprint-only, ohne GAS)
@@ -21,10 +21,11 @@ Runtime-Architektur (Lyra-inspiriert, Blueprint-only, ohne GAS)
 - Beim Spielstart: DataTables in Registry-Maps cachen (ULID -> Struct, Slug -> Struct).
 - Kommunikation ueber Message-Events statt direkte Manager-Aufrufe (entkoppelt).
 - SoftObjectReferences fuer Assets (Icons, Portraits, VO) statt harter Pfad-Strings, wo moeglich.
+- Blueprint-only Konvention: globale Runtime-Manager in `BP_GameInstance_SoA`; Weltlogik in World-Manager-Actor oder Components auf `GameState`/`PlayerController`.
 
 Konkrete Runtime-Bausteine
-- BP_GameDataSubsystem: laedt DataTables, baut Cache-Maps, bietet Lookup-Funktionen.
-- BP_MessageHub (oder Gameplay Message Subsystem): Events wie FlagChanged, QuestAdvanced, RewardApplied.
+- BP_GameDataService (in `BP_GameInstance_SoA`): laedt DataTables, baut Cache-Maps, bietet Lookup-Funktionen.
+- BP_MessageHub (Blueprint-Actor/Manager oder Event-Dispatcher auf `BP_GameInstance_SoA`): Events wie FlagChanged, QuestAdvanced, RewardApplied.
 - BP_FlagManager/BP_QuestLog: verwalten Zustand, senden Events, reagieren auf Events.
 
 Import-Workflow (Schritt-fuer-Schritt, wiederholbar)
@@ -34,7 +35,7 @@ Import-Workflow (Schritt-fuer-Schritt, wiederholbar)
 4) Struct(s) pruefen: Feldnamen = Export-Spalten (siehe Struct-Index).
 5) DataTable importieren oder reimportieren (siehe DataTable-Index).
 6) BP_DataImportManager laufen lassen (Validation: fehlende ULIDs, Enum-Mismatch).
-7) BP_GameDataSubsystem neu laden, Cache-Maps aktualisieren.
+7) BP_GameDataService neu laden (oder PIE neu starten), Cache-Maps aktualisieren.
 8) Ergebnis notieren: "Import OK" oder "Fehlerliste".
 
 Kommunikationsregeln (damit Systeme nicht verdrahtet sind)
@@ -713,13 +714,13 @@ Blueprint-Phasen (Kurz, ohne Duplikate)
 Phase 1: Enums anlegen -> siehe Enum-Index.
 Phase 2: Structs anlegen -> siehe Struct-Index.
 Phase 3: DataTables importieren -> siehe DataTable-Index.
-Phase 4: Cache-Maps in BP_GameDataSubsystem (siehe Runtime-Wiring).
+Phase 4: Cache-Maps in BP_GameDataService (siehe Runtime-Wiring).
 
 Blueprint-To-Do (Character/Profile Block)
 - Enums: EInteractionRole, EEnemyType, EEnemyAggression, EEncounterContext, ECombatSide (siehe Enum-Index).
 - Structs: FCharacterData, FInteractionProfileData, FInteractionItemForSale, FCombatProfileData, FLootEntry, FCurrencyReward, FReputationReward, FCompanionConfig, FCompanionProgression, FStatValueEntry, FEncounterParticipant, FEncounterData (siehe Struct-Index).
 - DataTables: characters, interaction_profiles, combat_profiles, encounters (siehe DataTable-Index).
-- Cache-Hinweis: im BP_GameDataSubsystem zusaetzlich Map "CharacterId -> InteractionProfile" und "CharacterId -> CombatProfile" bauen.
+- Cache-Hinweis: im BP_GameDataService zusaetzlich Map "CharacterId -> InteractionProfile" und "CharacterId -> CombatProfile" bauen.
 
 UE5 Checkliste (Character/Profile Block)
 Ordner-Vorschlag:
@@ -728,7 +729,7 @@ Ordner-Vorschlag:
 - DataTables: /Game/Data/Tables
 - Exports: /Game/Data/Exports
 
-Cache-Maps in BP_GameDataSubsystem (Startpunkt)
+Cache-Maps in BP_GameDataService (Startpunkt)
 - Map_CharactersById (id -> FCharacterData)
 - Map_CharactersBySlug (slug -> FCharacterData)
 - Map_CombatProfileByCharacterId (character_id -> FCombatProfileData)
@@ -736,7 +737,7 @@ Cache-Maps in BP_GameDataSubsystem (Startpunkt)
 - Optional: Map_EncounterById/Slug fuer schnelle Lookups
 
 Runtime-Wiring (wo die Structs genutzt werden)
-- BP_GameDataSubsystem: laedt DT_Characters, DT_CombatProfiles, DT_InteractionProfiles, DT_Encounters; baut die Maps oben.
+- BP_GameDataService (in `BP_GameInstance_SoA`): laedt DT_Characters, DT_CombatProfiles, DT_InteractionProfiles, DT_Encounters; baut die Maps oben.
 - BP_EncounterDirector: fuer jeden Participant -> Character laden; bei Context Combat -> CombatProfile laden; combat_side steuert Team-Zuordnung; enemy_type/aggression/tags an AI weitergeben.
 - BP_EnemyBrain: nutzt CombatProfile.tags + enemy_type/aggression fuer Verhalten und Targeting.
 - BP_DialogueManager: nutzt FDialogueData.character_id -> Character fuer Namen/Portrait; InteractionProfile fuer Rollen/Flags.

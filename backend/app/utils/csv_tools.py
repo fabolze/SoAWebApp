@@ -29,6 +29,15 @@ ROW_KEY_TABLE_TEMPLATES: Dict[str, Tuple[str, ...]] = {
     "talent_node_links": ("tree_slug", "from_node_slug", "to_node_slug", "min_rank_required"),
 }
 
+# UE DataTable exports should prefer normalized link tables over nested arrays.
+# These columns are intentionally omitted from table CSVs so imports match
+# the UE struct layout defined in UE5_Blueprint_Integration_Guide.
+UE_EXPORT_EXCLUDED_COLUMNS: Dict[str, Tuple[str, ...]] = {
+    "attributes": ("results_in",),
+    "abilities": ("effects", "scaling"),
+    "items": ("stat_modifiers", "attribute_modifiers"),
+}
+
 
 def _schema_path(table_name: str) -> str:
     return os.path.join(os.path.dirname(__file__), "..", "schemas", f"{table_name}.json")
@@ -74,6 +83,26 @@ def _order_columns(columns: List[str]) -> List[str]:
         if key not in ordered:
             ordered.append(key)
     return ordered
+
+
+def _excluded_columns_for_table(table_name: str) -> Tuple[str, ...]:
+    return UE_EXPORT_EXCLUDED_COLUMNS.get(table_name, ())
+
+
+def _drop_excluded_columns_from_items(table_name: str, items: List[Dict[str, Any]]) -> None:
+    excluded = _excluded_columns_for_table(table_name)
+    if not excluded:
+        return
+    for item in items:
+        for key in excluded:
+            item.pop(key, None)
+
+
+def _drop_excluded_columns_from_header(table_name: str, columns: List[str]) -> List[str]:
+    excluded = set(_excluded_columns_for_table(table_name))
+    if not excluded:
+        return columns
+    return [col for col in columns if col not in excluded]
 
 
 def resolve_columns(table_name: str, model_class: Any, items: List[Dict[str, Any]]) -> List[str]:
@@ -371,11 +400,40 @@ def _serialize_cell(value: Any) -> Any:
     if isinstance(value, enum.Enum):
         return value.value
     if isinstance(value, (dict, list)):
-        try:
-            return json.dumps(value, ensure_ascii=False)
-        except Exception:
-            return str(value)
+        return _serialize_ue_property_text(value)
     return value
+
+
+def _escape_ue_string(value: str) -> str:
+    # UE property text strings use double quotes; keep escaping minimal.
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _serialize_ue_property_scalar(value: Any) -> str:
+    if isinstance(value, enum.Enum):
+        value = value.value
+    if value is None:
+        return '""'
+    if isinstance(value, bool):
+        return "True" if value else "False"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        return f'"{_escape_ue_string(value)}"'
+    return f'"{_escape_ue_string(str(value))}"'
+
+
+def _serialize_ue_property_text(value: Any) -> str:
+    if isinstance(value, list):
+        serialized_items = ",".join(_serialize_ue_property_text(item) for item in value)
+        return f"({serialized_items})"
+    if isinstance(value, dict):
+        serialized_pairs: List[str] = []
+        for key, item_value in value.items():
+            key_name = str(key)
+            serialized_pairs.append(f"{key_name}={_serialize_ue_property_text(item_value)}")
+        return f"({','.join(serialized_pairs)})"
+    return _serialize_ue_property_scalar(value)
 
 
 def build_csv_rows(table_name: str, model_class: Any, rows: Iterable[Any]) -> Tuple[List[str], List[List[Any]]]:
@@ -387,7 +445,9 @@ def build_csv_rows(table_name: str, model_class: Any, rows: Iterable[Any]) -> Tu
     _normalize_enum_columns(model_class, items)
     _assign_row_keys(table_name, items, sync_slug=_model_has_column(model_class, "slug"))
     _strip_transient_alias_fields(items, transient_aliases)
+    _drop_excluded_columns_from_items(table_name, items)
     columns = resolve_columns(table_name, model_class, items)
+    columns = _drop_excluded_columns_from_header(table_name, columns)
     data_rows: List[List[Any]] = []
     for item in items:
         data_rows.append([_serialize_cell(item.get(col)) for col in columns])

@@ -29,10 +29,10 @@ This plan implements overworld traversal as a data-driven node/edge graph so tra
 
 ---
 
-## 3. Subsystem Responsibilities
+## 3. Manager Responsibilities (Blueprint-Only Implementation)
 ### `BP_WorldGraphSubsystem`
-- Recommended lifetime: **World Subsystem** if travel only exists in the overworld/map world; **Game Instance Subsystem** if you need access across frequent `OpenLevel` transitions.
-- Loads Locations and Routes once at init (from `BP_GameDataSubsystem` caches/DataTables).
+- Blueprint-only recommendation: implement as a world manager (for example a placed `BP_WorldRuntimeManager` actor or `BP_GameState` component). If you need cross-level persistence, keep the graph cache in `BP_GameInstance_SoA` and rebuild world-facing state on level load.
+- Loads Locations and Routes once at init (from `BP_GameDataService` caches/DataTables in `BP_GameInstance_SoA`).
 - Builds adjacency lists keyed by Location **ULID** and/or Location **Slug** (prefer `FName` for slugs).
 - Expands `IsBidirectional` route rows into both directions at build time (without duplicating DataTable rows).
 - Maintains lightweight "version" counters (graph data, flags/packs, discovery/unlock state) to invalidate planner caches safely.
@@ -96,4 +96,4 @@ This plan implements overworld traversal as a data-driven node/edge graph so tra
 5. Hook forced route events into `BP_EventSequencer`, then add deterministic encounter rolling via a seeded random stream.
 6. Write automation tests before expanding the world to catch data regressions (missing routes, mismatched requirements, unreachable destinations).
 
-By keeping travel data-driven and graph-based, traversal stays flexible, scalable, and debuggable. Designers reshape the overworld by editing CSV exports, while Blueprint subsystems respond automatically.
+By keeping travel data-driven and graph-based, traversal stays flexible, scalable, and debuggable. Designers reshape the overworld by editing CSV exports, while Blueprint managers respond automatically.

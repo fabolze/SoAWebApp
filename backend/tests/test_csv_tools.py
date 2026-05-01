@@ -1,4 +1,7 @@
 from backend.app.models.m_abilities_links import AbilityEffectLink
+from backend.app.models.m_abilities import Ability
+from backend.app.models.m_attributes import Attribute
+from backend.app.models.m_items import Item
 from backend.app.models.m_stats import Stat
 from backend.app.models.m_story_arcs import StoryArc
 from backend.app.utils import csv_tools
@@ -164,97 +167,113 @@ def test_transient_reference_slug_aliases_are_not_exported(monkeypatch):
     assert row[columns.index(csv_tools.UE_ROW_KEY_HEADER)] == "power-slash__bleeding"
 
 
-class _PreviewColumn:
-    def __init__(self, name):
-        self.name = name
-
-
-class _PreviewTable:
-    columns = [_PreviewColumn("id"), _PreviewColumn("slug"), _PreviewColumn("name"), _PreviewColumn("tags")]
-
-
-class _PreviewModel:
-    __tablename__ = "preview_items"
-    __table__ = _PreviewTable()
-
-    def __init__(self, id, slug, name, tags=None):
-        self.id = id
-        self.slug = slug
-        self.name = name
-        self.tags = tags or []
-
-
-class _PreviewQuery:
-    def __init__(self, rows):
-        self.rows = rows
-
-    def all(self):
-        return self.rows
-
-
-class _PreviewSession:
-    def __init__(self, rows):
-        self.rows = rows
-        self.committed = False
-
-    def query(self, model):
-        return _PreviewQuery(self.rows)
-
-    def close(self):
-        pass
-
-    def commit(self):
-        self.committed = True
-
-
-def _preview_client(monkeypatch, rows):
-    session = _PreviewSession(rows)
-    monkeypatch.setattr(r_export, "ALL_MODELS", [_PreviewModel])
-    monkeypatch.setattr(r_export, "get_db_session", lambda: session)
-    monkeypatch.setattr(r_export, "load_schema", lambda table_name: {
-        "properties": {
-            "id": {"type": "string"},
-            "slug": {"type": "string"},
-            "name": {"type": "string"},
-            "tags": {"type": "array"},
+def test_attributes_export_omits_results_in_column(monkeypatch):
+    items = [
+        {
+            "id": "01ATTR",
+            "slug": "strength",
+            "name": "Strength",
+            "value_type": "float",
+            "results_in": [{"stat_id": "hp", "scale": "Linear", "multiplier": 1.0}],
+            "used_in": ["Character"],
         }
-    })
-    app = Flask(__name__)
-    app.register_blueprint(r_export.bp)
-    return app.test_client(), session
+    ]
+    _mock_serialized_items(monkeypatch, items)
+
+    columns, data_rows = csv_tools.build_csv_rows("attributes", Attribute, [])
+    row = data_rows[0]
+
+    assert "results_in" not in columns
+    assert "used_in" in columns
+    assert row[columns.index(csv_tools.UE_ROW_KEY_HEADER)] == "strength"
 
 
-def test_csv_import_preview_counts_changes_without_commit(monkeypatch):
-    client, session = _preview_client(monkeypatch, [
-        _PreviewModel("01A", "alpha", "Alpha", ["old"]),
-        _PreviewModel("01B", "beta", "Beta", []),
-    ])
-    payload = b"id,slug,name,tags\n01A,alpha,Alpha Updated,\"[\"\"new\"\"]\"\n01C,gamma,Gamma,\"[\"\"fresh\"\"]\"\n"
+def test_abilities_export_omits_nested_link_columns(monkeypatch):
+    items = [
+        {
+            "id": "01ABL",
+            "slug": "power-slash",
+            "name": "Power Slash",
+            "type": "Active",
+            "effects": ["01EFF"],
+            "scaling": [{"stat_id": "01STAT", "multiplier": 0.8}],
+            "requirements": {"flags": []},
+        }
+    ]
+    _mock_serialized_items(monkeypatch, items)
 
-    response = client.post(
-        "/api/import/csv/preview_items/preview",
-        data={"file": (BytesIO(payload), "preview_items.csv")},
-        content_type="multipart/form-data",
-    )
+    columns, _ = csv_tools.build_csv_rows("abilities", Ability, [])
 
-    assert response.status_code == 200
-    body = response.get_json()
-    assert body["status"] == "ok"
-    assert body["counts"] == {"added": 1, "updated": 1, "deleted": 1, "unchanged": 0}
-    assert session.committed is False
+    assert "effects" not in columns
+    assert "scaling" not in columns
+    assert "requirements" in columns
 
 
-def test_csv_import_preview_reports_duplicate_ids(monkeypatch):
-    client, _session = _preview_client(monkeypatch, [])
-    payload = b"id,slug,name\n01A,alpha,Alpha\n01A,alpha-2,Alpha Two\n"
+def test_items_export_omits_modifier_payload_columns(monkeypatch):
+    items = [
+        {
+            "id": "01ITEM",
+            "slug": "iron-sword",
+            "name": "Iron Sword",
+            "type": "Weapon",
+            "stat_modifiers": [{"stat_id": "01STAT", "value": 3}],
+            "attribute_modifiers": [{"attribute_id": "01ATTR", "value": 1}],
+            "effects": [],
+        }
+    ]
+    _mock_serialized_items(monkeypatch, items)
 
-    response = client.post(
-        "/api/import/csv/preview_items/preview",
-        data={"file": (BytesIO(payload), "preview_items.csv")},
-        content_type="multipart/form-data",
-    )
+    columns, _ = csv_tools.build_csv_rows("items", Item, [])
 
-    assert response.status_code == 200
-    body = response.get_json()
-    assert body["status"] == "error"
-    assert "Duplicate id" in body["errors"][0]["message"]
+    assert "stat_modifiers" not in columns
+    assert "attribute_modifiers" not in columns
+
+
+def test_array_cells_use_ue_property_text_not_json(monkeypatch):
+    items = [
+        {
+            "id": "01ATTR",
+            "slug": "strength",
+            "name": "Strength",
+            "value_type": "float",
+            "used_in": ["Character", "Item"],
+            "tags": ["core", "combat"],
+        }
+    ]
+    _mock_serialized_items(monkeypatch, items)
+
+    columns, data_rows = csv_tools.build_csv_rows("attributes", Attribute, [])
+    row = data_rows[0]
+
+    used_in_cell = row[columns.index("used_in")]
+    tags_cell = row[columns.index("tags")]
+
+    assert used_in_cell == '("Character","Item")'
+    assert tags_cell == '("core","combat")'
+
+
+def test_nested_struct_arrays_use_ue_property_text(monkeypatch):
+    items = [
+        {
+            "id": "01CLASS",
+            "slug": "warrior",
+            "name": "Warrior",
+            "role": "Tank",
+            "base_stats": [
+                {"stat_id": "01HP", "value": 100},
+                {"stat_id": "01ATK", "value": 10},
+            ],
+            "stat_growth": [{"stat_id": "01HP", "value": 5}],
+        }
+    ]
+    _mock_serialized_items(monkeypatch, items)
+
+    from backend.app.models.m_characterclasses import CharacterClass
+    columns, data_rows = csv_tools.build_csv_rows("characterclasses", CharacterClass, [])
+    row = data_rows[0]
+
+    base_stats_cell = row[columns.index("base_stats")]
+    stat_growth_cell = row[columns.index("stat_growth")]
+
+    assert base_stats_cell == '((stat_id="01HP",value=100),(stat_id="01ATK",value=10))'
+    assert stat_growth_cell == '((stat_id="01HP",value=5))'

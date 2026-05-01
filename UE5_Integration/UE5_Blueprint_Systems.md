@@ -1,45 +1,56 @@
 # Blueprint Systems Overview
 
-Subsystem ownership for the UE5 blueprint-only JRPG build. Use this sheet to keep responsibilities clean and to know which blueprint should expose which API.
+System ownership for the UE5 blueprint-only JRPG build. Use this sheet to keep responsibilities clean and to know which blueprint should expose which API.
+
+Blueprint-only implementation convention (canonical):
+- Global runtime managers live in a custom `BP_GameInstance_SoA` (direct functions/variables) or as Blueprint Objects created and owned by it.
+- World-specific managers live on `BP_GameState` / `BP_PlayerController` components or a placed world manager actor.
+- Actor-specific logic lives in Actor Components.
+- Some names below still contain `Subsystem` for architecture readability; in Blueprint-only implementation treat them as manager blueprints, not C++ subsystems.
 
 ```
-BP_GameInstance
-  +-- BP_GameDataSubsystem
+BP_GameInstance_SoA
+  +-- BP_GameDataService (owned object or functions on GameInstance)
   +-- BP_ContentPackRegistry
   +-- BP_CurrencyManager
   +-- BP_FlagManager
   +-- BP_TalentManager
   +-- BP_CompanionManager
-  +-- BP_WorldGraphSubsystem
-  +-- BP_EncounterManager
   +-- BP_PersistenceValidator
+
+Overworld Runtime (BP_GameState/BP_PlayerController components or world manager actor)
+  +-- BP_WorldGraphSubsystem
+  +-- BP_LocationRegistry
+  +-- BP_TravelOrchestrator
+  +-- BP_EncounterManager
+  +-- BP_EncounterDirector
 ```
 
 ## Data Foundation
 - Enum and Struct source of truth: `UE5_Integration/UE5_Blueprint_Integration_Guide.txt`. This document only references them by name.
-- **`BP_GameDataSubsystem` (Engine Subsystem)**  
-  Loads every DataTable on Init, builds caches keyed by ULID and slug, exposes helper functions (`GetStatById`, `GetItemModifiers`, `FindEncountersForLocation`). Provides typed wrappers for JSON fields (e.g. quest objective arrays). Emits validation logs when lookups miss.
+- **`BP_GameDataService` (custom `BP_GameInstance_SoA` data API, Blueprint-only)**  
+  Loads every DataTable on Init, builds caches keyed by ULID and slug, exposes helper functions (`GetStatById`, `GetItemModifiers`, `FindEncountersForLocation`). Provides typed wrappers for JSON fields (e.g. quest objective arrays). Emits validation logs when lookups miss. Implement directly in `BP_GameInstance_SoA` first; split into a GameInstance-owned Blueprint Object only if the graph gets too large.
 
 - **`BP_DataImportManager` (Editor Utility Widget)**  
   Batch re-imports CSV/JSON exports, validates enum strings, checks dangling ULIDs, and can trigger automation tests. Presents a summary panel grouped by severity (error/warning/info). Supports hot reload during PIE for dialogue/narrative iteration.
 
-- **`BP_ContentPackRegistry` (Game Instance Subsystem)**  
+- **`BP_ContentPackRegistry` (GameInstance-owned manager / `BP_GameInstance_SoA` functions)**  
   Stores active packs, exposes `IsPackActive`, `FilterRowsByPack`, and broadcast events when pack selection changes (allowing UI or story systems to refresh).
 
-- **`BP_CurrencyManager` (Game Instance Subsystem)**  
+- **`BP_CurrencyManager` (GameInstance-owned manager / `BP_GameInstance_SoA` functions)**  
   Mirrors currency definitions, tracks player balances per currency, and provides mutators (`AddCurrency`, `RemoveCurrency`, `GetBalance`). Integrates with rewards, shop purchases, and save/load.
 
-- **`BP_PersistenceValidator` (Auxiliary Subsystem)**  
+- **`BP_PersistenceValidator` (GameInstance-owned helper / validation utility)**  
   Verifies SaveGame snapshots against current data revisions, warning if removed quests/items/flags exist. Invoked post-load and after re-imports.
 
 ## Narrative & Game State
-- **`BP_FlagManager` (Game Instance Subsystem)**  
+- **`BP_FlagManager` (GameInstance-owned manager / `BP_GameInstance_SoA` functions)**  
   Initialises all flags to default values, exposes `CheckRequirement`, `SetFlag`, `GetFlagValue`, iterates link tables (required/forbidden flags, faction thresholds). Broadcasts `OnFlagChanged (FlagId, OldValue, NewValue)`; other systems subscribe.
 
-- **`BP_TalentManager` (Game Instance Subsystem)**  
+- **`BP_TalentManager` (GameInstance-owned manager / `BP_GameInstance_SoA` functions)**  
   Owns talent trees/nodes, tracks learned node ranks, validates prerequisites, applies passive modifiers to `BP_StatsComponent`, and emits `OnTalentChanged` for UI refresh and stat recompute.
 
-- **`BP_ReputationSystem` (Game Instance Subsystem)**  
+- **`BP_ReputationSystem` (GameInstance-owned manager / `BP_GameInstance_SoA` functions)**  
   Keeps faction reputation maps, applies modifiers from quests/events/encounters, and exposes threshold queries used by requirements.
 
 - **`BP_QuestLogComponent` (Actor Component on Player)**  
@@ -48,23 +59,23 @@ BP_GameInstance
 - **`BP_StoryManager` (Actor Component on GameMode)**  
   Drives story arc progression, timeline advancement, and event chains. Applies pack gating, requirement checks, and triggers new quests or events based on flag changes.
 
-- **`BP_CompanionManager` (Game Instance Subsystem)**  
+- **`BP_CompanionManager` (GameInstance-owned manager / `BP_GameInstance_SoA` functions)**  
   Handles companion roster, spawns/despawns follower pawns, manages loyalty flags, communicates loadout/stats to combat setup. Supports rotating companions per story beat.
 
 - **`BP_SaveGame_SoA` (SaveGame Blueprint)**  
   Serialises player stats, inventory, learned abilities, flags, quest states, companion roster, unlocked routes, content pack selection, travel seeds. For the prototype, store a minimal subset in the same schema.
 
 ## World Graph & Travel
-- **`BP_WorldGraphSubsystem` (World Subsystem)**  
+- **`BP_WorldGraphSubsystem` (Blueprint world manager: GameState/Controller component or placed actor)**  
   Ingests Location + LocationRoute tables, builds adjacency lists and weighted graph metadata. Provides pathfinding (`FindBestRoute` / `FindAllRoutes`), caches results per travel mode, and reacts to flag/content pack changes to enable/disable edges.
 
 - **`BP_TravelPlanner` (Object Library / Blueprint Function Library)**  
   Executes Dijkstra/A* using data from the world graph, returning `FTravelPlan` structs (segments, estimated time, stamina costs, encounter odds). Reads travel tuning data (for example `FTravelTuningData`) and supports developer overrides (instant travel, ignore requirements).
 
-- **`BP_LocationRegistry` (World Subsystem)**  
+- **`BP_LocationRegistry` (Blueprint world manager: GameState/Controller component or placed actor)**  
   Tracks current location, discovered nodes, fast-travel unlocks, respawn anchors, and exposure to safe zones. Offers `GetLocationData`, `IsLocationUnlocked`, `MarkDiscovered`.
 
-- **`BP_TravelOrchestrator` (World Subsystem or Component on Player Controller)**  
+- **`BP_TravelOrchestrator` (PlayerController component or placed world manager actor)**  
   Manages travel execution: steps through travel plan segments, triggers pre-segment events, rolls for encounters, plays travel UI/VO, and resumes control after each segment. Owns persistable travel session state (seed + segment index) and works with `BP_EncounterManager` for encounter injection.
 
 - **`BP_WorldMapWidget` (UI)**  
@@ -73,10 +84,10 @@ BP_GameInstance
 > Detailed travel architecture: `UE5_Integration/World_Travel_System.md`.
 
 ## Encounter & Combat Layer (Real-Time + Able)
-- **`BP_EncounterManager` (World Subsystem)**  
+- **`BP_EncounterManager` (Blueprint world manager: GameState/Controller component or placed actor)**  
   Receives context from travel/events, filters encounter candidates by requirement, content pack, and difficulty, seeds RNG for deterministic runs, and forwards selected encounters to the event sequencer or combat director.
 
-- **`BP_EncounterDirector` (World Subsystem)**  
+- **`BP_EncounterDirector` (Blueprint world manager: GameState/Controller component or placed actor)**  
   Builds combat scenes: spawns player + companions, instantiates combatants using `FCombatProfileData` and `FCharacterClassData`, applies route/environment modifiers (weather, terrain), and packages `FCombatContext`.
 
 - **`BP_CombatComponent` (Actor Component on Combatants)**  
@@ -135,13 +146,13 @@ BP_GameInstance
 - **`BP_DialogueSpeaker`**  
   Maps speaker identifiers to character references (player, companion, character) and triggers VO/subtitles/emotes.
 
-- **`BP_EventSequencer` (Subsystem)**  
+- **`BP_EventSequencer` (GameInstance- or world-owned manager blueprint)**  
   Reads `FEventData`, resolves requirements, fires target actions (encounter, dialogue, teleport, scripted scene), applies rewards, and follows `next_event_id` chains. Used by travel, story, and encounter systems.
 
 - **`BP_ShopController` / `BP_ShopWidget`**  
   Validates access requirements, pulls inventory, calculates prices via pricing helper, processes purchases, updates currency manager.
 
-- **`BP_LoreCompendium` (Subsystem/UI)**  
+- **`BP_LoreCompendium` (manager blueprint + UI)**  
   Unlocks lore entries when flags/events trigger, references timelines for chronology filters.
 
 ## Tooling, Debug & QA
@@ -165,4 +176,4 @@ BP_GameInstance
 
 ---
 
-Stick to these ownership boundaries to limit blueprint complexity. When in doubt, prefer adding data to the relevant table and letting the owning subsystem react, rather than special-casing logic in gameplay blueprints.
+Stick to these ownership boundaries to limit blueprint complexity. When in doubt, prefer adding data to the relevant table and letting the owning manager react, rather than special-casing logic in gameplay blueprints.
