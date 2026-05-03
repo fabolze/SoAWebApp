@@ -20,6 +20,8 @@ import FlagsEditorPage from "./pages/FlagsEditor";
 import IndexPageEditorPage from "./pages/IndexPageEditor";
 import InteractionProfilesEditorPage from "./pages/InteractionProfilesEditor";
 import ItemsEditorPage from "./pages/ItemsEditor";
+import ItemInspectorPage from "./pages/ItemInspectorPage";
+import LocationRoutesEditorPage from "./pages/LocationRoutesEditor";
 import LocationsEditorPage from "./pages/LocationsEditor";
 import LoreEntriesEditorPage from "./pages/LoreEntriesEditor";
 import QuestsEditorPage from "./pages/QuestsEditor";
@@ -35,6 +37,13 @@ import TalentNodeLinksEditorPage from "./pages/TalentNodeLinksEditor";
 import TalentNodesEditorPage from "./pages/TalentNodesEditor";
 import TalentTreesEditorPage from "./pages/TalentTreesEditor";
 import TimelinesEditorPage from "./pages/TimelinesEditor";
+import {
+  CharacterAuthoringPage,
+  ItemAuthoringPage,
+  LocationAuthoringPage,
+  LocationMapAuthoringPage,
+  ShopAuthoringPage,
+} from "./authoringViews/ImmersiveAuthoringPage";
 
 const SIDEBAR_COLLAPSED_KEY = "soa.sidebar.collapsed";
 
@@ -78,8 +87,19 @@ export default function AppRoot() {
               <Route path="factions" element={<FactionsEditorPage />} />
               <Route path="flags" element={<FlagsEditorPage />} />
               <Route path="items" element={<ItemsEditorPage />} />
+              <Route path="inspect/items/:id" element={<ItemInspectorPage />} />
+              <Route path="author/items/new" element={<ItemAuthoringPage />} />
+              <Route path="author/items/:id" element={<ItemAuthoringPage />} />
+              <Route path="author/shops/new" element={<ShopAuthoringPage />} />
+              <Route path="author/shops/:id" element={<ShopAuthoringPage />} />
+              <Route path="author/characters/new" element={<CharacterAuthoringPage />} />
+              <Route path="author/characters/:id" element={<CharacterAuthoringPage />} />
+              <Route path="author/locations/new" element={<LocationAuthoringPage />} />
+              <Route path="author/locations/map" element={<LocationMapAuthoringPage />} />
+              <Route path="author/locations/:id" element={<LocationAuthoringPage />} />
               <Route path="currencies" element={<CurrenciesEditorPage />} />
               <Route path="interaction-profiles" element={<InteractionProfilesEditorPage />} />
+              <Route path="location-routes" element={<LocationRoutesEditorPage />} />
               <Route path="locations" element={<LocationsEditorPage />} />
               <Route path="lore-entries" element={<LoreEntriesEditorPage />} />
               <Route path="quests" element={<QuestsEditorPage />} />

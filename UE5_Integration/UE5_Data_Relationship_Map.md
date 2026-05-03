@@ -120,9 +120,10 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 - **References:** Encounters, Events, Lore, Shops, Characters.
 - **Blueprint owners:** `BP_LocationRegistry`, `BP_WorldMapWidget`, travel orchestration.
 
-### Location Routes (UE5 export proposal)
-- **Key fields:** `from_location_id`, `to_location_id`, `travel_time`, `distance`, `requirements_id`, `encounter_modifiers`, `flags_unlock`, `flags_lock`, `cost_currency_id`, `cost_amount`.
-- **References:** Locations, Requirements, Flags, Currencies, Events (route-triggered), Encounters (optional override list).
+### Location Routes (`m_location_routes.py`)
+- **Key fields:** `from_location_id`, `to_location_id`, `bidirectional`, `route_type`, `travel_cost`, `travel_time`, `requirements_id`, `is_hidden`, `is_fast_travel_enabled`.
+- **References:** Locations, Requirements.
+- **Export:** `location_routes.csv` is a real SoA export table. Import it after `locations`, and after `requirements` when routes are gated.
 - **Blueprint owners:** `BP_WorldGraphSubsystem`, `BP_TravelPlanner`, `BP_TravelOrchestrator`, cheat tooling (for example `UnlockRoute`).
 
 ### Lore Entries (`m_lore_entries.py`) and Timelines (`m_timelines.py`)

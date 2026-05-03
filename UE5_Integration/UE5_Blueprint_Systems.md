@@ -1,6 +1,6 @@
 # Blueprint Systems Overview
 
-Subsystem ownership for the UE5 blueprint-only JRPG build. Use this sheet to keep responsibilities clean and to know which blueprint should expose which API.
+Subsystem ownership for the canonical UE5 Real-Time Top-Down Able prototype. Use this sheet to keep responsibilities clean and to know which blueprint should expose which API. The alternate turn-based plan is kept separately in `../UE5_Integration_Plan_turn_based.md`.
 
 ```
 BP_GameInstance

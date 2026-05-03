@@ -22,6 +22,7 @@ from backend.app.routes.r_currencies import bp as currencies_bp
 from backend.app.routes.r_factions import bp as factions_bp
 from backend.app.routes.r_flags import bp as flags_bp
 from backend.app.routes.r_items import bp as items_bp
+from backend.app.routes.r_location_routes import bp as location_routes_bp
 from backend.app.routes.r_locations import bp as locations_bp
 from backend.app.routes.r_lore_entries import bp as lore_entries_bp
 from backend.app.routes.r_quests import bp as quests_bp
@@ -39,6 +40,9 @@ from backend.app.routes.r_export import bp as export_bp
 from backend.app.routes.r_bulk_export import bp as bulk_export_bp
 from backend.app.routes.r_db_admin import bp as db_admin_bp
 from backend.app.routes.r_authoring import bp as authoring_bp
+from backend.app.routes.r_ui_items import bp as ui_items_bp
+from backend.app.routes.r_ui_characters import bp as ui_characters_bp
+from backend.app.routes.r_ui_location_graph import bp as ui_location_graph_bp
 
 __all__ = ["create_app", "generate_ulid"]
 
@@ -82,6 +86,7 @@ def create_app() -> Flask:
         factions_bp,
         flags_bp,
         items_bp,
+        location_routes_bp,
         locations_bp,
         lore_entries_bp,
         quests_bp,
@@ -98,7 +103,10 @@ def create_app() -> Flask:
         export_bp,
         bulk_export_bp,
         db_admin_bp,
-        authoring_bp
+        authoring_bp,
+        ui_items_bp,
+        ui_characters_bp,
+        ui_location_graph_bp
     ]
     
     for blueprint in blueprints:

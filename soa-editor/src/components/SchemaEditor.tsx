@@ -1,7 +1,7 @@
 // soa-editor/src/components/SchemaEditor.tsx
 // This file acts as a template for the other pages
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   ArchiveBoxArrowDownIcon,
   ArrowDownTrayIcon,
@@ -127,8 +127,10 @@ export default function SchemaEditor({
   idField = "id",
 }: SchemaEditorProps) {
   const [schema, setSchema] = useState<SchemaDefinition | null>(null);
+  const location = useLocation();
   const [data, setData] = useState<EntryRecord>({});
   const [entries, setEntries] = useState<EntryRecord[]>([]);
+  const [entriesLoaded, setEntriesLoaded] = useState(false);
   const [entriesError, setEntriesError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [searchField, setSearchField] = useState<string>("__all__");
@@ -153,12 +155,17 @@ export default function SchemaEditor({
   const originalSerializedRef = useRef("{}");
   const dirtySourceId = useRef(`schema-editor-${generateUlid()}`);
   const pendingWorkspaceSelectionRef = useRef<string | null>(null);
+  const pendingQuerySelectionRef = useRef<string | null>(null);
   const referenceCacheRef = useRef<Map<string, EntryRelationshipSummary>>(new Map());
   const relationshipIndexRef = useRef<RelationshipIndex | null>(null);
   const debouncedSearch = useDebouncedValue(search, 120);
   const debouncedData = useDebouncedValue(data, 200);
   const debouncedDraftData = useDebouncedValue(data, 1200);
   const { setDirty, confirmNavigate } = useDirtyState();
+  const querySelectedId = useMemo(() => {
+    const selected = new URLSearchParams(location.search).get("selected");
+    return selected?.trim() || "";
+  }, [location.search]);
 
   const getEntryId = useCallback(
     (entry: EntryRecord | null | undefined): string => {
@@ -210,6 +217,7 @@ export default function SchemaEditor({
   }, [getEntryId, getEntryLabel, recentStorageKey]);
 
   const loadEntries = useCallback(async () => {
+    setEntriesLoaded(false);
     try {
       const res = await apiFetch(`/api/${apiPath}`);
       const payload = await readJsonSafe(res);
@@ -217,6 +225,7 @@ export default function SchemaEditor({
         setEntries([]);
         const msg = asMessage(payload) || "API did not return a list.";
         setEntriesError(`Entries load failed: ${msg}`);
+        setEntriesLoaded(true);
         return;
       }
       setEntries(toEntryArray(payload));
@@ -224,6 +233,8 @@ export default function SchemaEditor({
     } catch (err) {
       setEntries([]);
       setEntriesError(`Entries load failed: ${errorMessage(err, "Unknown error")}`);
+    } finally {
+      setEntriesLoaded(true);
     }
   }, [apiPath]);
 
@@ -298,6 +309,10 @@ export default function SchemaEditor({
   useEffect(() => {
     void loadEntries();
   }, [loadEntries]);
+
+  useEffect(() => {
+    pendingQuerySelectionRef.current = querySelectedId || null;
+  }, [querySelectedId]);
 
   const handleSave = useCallback(async () => {
     // Prevent accidental overwrites when switching to an ID that belongs to another entry.
@@ -492,6 +507,32 @@ export default function SchemaEditor({
   );
 
   useEffect(() => {
+    const pendingQuerySelectionId = pendingQuerySelectionRef.current;
+    if (pendingQuerySelectionId) {
+      if (!entriesLoaded) return;
+      const matchingEntry = entries.find((entry) => getEntryId(entry) === pendingQuerySelectionId);
+      pendingQuerySelectionRef.current = null;
+      if (matchingEntry) {
+        handleEdit(matchingEntry);
+        return;
+      }
+      const draftKey = `soa.draft.${schemaName}.${pendingQuerySelectionId}`;
+      const draft = parseDraftData(localStorage.getItem(draftKey));
+      if (draft) {
+        setData(draft);
+        setOriginalData(draft);
+        originalSerializedRef.current = stringifyStable(draft);
+        setIsDirty(false);
+        setDraftRestored(true);
+        setShowEditor(true);
+        return;
+      }
+      setToast({ type: "error", message: `Entry '${pendingQuerySelectionId}' was not found in ${title}.` });
+      if (toastTimeout.current) clearTimeout(toastTimeout.current);
+      toastTimeout.current = setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
     const pendingSelectionId = pendingWorkspaceSelectionRef.current;
     if (!pendingSelectionId) return;
     const matchingEntry = entries.find((entry) => getEntryId(entry) === pendingSelectionId);
@@ -510,7 +551,7 @@ export default function SchemaEditor({
       setDraftRestored(true);
       setShowEditor(true);
     }
-  }, [entries, getEntryId, handleEdit, schemaName]);
+  }, [entries, entriesLoaded, getEntryId, handleEdit, querySelectedId, schemaName, title]);
 
   // Delete entry handler.
   const handleDelete = useCallback((entry: EntryRecord) => {

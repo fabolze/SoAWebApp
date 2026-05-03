@@ -1,12 +1,12 @@
 # SoAWebApp Project Context
 
-Last reviewed: 2026-04-30
+Last reviewed: 2026-05-03
 
 ## Purpose
 
 SoAWebApp is a local content-authoring tool for a game project. It has a Flask/SQLite backend that stores game data, a React/Vite frontend that edits that data through JSON-schema-driven forms, and UE5 integration docs/export paths for turning the data into Unreal-friendly CSV/DataTable assets.
 
-The core entities cover gameplay, economy, world, narrative, encounters, and progression: abilities, effects, statuses, stats, attributes, character classes, talent trees/nodes, items, currencies, shops, requirements, locations, factions, lore, characters, combat profiles, interaction profiles, dialogues, quests, story arcs, timelines, events, encounters, flags, and content packs.
+The core entities cover gameplay, economy, world, narrative, encounters, and progression: abilities, effects, statuses, stats, attributes, character classes, talent trees/nodes, items, currencies, shops, requirements, locations, location routes, factions, lore, characters, combat profiles, interaction profiles, dialogues, quests, story arcs, timelines, events, encounters, flags, and content packs.
 
 ## Repository Layout
 
@@ -25,6 +25,29 @@ The core entities cover gameplay, economy, world, narrative, encounters, and pro
 - `soa-editor/src/simulation`: local heuristic simulation engine and scenario definitions.
 - `soa-editor/src/presets` and `soa-editor/src/creative`: authoring helpers for presets, clone/mutate, and generated suggestions.
 - `UE5_Integration*`: planning and relationship docs for Unreal import, Blueprint systems, and DataTable relationships.
+
+## Documentation Map
+
+- `README.md`: quick setup, core capabilities, authoring route overview, and validation commands.
+- `PROJECT_CONTEXT.md`: current architecture, handoff notes, system status, and next work.
+- `backend/data/IMPORT_ORDER_GUIDE.txt`: CSV import order only; keep dependency rules there instead of duplicating them in feature docs.
+- `UE5_Integration_Plan.md`: canonical UE5 direction, currently the Real-Time Top-Down Able prototype.
+- `UE5_Integration/UE5_Prototype_Step_By_Step.md`: concrete implementation sequence for the canonical Real-Time Able prototype.
+- `UE5_Integration/UE5_Blueprint_Integration_Guide.txt`: canonical UE structs, enums, and DataTable import checklist.
+- `UE5_Integration/UE5_Data_Relationship_Map.md`: field-level relationship and validation reference.
+- `UE5_Integration/UE5_Blueprint_Systems.md`: Blueprint subsystem ownership and runtime boundaries.
+- `UE5_Integration/World_Travel_System.md`: `location_routes` movement graph design.
+- `UE5_Integration_Plan_turn_based.md`: alternate/exploratory turn-based JRPG plan, not the current main implementation path.
+
+## System Map
+
+- Web app: Flask backend plus React/Vite frontend for local data authoring.
+- Schema editor: generic, schema-complete CRUD editor for every dataset and the Advanced Form fallback for immersive views.
+- Immersive authoring: RPG-style input views for items, shops, characters, and locations. These are editing surfaces, not just inspectors.
+- Authoring Studio: offline deterministic recipes, composer, variants, bundle drafts, and fix/enrich suggestions. It creates patches or drafts; saves still go through normal CRUD endpoints.
+- CSV import/export: backend import/export endpoints with preview support and Unreal-friendly row keys.
+- Location graph: `locations` are nodes; `location_routes` are explicit movement edges.
+- UE integration: CSV/DataTable mirror consumed by Blueprint systems, with Real-Time Able as the canonical gameplay prototype track.
 
 ## Backend Architecture
 
@@ -48,6 +71,7 @@ CSV and DB admin endpoints:
 - `GET /api/export/csv/<table>` exports a table to CSV.
 - `GET /api/export/all-csv-zip` exports every model table as CSV files in a ZIP.
 - `POST /api/import/csv/<table>` imports a CSV with replace-all semantics for that table.
+- `POST /api/import/csv/<table>/preview` previews CSV import changes without committing.
 - `POST /api/db/reset`, `/api/db/create`, `/api/db/delete`, `/api/db/select`, `GET /api/db/list`, and `GET /api/db/active` manage local SQLite database files.
 
 ## Frontend Architecture
@@ -72,6 +96,16 @@ The main editing experience is schema-driven:
 - `EditorStackProvider` powers inline creation of referenced entities in a drawer.
 - `DirtyStateProvider` tracks unsaved editor state and prompts before navigation/unload.
 
+Immersive authoring views are alternate input surfaces for high-use content types, not read-only inspectors.
+
+- `/author/items/new` and `/author/items/<id>` provide RPG item-card editing for identity, rarity/type, economy, effects, requirements, and stat/attribute modifiers.
+- `/author/shops/new` and `/author/shops/<id>` provide merchant-counter editing for shop identity, location/shopkeeper/currency, pricing layers, and embedded inventory rows.
+- `/author/characters/new` and `/author/characters/<id>` provide dossier editing for identity, portrait, class, faction, home location, and linked combat/interaction profile context.
+- `/author/locations/new` and `/author/locations/<id>` provide location-card editing, map coordinate placement, biome/region/level fields, encounter hooks, and route summaries.
+- `/author/locations/map` shows the location atlas with nodes and `location_routes` edges.
+
+Use Author View for normal content creation when the entity has a specialized route. Use Advanced Form when a rare technical field is missing from the immersive surface, when debugging schema behavior, or when editing a dataset without a specialized view. New-entry authoring routes such as `/author/items/new` create local drafts first; nothing is saved until the normal save action posts through the existing CRUD endpoint.
+
 ## Schema Contract
 
 Adding or changing an entity usually requires synchronized edits in several places:
@@ -88,6 +122,8 @@ Adding or changing an entity usually requires synchronized edits in several plac
 
 Important naming detail: backend API paths are not always the same as schema/table names. Examples: schema `combat_profiles` uses API path `combat_profiles`; `content_packs` uses `content-packs`; `shops_inventory` uses `shop-inventory`; `dialogue_nodes` uses `dialogue-nodes`.
 
+World graph detail: `locations` are graph nodes. `location_routes` are graph edges and are exported/imported as their own table. Do not add `connected_locations` back to the `locations` schema or model.
+
 ## CSV / UE Export Notes
 
 `backend/app/utils/csv_tools.py` is the main Unreal export bridge.
@@ -101,6 +137,8 @@ Important naming detail: backend API paths are not always the same as schema/tab
 
 Tests in `backend/tests/test_csv_tools.py` cover row-key ordering, slug sync, uniqueness, enum token export, slugless fallbacks, and transient reference slug aliases.
 
+`location_routes` participates in CSV export/import like any other model table. Import order: `locations` first, then `requirements` if route gates are used, then `location_routes`.
+
 ## Simulation And Authoring Helpers
 
 `soa-editor/src/simulation` is a client-side heuristic sandbox, not a server simulation.
@@ -113,7 +151,8 @@ Creative and preset helpers are also client-side.
 
 - `src/creative/generators.ts` makes deterministic content suggestions from theme, tone, keywords, and current data.
 - `src/presets/*` contains preset data and patch application logic.
-- These helpers patch editor state; saves still go through normal backend `POST` endpoints.
+- `src/studio/localProvider.ts` can create local draft bundles, including linked fantasy locations and route edges.
+- These helpers patch editor state or create local drafts; saves still go through normal backend `POST` endpoints.
 
 ## Running And Testing
 
@@ -155,42 +194,29 @@ npm run lint
 - The `scripts` folder is currently empty.
 - UE5 docs are design/reference material, not executable code, but they define expected data relationships and export assumptions.
 
-## Recently Completed UX Work
+## Recently Completed Work
 
-Completed on 2026-04-30:
+Completed through 2026-05-03:
 
-- Added a Project Health dashboard to the editor landing page via `soa-editor/src/health/projectHealth.ts` and `soa-editor/src/components/health/ProjectHealthPanel.tsx`.
-- Project Health scans all `EDITOR_DATASETS` for broken references, duplicate `id`/`slug` values, missing required fields, empty important arrays, and suspicious reward/chance values.
-- Project Health issue rows can jump directly to the affected dataset and entry through `IndexPageEditor`.
-- Finished the nested-control dark mode pass for form internals that were still light-only:
-  - `Autocomplete`
-  - `TagInput`
-  - `ReferenceSelectField`
-  - `FloatingReferenceInspector`
-  - `ReferenceDetailsCard`
-  - `EditorStack` inline drawer
-  - `ArrayStringMultiSelectField`
-  - `ArrayObjectField`
-  - `ObjectFieldRenderer`
-  - `ScalarFieldRenderer`
-  - `StringFieldRenderer`
-- Frontend validation after these passes:
-  - `npm run lint` passed.
-  - `npm run build` passed.
-  - Build still reports the existing Vite chunk-size warning for the main bundle.
-- Backend pytest was attempted earlier, but `pytest` is not installed in the current Python environment.
+- Project Health scans datasets for broken references, duplicate IDs/slugs, missing required fields, empty important arrays, and suspicious reward/chance values.
+- Nested schema controls received dark-mode and usability cleanup, including array/object renderers, reference fields, tags, autocomplete, and editor-stack drawers.
+- Authoring Studio was expanded with offline fantasy RPG recipes, local deterministic generation, variants, bundle drafts, and fix/enrich suggestions.
+- CSV import preview was added so replace-all imports can be reviewed before committing.
+- Slug/identity helpers, duplicate handling, and selected-entry query navigation were improved across editor flows.
+- Immersive authoring routes were added for items, shops, characters, and locations, including `/author/.../new` draft flows.
+- Item authoring and shop authoring now support normal content input through specialized RPG-style surfaces while keeping Advanced Form as fallback.
+- Shops persist embedded inventory through the canonical `shops_inventory` table and serialize price previews.
+- `location_routes` was added as the real movement graph edge table, with CRUD, CSV import/export, graph API, atlas rendering, and authoring panels.
+- UE integration docs were updated to include `location_routes` as an exported DataTable and to avoid the obsolete `connected_locations` idea.
 
-## Improvement Backlog
+## Current Next Work
 
-Prioritized UX/data-authoring improvements captured on 2026-04-30:
-
-1. Done: Reference Health + Data Quality: broken references, duplicate IDs/slugs, missing required fields, empty important arrays, invalid reward/link setups.
-2. Done: Finish dark mode in nested controls: array editors, multiselects, autocomplete, tag inputs, reference inspectors, editor stack drawers.
-3. Next: Make nested arrays easier: row summaries, duplicate-row actions, collapsed row editing, and row presets for rewards, stat modifiers, participants, choices, and progression.
-4. Schema navigation / relationship view: outbound references, inbound references, related quests/dialogues/encounters/items, and quick-open links.
-5. Better Authoring Studio presets: richer recipes for common RPG authoring tasks such as NPC vendors, quest starters, elite encounters, status combos, and themed shops.
-6. Import preview + safer CSV tools: preview changed/added rows, show validation errors, and support rollback-oriented workflows.
-7. Generated IDs / slug policy: predictable generation, collision detection, and regenerate-from-name controls.
+1. Finish Item Authoring 1.0 polish: make all common item fields editable without Advanced Form, tighten modifier/effect/requirement controls, and keep shop-source context read-only.
+2. Continue Shop/Merchant Authoring: improve inventory card editing, item picking, stock and price controls, and requirement/availability display.
+3. Improve Character Dossier authoring: add richer linked combat-profile and interaction-profile editing/creation without inventing character inventory.
+4. Expand Location Atlas authoring: make route creation/editing from the map and location detail screens smoother, including filters for route type, hidden, locked, and fast travel.
+5. Keep Authoring Studio and Project Health aligned with new data contracts, especially `location_routes`, shop inventory, and immersive draft workflows.
+6. Keep Advanced Form as the schema-complete fallback for rare fields, debugging, and datasets without immersive authoring surfaces.
 
 ## Fast Lookup
 

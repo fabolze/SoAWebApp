@@ -1,4 +1,6 @@
-# UE5 Integration Plan
+# UE5 Integration Plan (Alternate Turn-Based JRPG Track)
+
+> Status: alternate/exploratory. The current canonical UE implementation path is the Real-Time Top-Down Able prototype in `UE5_Integration_Plan.md` and `UE5_Integration/UE5_Prototype_Step_By_Step.md`. Keep this document as a design reference for a possible future turn-based direction, but do not treat it as the active roadmap.
 
 A blueprint-only roadmap that turns the SoA content repository into a narrative-focused JRPG inside Unreal Engine 5. The plan absorbs the deep-dive in `UE5_Integration/UE5_Blueprint_Integration_Guide.txt` and is scaffolded by two companion docs:
 
@@ -46,7 +48,7 @@ Offene Fragen:
 3. Import every SoA export into DataTables under `Content/Data/Tables`. Enforce exact field name parity between CSV and struct members to avoid import warnings.
 4. Build `BP_DataImportManager` (Editor Utility Widget) to batch re-import all exports, validate enum strings, and flag missing references (for example a quest referencing an absent arc or a shop inventory pointing to a missing item).
 5. Introduce automated validation routines: after imports, run sweeps checking any Requirements, Flags, Content Packs, or Location Routes referenced by other tables actually exist; log actionable errors in editor.
-6. Extend exports with a `LocationRoute` table (two location ULIDs plus distance, travel time, requirements, encounter modifiers). Use it to build a graph for travel planning (see section 3).
+6. Import the existing SoA `location_routes` table (`from_location_id`, `to_location_id`, `bidirectional`, `route_type`, `travel_cost`, `travel_time`, `requirements_id`, hidden/fast-travel flags). Use it to build a graph for travel planning (see section 3).
 
 > [Outcome] UE5 owns a faithful mirror of the SoA schema. Designers can iterate in the editor, re-export, and re-import with zero Blueprint tweaks; validation warns about bad data before runtime.
 

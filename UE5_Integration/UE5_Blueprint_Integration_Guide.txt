@@ -1,6 +1,8 @@
 ﻿Uebersicht: Datenstrukturen und Data Tables fuer Unreal Engine 5
 Um die im SoA-Editor gepflegten Inhalte in Unreal Engine 5 zu verwenden, sollten fuer jede Datenkategorie passende Blueprint-Structs und Data Tables erstellt werden. Alle Kernmodelle im Repository nutzen ULIDs als Primaerschluessel (`id`) und zusaetzlich sprechende Slugs (`slug`). In UE5 empfiehlt es sich, den `slug` als Row Name zu verwenden (gut lesbar), den ULID-String aber als eigenes Feld in der Struct zu speichern, damit Querverweise stabil bleiben. Importiert wird bevorzugt ueber CSV- oder JSON-Exports, die Feldnamen muessen exakt mit den Struct-Feldern uebereinstimmen. Alle Loesungen bleiben blueprint-only; optionale Enums lassen sich als Blueprint-Enums abbilden, um die Editor-Bedienung zu vereinfachen. Blueprint-Enums muessen die Export-Strings unveraendert uebernehmen, damit CSV/JSON-Importe fehlerfrei greifen.
 
+Dokumentenrolle: Dies ist die kanonische Struct-/Enum-/DataTable-Referenz. Der aktive Implementierungsfahrplan steht in `../UE5_Integration_Plan.md` (Real-Time Top-Down mit Able). Schritt-fuer-Schritt-Arbeit steht in `UE5_Prototype_Step_By_Step.md`. Dieses Dokument soll keine zweite Roadmap sein.
+
 Kanonische Listen (einmalig, keine Duplikate)
 - Enum-Index
 - Struct-Index
@@ -393,16 +395,15 @@ Struct FLocationRouteData:
 - slug (String) - Row Name (z.B. `northpass_to_highridge`).
 - from_location_id (String) - ULID der Quell-Location.
 - to_location_id (String) - ULID der Ziel-Location.
-- travel_time (Float) - Dauer in Spielstunden/-tagen.
-- distance (Float) - Distanz oder Abstraktion fuer UI.
-- requirements_id (String) - ULID eines Requirement-Satzes (Blockaden, Ruf, Story).
-- encounter_weight_modifier (Float) - Multiplikator fuer Zufallsbegegnungen auf dieser Route.
-- cost_currency_id (String, optional) - ULID einer Waehrung fuer Reisekosten.
-- cost_amount (Float, optional) - Kostenbetrag.
-- flags_unlock (Array<String>) - Flag-ULIDs, die beim Freischalten gesetzt werden.
-- flags_lock (Array<String>) - Flag-ULIDs, bei deren Setzen die Route gesperrt wird.
-- is_bidirectional (Boolean) - true, wenn dieselben Werte fuer Hin- und Rueckweg gelten; ansonsten zweite Zeile anlegen.
-- tags (Array<String>) - Zusaetzliche Metadaten (z.B. `MountainPass`, `RequiresAirship`).
+- bidirectional (Boolean) - true, wenn dieselbe Zeile Hin- und Rueckweg beschreibt.
+- route_type (Enum/String) - ELocationRouteType: Road, Trail, CavePassage, Portal, ShipRoute, FlightPath, DungeonDoor, SecretPath.
+- travel_cost (Float) - abstrakte Reisekosten fuer Planner/UI.
+- travel_time (Float) - abstrakte Reisezeit fuer Planner/UI.
+- requirements_id (String, optional) - ULID eines Requirement-Satzes fuer Sperren/Gates.
+- is_hidden (Boolean) - Route existiert im Authoring, kann aber fuer Spieler versteckt sein.
+- is_fast_travel_enabled (Boolean) - Route darf am Fast-Travel-Netz teilnehmen.
+- description (Text).
+- tags (Array<String>) - Zusaetzliche Metadaten (z.B. `mountain_pass`, `requires_airship`).
 
 Struct FCharacterData:
 - id (String) - ULID.
@@ -687,7 +688,7 @@ Narrative Spine:
 
 World:
 - locations -> FLocationData (RowName: slug) | Quelle: backend/app/models/m_locations.py
-- location_routes -> FLocationRouteData (RowName: slug) | Quelle: custom export (travel system)
+- location_routes -> FLocationRouteData (RowName: slug) | Quelle: backend/app/models/m_location_routes.py
 - characters -> FCharacterData (RowName: slug) | Quelle: backend/app/models/m_characters.py
 - interaction_profiles -> FInteractionProfileData (RowName: id) | Quelle: backend/app/models/m_interaction_profiles.py
 - encounters -> FEncounterData (RowName: slug) | Quelle: backend/app/models/m_encounters.py
@@ -715,7 +716,7 @@ Phase 2: Structs anlegen -> siehe Struct-Index.
 Phase 3: DataTables importieren -> siehe DataTable-Index.
 Phase 4: Cache-Maps in BP_GameDataSubsystem (siehe Runtime-Wiring).
 
-Blueprint-To-Do (Character/Profile Block)
+Blueprint-To-Do (Character/Profile Block, aktueller Beispielblock)
 - Enums: EInteractionRole, EEnemyType, EEnemyAggression, EEncounterContext, ECombatSide (siehe Enum-Index).
 - Structs: FCharacterData, FInteractionProfileData, FInteractionItemForSale, FCombatProfileData, FLootEntry, FCurrencyReward, FReputationReward, FCompanionConfig, FCompanionProgression, FStatValueEntry, FEncounterParticipant, FEncounterData (siehe Struct-Index).
 - DataTables: characters, interaction_profiles, combat_profiles, encounters (siehe DataTable-Index).

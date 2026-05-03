@@ -60,7 +60,6 @@ class LocationRoute(BaseRoute):
         
         # JSON fields
         location.encounters = data.get("encounters", [])
-        location.connected_locations = data.get("connected_locations", [])
         location.tags = data.get("tags", [])
         
     def serialize_item(self, location: Location) -> Dict[str, Any]:

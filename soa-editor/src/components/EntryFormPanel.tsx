@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import SchemaForm from "./SchemaForm";
 import { ParentSummary } from "./EditorStackContext";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
@@ -140,6 +141,23 @@ interface EntryFormPanelProps {
   changedFieldKeys: string[];
 }
 
+function getImmersiveAuthorPath(schemaName: string, entryId: string): string | null {
+  const encodedId = encodeURIComponent(entryId);
+  if (schemaName === "items") return `/author/items/${encodedId}`;
+  if (schemaName === "shops") return `/author/shops/${encodedId}`;
+  if (schemaName === "characters") return `/author/characters/${encodedId}`;
+  if (schemaName === "locations") return `/author/locations/${encodedId}`;
+  return null;
+}
+
+function getNewImmersiveAuthorPath(schemaName: string): string | null {
+  if (schemaName === "items") return "/author/items/new";
+  if (schemaName === "shops") return "/author/shops/new";
+  if (schemaName === "characters") return "/author/characters/new";
+  if (schemaName === "locations") return "/author/locations/new";
+  return null;
+}
+
 export default function EntryFormPanel({
   schemaName,
   schema,
@@ -170,7 +188,11 @@ export default function EntryFormPanel({
   const latestDataRef = useRef(data || {});
   const rawEntryId = data?.id;
   const currentEntryId = typeof rawEntryId === "string" ? rawEntryId : rawEntryId != null ? String(rawEntryId) : "";
-  const hasExistingId = !isNew && currentEntryId.length > 0;
+  const hasCurrentId = currentEntryId.length > 0;
+  const isPersistedEntry = hasCurrentId && entries.some((entry) => getDisplayText(entry?.id) === currentEntryId);
+  const hasExistingId = !isNew && isPersistedEntry;
+  const immersiveAuthorPath = isPersistedEntry ? getImmersiveAuthorPath(schemaName, currentEntryId) : null;
+  const newImmersiveAuthorPath = !isPersistedEntry ? getNewImmersiveAuthorPath(schemaName) : null;
   const schemaTitle = typeof schema.title === "string" && schema.title.trim() ? schema.title.trim() : schemaName;
   const entryLabel = getDisplayText(data?.name) || getDisplayText(data?.title) || getDisplayText(data?.slug) || (isNew ? "New draft" : currentEntryId || "Untitled entry");
   const entrySubtitle = [
@@ -342,6 +364,34 @@ export default function EntryFormPanel({
             >
               Commands
             </button>
+            {hasExistingId && (
+              <>
+                {immersiveAuthorPath && (
+                  <Link
+                    className={`${BUTTON_CLASSES.indigo} ${BUTTON_SIZES.sm}`}
+                    to={immersiveAuthorPath}
+                  >
+                    Author View
+                  </Link>
+                )}
+                {schemaName === "locations" && (
+                  <Link
+                    className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`}
+                    to="/author/locations/map"
+                  >
+                    Atlas
+                  </Link>
+                )}
+              </>
+            )}
+            {!hasExistingId && newImmersiveAuthorPath && (
+              <Link
+                className={`${BUTTON_CLASSES.indigo} ${BUTTON_SIZES.sm}`}
+                to={newImmersiveAuthorPath}
+              >
+                New Author View
+              </Link>
+            )}
             {hasExistingId && (
               <button
                 type="button"
