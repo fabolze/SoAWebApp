@@ -81,6 +81,7 @@ const pageGroups: PageGroup[] = [
     description: 'Places, people, factions, and reusable NPC behavior definitions.',
     pages: [
       { path: '/locations', name: 'Locations', icon: MapIcon },
+      { path: '/location-routes', name: 'Location Routes', icon: MapIcon },
       { path: '/factions', name: 'Factions', icon: UserGroupIcon },
       { path: '/lore-entries', name: 'Lore Entries', icon: BookOpenIcon },
       { path: '/characters', name: 'Characters', icon: UsersIcon },

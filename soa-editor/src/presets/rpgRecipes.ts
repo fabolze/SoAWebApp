@@ -12,7 +12,7 @@ export const npcVendorPreset: PresetScope = {
       difficulty: "starter",
       recommendedMode: "fill_empty",
       data: {
-        role: "Vendor",
+        title: "Merchant",
         tags: ["npc", "vendor", "shopkeeper"],
       },
     },

@@ -1,5 +1,7 @@
 # UE5 Integration Plan (Real-Time Top-Down Prototype)
 
+Canonical UE roadmap. Use this plan and `UE5_Integration/UE5_Prototype_Step_By_Step.md` for active implementation work. `UE5_Integration_Plan_turn_based.md` is an alternate/exploratory design track.
+
 A blueprint-only roadmap to build a real-time, top-down prototype inspired by Mini Healer, but with a fully buildable main character (talents, gear, and ability loadout). This plan uses Able for abilities and stays data-driven from the SoA exports.
 
 Companion docs:

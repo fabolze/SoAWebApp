@@ -1,6 +1,6 @@
 # World Travel System Blueprint Plan
 
-This plan implements overworld traversal as a data-driven node/edge graph so travel is deterministic, debuggable, and cheap to query from Blueprints. It is scoped to a "select destination -> plan route -> execute segments" JRPG travel loop (world map UI + encounters/events), and complements `UE5_Integration_Plan.md` and `UE5_Integration/UE5_Blueprint_Systems.md`.
+This plan implements overworld traversal as a data-driven node/edge graph so travel is deterministic, debuggable, and cheap to query from Blueprints. It is scoped to a "select destination -> plan route -> execute segments" world-map travel loop that can feed the canonical Real-Time Able prototype with encounters/events, and complements `UE5_Integration_Plan.md` and `UE5_Integration/UE5_Blueprint_Systems.md`.
 
 ---
 
@@ -15,7 +15,7 @@ This plan implements overworld traversal as a data-driven node/edge graph so tra
 | Table / Struct | Purpose | Notes |
 | --- | --- | --- |
 | `FLocationData` | Travel graph nodes. | Mirrors `backend/app/models/m_locations.py` (include `Coordinates` for map UI/A*; keep ULID `Id` inside the struct and use `Slug` as the DataTable Row Name). |
-| `FLocationRouteData` | Travel graph edges between locations. | New export table (see `UE5_Integration/UE5_Blueprint_Integration_Guide.txt`). Include `Id` (ULID) and use `Slug` as the DataTable Row Name. |
+| `FLocationRouteData` | Travel graph edges between locations. | Mirrors `backend/app/models/m_location_routes.py` and exports as `location_routes.csv`. Include `Id` (ULID) and use `Slug` as the DataTable Row Name. |
 | `RouteEventBinding` | Optional bindings from a route to forced Events. | Use route **ULID** (preferred) or route slug (fallback) so bindings survive row renames. |
 | `TravelTuningData` | Balancing knobs for travel math (encounter odds, safe-zone rules, travel mode multipliers). | Keep probabilities/weights out of Widgets; designers tune without Blueprint rewrites. |
 | `TravelPlanSegment` | One executable segment of a planned path (runtime-only). | Store both `RouteId` and endpoint slugs/IDs for debug + robustness. |
@@ -26,6 +26,8 @@ This plan implements overworld traversal as a data-driven node/edge graph so tra
 - Use ULID strings for stable cross-table references (locations, routes, requirements, currencies, flags). Use `FName` for slugs/row names in runtime hot paths.
 - Requirements gate routes (bridge destroyed, faction blockade) or unlocks (airship). Ensure requirement rows exist and are covered by automation tests.
 - Keep derived data single-source: don't duplicate "safe zone" or "encounter chance" in multiple places unless you need an explicit override field.
+- In SoA, `locations` are nodes and `location_routes` are edges. Do not mirror old `connected_locations` ideas in UE structs.
+- V1 route fields are `from_location_id`, `to_location_id`, `bidirectional`, `route_type`, `travel_cost`, `travel_time`, `requirements_id`, `is_hidden`, `is_fast_travel_enabled`, `description`, and `tags`.
 
 ---
 
@@ -89,7 +91,7 @@ This plan implements overworld traversal as a data-driven node/edge graph so tra
 ---
 
 ## 6. Implementation Checklist
-1. Extend SoA exports with a `LocationRoute` table that includes `Id` (ULID) + `Slug` (row name) and ingest it alongside Locations.
+1. Import the existing SoA `location_routes.csv` table alongside Locations. Reimport order: `locations`, then `requirements` if needed, then `location_routes`.
 2. Add `TravelTuningData` (DataTable or DataAsset) so encounter odds and travel multipliers are data-driven.
 3. Prototype `BP_WorldGraphSubsystem` + `BP_TravelPlanner` with a tiny sample graph (3-5 nodes) and validate both Dijkstra and optional A* (if coordinates exist).
 4. Build the travel debug widget early; it doubles as validation feedback for designers and a smoke test for gating.

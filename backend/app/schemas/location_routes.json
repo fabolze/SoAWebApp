@@ -1,0 +1,142 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Location Route",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "ui": {
+        "widget": "hidden"
+      },
+      "description": "Stable unique identifier for this route edge."
+    },
+    "slug": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Readable identifier used by route graph authoring."
+    },
+    "from_location_id": {
+      "type": "string",
+      "ui": {
+        "widget": "reference",
+        "reference": "locations",
+        "label": "From Location"
+      },
+      "description": "Location where this route begins."
+    },
+    "to_location_id": {
+      "type": "string",
+      "ui": {
+        "widget": "reference",
+        "reference": "locations",
+        "label": "To Location"
+      },
+      "description": "Location this route leads to."
+    },
+    "bidirectional": {
+      "type": "boolean",
+      "ui": {
+        "widget": "checkbox",
+        "label": "Bidirectional"
+      },
+      "description": "Whether travel is allowed both ways."
+    },
+    "route_type": {
+      "type": "string",
+      "enum": [
+        "Road",
+        "Trail",
+        "CavePassage",
+        "Portal",
+        "ShipRoute",
+        "FlightPath",
+        "DungeonDoor",
+        "SecretPath"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Route Type",
+        "options": [
+          "Road",
+          "Trail",
+          "CavePassage",
+          "Portal",
+          "ShipRoute",
+          "FlightPath",
+          "DungeonDoor",
+          "SecretPath"
+        ]
+      },
+      "description": "Movement edge category used by map styling and future travel logic."
+    },
+    "travel_cost": {
+      "type": "number",
+      "ui": {
+        "widget": "number",
+        "label": "Travel Cost"
+      },
+      "description": "Abstract movement cost for this route. Defaults to 0."
+    },
+    "travel_time": {
+      "type": "number",
+      "ui": {
+        "widget": "number",
+        "label": "Travel Time"
+      },
+      "description": "Abstract travel time for this route. Defaults to 0."
+    },
+    "requirements_id": {
+      "type": "string",
+      "ui": {
+        "widget": "reference",
+        "reference": "requirements",
+        "label": "Requirements"
+      },
+      "description": "Optional requirement gate for unlocking this route."
+    },
+    "is_hidden": {
+      "type": "boolean",
+      "ui": {
+        "widget": "checkbox",
+        "label": "Hidden"
+      },
+      "description": "Hidden routes are visible in authoring but can be hidden from player-facing maps."
+    },
+    "is_fast_travel_enabled": {
+      "type": "boolean",
+      "ui": {
+        "widget": "checkbox",
+        "label": "Fast Travel Enabled"
+      },
+      "description": "Whether this edge can participate in fast travel."
+    },
+    "description": {
+      "type": "string",
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      },
+      "description": "Designer notes or player-facing route description."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "slug",
+    "from_location_id",
+    "to_location_id",
+    "route_type"
+  ]
+}

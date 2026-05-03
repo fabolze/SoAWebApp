@@ -203,6 +203,7 @@ export default function SchemaForm({ schema, schemaName = '', data, onChange, re
   }, [data, fields]);
 
   const scalarRequiredFields = requiredFields.filter((key) => {
+    if (includedFieldSet && !includedFieldSet.has(key)) return false;
     const config = schema.properties?.[key];
     if (!config) return false;
     if (fieldVisibility[key] === false) return false;

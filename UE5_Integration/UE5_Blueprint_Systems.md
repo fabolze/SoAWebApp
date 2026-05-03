@@ -1,12 +1,6 @@
 # Blueprint Systems Overview
 
-System ownership for the UE5 blueprint-only JRPG build. Use this sheet to keep responsibilities clean and to know which blueprint should expose which API.
-
-Blueprint-only implementation convention (canonical):
-- Global runtime managers live in a custom `BP_GameInstance_SoA` (direct functions/variables) or as Blueprint Objects created and owned by it.
-- World-specific managers live on `BP_GameState` / `BP_PlayerController` components or a placed world manager actor.
-- Actor-specific logic lives in Actor Components.
-- Some names below still contain `Subsystem` for architecture readability; in Blueprint-only implementation treat them as manager blueprints, not C++ subsystems.
+Subsystem ownership for the canonical UE5 Real-Time Top-Down Able prototype. Use this sheet to keep responsibilities clean and to know which blueprint should expose which API. The alternate turn-based plan is kept separately in `../UE5_Integration_Plan_turn_based.md`.
 
 ```
 BP_GameInstance_SoA

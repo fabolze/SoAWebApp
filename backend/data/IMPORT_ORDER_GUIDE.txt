@@ -1,6 +1,11 @@
 CSV Import Order Guide
 ======================
 
+Document role
+-------------
+- This file only documents CSV import ordering and dependency rules.
+- Feature behavior, authoring UX, and UE implementation roadmaps live in README.md, PROJECT_CONTEXT.md, and the UE5_Integration docs.
+
 Why order matters
 -----------------
 - CSV import is "replace-all" per table.
@@ -22,9 +27,11 @@ Current recommended order (for existing seed files)
 If/when you add NPC/enemy gameplay CSVs:
 10) factions (if used by characters/rewards)
 11) locations (if used by characters)
-12) characters
-13) combat_profiles
-14) encounters
+12) requirements (if used by travel gates, items, quests, events, encounters)
+13) location_routes (after locations; after requirements if routes are gated)
+14) characters
+15) combat_profiles
+16) encounters
 
 General rule for new CSV files (going forward)
 ----------------------------------------------
@@ -37,6 +44,7 @@ Quick dependency examples
 -------------------------
 - effects depends on: statuses, stats, attributes (optional), items (optional in related_items)
 - items depends on: currencies (optional), effects (optional), stats/attributes (in modifiers)
+- location_routes depends on: locations, requirements (optional)
 - combat_profiles depends on: characters, stats, abilities, items/currencies/factions/quests (optional)
 - encounters depends on: characters (+ combat_profiles for Combat context)
 

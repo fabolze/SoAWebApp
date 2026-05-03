@@ -96,11 +96,14 @@ function npcVendor(input: StudioProviderInput): StudioSuggestion {
   const characterId = generateUlid();
   const shopId = generateUlid();
   const interactionId = generateUlid();
+  const supplyId = generateUlid();
   const name = themedName(brief, "Provisioner");
+  const supplyName = themedName(brief, "Field Supply");
   const entries = [
-    entry("characters", name, { id: characterId, slug: generateSlug(name), name, title: "Vendor", level: brief.playerLevel, description: `A ${brief.tone} vendor connected to ${brief.theme || "local trade"}.`, location_id: brief.locationId || "", faction_id: brief.factionId || "", tags }),
-    entry("shops", `${name}'s Stock`, { id: shopId, slug: generateSlug(`${name} stock`), name: `${name}'s Stock`, character_id: characterId, location_id: brief.locationId || "", price_multiplier: brief.rewardStyle === "generous" ? 0.9 : 1, inventory: [{ item_id: "", stock: 3, price_multiplier: 1 }], tags }, [characterId]),
-    entry("interaction_profiles", `${name} Interaction`, { id: interactionId, character_id: characterId, role: "Vendor", dialogue_tree_id: "", inventory: [{ item_id: "", price: 10 }], tags }, [characterId, shopId]),
+    entry("characters", name, { id: characterId, slug: generateSlug(name), name, title: "Merchant", level: brief.playerLevel, description: `A ${brief.tone} merchant connected to ${brief.theme || "local trade"}.`, home_location_id: brief.locationId || "", faction_id: brief.factionId || "", tags }),
+    entry("items", supplyName, { id: supplyId, slug: generateSlug(supplyName), name: supplyName, type: "Tool", rarity: "Common", base_price: Math.max(10, brief.playerLevel * 8), description: `Practical stock for ${brief.theme || "local"} travel.`, tags: ["shop_stock", ...tags] }),
+    entry("interaction_profiles", `${name} Interaction`, { id: interactionId, character_id: characterId, role: "Merchant", dialogue_tree_id: "", inventory: [{ item_id: supplyId, price: Math.max(10, brief.playerLevel * 8) }], tags }, [characterId, supplyId]),
+    entry("shops", `${name}'s Stock`, { id: shopId, slug: generateSlug(`${name} stock`), name: `${name}'s Stock`, character_id: characterId, location_id: brief.locationId || "", price_multiplier: brief.rewardStyle === "generous" ? 0.9 : 1, inventory: [{ item_id: supplyId, stock: 3, price_multiplier: 1 }], tags }, [characterId, interactionId, supplyId]),
   ];
   return { id: "bundle-npc-vendor", title: "NPC Vendor Bundle", summary: "Character, shop, and interaction profile.", outputKind: "bundle", source: "local", risk: "needs_review", tags: ["vendor", "shop"], bundle: bundle("npc-vendor", "NPC Vendor Bundle", entries) };
 }
@@ -143,8 +146,14 @@ function themedShop(input: StudioProviderInput): StudioSuggestion {
   const brief = input.brief;
   const name = themedName(brief, "Market");
   const tags = ["shop", ...keywordTags(brief)];
+  const stapleId = generateUlid();
+  const rareId = generateUlid();
+  const stapleName = themedName(brief, "Travel Kit");
+  const rareName = themedName(brief, "Curio");
   const entries = [
-    entry("shops", name, { id: generateUlid(), slug: generateSlug(name), name, description: `A ${brief.tone} shop themed around ${brief.theme || "regional goods"}.`, location_id: brief.locationId || "", price_multiplier: brief.rewardStyle === "generous" ? 0.95 : 1.1, inventory: [{ item_id: "", stock: 5, price_multiplier: 1 }, { item_id: "", stock: 1, price_multiplier: 1.25 }], price_modifiers: [{ modifier_type: "Flag", reference_id: "", operator: "eq", value: 1, price_multiplier: 0.9 }], tags }),
+    entry("items", stapleName, { id: stapleId, slug: generateSlug(stapleName), name: stapleName, type: "Tool", rarity: "Common", base_price: 25, description: `Reliable supplies for ${brief.theme || "regional"} travel.`, tags: ["shop_stock", ...tags] }),
+    entry("items", rareName, { id: rareId, slug: generateSlug(rareName), name: rareName, type: "Accessory", rarity: brief.rewardStyle === "rare" ? "Rare" : "Uncommon", base_price: Math.max(60, brief.playerLevel * 25), description: `A distinctive item that gives the shop a memorable identity.`, tags: ["shop_stock", ...tags] }),
+    entry("shops", name, { id: generateUlid(), slug: generateSlug(name), name, description: `A ${brief.tone} shop themed around ${brief.theme || "regional goods"}.`, location_id: brief.locationId || "", price_multiplier: brief.rewardStyle === "generous" ? 0.95 : 1.1, inventory: [{ item_id: stapleId, stock: 5, price_multiplier: 1 }, { item_id: rareId, stock: 1, price_multiplier: 1.25 }], price_modifiers: [{ modifier_type: "Flag", reference_id: "", operator: "eq", value: 1, price_multiplier: 0.9 }], tags }, [stapleId, rareId]),
   ];
   return { id: "bundle-themed-shop", title: "Themed Shop Collection", summary: "Shop with inventory slots and pricing modifier.", outputKind: "bundle", source: "local", risk: "needs_review", tags: ["shop"], bundle: bundle("themed-shop", "Themed Shop Collection", entries) };
 }
@@ -169,7 +178,9 @@ function statusCombo(input: StudioProviderInput): StudioSuggestion {
 function dungeonDelve(input: StudioProviderInput): StudioSuggestion {
   const brief = input.brief;
   const tags = ["fantasy", "dungeon", ...keywordTags(brief)];
+  const campId = generateUlid();
   const locationId = generateUlid();
+  const routeId = generateUlid();
   const flagFound = generateUlid();
   const flagCleared = generateUlid();
   const questId = generateUlid();
@@ -177,15 +188,54 @@ function dungeonDelve(input: StudioProviderInput): StudioSuggestion {
   const loreId = generateUlid();
   const itemId = generateUlid();
   const baseName = themedName(brief, "Sealed Vault");
+  const campName = themedName(brief, "Expedition Camp");
   const rewardName = themedName(brief, "Relic");
   const entries = [
+    entry("locations", campName, {
+      id: campId,
+      slug: generateSlug(campName),
+      name: campName,
+      biome: "Plains",
+      region: brief.locationId || "Uncharted Depths",
+      level_range: { min: Math.max(1, brief.playerLevel - 1), max: Math.max(1, brief.playerLevel + 1) },
+      coordinates: { x: 42, y: 58 },
+      encounters: [],
+      is_safe_zone: true,
+      is_fast_travel_point: true,
+      has_respawn_point: true,
+      description: `A small field camp used as the staging point for expeditions into ${baseName}.`,
+      tags,
+    }),
     entry("locations", baseName, {
       id: locationId,
       slug: generateSlug(baseName),
       name: baseName,
+      biome: "Cave",
+      biome_modifier: brief.tone.toLowerCase().includes("dark") ? "Shadowed" : "Arcane",
+      region: brief.locationId || "Uncharted Depths",
+      level_range: { min: Math.max(1, brief.playerLevel - 1), max: Math.max(1, brief.playerLevel + 2) },
+      coordinates: { x: 50, y: 50 },
       description: `A ${brief.tone} underground adventure site with locked passages, old wards, and a dangerous central chamber.`,
+      encounters: [encounterId],
+      is_safe_zone: false,
+      is_fast_travel_point: false,
+      has_respawn_point: false,
       tags,
     }),
+    entry("location_routes", `${campName} to ${baseName}`, {
+      id: routeId,
+      slug: generateSlug(`${campName} to ${baseName}`),
+      from_location_id: campId,
+      to_location_id: locationId,
+      bidirectional: true,
+      route_type: "Trail",
+      travel_cost: Math.max(1, brief.playerLevel),
+      travel_time: 1,
+      is_hidden: false,
+      is_fast_travel_enabled: false,
+      description: `A marked trail from the expedition camp toward the sealed dungeon entrance.`,
+      tags,
+    }, [campId, locationId]),
     entry("flags", `${baseName} Discovered`, { id: flagFound, slug: generateSlug(`${baseName} discovered`), name: `${baseName} Discovered`, description: "Set when the player reaches the dungeon site.", tags }, [locationId]),
     entry("flags", `${baseName} Cleared`, { id: flagCleared, slug: generateSlug(`${baseName} cleared`), name: `${baseName} Cleared`, description: "Set when the player resolves the main dungeon threat.", tags }, [locationId]),
     entry("items", rewardName, {
@@ -210,7 +260,6 @@ function dungeonDelve(input: StudioProviderInput): StudioSuggestion {
       slug: generateSlug(`${baseName} guardian trial`),
       name: `${baseName} Guardian Trial`,
       encounter_type: "Combat",
-      location_id: locationId,
       participants: [{ character_id: "", contexts: ["Combat"], combat_side: "Hostile" }],
       rewards: { xp: brief.playerLevel * 90, items: [{ item_id: itemId, quantity: 1 }], currencies: [{ currency_id: "", amount: brief.playerLevel * 12 }], reputation: [], flags_set: [flagCleared] },
       tags,
@@ -229,7 +278,7 @@ function dungeonDelve(input: StudioProviderInput): StudioSuggestion {
       item_rewards: [{ item_id: itemId, quantity: 1 }],
       currency_rewards: brief.rewardStyle === "none" ? [] : [{ currency_id: "", amount: brief.playerLevel * 15 }],
       tags,
-    }, [locationId, flagFound, flagCleared, itemId, encounterId, loreId]),
+    }, [locationId, campId, routeId, flagFound, flagCleared, itemId, encounterId, loreId]),
   ];
   return {
     id: "bundle-fantasy-dungeon-delve",
@@ -252,6 +301,7 @@ function patronContract(input: StudioProviderInput): StudioSuggestion {
   const questId = generateUlid();
   const dialogueId = generateUlid();
   const nodeId = generateUlid();
+  const supplyId = generateUlid();
   const factionName = themedName(brief, "Lantern Order");
   const patronName = themedName(brief, "Quartermaster");
   const entries = [
@@ -269,8 +319,26 @@ function patronContract(input: StudioProviderInput): StudioSuggestion {
       title: "Contract Patron",
       level: Math.max(1, brief.playerLevel + 1),
       faction_id: factionId,
-      location_id: brief.locationId || "",
+      home_location_id: brief.locationId || "",
       description: `A practical contact who offers work, supplies, and rumors tied to ${brief.theme || "local ruins"}.`,
+      tags,
+    }, [factionId]),
+    entry("interaction_profiles", `${patronName} Merchant Profile`, {
+      id: generateUlid(),
+      character_id: characterId,
+      role: "Merchant",
+      dialogue_tree_id: dialogueId,
+      inventory: [],
+      tags,
+    }, [characterId, dialogueId]),
+    entry("items", `${patronName} Supply Bundle`, {
+      id: supplyId,
+      slug: generateSlug(`${patronName} supply bundle`),
+      name: `${patronName} Supply Bundle`,
+      type: "Tool",
+      rarity: "Common",
+      base_price: Math.max(20, brief.playerLevel * 10),
+      description: `Field supplies issued through ${factionName}.`,
       tags,
     }, [factionId]),
     entry("shops", `${patronName}'s Field Supplies`, {
@@ -279,10 +347,10 @@ function patronContract(input: StudioProviderInput): StudioSuggestion {
       name: `${patronName}'s Field Supplies`,
       character_id: characterId,
       location_id: brief.locationId || "",
-      inventory: [{ item_id: "", stock: 4, price_multiplier: 0.95 }, { item_id: "", stock: 2, price_multiplier: 1.15 }],
+      inventory: [{ item_id: supplyId, stock: 4, price_multiplier: 0.95 }],
       price_modifiers: [{ modifier_type: "FactionReputation", reference_id: factionId, operator: "gte", value: 10, price_multiplier: 0.9 }],
       tags,
-    }, [characterId, factionId]),
+    }, [characterId, factionId, supplyId]),
     entry("dialogues", `${patronName} Contract Briefing`, {
       id: dialogueId,
       slug: generateSlug(`${patronName} contract briefing`),

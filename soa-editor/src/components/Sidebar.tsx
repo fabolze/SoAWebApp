@@ -223,6 +223,7 @@ const DEFAULT_GROUPS: SidebarGroup[] = [
     label: "World",
     items: [
       { to: "/locations", label: "Locations", icon: MapIcon },
+      { to: "/location-routes", label: "Location Routes", icon: MapIcon },
       { to: "/factions", label: "Factions", icon: UserGroupIcon },
       { to: "/lore-entries", label: "Lore Entries", icon: BookOpenIcon },
       { to: "/characters", label: "Characters", icon: UsersIcon },

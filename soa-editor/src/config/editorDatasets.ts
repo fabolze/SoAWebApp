@@ -22,6 +22,7 @@ export const EDITOR_DATASETS: EditorDatasetConfig[] = [
   { schemaName: "items", apiPath: "items", routePath: "items", label: "Items" },
   { schemaName: "currencies", apiPath: "currencies", routePath: "currencies", label: "Currencies" },
   { schemaName: "interaction_profiles", apiPath: "interaction_profiles", routePath: "interaction-profiles", label: "Interaction Profiles" },
+  { schemaName: "location_routes", apiPath: "location_routes", routePath: "location-routes", label: "Location Routes" },
   { schemaName: "locations", apiPath: "locations", routePath: "locations", label: "Locations" },
   { schemaName: "lore_entries", apiPath: "lore-entries", routePath: "lore-entries", label: "Lore Entries" },
   { schemaName: "quests", apiPath: "quests", routePath: "quests", label: "Quests" },
