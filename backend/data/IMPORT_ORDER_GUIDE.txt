@@ -17,12 +17,16 @@ Current recommended order (for existing seed files)
 1) stats
 2) attributes
 3) statuses
-4) abilities
-5) attribute_stat_links
-6) characterclasses
-7) currencies
-8) effects
+4) currencies
+5) effects
+6) abilities
+7) attribute_stat_links
+8) characterclasses
 9) items
+
+The rebuild script (`scripts/rebuild_source_db.py`) follows this dependency
+order for existing files and extends it for later world, narrative, economy,
+and progression CSVs.
 
 If/when you add NPC/enemy gameplay CSVs:
 10) factions (if used by characters/rewards)
@@ -39,6 +43,7 @@ General rule for new CSV files (going forward)
 2) Then import tables that reference only base tables.
 3) Then import "composition/runtime" tables that reference many others.
 4) Keep each imported CSV complete for its table (to avoid accidental row deletion).
+5) Use source CSVs for SQLite regeneration. UE CSVs are generated DataTable exports.
 
 Quick dependency examples
 -------------------------

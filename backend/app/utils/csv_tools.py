@@ -5,7 +5,7 @@ import json
 import os
 import re
 import unicodedata
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple
 
 from sqlalchemy.types import Enum as SAEnum
 from sqlalchemy.orm import object_session
@@ -13,6 +13,7 @@ from sqlalchemy.orm import object_session
 from backend.app.routes.base_route import ROUTE_REGISTRY
 
 UE_ROW_KEY_HEADER = "Name"
+CSVExportMode = Literal["ue", "source"]
 ROW_KEY_SOURCE_FIELDS = ("slug", "slugName", "name", "title", "id")
 ROW_KEY_FALLBACK = "row"
 ROW_KEY_TABLE_TEMPLATES: Dict[str, Tuple[str, ...]] = {
@@ -404,6 +405,16 @@ def _serialize_cell(value: Any) -> Any:
     return value
 
 
+def _serialize_source_cell(value: Any) -> Any:
+    if value is None:
+        return ""
+    if isinstance(value, enum.Enum):
+        return value.value
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return value
+
+
 def _escape_ue_string(value: str) -> str:
     # UE property text strings use double quotes; keep escaping minimal.
     return value.replace("\\", "\\\\").replace('"', '\\"')
@@ -436,21 +447,37 @@ def _serialize_ue_property_text(value: Any) -> str:
     return _serialize_ue_property_scalar(value)
 
 
-def build_csv_rows(table_name: str, model_class: Any, rows: Iterable[Any]) -> Tuple[List[str], List[List[Any]]]:
+def build_csv_rows(
+    table_name: str,
+    model_class: Any,
+    rows: Iterable[Any],
+    mode: CSVExportMode = "ue",
+) -> Tuple[List[str], List[List[Any]]]:
+    if mode not in ("ue", "source"):
+        raise ValueError(f"Unsupported CSV export mode: {mode}")
+
     rows_list = list(rows)
     items = serialize_items_for_table(table_name, model_class, rows_list)
     items = [dict(item) for item in items]
-    ref_slug_lookups = _build_reference_slug_lookups(model_class, rows_list, items)
-    transient_aliases = _inject_reference_slug_aliases(items, ref_slug_lookups)
-    _normalize_enum_columns(model_class, items)
-    _assign_row_keys(table_name, items, sync_slug=_model_has_column(model_class, "slug"))
-    _strip_transient_alias_fields(items, transient_aliases)
-    _drop_excluded_columns_from_items(table_name, items)
+
+    if mode == "ue":
+        ref_slug_lookups = _build_reference_slug_lookups(model_class, rows_list, items)
+        transient_aliases = _inject_reference_slug_aliases(items, ref_slug_lookups)
+        _normalize_enum_columns(model_class, items)
+        _assign_row_keys(table_name, items, sync_slug=_model_has_column(model_class, "slug"))
+        _strip_transient_alias_fields(items, transient_aliases)
+        _drop_excluded_columns_from_items(table_name, items)
+    else:
+        _assign_row_keys(table_name, items, sync_slug=False)
+
     columns = resolve_columns(table_name, model_class, items)
-    columns = _drop_excluded_columns_from_header(table_name, columns)
+    if mode == "ue":
+        columns = _drop_excluded_columns_from_header(table_name, columns)
+
     data_rows: List[List[Any]] = []
     for item in items:
-        data_rows.append([_serialize_cell(item.get(col)) for col in columns])
+        serializer = _serialize_cell if mode == "ue" else _serialize_source_cell
+        data_rows.append([serializer(item.get(col)) for col in columns])
     return columns, data_rows
 
 
@@ -481,7 +508,7 @@ def _coerce_primitive(raw: str) -> Any:
     return raw
 
 
-def coerce_row_from_schema(table_name: str, row: Dict[str, str]) -> Dict[str, Any]:
+def coerce_row_from_schema(table_name: str, row: Dict[str, str], strict_json: bool = False) -> Dict[str, Any]:
     schema = load_schema(table_name) or {}
     properties = schema.get("properties", {}) if isinstance(schema.get("properties"), dict) else {}
     coerced: Dict[str, Any] = {}
@@ -500,12 +527,19 @@ def coerce_row_from_schema(table_name: str, row: Dict[str, str]) -> Dict[str, An
                 parsed = _parse_json_value(value)
                 if isinstance(parsed, list):
                     coerced[key] = parsed
+                elif strict_json:
+                    raise ValueError(f"Field '{key}' must be a JSON array.")
                 else:
                     coerced[key] = [v.strip() for v in value.split(",") if v.strip()]
                 continue
             if field_type == "object":
                 parsed = _parse_json_value(value)
-                coerced[key] = parsed if parsed is not None else _coerce_primitive(value)
+                if isinstance(parsed, dict):
+                    coerced[key] = parsed
+                elif strict_json:
+                    raise ValueError(f"Field '{key}' must be a JSON object.")
+                else:
+                    coerced[key] = parsed if parsed is not None else _coerce_primitive(value)
                 continue
             if field_type == "integer":
                 try:

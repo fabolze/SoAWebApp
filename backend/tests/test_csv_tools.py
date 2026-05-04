@@ -2,12 +2,17 @@ from backend.app.models.m_abilities_links import AbilityEffectLink
 from backend.app.models.m_abilities import Ability
 from backend.app.models.m_attributes import Attribute
 from backend.app.models.m_items import Item
+from backend.app.models.m_location_routes import LocationRoute
+from backend.app.models.m_locations import Location
+from backend.app.models.m_shop_inventory import ShopInventory
+from backend.app.models.m_shops import Shop
 from backend.app.models.m_stats import Stat
 from backend.app.models.m_story_arcs import StoryArc
 from backend.app.utils import csv_tools
 from backend.app.routes import r_export
 from flask import Flask
 from io import BytesIO
+import json
 
 
 def _mock_serialized_items(monkeypatch, items):
@@ -277,3 +282,92 @@ def test_nested_struct_arrays_use_ue_property_text(monkeypatch):
 
     assert base_stats_cell == '((stat_id="01HP",value=100),(stat_id="01ATK",value=10))'
     assert stat_growth_cell == '((stat_id="01HP",value=5))'
+
+
+def test_source_export_preserves_nested_columns_omitted_from_ue(monkeypatch):
+    items = [
+        {
+            "id": "01ITEM",
+            "slug": "iron_sword",
+            "name": "Iron Sword",
+            "type": "Weapon",
+            "stat_modifiers": [{"stat_id": "01STAT", "value": 3}],
+            "attribute_modifiers": [{"attribute_id": "01ATTR", "value": 1}],
+            "effects": ["01EFF"],
+        }
+    ]
+    _mock_serialized_items(monkeypatch, items)
+
+    columns, data_rows = csv_tools.build_csv_rows("items", Item, [], mode="source")
+    row = data_rows[0]
+
+    assert columns[0] == csv_tools.UE_ROW_KEY_HEADER
+    assert "stat_modifiers" in columns
+    assert "attribute_modifiers" in columns
+    assert json.loads(row[columns.index("stat_modifiers")]) == [{"stat_id": "01STAT", "value": 3}]
+    assert json.loads(row[columns.index("attribute_modifiers")]) == [{"attribute_id": "01ATTR", "value": 1}]
+    assert json.loads(row[columns.index("effects")]) == ["01EFF"]
+
+
+def test_source_export_uses_json_not_ue_property_text(monkeypatch):
+    items = [
+        {
+            "id": "01ATTR",
+            "slug": "strength",
+            "name": "Strength",
+            "value_type": "float",
+            "results_in": [{"stat_id": "hp", "scale": "Linear", "multiplier": 1.0}],
+            "used_in": ["Character", "Item"],
+            "tags": ["core", "combat"],
+        }
+    ]
+    _mock_serialized_items(monkeypatch, items)
+
+    columns, data_rows = csv_tools.build_csv_rows("attributes", Attribute, [], mode="source")
+    row = data_rows[0]
+
+    assert "results_in" in columns
+    assert json.loads(row[columns.index("results_in")]) == [{"multiplier": 1.0, "scale": "Linear", "stat_id": "hp"}]
+    assert json.loads(row[columns.index("used_in")]) == ["Character", "Item"]
+    assert json.loads(row[columns.index("tags")]) == ["core", "combat"]
+
+
+def test_source_export_does_not_sync_slug_to_row_key(monkeypatch):
+    items = [{"id": "01A", "slug": "Iron Sword", "name": "Iron Sword"}]
+    _mock_serialized_items(monkeypatch, items)
+
+    columns, data_rows = csv_tools.build_csv_rows("items", Item, [], mode="source")
+    row = data_rows[0]
+
+    assert row[columns.index(csv_tools.UE_ROW_KEY_HEADER)] == "iron-sword"
+    assert row[columns.index("slug")] == "Iron Sword"
+
+
+def test_ue_export_includes_required_world_and_economy_columns():
+    required_by_table = {
+        "locations": (Location, {"id", "slug", "name", "biome", "region", "level_range", "coordinates", "image_path", "encounters"}),
+        "location_routes": (LocationRoute, {"id", "slug", "from_location_id", "to_location_id", "route_type", "travel_cost", "travel_time", "requirements_id"}),
+        "shops": (Shop, {"id", "slug", "name", "currency_id", "location_id", "character_id", "requirements_id", "price_modifiers"}),
+        "shops_inventory": (ShopInventory, {"id", "slug", "shop_id", "item_id", "stock", "currency_id", "requirements_id"}),
+        "items": (Item, {"id", "slug", "name", "type", "base_price", "base_currency_id", "effects", "requirements_id", "icon_path"}),
+        "attributes": (Attribute, {"id", "slug", "name", "value_type", "used_in", "icon_path", "tags"}),
+        "stats": (Stat, {"id", "slug", "name", "category", "value_type", "applies_to", "icon_path", "tags"}),
+    }
+
+    for table_name, (model_class, required_columns) in required_by_table.items():
+        columns, _ = csv_tools.build_csv_rows(table_name, model_class, [], mode="ue")
+        assert columns[0] == csv_tools.UE_ROW_KEY_HEADER
+        assert required_columns <= set(columns)
+
+
+def test_source_json_coercion_rejects_malformed_arrays():
+    try:
+        csv_tools.coerce_row_from_schema(
+            "items",
+            {"id": "01ITEM", "slug": "bad", "name": "Bad", "type": "Weapon", "base_price": "1", "effects": '("01EFF")'},
+            strict_json=True,
+        )
+    except ValueError as exc:
+        assert "effects" in str(exc)
+    else:
+        raise AssertionError("Malformed source JSON array should fail")

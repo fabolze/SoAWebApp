@@ -63,9 +63,9 @@ def _coercion_warnings(table_name, raw_row, row_number):
     return warnings
 
 
-def _normalize_import_row(table_name, model_class, route, raw_row):
+def _normalize_import_row(table_name, model_class, route, raw_row, strict_json=False):
     clean_row = {k: v for k, v in raw_row.items() if k}
-    clean_row = coerce_row_from_schema(table_name, clean_row)
+    clean_row = coerce_row_from_schema(table_name, clean_row, strict_json=strict_json)
     row_key_value = clean_row.get(UE_ROW_KEY_HEADER)
     if row_key_value is not None and str(row_key_value).strip() != "":
         if not clean_row.get("slug"):
@@ -88,8 +88,7 @@ def _public_value(value):
     except Exception:
         return str(value)
 
-@bp.route("/api/export/csv/<table_name>", methods=["GET"])
-def export_csv(table_name):
+def _export_csv_response(table_name, mode):
     session = get_db_session()
     try:
         # Find model class by __tablename__
@@ -97,17 +96,27 @@ def export_csv(table_name):
         if model_class is None:
             abort(404, description=f"Table '{table_name}' not found.")
         rows = session.query(model_class).all()
-        columns, data_rows = build_csv_rows(table_name, model_class, rows)
+        columns, data_rows = build_csv_rows(table_name, model_class, rows, mode=mode)
         csv_content = write_csv_string(columns, data_rows)
         response = Response(csv_content, mimetype="text/csv")
-        response.headers["Content-Disposition"] = f"attachment; filename={table_name}.csv"
+        response.headers["Content-Disposition"] = f"attachment; filename={table_name}.{mode}.csv"
         return response
     finally:
         session.close()
 
 
-@bp.route("/api/import/csv/<table_name>/preview", methods=["POST"])
-def preview_import_csv(table_name):
+@bp.route("/api/export/csv/<table_name>", methods=["GET"])
+@bp.route("/api/export/ue/csv/<table_name>", methods=["GET"])
+def export_ue_csv(table_name):
+    return _export_csv_response(table_name, mode="ue")
+
+
+@bp.route("/api/source/export/csv/<table_name>", methods=["GET"])
+def export_source_csv(table_name):
+    return _export_csv_response(table_name, mode="source")
+
+
+def _preview_import_csv(table_name, strict_json=False):
     session = get_db_session()
     try:
         model_class = next((m for m in ALL_MODELS if getattr(m, "__tablename__", None) == table_name), None)
@@ -139,7 +148,7 @@ def preview_import_csv(table_name):
         for index, raw_row in enumerate(raw_rows or [], start=2):
             warnings.extend(_coercion_warnings(table_name, raw_row, index))
             try:
-                item_id, clean_row = _normalize_import_row(table_name, model_class, route, raw_row)
+                item_id, clean_row = _normalize_import_row(table_name, model_class, route, raw_row, strict_json=strict_json)
             except Exception as exc:
                 errors.append({"row": index, "message": f"Failed to parse row: {str(exc)}"})
                 continue
@@ -188,8 +197,18 @@ def preview_import_csv(table_name):
     finally:
         session.close()
 
-@bp.route("/api/import/csv/<table_name>", methods=["POST"])
-def import_csv(table_name):
+
+@bp.route("/api/import/csv/<table_name>/preview", methods=["POST"])
+def preview_import_csv(table_name):
+    return _preview_import_csv(table_name, strict_json=False)
+
+
+@bp.route("/api/source/import/csv/<table_name>/preview", methods=["POST"])
+def preview_import_source_csv(table_name):
+    return _preview_import_csv(table_name, strict_json=True)
+
+
+def _import_csv(table_name, strict_json=False):
     session = get_db_session()
     try:
         model_class = next((m for m in ALL_MODELS if getattr(m, "__tablename__", None) == table_name), None)
@@ -206,7 +225,7 @@ def import_csv(table_name):
 
         try:
             for row in raw_rows or []:
-                item_id, clean_row = _normalize_import_row(table_name, model_class, route, row)
+                item_id, clean_row = _normalize_import_row(table_name, model_class, route, row, strict_json=strict_json)
 
                 # Validate id present
                 if not clean_row.get("id"):
@@ -244,3 +263,13 @@ def import_csv(table_name):
         return jsonify({"status": "success", "imported": count, "deleted": len(existing_ids - imported_ids)})
     finally:
         session.close()
+
+
+@bp.route("/api/import/csv/<table_name>", methods=["POST"])
+def import_csv(table_name):
+    return _import_csv(table_name, strict_json=False)
+
+
+@bp.route("/api/source/import/csv/<table_name>", methods=["POST"])
+def import_source_csv(table_name):
+    return _import_csv(table_name, strict_json=True)

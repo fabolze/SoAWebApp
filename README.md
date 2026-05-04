@@ -33,19 +33,24 @@ The app will start with debug mode enabled and will initialize the SQLite databa
 ### CSV Import/Export
 
 - Endpoints:
-  - `GET /api/export/csv/<table>`: Exports a single table as CSV. Columns are ordered with `id`, `slug` first (if present), followed by all other fields.
-  - `GET /api/export/all-csv-zip`: Exports all tables as CSVs in a ZIP.
-  - `POST /api/import/csv/<table>/preview`: Parses an import and reports added/updated/deleted/unchanged rows without committing.
-  - `POST /api/import/csv/<table>`: Imports a CSV into a table. Existing rows are cleared before import (replace-all behavior).
+  - `GET /api/export/csv/<table>` or `GET /api/export/ue/csv/<table>`: Exports Unreal-friendly CSV for one table.
+  - `GET /api/export/all-csv-zip` or `GET /api/export/ue/all-csv-zip`: Exports all Unreal-friendly CSV tables in a ZIP.
+  - `GET /api/source/export/csv/<table>`: Exports lossless source CSV for one table, preserving arrays/objects as JSON-in-CSV.
+  - `GET /api/source/export/all-csv-zip`: Exports all lossless source CSV tables in a ZIP.
+  - `POST /api/source/import/csv/<table>/preview`: Parses a source CSV import and reports added/updated/deleted/unchanged rows without committing.
+  - `POST /api/source/import/csv/<table>`: Imports a source CSV into a table. Existing rows are cleared before import (replace-all behavior).
+  - `POST /api/import/csv/<table>` remains available as the legacy permissive import path.
 
 - Required columns when importing:
   - `id`: Required for all entities (ULID string). Imports fail if missing or empty.
   - `slug`: Optional. If missing for tables that have a slug column, the server will derive one from `name` or `title` (fallback: `id`).
 
 - Notes:
+  - UE CSVs are generated artifacts for Unreal DataTables. Source CSVs are the database-regeneration format.
   - Many link tables do not have a `slug` column; import/export will therefore not include it for those tables.
   - `location_routes` is a real export/import table for graph movement edges. Import it after `locations`, and after `requirements` if routes use locks.
   - For development, you can reset the database with `POST /api/db/reset`.
+  - To rebuild the active local SQLite database from tracked source CSVs, run `python scripts/rebuild_source_db.py --source-dir backend/data`.
 
 ## Frontend setup
 

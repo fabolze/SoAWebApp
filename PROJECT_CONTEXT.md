@@ -45,7 +45,7 @@ The core entities cover gameplay, economy, world, narrative, encounters, and pro
 - Schema editor: generic, schema-complete CRUD editor for every dataset and the Advanced Form fallback for immersive views.
 - Immersive authoring: RPG-style input views for items, shops, characters, and locations. These are editing surfaces, not just inspectors.
 - Authoring Studio: offline deterministic recipes, composer, variants, bundle drafts, and fix/enrich suggestions. It creates patches or drafts; saves still go through normal CRUD endpoints.
-- CSV import/export: backend import/export endpoints with preview support and Unreal-friendly row keys.
+- CSV import/export: backend has explicit source CSVs for DB regeneration and UE CSVs for Unreal-friendly DataTable output.
 - Location graph: `locations` are nodes; `location_routes` are explicit movement edges.
 - UE integration: CSV/DataTable mirror consumed by Blueprint systems, with Real-Time Able as the canonical gameplay prototype track.
 
@@ -68,10 +68,13 @@ Most entity routes inherit from `backend/app/routes/base_route.py`.
 
 CSV and DB admin endpoints:
 
-- `GET /api/export/csv/<table>` exports a table to CSV.
-- `GET /api/export/all-csv-zip` exports every model table as CSV files in a ZIP.
-- `POST /api/import/csv/<table>` imports a CSV with replace-all semantics for that table.
-- `POST /api/import/csv/<table>/preview` previews CSV import changes without committing.
+- `GET /api/export/csv/<table>` and `GET /api/export/ue/csv/<table>` export Unreal-friendly CSV.
+- `GET /api/export/all-csv-zip` and `GET /api/export/ue/all-csv-zip` export every model table as UE CSV files in a ZIP.
+- `GET /api/source/export/csv/<table>` exports lossless source CSV with JSON-in-CSV nested values.
+- `GET /api/source/export/all-csv-zip` exports every model table as source CSV files in a ZIP.
+- `POST /api/source/import/csv/<table>` imports source CSV with replace-all semantics for that table.
+- `POST /api/source/import/csv/<table>/preview` previews source CSV import changes without committing.
+- `POST /api/import/csv/<table>` remains as a legacy permissive CSV import path.
 - `POST /api/db/reset`, `/api/db/create`, `/api/db/delete`, `/api/db/select`, `GET /api/db/list`, and `GET /api/db/active` manage local SQLite database files.
 
 ## Frontend Architecture
@@ -126,14 +129,19 @@ World graph detail: `locations` are graph nodes. `location_routes` are graph edg
 
 ## CSV / UE Export Notes
 
-`backend/app/utils/csv_tools.py` is the main Unreal export bridge.
+`backend/app/utils/csv_tools.py` is the main CSV bridge. It supports two explicit modes:
+
+- `source`: lossless source CSV for SQLite regeneration. Arrays and objects are JSON strings and UE-only exclusions are not applied.
+- `ue`: generated Unreal DataTable CSV. This keeps UE row keys and UE property-text serialization where needed.
+
+UE CSV behavior:
 
 - It injects a UE-style row key column named `Name`.
 - For tables with a `slug` column, the exported `Name` and `slug` are synchronized to deterministic slug tokens.
 - For link tables without slugs, row keys are composed from meaningful fields using templates like `ability_slug + effect_slug`.
 - Enum columns export enum member-name tokens, not necessarily display values.
-- JSON arrays/objects are serialized as JSON strings.
-- Import coercion uses the JSON schema where possible for arrays, objects, numbers, booleans, and integers.
+- JSON arrays/objects are serialized as UE property text in UE mode and JSON strings in source mode.
+- Source import coercion uses the JSON schema where possible for arrays, objects, numbers, booleans, and integers, and strict source import rejects malformed JSON arrays/objects.
 
 Tests in `backend/tests/test_csv_tools.py` cover row-key ordering, slug sync, uniqueness, enum token export, slugless fallbacks, and transient reference slug aliases.
 
