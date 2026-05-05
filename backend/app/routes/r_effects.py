@@ -1,8 +1,9 @@
 from backend.app.routes.base_route import BaseRoute
-from backend.app.models.m_effects import Effect, EffectType, EffectTarget, ValueInterpretation, TriggerCondition
+from backend.app.models.m_effects import Effect, EffectType, EffectTarget, ValueInterpretation, TriggerCondition, CalculationBasis
 from backend.app.models.m_attributes import Attribute
 from backend.app.models.m_stats import Stat
 from backend.app.models.m_statuses import Status
+from backend.app.models.m_items import DamageType
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -28,7 +29,9 @@ class EffectRoute(BaseRoute):
             "type": EffectType,
             "target": EffectTarget,
             "value_type": ValueInterpretation,
-            "trigger_condition": TriggerCondition
+            "trigger_condition": TriggerCondition,
+            "calculation_basis": CalculationBasis,
+            "damage_type": DamageType,
         })
         
         # Validate relationships
@@ -49,6 +52,10 @@ class EffectRoute(BaseRoute):
         effect.duration = data.get("duration")
         effect.value_type = data.get("value_type")  # Already converted to enum if present
         effect.value = data.get("value")
+        effect.calculation_basis = data.get("calculation_basis")
+        effect.scaling_multiplier = data.get("scaling_multiplier")
+        effect.damage_type = data.get("damage_type")
+        effect.tick_interval = data.get("tick_interval")
         effect.trigger_condition = data.get("trigger_condition")  # Already converted to enum if present
         effect.stackable = data.get("stackable", False)
         effect.set_bonus_group = data.get("set_bonus_group")

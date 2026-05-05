@@ -92,7 +92,12 @@
         "properties": {
           "quest_id": {
             "type": "string",
-            "description": "Quest where branching happens"
+            "description": "Quest where branching happens",
+            "ui": {
+              "widget": "reference",
+              "reference": "quests",
+              "label": "Branch Quest"
+            }
           },
           "branches": {
             "type": "array",
@@ -110,7 +115,12 @@
                 },
                 "next_quest_id": {
                   "type": "string",
-                  "description": "Next quest if flag condition is met"
+                  "description": "Next quest if flag condition is met",
+                  "ui": {
+                    "widget": "reference",
+                    "reference": "quests",
+                    "label": "Next Quest"
+                  }
                 }
               },
               "required": [

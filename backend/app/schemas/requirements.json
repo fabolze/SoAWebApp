@@ -27,7 +27,8 @@
       },
       "ui": {
         "widget": "multiselect",
-        "label": "Required Flags"
+        "label": "Required Flags",
+        "reference": "flags"
       }
     },
     "forbidden_flags": {
@@ -38,7 +39,8 @@
       },
       "ui": {
         "widget": "multiselect",
-        "label": "Forbidden Flags"
+        "label": "Forbidden Flags",
+        "reference": "flags"
       }
     },
     "min_faction_reputation": {

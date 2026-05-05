@@ -71,8 +71,8 @@ def serialize_items_for_table(table_name: str, model_class: Any, rows: Iterable[
         serializer = getattr(route, "serialize_item", None) or route.serialize_model
         return [serializer(row) for row in rows]
     # Fallback: raw column data
-    columns = [c.name for c in model_class.__table__.columns]
-    return [{col: getattr(row, col) for col in columns} for row in rows]
+    columns = list(model_class.__table__.columns)
+    return [{col.name: getattr(row, col.key) for col in columns} for row in rows]
 
 
 def _order_columns(columns: List[str]) -> List[str]:

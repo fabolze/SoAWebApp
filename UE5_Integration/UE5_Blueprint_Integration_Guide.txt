@@ -98,6 +98,7 @@ Combat:
 - EEffectTarget: Self, Enemy, Ally, All, Area
 - EEffectValueType: Flat, Percentage, None
 - EEffectTriggerCondition: None, On Hit, When Damaged, On Kill, On Cast, Passive
+- EEffectCalculationBasis: Fixed Value, Source Stat, Weapon Damage, Damage Dealt, Source Max Health, Target Max Health
 - EStatusCategory: Buff, Debuff, Control, DoT, Other
 
 Economy:
@@ -554,6 +555,10 @@ Struct FEffectData:
 - value (Float).
 - attribute_id (String) - optionale ULID eines Attributes.
 - scaling_stat_id (String) - optionale ULID eines Stats.
+- scaling_multiplier (Float) - Multiplikator fuer scaling_stat_id.
+- calculation_basis (Enum/String) - EEffectCalculationBasis fuer standardisierte Resolver-Formeln.
+- damage_type (Enum/String) - optionaler Damage-Typ fuer Damage Effects oder damaging Status-Ticks.
+- tick_interval (Float) - Sekunden zwischen wiederholten Ticks, falls der Effect ueber Zeit wirkt.
 - status_id (String) - optionale ULID eines Status (nur wenn type = Status).
 - apply_chance (Float) - Prozentchance fuer Status-Applikation (0-100).
 - trigger_condition (Enum/String) - EEffectTriggerCondition.

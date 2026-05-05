@@ -2,6 +2,7 @@ from sqlalchemy import Column, String, Float, Boolean, Enum, Text, JSON, Foreign
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
 from backend.app.utils.id import generate_ulid
+from backend.app.models.m_items import DamageType
 import enum
 
 
@@ -37,6 +38,14 @@ class TriggerCondition(enum.Enum):
     OnCast = "On Cast"
     Passive = "Passive"
 
+class CalculationBasis(enum.Enum):
+    FixedValue = "Fixed Value"
+    SourceStat = "Source Stat"
+    WeaponDamage = "Weapon Damage"
+    DamageDealt = "Damage Dealt"
+    SourceMaxHealth = "Source Max Health"
+    TargetMaxHealth = "Target Max Health"
+
 class Effect(Base):
     __tablename__ = 'effects'
 
@@ -57,6 +66,10 @@ class Effect(Base):
 
     scaling_stat_id = Column(String, ForeignKey('stats.id'))
     scaling_stat = relationship("Stat")
+    scaling_multiplier = Column(Float)
+    calculation_basis = Column(Enum(CalculationBasis))
+    damage_type = Column(Enum(DamageType))
+    tick_interval = Column(Float)
 
     status_id = Column(String, ForeignKey('statuses.id'))
     status = relationship("Status")

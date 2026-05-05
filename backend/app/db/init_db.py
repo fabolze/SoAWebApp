@@ -2,7 +2,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Tuple
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import scoped_session, sessionmaker
 
@@ -93,7 +93,38 @@ def switch_active_database(db_name: str) -> Tuple[str, str]:
 
 
 def init_db():
-    Base.metadata.create_all(bind=get_engine())
+    active_engine = get_engine()
+    Base.metadata.create_all(bind=active_engine)
+    _upgrade_sqlite_schema(active_engine)
+
+
+def _upgrade_sqlite_schema(active_engine) -> None:
+    """Apply tiny additive SQLite upgrades for existing local databases."""
+    if active_engine.dialect.name != "sqlite":
+        return
+    try:
+        inspector = inspect(active_engine)
+        table_names = set(inspector.get_table_names())
+        with active_engine.begin() as connection:
+            if "abilities" in table_names:
+                ability_columns = {column["name"] for column in inspector.get_columns("abilities")}
+                if "requirements_id" not in ability_columns:
+                    connection.execute(text("ALTER TABLE abilities ADD COLUMN requirements_id VARCHAR"))
+
+            if "effects" in table_names:
+                effect_columns = {column["name"] for column in inspector.get_columns("effects")}
+                additive_effect_columns = {
+                    "calculation_basis": "VARCHAR",
+                    "scaling_multiplier": "FLOAT",
+                    "damage_type": "VARCHAR",
+                    "tick_interval": "FLOAT",
+                }
+                for column_name, column_type in additive_effect_columns.items():
+                    if column_name not in effect_columns:
+                        connection.execute(text(f"ALTER TABLE effects ADD COLUMN {column_name} {column_type}"))
+    except Exception:
+        # Keep application startup resilient; model metadata handles fresh databases.
+        pass
 
 
 def get_db_session():

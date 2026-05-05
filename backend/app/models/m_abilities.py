@@ -1,6 +1,6 @@
 # backend/app/models/m_abilities.py
 
-from sqlalchemy import Column, String, Float, Enum, Text, JSON
+from sqlalchemy import Column, String, Float, Enum, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
 from backend.app.utils.id import generate_ulid
@@ -52,9 +52,11 @@ class Ability(Base):
     damage_type_source = Column(Enum(DamageTypeSource), default=DamageTypeSource.None_)
     damage_type = Column(Enum(DamageType))
 
-    requirements = Column(JSON)  # Keep as JSON for now (simple, rarely queried)
+    legacy_requirements = Column("requirements", JSON)  # Legacy JSON payload kept for existing data.
+    requirements_id = Column(String, ForeignKey('requirements.id'))
     tags = Column(JSON)  # List of string tags
 
     # Relationships
+    requirements = relationship("Requirement")
     effects = relationship("AbilityEffectLink", back_populates="ability", cascade="all, delete-orphan")
     scaling = relationship("AbilityScalingLink", back_populates="ability", cascade="all, delete-orphan")

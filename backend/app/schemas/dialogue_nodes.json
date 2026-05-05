@@ -55,7 +55,12 @@
           },
           "next_node_id": {
             "type": "string",
-            "description": "ID of the next dialogue node"
+            "description": "ID of the next dialogue node",
+            "ui": {
+              "widget": "reference",
+              "reference": "dialogue-nodes",
+              "label": "Next Node"
+            }
           },
           "requirements_id": {
             "type": "string",

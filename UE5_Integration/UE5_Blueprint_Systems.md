@@ -109,7 +109,7 @@ Overworld Runtime (BP_GameState/BP_PlayerController components or world manager 
   Interface hooks for hit, cast start/end, telegraph, and impact cues.
 
 - **`BP_EffectResolver` (Blueprint Function Library)**  
-  Applies damage/heal/buff/debuff effects using `value_type`, `attribute_id`, and `scaling_stat_id`. Interfaces with `BP_CombatFormulaLibrary` for calculations and `BP_StatusComponent` for persistent states.
+  Applies damage/heal/buff/debuff effects using `calculation_basis`, `value_type`, `value`, `scaling_stat_id`, `scaling_multiplier`, and optional `damage_type`/`tick_interval`. Interfaces with `BP_CombatFormulaLibrary` for calculations and `BP_StatusComponent` for persistent states.
 
 - **`BP_StatusComponent` (Actor Component on Combatants)**  
   Manages timed effects, stacking, immunities, and tick-based damage. Emits events for UI/AI when states change.

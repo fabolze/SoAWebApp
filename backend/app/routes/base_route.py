@@ -234,7 +234,7 @@ class BaseRoute:
         try:
             serialized = {}
             for column in model_instance.__table__.columns:
-                value = getattr(model_instance, column.name, None)
+                value = getattr(model_instance, column.key, None)
                 if isinstance(value, enum.Enum):
                     serialized[column.name] = value.value  # Convert enum to its string value
                 elif isinstance(value, list) or isinstance(value, dict):

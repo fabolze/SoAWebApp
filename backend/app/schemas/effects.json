@@ -118,6 +118,87 @@
         "label": "Effect Value"
       }
     },
+    "calculation_basis": {
+      "type": "string",
+      "enum": [
+        "Fixed Value",
+        "Source Stat",
+        "Weapon Damage",
+        "Damage Dealt",
+        "Source Max Health",
+        "Target Max Health"
+      ],
+      "description": "Runtime basis used by the effect resolver before value_type, value, and scaling are applied.",
+      "ui": {
+        "widget": "select",
+        "label": "Calculation Basis",
+        "options": [
+          "Fixed Value",
+          "Source Stat",
+          "Weapon Damage",
+          "Damage Dealt",
+          "Source Max Health",
+          "Target Max Health"
+        ]
+      }
+    },
+    "scaling_multiplier": {
+      "type": "number",
+      "description": "Multiplier applied to scaling_stat_id when calculation_basis uses source stat scaling.",
+      "ui": {
+        "widget": "number",
+        "label": "Scaling Multiplier"
+      }
+    },
+    "damage_type": {
+      "type": "string",
+      "enum": [
+        "Slashing",
+        "Piercing",
+        "Blunt",
+        "Fire",
+        "Water",
+        "Air",
+        "Earth",
+        "Poison",
+        "Psychic",
+        "Light",
+        "Shadow"
+      ],
+      "description": "Damage element or school used by Damage effects and damaging status ticks.",
+      "ui": {
+        "widget": "select",
+        "label": "Damage Type",
+        "options": [
+          "Slashing",
+          "Piercing",
+          "Blunt",
+          "Fire",
+          "Water",
+          "Air",
+          "Earth",
+          "Poison",
+          "Psychic",
+          "Light",
+          "Shadow"
+        ],
+        "visible_if": {
+          "type": [
+            "Damage",
+            "Status",
+            "Reflect"
+          ]
+        }
+      }
+    },
+    "tick_interval": {
+      "type": "number",
+      "description": "Seconds between repeated ticks for status, heal-over-time, or damage-over-time effects.",
+      "ui": {
+        "widget": "number",
+        "label": "Tick Interval"
+      }
+    },
     "status_id": {
       "type": "string",
       "description": "Status to apply when this effect triggers",
@@ -145,7 +226,7 @@
         }
       }
     },
-    "attribute": {
+    "attribute_id": {
       "type": "string",
       "description": "Attribute affected, if any",
       "ui": {
@@ -160,7 +241,7 @@
         }
       }
     },
-    "scaling_stat": {
+    "scaling_stat_id": {
       "type": "string",
       "description": "Stat that determines effect scaling",
       "ui": {

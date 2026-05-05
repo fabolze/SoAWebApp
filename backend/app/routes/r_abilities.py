@@ -4,6 +4,7 @@ from backend.app.models.m_abilities_links import AbilityEffectLink, AbilityScali
 from backend.app.models.m_effects import Effect
 from backend.app.models.m_effects import EffectType
 from backend.app.models.m_items import DamageType
+from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_stats import Stat
 from backend.app.db.init_db import get_db_session
 from typing import Any, Dict, List
@@ -34,6 +35,10 @@ class AbilityRoute(BaseRoute):
             "damage_type_source": DamageTypeSource,
             "damage_type": DamageType,
         })
+
+        self.validate_relationships(db_session, data, {
+            "requirements_id": Requirement,
+        })
         
         # Required fields
         ability.slug = data["slug"]
@@ -47,7 +52,7 @@ class AbilityRoute(BaseRoute):
         ability.cooldown = data.get("cooldown")
         ability.targeting = data.get("targeting")  # Already converted to enum if present
         ability.trigger_condition = data.get("trigger_condition")  # Already converted to enum if present
-        ability.requirements = data.get("requirements", {})
+        ability.requirements_id = data.get("requirements_id")
 
         damage_type_source = data.get("damage_type_source") or DamageTypeSource.None_
         ability.damage_type_source = damage_type_source
@@ -65,8 +70,12 @@ class AbilityRoute(BaseRoute):
             effect = db_session.get(Effect, effect_id)
             if not effect:
                 raise ValueError(f"Invalid effect_id: {effect_id}")
-            if damage_type_source == DamageTypeSource.None_ and effect.type == EffectType.Damage:
-                raise ValueError("Non-damaging abilities cannot include Damage effects")
+            if (
+                damage_type_source == DamageTypeSource.None_
+                and effect.type == EffectType.Damage
+                and not effect.damage_type
+            ):
+                raise ValueError("Damage effects need their own damage_type or an ability damage_type_source")
             link = AbilityEffectLink(effect_id=effect_id)
             link.ability = ability
             db_session.add(link)
@@ -87,7 +96,23 @@ class AbilityRoute(BaseRoute):
             db_session.add(link)
     
     def serialize_item(self, ability: Ability) -> Dict[str, Any]:
-        data = self.serialize_model(ability)
+        data = {
+            "id": ability.id,
+            "slug": ability.slug,
+            "name": ability.name,
+            "type": ability.type.value if ability.type else None,
+            "icon_path": ability.icon_path,
+            "description": ability.description,
+            "resource_cost": ability.resource_cost,
+            "cooldown": ability.cooldown,
+            "targeting": ability.targeting.value if ability.targeting else None,
+            "trigger_condition": ability.trigger_condition.value if ability.trigger_condition else None,
+            "damage_type_source": ability.damage_type_source.value if ability.damage_type_source else None,
+            "damage_type": ability.damage_type.value if ability.damage_type else None,
+            "requirements": ability.legacy_requirements,
+            "requirements_id": ability.requirements_id,
+            "tags": ability.tags,
+        }
         data["effects"] = [link.effect_id for link in (ability.effects or [])]
         data["scaling"] = [
             {
