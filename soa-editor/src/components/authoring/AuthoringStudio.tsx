@@ -1,17 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { buildMutatedClone, defaultCloneMutateOptions, estimateMutatedCloneChangeCount, type CloneMutateOptions } from "../../creative/cloneMutate";
-import type { CreativeTone } from "../../creative";
 import { applyPresetData } from "../../presets/apply";
 import type { EntityPreset, PresetApplyMode } from "../../presets";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../../styles/uiTokens";
 import { asRecord, isRecord, type UnknownRecord } from "../../types/common";
-import { localStudioProvider } from "../../studio/localProvider";
-import type { StudioBrief, StudioBundle, StudioMode, StudioPatch, StudioProvider, StudioSuggestion } from "../../studio/types";
+import type { StudioBundle, StudioMode, StudioPatch, StudioProvider } from "../../studio/types";
 import type { EntryRelationshipSummary } from "../../relationships";
 import useDebouncedValue from "../hooks/useDebouncedValue";
 import PatchPreview from "./PatchPreview";
-import BundlePreview from "./BundlePreview";
 
 interface SavedPreset extends EntityPreset {
   createdAt: number;
@@ -30,16 +27,16 @@ interface AuthoringStudioProps {
   schemaName: string;
   schema: UnknownRecord;
   data: UnknownRecord;
-  presets: EntityPreset[];
   onChange: (updated: UnknownRecord) => void;
   relationshipSummary?: EntryRelationshipSummary | null;
   onCreateBundleDrafts?: (bundle: StudioBundle, selectedIds: Set<string>) => void;
   provider?: StudioProvider;
 }
 
-const toneOptions: CreativeTone[] = ["neutral", "heroic", "dark", "mystic", "playful"];
+type VisibleStudioMode = Extract<StudioMode, "variants" | "fix" | "library">;
+
 const modeTabs: Array<{
-  id: StudioMode;
+  id: VisibleStudioMode;
   label: string;
   plainName: string;
   summary: string;
@@ -51,36 +48,12 @@ const modeTabs: Array<{
   safety: string;
 }> = [
   {
-    id: "recipes",
-    label: "Recipes",
-    plainName: "Pick a prepared template",
-    summary: "Curated templates for common RPG content. Use these when you want a reliable starting point instead of inventing structure from scratch.",
-    bestFor: "Fast starts from known RPG patterns: quests, vendors, shops, encounters, status combos, and fantasy adventure scaffolds.",
-    startsFrom: "The current editor type, such as a quest, item, ability, or encounter.",
-    produces: "A patch for the current entry, or a generated bundle recipe that can create several linked local drafts.",
-    nextStep: "Preview the recipe, apply only the fields you want, then use Composer or Variants to personalize it.",
-    example: "Start a quest with a Dungeon Contract recipe, then edit objectives and rewards.",
-    safety: "Recipes open in preview first. Bundle recipes create drafts, not saved records.",
-  },
-  {
-    id: "composer",
-    label: "Composer",
-    plainName: "Generate ideas from your brief",
-    summary: "A guided idea generator. Fill the Studio Brief with theme, tone, level, and keywords, then ask for entry patches or connected draft bundles.",
-    bestFor: "Turning a creative direction into names, descriptions, tags, rewards, encounters, shops, lore, or linked quest bundles.",
-    startsFrom: "The Studio Brief. Better brief input gives more focused output.",
-    produces: "Several generated suggestions. Entry patches edit the current record; bundles create connected local drafts.",
-    nextStep: "Open a suggestion, review the preview, apply selected fields, then run Fix & Enrich to catch gaps.",
-    example: "Theme: frost ruins, tone: mystic, level: 4. Generate a dungeon delve bundle.",
-    safety: "Local output is deterministic. Optional AI output uses the same preview and schema filter.",
-  },
-  {
     id: "variants",
     label: "Variants",
     plainName: "Make alternate versions",
     summary: "Creates a changed version of the current entry. Use it after you already have a decent base entry.",
     bestFor: "Balance passes, rarity tiers, enemy strength tiers, economy shifts, early-game and late-game versions.",
-    startsFrom: "The current entry’s existing values.",
+    startsFrom: "The current entry's existing values.",
     produces: "One overwrite-style preview showing what would change for the variant.",
     nextStep: "Apply the selected fields, then adjust details manually or save the result as a Library preset.",
     example: "Turn a standard encounter into an Elite or Boss version with stronger numbers and a suffix.",
@@ -88,14 +61,14 @@ const modeTabs: Array<{
   },
   {
     id: "fix",
-    label: "Fix & Enrich",
+    label: "Cleanup",
     plainName: "Clean up and finish",
     summary: "Checks the current entry for obvious authoring gaps and suggests small cleanup patches.",
-    bestFor: "Missing required fields, broken references, weak metadata, sparse tags, and draft cleanup after generation.",
+    bestFor: "Missing required fields, broken references, weak metadata, sparse tags, and draft cleanup.",
     startsFrom: "The current entry plus relationship/project-health information.",
     produces: "A low-risk patch, usually filling empty fields or adding a review tag.",
     nextStep: "Apply the safe fixes, then inspect any broken references manually in the Relationship panel.",
-    example: "After generating a quest, fill a missing slug and mark entries with unresolved references as needs-review.",
+    example: "Fill a missing slug and mark entries with unresolved references as needs-review.",
     safety: "Fix patches prefer fill-empty behavior and tag risky entries as needs-review.",
   },
   {
@@ -106,29 +79,13 @@ const modeTabs: Array<{
     bestFor: "Reusing house patterns, recurring reward setups, common shop layouts, or hand-authored patches.",
     startsFrom: "The current entry, a saved preset, or a pasted JSON object.",
     produces: "A reusable local preset or a previewable patch.",
-    nextStep: "Use saved presets as your own Recipes, then refine with Composer or Variants.",
+    nextStep: "Use saved presets as your own repeatable patch library, then tune with Variants.",
     example: "Save a finished vendor setup and reuse it for future settlement shops.",
     safety: "Saved presets stay in this browser and still go through preview.",
   },
 ];
 
-const applyModeDocs: Record<PresetApplyMode, string> = {
-  fill_empty: "Only fills fields that are currently empty. Lowest-risk mode.",
-  merge: "Merges object fields and replaces scalar fields included in the patch.",
-  overwrite: "Uses the generated value for selected fields. Best for deliberate variants.",
-};
-
 const briefDocs: Record<string, string> = {
-  theme: "Creative anchor used in names, descriptions, tags, and bundle concepts.",
-  tone: "Language and flavor direction for generated copy.",
-  difficulty: "Tuning intent for encounter strength, rewards, and variant presets.",
-  rewardStyle: "How much generated quests, encounters, and shops lean into rewards.",
-  count: "How many suggestions to request from the active provider.",
-  keywords: "Comma-separated motifs added to tags and generator prompts.",
-  playerLevel: "Target player level used for XP, enemy strength, prices, and reward scale.",
-  locationId: "Optional existing location ID to link into generated drafts.",
-  factionId: "Optional existing faction ID for requirements, reputation, or flavor.",
-  contentPackId: "Optional content pack context for future filtering and generated metadata.",
   variantMultiplier: "Multiplies numeric fields. Use 1.25 for stronger, 0.75 for cheaper or weaker.",
   variantOffset: "Adds this amount after scaling numeric fields. Useful for level or late-game bumps.",
   variantName: "Text appended to name/title fields so the variant is easy to identify.",
@@ -137,10 +94,6 @@ const briefDocs: Record<string, string> = {
 
 function storageKey(schemaName: string): string {
   return `soa.customPresets.${schemaName}`;
-}
-
-function getPresetCategory(preset: EntityPreset): string {
-  return preset.category || preset.intent || preset.tags?.[0] || "General";
 }
 
 function getPresetMode(preset: EntityPreset): PresetApplyMode {
@@ -202,19 +155,6 @@ function savePresets(schemaName: string, presets: SavedPreset[]) {
   localStorage.setItem(storageKey(schemaName), JSON.stringify(presets));
 }
 
-function defaultBrief(): StudioBrief {
-  return {
-    theme: "",
-    tone: "neutral",
-    keywords: [],
-    playerLevel: 1,
-    stakes: "medium",
-    rewardStyle: "modest",
-    difficulty: "standard",
-    intensity: 50,
-  };
-}
-
 function getMissingFields(schema: UnknownRecord, data: UnknownRecord): string[] {
   const required = Array.isArray(schema.required) ? schema.required.filter((key): key is string => typeof key === "string") : [];
   return required.filter((key) => {
@@ -254,77 +194,30 @@ export default function AuthoringStudio({
   schemaName,
   schema,
   data,
-  presets,
   onChange,
   relationshipSummary,
-  onCreateBundleDrafts,
-  provider = localStudioProvider,
 }: AuthoringStudioProps) {
-  const [activeMode, setActiveMode] = useState<StudioMode>("recipes");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [selectedPresetId, setSelectedPresetId] = useState("");
-  const [brief, setBrief] = useState<StudioBrief>(() => defaultBrief());
-  const [keywordsInput, setKeywordsInput] = useState("");
-  const [count, setCount] = useState(3);
-  const [ideaMode, setIdeaMode] = useState<PresetApplyMode>("fill_empty");
-  const [suggestions, setSuggestions] = useState<StudioSuggestion[]>([]);
+  const [activeMode, setActiveMode] = useState<VisibleStudioMode>("variants");
   const [cloneOptions, setCloneOptions] = useState<CloneMutateOptions>(defaultCloneMutateOptions);
   const [savedPresets, setSavedPresets] = useState<SavedPreset[]>(() => loadSavedPresets(schemaName));
   const [preview, setPreview] = useState<PreviewState | null>(null);
-  const [bundlePreview, setBundlePreview] = useState<StudioBundle | null>(null);
   const [undoSnapshot, setUndoSnapshot] = useState<UnknownRecord | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
   const debouncedCloneOptions = useDebouncedValue(cloneOptions, 250);
   const debouncedData = useDebouncedValue(data, 250);
 
   useEffect(() => {
     setSavedPresets(loadSavedPresets(schemaName));
-    setSelectedPresetId("");
-    setSelectedCategory("All");
     setPreview(null);
-    setBundlePreview(null);
     setUndoSnapshot(null);
   }, [schemaName]);
-
-  useEffect(() => {
-    setBrief((current) => ({ ...current, keywords: keywordsInput.split(",").map((item) => item.trim()).filter(Boolean) }));
-  }, [keywordsInput]);
-
-  useEffect(() => {
-    if (selectedPresetId) return;
-    if (presets.length > 0) setSelectedPresetId(presets[0].id);
-  }, [presets, selectedPresetId]);
 
   useEffect(() => {
     if (!notice) return;
     const timeout = setTimeout(() => setNotice(null), 3500);
     return () => clearTimeout(timeout);
   }, [notice]);
-
-  const categories = useMemo(() => {
-    return ["All", ...Array.from(new Set(presets.map(getPresetCategory))).sort((a, b) => a.localeCompare(b))];
-  }, [presets]);
-
-  const groupedPresets = useMemo(() => {
-    const visible = selectedCategory === "All"
-      ? presets
-      : presets.filter((preset) => getPresetCategory(preset) === selectedCategory);
-    const map = new Map<string, EntityPreset[]>();
-    for (const preset of visible) {
-      const category = getPresetCategory(preset);
-      const group = map.get(category) || [];
-      group.push(preset);
-      map.set(category, group);
-    }
-    return Array.from(map.entries()).map(([category, groupPresets]) => ({ category, presets: groupPresets }));
-  }, [presets, selectedCategory]);
-
-  const selectedPreset = useMemo(
-    () => presets.find((preset) => preset.id === selectedPresetId) || presets[0] || null,
-    [presets, selectedPresetId]
-  );
 
   const estimatedVariantChanges = useMemo(
     () => estimateMutatedCloneChangeCount(schema, debouncedData, debouncedCloneOptions),
@@ -333,7 +226,6 @@ export default function AuthoringStudio({
 
   const openPatchPreview = useCallback((nextPreview: PreviewState) => {
     setPreview({ ...nextPreview, patch: filterPatchBySchema(nextPreview.patch, schema) });
-    setBundlePreview(null);
   }, [schema]);
 
   const openStudioPatch = (patch: StudioPatch) => {
@@ -349,27 +241,15 @@ export default function AuthoringStudio({
     setUndoSnapshot(data);
     onChange(applyPresetData(data, patch, mode));
     setPreview(null);
-    setNotice("Applied patch. Undo is available in Authoring Studio.");
+    setNotice("Applied patch. Undo is available in Draft Tools.");
   }, [data, onChange]);
 
   const undo = useCallback(() => {
     if (!undoSnapshot) return;
     onChange(undoSnapshot);
     setUndoSnapshot(null);
-    setNotice("Reverted last Authoring Studio apply.");
+    setNotice("Reverted last tool apply.");
   }, [onChange, undoSnapshot]);
-
-  const generateComposer = async (outputKind: "patch" | "bundle") => {
-    setLoading(true);
-    try {
-      const input = { schemaName, schema, currentData: data, brief, count, relationshipSummary };
-      const generated = outputKind === "bundle" ? await provider.generateBundles(input) : await provider.generatePatches(input);
-      setSuggestions(generated);
-      setNotice(`Generated ${generated.length} ${outputKind === "bundle" ? "bundle" : "patch"} suggestion${generated.length === 1 ? "" : "s"} with ${provider.label}.`);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const createVariantPreview = (preset?: Partial<CloneMutateOptions>) => {
     const options = { ...cloneOptions, ...preset };
@@ -404,12 +284,11 @@ export default function AuthoringStudio({
       <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-3 py-3 dark:border-slate-800">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Authoring Studio 2.0</div>
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Draft Tools</div>
             <span className="rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">local</span>
-            <span className="rounded bg-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">AI optional</span>
           </div>
           <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-            A guided workspace for starting content, generating ideas, making variants, cleaning up drafts, and reusing your own patterns.
+            Practical local helpers for variants, cleanup patches, and reusable entry patterns.
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1">
@@ -417,12 +296,10 @@ export default function AuthoringStudio({
             {showGuide ? "Hide Guide" : "Show Guide"}
           </button>
           <button type="button" className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`} onClick={undo} disabled={!undoSnapshot}>
-            Undo Studio Apply
+            Undo Tool Apply
           </button>
         </div>
       </div>
-
-      <StudioBriefPanel brief={brief} setBrief={setBrief} keywordsInput={keywordsInput} setKeywordsInput={setKeywordsInput} count={count} setCount={setCount} />
 
       <div className="flex flex-wrap gap-1 border-b border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950">
         {tabs.map((tab) => (
@@ -440,73 +317,6 @@ export default function AuthoringStudio({
           </>
         )}
         {notice && <div className="mb-3 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">{notice}</div>}
-
-        {activeMode === "recipes" && (
-          <div>
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              {categories.map((category) => (
-                <button key={category} type="button" className={`rounded-full px-2 py-1 text-xs ${selectedCategory === category ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900" : "bg-white text-slate-700 border border-slate-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"}`} onClick={() => setSelectedCategory(category)}>
-                  {category}
-                </button>
-              ))}
-              <button type="button" className={`${BUTTON_CLASSES.indigo} ${BUTTON_SIZES.xs}`} onClick={() => void generateComposer("bundle")}>
-                Generate Bundle Recipes
-              </button>
-            </div>
-            <div className="space-y-3">
-              {groupedPresets.map((group) => (
-                <div key={group.category}>
-                  <div className="mb-1 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">{group.category}</div>
-                  <div className="grid gap-2 lg:grid-cols-2">
-                    {group.presets.map((preset) => {
-                      const selected = selectedPreset?.id === preset.id;
-                      return (
-                        <button key={preset.id} type="button" className={`border px-3 py-2 text-left ${selected ? "border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950" : "border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-800"}`} onClick={() => setSelectedPresetId(preset.id)}>
-                          <div className="flex flex-wrap items-center gap-1">
-                            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{preset.label}</span>
-                            <Badge label={preset.outputKind || "patch"} />
-                            <Badge label={preset.riskLevel || "low"} />
-                            {preset.createsReferences && <Badge label="refs" />}
-                          </div>
-                          {preset.description && <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">{preset.description}</div>}
-                          <div className="mt-2 flex flex-wrap gap-1">{(preset.tags || []).slice(0, 4).map((tag) => <Badge key={tag} label={tag} muted />)}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {selectedPreset && (
-              <div className="mt-3 flex justify-end">
-                <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} onClick={() => openPatchPreview({ title: selectedPreset.label, summary: selectedPreset.description, patch: selectedPreset.data, mode: getPresetMode(selectedPreset) })}>
-                  Preview Selected Recipe
-                </button>
-              </div>
-            )}
-            <SuggestionGrid suggestions={suggestions} onPatch={openStudioPatch} onBundle={(bundle) => { setBundlePreview(bundle); setPreview(null); }} />
-          </div>
-        )}
-
-        {activeMode === "composer" && (
-          <div>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" className={`${BUTTON_CLASSES.indigo} ${BUTTON_SIZES.sm}`} onClick={() => void generateComposer("patch")} disabled={loading}>
-                {loading ? "Generating..." : "Generate Entry Patches"}
-              </button>
-              <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} onClick={() => void generateComposer("bundle")} disabled={loading}>
-                Generate Bundles
-              </button>
-              <select className="border border-slate-300 px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-950" value={ideaMode} onChange={(e) => setIdeaMode(e.target.value as PresetApplyMode)}>
-                <option value="fill_empty">Fill Empty</option>
-                <option value="merge">Merge</option>
-                <option value="overwrite">Overwrite</option>
-              </select>
-              <span className="self-center text-xs text-slate-500 dark:text-slate-400">{applyModeDocs[ideaMode]}</span>
-            </div>
-            <SuggestionGrid suggestions={suggestions.map((suggestion) => suggestion.patch ? { ...suggestion, patch: { ...suggestion.patch, mode: ideaMode } } : suggestion)} onPatch={openStudioPatch} onBundle={(bundle) => { setBundlePreview(bundle); setPreview(null); }} />
-          </div>
-        )}
 
         {activeMode === "variants" && (
           <div>
@@ -550,10 +360,10 @@ export default function AuthoringStudio({
         {activeMode === "library" && (
           <div>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm text-slate-600 dark:text-slate-400">Local presets are stored in this browser for `{schemaName}`.</div>
-              <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} onClick={saveCurrentPreset}>Save Current as Preset</button>
+              <div className="text-sm text-slate-600 dark:text-slate-400">Saved patches are stored in this browser for `{schemaName}`.</div>
+              <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} onClick={saveCurrentPreset}>Save Current as Patch</button>
             </div>
-            {savedPresets.length === 0 ? <div className="text-sm text-slate-600 dark:text-slate-400">No saved presets yet.</div> : (
+            {savedPresets.length === 0 ? <div className="text-sm text-slate-600 dark:text-slate-400">No saved patches yet.</div> : (
               <div className="space-y-2">
                 {savedPresets.map((preset) => (
                   <div key={preset.id} className="flex items-center justify-between gap-2 border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950">
@@ -578,7 +388,6 @@ export default function AuthoringStudio({
         )}
 
         {preview && <PatchPreview currentData={data} patch={preview.patch} mode={preview.mode} title={preview.title} summary={preview.summary} schema={schema} onApply={applyPreview} onClose={() => setPreview(null)} />}
-        {bundlePreview && <BundlePreview bundle={bundlePreview} onClose={() => setBundlePreview(null)} onApplyDrafts={(bundle, selectedIds) => { onCreateBundleDrafts?.(bundle, selectedIds); setBundlePreview(null); setNotice("Created local bundle drafts."); }} />}
       </div>
     </div>
   );
@@ -594,24 +403,22 @@ function InfoTile({ label, value }: { label: string; value: number }) {
 
 function StudioStartGuide() {
   const steps = [
-    { label: "1. Start", mode: "Recipes", text: "Use a prepared template when you need structure quickly." },
-    { label: "2. Shape", mode: "Composer", text: "Use the brief to generate names, text, rewards, or linked drafts." },
-    { label: "3. Tune", mode: "Variants", text: "Make stronger, cheaper, rarer, or late-game versions of the current entry." },
-    { label: "4. Check", mode: "Fix & Enrich", text: "Clean up missing fields and obvious relationship problems." },
-    { label: "5. Reuse", mode: "Library", text: "Save patterns you like so they become your own templates." },
+    { label: "1. Tune", mode: "Variants", text: "Make stronger, cheaper, rarer, or late-game versions of the current entry." },
+    { label: "2. Check", mode: "Cleanup", text: "Clean up missing fields and obvious relationship problems." },
+    { label: "3. Reuse", mode: "Library", text: "Save patterns you like so they become repeatable patches." },
   ];
   return (
     <div className="mb-3 rounded-md border border-slate-200 bg-white px-3 py-3 dark:border-slate-800 dark:bg-slate-950">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">New to the Studio? Use it as a workflow.</div>
+          <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Use the tools as a short workflow.</div>
           <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-            You do not need every mode every time. Most content starts with Recipes or Composer, then gets tuned with Variants and checked with Fix & Enrich.
+            Most entries only need one of these. Make a variant, run cleanup, or save the current shape for reuse.
           </div>
         </div>
         <div className="rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">preview before apply</div>
       </div>
-      <div className="mt-3 grid gap-2 md:grid-cols-5">
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
         {steps.map((step) => (
           <div key={step.label} className="rounded-md border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-900">
             <div className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">{step.label}</div>
@@ -635,7 +442,7 @@ function ModeGuide({ mode }: { mode: typeof modeTabs[number] }) {
         </div>
         <div className="flex flex-wrap gap-1">
           <Badge label="preview first" />
-          <Badge label={mode.id === "recipes" || mode.id === "composer" ? "patches + bundles" : "patches"} />
+          <Badge label="patches" />
         </div>
       </div>
       <div className="mt-3 grid gap-2 text-xs text-blue-900 dark:text-blue-200 md:grid-cols-2 lg:grid-cols-3">
@@ -655,61 +462,6 @@ function GuideFact({ label, value }: { label: string; value: string }) {
     <div className="rounded border border-blue-100 bg-white/60 px-2 py-2 dark:border-blue-900 dark:bg-blue-950/40">
       <div className="text-[11px] font-semibold uppercase text-blue-700 dark:text-blue-300">{label}</div>
       <div className="mt-1 leading-snug">{value}</div>
-    </div>
-  );
-}
-
-function SuggestionGrid({ suggestions, onPatch, onBundle }: { suggestions: StudioSuggestion[]; onPatch: (patch: StudioPatch) => void; onBundle: (bundle: StudioBundle) => void }) {
-  if (suggestions.length === 0) {
-    return (
-      <div className="mt-3 rounded-md border border-dashed border-slate-300 bg-white px-3 py-4 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
-        No generated suggestions yet. Fill the Studio Brief, then generate entry patches or bundles.
-      </div>
-    );
-  }
-  return (
-    <div className="mt-3 grid gap-2 lg:grid-cols-2">
-      {suggestions.map((suggestion) => (
-        <button key={suggestion.id} type="button" className="border border-slate-200 bg-white px-3 py-2 text-left hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-800" onClick={() => suggestion.bundle ? onBundle(suggestion.bundle) : suggestion.patch ? onPatch(suggestion.patch) : undefined}>
-          <div className="flex flex-wrap items-center gap-1"><span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{suggestion.title}</span><Badge label={suggestion.source} /><Badge label={suggestion.outputKind} /><Badge label={suggestion.risk} /></div>
-          {suggestion.summary && <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">{suggestion.summary}</div>}
-          <div className="mt-2 flex flex-wrap gap-1">{(suggestion.tags || []).slice(0, 5).map((tag) => <Badge key={tag} label={tag} muted />)}</div>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function StudioBriefPanel({ brief, setBrief, keywordsInput, setKeywordsInput, count, setCount }: {
-  brief: StudioBrief;
-  setBrief: (brief: StudioBrief) => void;
-  keywordsInput: string;
-  setKeywordsInput: (value: string) => void;
-  count: number;
-  setCount: (value: number) => void;
-}) {
-  return (
-    <div className="border-b border-slate-200 bg-white px-3 py-3 dark:border-slate-800 dark:bg-slate-950">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <div className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Studio Brief</div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            The brief is shared by Composer and bundle generation. Think of it as the creative prompt for offline presets: theme says what it is about, tone says how it should feel, level/rewards shape numbers.
-          </div>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 gap-2 lg:grid-cols-6">
-        <BriefField className="lg:col-span-2" label="Theme" helpKey="theme"><input title={briefDocs.theme} className="w-full border border-slate-300 px-2 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={brief.theme} onChange={(e) => setBrief({ ...brief, theme: e.target.value })} placeholder="frost ruins, royal court" /></BriefField>
-        <BriefField label="Tone" helpKey="tone"><select title={briefDocs.tone} className="w-full border border-slate-300 px-2 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={brief.tone} onChange={(e) => setBrief({ ...brief, tone: e.target.value as CreativeTone })}>{toneOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></BriefField>
-        <BriefField label="Difficulty" helpKey="difficulty"><select title={briefDocs.difficulty} className="w-full border border-slate-300 px-2 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={brief.difficulty} onChange={(e) => setBrief({ ...brief, difficulty: e.target.value as StudioBrief["difficulty"] })}><option value="early">early-game</option><option value="standard">standard</option><option value="elite">elite</option><option value="boss">boss</option></select></BriefField>
-        <BriefField label="Rewards" helpKey="rewardStyle"><select title={briefDocs.rewardStyle} className="w-full border border-slate-300 px-2 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={brief.rewardStyle} onChange={(e) => setBrief({ ...brief, rewardStyle: e.target.value as StudioBrief["rewardStyle"] })}><option value="none">no rewards</option><option value="modest">modest</option><option value="generous">generous</option><option value="rare">rare</option></select></BriefField>
-        <BriefField label="Count" helpKey="count"><select title={briefDocs.count} className="w-full border border-slate-300 px-2 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))}><option value={2}>2 ideas</option><option value={3}>3 ideas</option><option value={5}>5 ideas</option></select></BriefField>
-        <BriefField className="lg:col-span-2" label="Keywords" helpKey="keywords"><input title={briefDocs.keywords} className="w-full border border-slate-300 px-2 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={keywordsInput} onChange={(e) => setKeywordsInput(e.target.value)} placeholder="ice, ritual, betrayal" /></BriefField>
-        <BriefField label="Level" helpKey="playerLevel"><input title={briefDocs.playerLevel} className="w-full border border-slate-300 px-2 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" type="number" min={1} value={brief.playerLevel} onChange={(e) => setBrief({ ...brief, playerLevel: parseInt(e.target.value, 10) || 1 })} /></BriefField>
-        <BriefField label="Location" helpKey="locationId"><input title={briefDocs.locationId} className="w-full border border-slate-300 px-2 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={brief.locationId || ""} onChange={(e) => setBrief({ ...brief, locationId: e.target.value })} placeholder="Location ID" /></BriefField>
-        <BriefField label="Faction" helpKey="factionId"><input title={briefDocs.factionId} className="w-full border border-slate-300 px-2 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={brief.factionId || ""} onChange={(e) => setBrief({ ...brief, factionId: e.target.value })} placeholder="Faction ID" /></BriefField>
-        <BriefField label="Pack" helpKey="contentPackId"><input title={briefDocs.contentPackId} className="w-full border border-slate-300 px-2 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={brief.contentPackId || ""} onChange={(e) => setBrief({ ...brief, contentPackId: e.target.value })} placeholder="Content Pack" /></BriefField>
-      </div>
     </div>
   );
 }

@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import SchemaForm from "./SchemaForm";
 import { ParentSummary } from "./EditorStackContext";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
-import { getPresetsForSchema } from "../presets";
 import CommandPalette, { type CommandPaletteItem } from "./command/CommandPalette";
 import ContextSimulationPanel from "./simulation/ContextSimulationPanel";
 import AuthoringStudio from "./authoring/AuthoringStudio";
@@ -14,7 +13,7 @@ import type { SchemaFieldConfig } from "./schemaForm/types";
 import type { EntryRelationshipSummary } from "../relationships";
 import type { StudioBundle } from "../studio/types";
 
-type EditorViewMode = "simple" | "generate" | "advanced";
+type EditorViewMode = "simple" | "tools" | "advanced";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -58,7 +57,7 @@ function editorViewStorageKey(schemaName: string): string {
 function readStoredEditorView(schemaName: string): EditorViewMode | null {
   try {
     const stored = localStorage.getItem(editorViewStorageKey(schemaName));
-    return stored === "simple" || stored === "generate" || stored === "advanced" ? stored : null;
+    return stored === "simple" || stored === "tools" || stored === "advanced" ? stored : null;
   } catch {
     return null;
   }
@@ -79,7 +78,7 @@ function hasMeaningfulDraftData(data: EntryRecord): boolean {
 function getDefaultEditorView(schemaName: string, isNew: boolean, data: EntryRecord): EditorViewMode {
   const stored = readStoredEditorView(schemaName);
   if (stored) return stored;
-  return isNew && !hasMeaningfulDraftData(data) ? "generate" : "simple";
+  return isNew && !hasMeaningfulDraftData(data) ? "tools" : "simple";
 }
 
 function getFieldSection(key: string, config: Record<string, unknown>): string {
@@ -181,7 +180,6 @@ export default function EntryFormPanel({
   onCreateBundleDrafts,
   changedFieldKeys,
 }: EntryFormPanelProps) {
-  const presets = useMemo(() => getPresetsForSchema(schemaName), [schemaName]);
   const [utilityNotice, setUtilityNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [editorView, setEditorView] = useState<EditorViewMode>(() => getDefaultEditorView(schemaName, isNew, data || {}));
@@ -462,7 +460,7 @@ export default function EntryFormPanel({
           <div className="grid gap-2 sm:grid-cols-3">
             {[
               { id: "simple" as const, label: "Simple", detail: "Core fields and required fixes" },
-              { id: "generate" as const, label: "Generate", detail: "Kits, ideas, variants, saved presets" },
+              { id: "tools" as const, label: "Tools", detail: "Variants, cleanup, saved patches" },
               { id: "advanced" as const, label: "Advanced", detail: "Full schema, references, simulation" },
             ].map((view) => {
               const active = editorView === view.id;
@@ -533,14 +531,14 @@ export default function EntryFormPanel({
           </div>
         )}
 
-        {editorView === "generate" && (
+        {editorView === "tools" && (
           <div className="mx-auto max-w-6xl">
             <div className="mb-4 rounded-md border border-blue-100 bg-blue-50 px-4 py-3 dark:border-blue-900 dark:bg-blue-950">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-blue-950 dark:text-blue-100">Create from a stronger starting point</div>
+                  <div className="text-sm font-semibold text-blue-950 dark:text-blue-100">Draft tools</div>
                   <div className="mt-1 text-xs text-blue-800 dark:text-blue-300">
-                    Apply curated kits, generate local ideas, make variants, or reuse saved presets. Every change still goes through preview.
+                    Make variants, run cleanup patches, or reuse saved local patches. Every change still goes through preview.
                   </div>
                 </div>
                 <button
@@ -556,7 +554,6 @@ export default function EntryFormPanel({
               schemaName={schemaName}
               schema={schema}
               data={data || {}}
-              presets={presets}
               onChange={onChange}
               relationshipSummary={relationshipSummary}
               onCreateBundleDrafts={onCreateBundleDrafts}
@@ -590,8 +587,8 @@ export default function EntryFormPanel({
               </div>
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
                 <div className="text-xs font-medium uppercase text-slate-500 dark:text-slate-400">Authoring</div>
-                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{presets.length}</div>
-                <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">preset{presets.length === 1 ? "" : "s"} available</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">3</div>
+                <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">tool modes available</div>
               </div>
             </div>
             <ContextSimulationPanel
@@ -627,7 +624,7 @@ export default function EntryFormPanel({
                   >
                     Copy JSON
                   </button>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">JSON patch preview lives in Generate / Saved.</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">JSON patch preview lives in Tools / Library.</span>
                 </div>
               </div>
               {utilityNotice && (
