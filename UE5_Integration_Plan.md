@@ -1,10 +1,11 @@
 # UE5 Integration Plan (Real-Time Top-Down Prototype)
 
-Canonical UE roadmap. Use this plan and `UE5_Integration/UE5_Prototype_Step_By_Step.md` for active implementation work. `UE5_Integration_Plan_turn_based.md` is an alternate/exploratory design track.
+Canonical UE roadmap. Use this plan for direction and `UE5_Integration/UE5_Prototype_Step_By_Step.md` for active implementation work. The step-by-step guide is the operational source for the current Blueprint sequence.
 
 A blueprint-only roadmap to build a real-time, top-down prototype inspired by Mini Healer, but with a fully buildable main character (talents, gear, and ability loadout). This plan uses Able for abilities and stays data-driven from the SoA exports.
 
 Companion docs:
+- `UE5_Integration/UE5_Prototype_Step_By_Step.md` - active build order, restart checklist, and detailed Blueprint implementation steps.
 - `UE5_Integration/UE5_Blueprint_Integration_Guide.txt` - struct, enum, and DataTable import details.
 - `UE5_Integration/UE5_Data_Relationship_Map.md` - field-level cross links.
 - `UE5_Integration/UE5_Blueprint_Systems.md` - subsystem ownership and class boundaries.
@@ -43,7 +44,9 @@ Minimum DataTables to run the prototype:
 - Encounters: `encounters` (single boss fight).
 
 Runtime data access:
-- `BP_GameDataSubsystem` caches by ULID and slug and exposes lookup helpers.
+- `BP_GameInstance_SoA` constructs one `BP_GameDataService` Blueprint Object during `Event Init`.
+- `BP_GameDataService` stores DataTable references, builds caches by ULID and slug, and exposes typed lookup helpers.
+- `BFL_SoAHelpers` provides stateless `GetSoAGameInstance` and `GetGameDataService` helpers so actors, components, widgets, and debug tools do not duplicate GameInstance casts.
 - Validation pass after import to log missing ULIDs or enum mismatches.
 - Enum and Struct source of truth: `UE5_Integration/UE5_Blueprint_Integration_Guide.txt` (do not duplicate or drift).
 
@@ -66,12 +69,14 @@ Player control flow:
 - Helpers: `CursorToWorld`, `ScreenToWorld`, `GetMouseHit` for targeting.
 
 ## 4. Targeting System
-- `BP_TargetingComponent` on the player controller or character to manage selection.
-- `BPI_Targetable` interface and `BP_TargetableComponent` on actors.
+- Prototype default: `BP_TargetingComponent` lives on `BP_PlayerController_Prototype`.
+- `BPI_Targetable` is implemented first on `BP_BattleCharacter`; `BP_TargetableComponent` is optional metadata if the interface starts to grow.
 - Target selection logic:
-  - Soft target: nearest valid in cursor or cone.
-  - Hard lock: cycle target list (next/prev) and keep until broken.
-- Optional: range/LOS checks and highlight outline hook.
+  - Build a valid target list with a radius overlap around the controlled pawn.
+  - Soft target: nearest valid enemy.
+  - Hard lock: cycle next/prev targets and keep until invalidated.
+  - Validate stale targets after reset, death, or range breaks.
+- First visual feedback: simple `BP_TargetIndicator` ring actor. Outline/post-process can come later.
 
 ## 5. Combat System (Real-Time with Able)
 Core components:
@@ -149,27 +154,35 @@ Debug UI:
   - Force phase, reset fight, toggle AI.
 
 ## 12. Prototype Milestones
-Phase 0: Data and framework
-- DataTables import and `BP_GameDataSubsystem` caches.
-- Base GameMode/Controller/Character.
+Phase 0: Project skeleton and runtime root
+- Base folders, GameInstance, GameMode, GameState, PlayerController, PlayerCharacter, and prototype arena.
 
 Phase 1: Movement and camera
 - Top-down movement, camera rig, input mapping contexts.
 
-Phase 2: Targeting and Able
-- Targetable system, Able ability activation, telegraphs.
+Phase 2: Data imports and central data service
+- Core structs/DataTables, `BP_GameDataService`, cache maps, typed getters, and `BFL_SoAHelpers`.
 
-Phase 3: Combat loop
-- Damage pipeline, health, status, death, rewards.
+Phase 3: Combatant foundation and test enemy
+- `BP_BattleCharacter`, reparented player, manual `BP_EnemyCharacter`, and fast arena reset.
 
-Phase 4: Build systems
-- Talents, gear modifiers, inventory and equipment.
+Phase 4: Targeting
+- `BPI_Targetable`, controller-owned `BP_TargetingComponent`, lock/cycle input, debug helpers, and target indicator.
 
-Phase 5: Boss encounter
-- Boss AI phases, companion commands, encounter reset.
+Phase 5: Combat scaffolding
+- Stats, health, combat component, basic attack, and effect resolver hook.
 
-Phase 6: UI and save
-- HUD, target frame, minimal save/load.
+Phase 6: Able integration
+- Ability activation, wrapper API, cooldowns, and telegraphs.
+
+Phase 7: Character build systems
+- Talents, gear modifiers, inventory, and equipment.
+
+Phase 8: Encounter flow
+- Data-driven encounter spawning, boss logic, companions, and reset.
+
+Phase 9-11: UI, save/load, and debug tools
+- HUD, target frame, minimal persistence, and fast iteration commands.
 
 ## Quality Gates
 - All DataTable imports succeed with zero warnings.

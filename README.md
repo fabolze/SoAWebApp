@@ -7,11 +7,12 @@ This repository contains a Flask backend and a React frontend for local game-con
 - `PROJECT_CONTEXT.md`: current architecture, system status, and next work for handoff.
 - `backend/data/IMPORT_ORDER_GUIDE.txt`: CSV import order and dependency rules.
 - `UE5_Integration_Plan.md`: canonical UE5 Real-Time Able prototype plan.
-- `UE5_Integration/UE5_Prototype_Step_By_Step.md`: concrete Real-Time Able build sequence.
+- `UE5_Integration/UE5_Prototype_Step_By_Step.md`: concrete Real-Time Able build sequence, including the current restart checklist and detailed Phase 2-4 Blueprint steps.
 - `UE5_Integration/UE5_Blueprint_Integration_Guide.txt`: canonical UE structs, enums, and DataTable import checklist.
 - `UE5_Integration/UE5_Data_Relationship_Map.md`: field-level relationships and import validation reference.
 - `UE5_Integration/World_Travel_System.md`: location route graph and travel system design.
-- `UE5_Integration_Plan_turn_based.md`: alternate/exploratory turn-based JRPG plan, not the main roadmap.
+
+Current UE prototype implementation path: follow `UE5_Integration/UE5_Prototype_Step_By_Step.md`, especially the "Returning After A Long Break" checklist and "What To Do First" section. The immediate Blueprint sequence is `BP_GameDataService` helper access, `BP_BattleCharacter`, manual `BP_EnemyCharacter`, arena reset, and then controller-owned targeting.
 
 ## Backend setup
 

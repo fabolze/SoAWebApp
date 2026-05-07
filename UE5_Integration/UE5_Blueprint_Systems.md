@@ -1,10 +1,10 @@
 # Blueprint Systems Overview
 
-Subsystem ownership for the canonical UE5 Real-Time Top-Down Able prototype. Use this sheet to keep responsibilities clean and to know which blueprint should expose which API. The alternate turn-based plan is kept separately in `../UE5_Integration_Plan_turn_based.md`.
+Subsystem ownership for the canonical UE5 Real-Time Top-Down Able prototype. Use this sheet to keep responsibilities clean and to know which blueprint should expose which API. Use `UE5_Prototype_Step_By_Step.md` for the active implementation order and detailed Blueprint tutorial steps.
 
 ```
 BP_GameInstance_SoA
-  +-- BP_GameDataService (owned object or functions on GameInstance)
+  +-- BP_GameDataService (constructed Blueprint Object)
   +-- BP_ContentPackRegistry
   +-- BP_CurrencyManager
   +-- BP_FlagManager
@@ -22,8 +22,11 @@ Overworld Runtime (BP_GameState/BP_PlayerController components or world manager 
 
 ## Data Foundation
 - Enum and Struct source of truth: `UE5_Integration/UE5_Blueprint_Integration_Guide.txt`. This document only references them by name.
-- **`BP_GameDataService` (custom `BP_GameInstance_SoA` data API, Blueprint-only)**  
-  Loads every DataTable on Init, builds caches keyed by ULID and slug, exposes helper functions (`GetStatById`, `GetItemModifiers`, `FindEncountersForLocation`). Provides typed wrappers for JSON fields (e.g. quest objective arrays). Emits validation logs when lookups miss. Implement directly in `BP_GameInstance_SoA` first; split into a GameInstance-owned Blueprint Object only if the graph gets too large.
+- **`BP_GameDataService` (GameInstance-owned Blueprint Object)**  
+  Constructed by `BP_GameInstance_SoA` during `Event Init` using `Construct Object from Class`, then initialized through an explicit `InitializeDataService` function. Stores DataTable references, builds caches keyed by ULID and slug, exposes typed lookup functions (`GetStatDataBySlug`, `GetStatDataById`, later item/encounter getters), and emits validation logs when lookups miss. Do not rely on `BeginPlay` for this object.
+
+- **`BFL_SoAHelpers` (Blueprint Function Library)**  
+  Stateless helper library for `GetSoAGameInstance(WorldContextObject)` and `GetGameDataService(WorldContextObject)`. Actors, components, widgets, and debug tools should use this instead of repeating GameInstance casts.
 
 - **`BP_DataImportManager` (Editor Utility Widget)**  
   Batch re-imports CSV/JSON exports, validates enum strings, checks dangling ULIDs, and can trigger automation tests. Presents a summary panel grouped by severity (error/warning/info). Supports hot reload during PIE for dialogue/narrative iteration.
@@ -93,11 +96,14 @@ Overworld Runtime (BP_GameState/BP_PlayerController components or world manager 
 - **`BP_HealthComponent` (Actor Component on Combatants)**  
   Tracks current/max health, emits `OnHealthChanged`, and signals death to combat flow.
 
-- **`BP_TargetingComponent` (Actor Component on Player Controller or Player Character)**  
-  Maintains soft target and hard lock, cycles next/prev targets, and enforces range or LOS rules.
+- **`BP_TargetingComponent` (Actor Component on `BP_PlayerController_Prototype` for the prototype)**  
+  Maintains soft target and hard lock, refreshes valid targets with a radius overlap around the controlled pawn, cycles next/prev targets, validates stale target references after reset/death/range breaks, and exposes `GetCurrentTarget` for combat. LOS and screen-angle sorting are later refinements.
 
-- **`BPI_Targetable` + `BP_TargetableComponent` (Interface + Component)**  
-  Marks actors as valid targets, exposes selection metadata, and drives outline/highlight hooks.
+- **`BPI_Targetable` + optional `BP_TargetableComponent` (Interface + Component)**  
+  `BPI_Targetable` is implemented first on `BP_BattleCharacter` and exposes `CanBeTargeted`, display name, team id, target location, and lock/unlock hooks. `BP_TargetableComponent` is optional metadata if target radius/socket/display overrides grow beyond the base class.
+
+- **`BP_TargetIndicator` (Prototype visual feedback actor)**  
+  Simple ring/decal/mesh actor spawned or attached by `BP_TargetingComponent` on hard lock. Use this before investing in custom-depth outline materials or final UI target frames.
 
 - **`BP_AbleAbilityComponent` (Able Plugin Component)**  
   Executes abilities, cooldowns, casts, and channels. Wrapper helpers should expose `TryActivateAbility`, `CancelAbility`, and cooldown queries to UI.
@@ -118,7 +124,7 @@ Overworld Runtime (BP_GameState/BP_PlayerController components or world manager 
   Centralises formulas (damage, crit, resistance), pulling coefficients from DataTables so balancing can change without blueprint rewiring. Ability scaling reads `ability_scaling_links.stat_id` (Stats), not Attributes.
 
 - **`BP_BattleCharacter` / `BP_PlayerCharacter` / `BP_EnemyCharacter` / `BP_CompanionCharacter`**  
-  Base combatant class plus specialisations. Provide API for stats, abilities, item usage, AI hooks, animation triggers.
+  Base combatant class plus specialisations. Prototype baseline includes team id, display name, targetability, initial transform, alive/dead state, reset helper, and later components for stats, health, combat, abilities, item usage, AI hooks, and animation triggers.
 
 - **`BP_EnemyBrain` (Actor Component)**  
   Wraps AI behaviour for enemies. Consumes behaviour tags from combat profile data, scores abilities against current battlefield state, and picks targets.

@@ -19,6 +19,27 @@ Source of truth for enums/structs/tables:
 - DataTables are source data; runtime state lives in components/managers.
 - Prefer typed Blueprint functions over generic "do everything" graphs.
 
+## Returning After A Long Break
+When you reopen the project and do not remember the exact state, do this before adding anything:
+
+1. Press Play once.
+2. Confirm the player spawns in the prototype arena.
+3. Confirm movement/camera still work.
+4. Confirm `BP_GameInstance_SoA` prints its init message once.
+5. Confirm `BP_GameDataService` exists and has assigned DataTables.
+6. Run the current smoke test for `GetGameDataService` and one stat lookup.
+7. Open this document and continue from the first failed confirmation.
+
+Do not continue into combat actors until the data service can be fetched from another Blueprint. The combat phases will depend on that habit even if the first enemy is manually placed.
+
+### Current Restart Point
+If you are "at step 3" from the recommended order near the bottom, that means:
+
+- done already: `BP_GameInstance_SoA` creates `BP_GameDataService`
+- done already or nearly done: `DT_Stats` and `DT_Attributes` cache into maps
+- next task: create `BFL_SoAHelpers.GetGameDataService`
+- after that: start Phase 3 combatants (`BP_BattleCharacter`, `BP_EnemyCharacter`, reset path)
+
 ---
 
 ## Core Blueprint Pattern (read once before Phase 0)
@@ -248,18 +269,102 @@ This phase is intentionally detailed because it becomes the foundation for stats
 - Add:
   - `GetSoAGameInstance(WorldContextObject) -> BP_GameInstance_SoA`
   - `GetGameDataService(WorldContextObject) -> BP_GameDataService`
-- Function flow:
-  - `Get Game Instance`
-  - cast to `BP_GameInstance_SoA`
-  - get `GameDataService`
-- Done when: Components/widgets can fetch the service in one call.
+- Why this exists:
+  - Components, widgets, actors, and debug tools should not all repeat the same "get game instance, cast, get service" graph.
+  - Later systems should not know where the service is stored. They should only know how to ask for it.
+  - This keeps the codebase readable when you come back after a break.
+
+#### Create the library asset
+1. In Content Browser, go to `/Game/Blueprints/Core` or `/Game/Blueprints/Systems`.
+2. Right-click -> Blueprint Class.
+3. Open `All Classes`.
+4. Search for `Blueprint Function Library`.
+5. Name it `BFL_SoAHelpers`.
+
+#### Function: `GetSoAGameInstance`
+Create a function named `GetSoAGameInstance`.
+
+Suggested signature:
+- Input:
+  - `WorldContextObject` (`Object Reference`)
+- Outputs:
+  - `Found` (`Boolean`)
+  - `SoAGameInstance` (`BP_GameInstance_SoA Object Reference`)
+
+Blueprint node flow:
+1. Drag from `WorldContextObject`.
+2. Use `Get Game Instance`.
+3. `Cast To BP_GameInstance_SoA`.
+4. On cast success:
+   - set `Found = true`
+   - return the cast result as `SoAGameInstance`
+5. On cast failed:
+   - set `Found = false`
+   - return `None`
+   - optional: `Print String` with `"GetSoAGameInstance failed"`
+
+Notes:
+- In a Blueprint Function Library, many UE nodes need a world context. Passing `WorldContextObject` explicitly makes the helper usable from actors, components, widgets, and debug code.
+- If the function editor exposes advanced metadata such as `WorldContext`, you can use it later. For now, an explicit object input is easier to understand and debug.
+
+#### Function: `GetGameDataService`
+Create a function named `GetGameDataService`.
+
+Suggested signature:
+- Input:
+  - `WorldContextObject` (`Object Reference`)
+- Outputs:
+  - `Found` (`Boolean`)
+  - `GameDataService` (`BP_GameDataService Object Reference`)
+
+Blueprint node flow:
+1. Call `GetSoAGameInstance(WorldContextObject)`.
+2. Branch on `Found`.
+3. From `SoAGameInstance`, get variable `GameDataService`.
+4. Check `Is Valid`.
+5. If valid:
+   - set `Found = true`
+   - return `GameDataService`
+6. If invalid:
+   - set `Found = false`
+   - return `None`
+   - print `"GameDataService missing or not initialized"`
+
+Done when:
+- `BFL_SoAHelpers` compiles.
+- From another Blueprint, you can call `GetGameDataService(self)`.
+- The returned service is valid in PIE.
+- No other Blueprint needs to manually cast the `GameInstance` just to read SoA data.
+
+Common mistakes:
+- Forgetting to pass a real world object as `WorldContextObject`. In an Actor or Component, `self` is fine.
+- Returning the service without checking `Is Valid`.
+- Putting gameplay state in the function library. Function libraries should stay stateless.
 
 ### Step 2.11 - Smoke test the service in PIE
 - Create a temporary test call (Controller BeginPlay or debug key):
   - `GetGameDataService`
   - call `GetStatDataBySlug`
   - print the stat name/value
-- Done when: You see valid row data in PIE.
+- Recommended location for the first smoke test:
+  - `BP_PlayerController_Prototype` `BeginPlay`, or
+  - a temporary debug input action such as `IA_DebugLookupRow`
+
+Suggested test flow:
+1. `BeginPlay`
+2. `BFL_SoAHelpers.GetGameDataService(self)`
+3. Branch on `Found`
+4. Call `GetStatDataBySlug`
+   - use one real row name from `DT_Stats`, for example `health` if that row exists
+5. Branch on getter `Found`
+6. Print a readable result:
+   - success: `"Stat lookup OK: <display name or slug>"`
+   - failure: `"Stat lookup failed"`
+
+Done when:
+- You see valid row data in PIE.
+- A bad slug prints a controlled failure instead of causing a graph error.
+- You can delete or disable the smoke test without affecting the data service itself.
 
 ### Step 2.12 - Add a simple reload/debug path (optional, but worth it)
 - Add `RebuildAllCaches` in `BP_GameDataService`
@@ -287,14 +392,100 @@ This phase is intentionally detailed because it becomes the foundation for stats
 ## Phase 3 - Combatant Foundation and Test Enemy (2-3 evenings)
 Goal: Player and one enemy exist as combatants in the arena.
 
+This phase is not full combat yet. It creates the shared actor shape that later targeting, health, stats, abilities, and UI will attach to.
+
+### Before You Start Phase 3
+You need these in place:
+- `BP_PlayerCharacter` can move in the arena.
+- `BP_GameMode_Prototype` spawns `BP_PlayerCharacter`.
+- `BP_GameInstance_SoA` initializes without errors.
+- `BFL_SoAHelpers.GetGameDataService(self)` works from another Blueprint.
+- One prototype arena map opens reliably in PIE.
+
+You do not need these yet:
+- full character DataTables
+- encounter spawning
+- AI behavior trees
+- final meshes or animations
+- Able ability loadouts
+- health bars or polished UI
+
 ### Step 3.1 - Create a shared combatant base
 - Do: Create `BP_BattleCharacter` from `Character`.
-- Move only shared combat-facing pieces here first:
-  - common helper functions for combat components
-  - team/faction placeholder data
-  - sockets/components both player and enemy will need later
-- Reparent `BP_PlayerCharacter` to `BP_BattleCharacter` once movement/camera still work.
-- Done when: Player control still works after the reparent.
+
+#### Why this class exists
+Both player and enemies will eventually need the same combat surface:
+- a team/allegiance value
+- a way to ask "can I be targeted?"
+- a health/stat/combat component stack
+- common debug labels
+- common death/reset behavior
+
+Putting that shared surface in `BP_BattleCharacter` prevents duplicating it in both `BP_PlayerCharacter` and `BP_EnemyCharacter`.
+
+#### Create `BP_BattleCharacter`
+1. Content Browser -> `/Game/Blueprints/Characters`.
+2. Right-click -> Blueprint Class.
+3. Pick `Character`.
+4. Name it `BP_BattleCharacter`.
+5. Open it and compile once before adding anything.
+
+#### Add first variables
+Add only simple variables now. Components come later unless you already know you need them.
+
+Recommended variables:
+- `TeamId` (`Integer`, default `0`)
+  - `0` = neutral/debug
+  - `1` = player side
+  - `2` = enemy side
+- `DisplayName` (`Text`, default `"Combatant"`)
+- `bCanBeTargeted` (`Boolean`, default `true`)
+- `InitialTransform` (`Transform`)
+  - useful for arena reset later
+- `bIsDead` (`Boolean`, default `false`)
+
+Recommended helper functions:
+- `IsAlive() -> Boolean`
+  - return `not bIsDead`
+- `IsEnemyOf(OtherTeamId: Integer) -> Boolean`
+  - return `TeamId != 0 and OtherTeamId != 0 and TeamId != OtherTeamId`
+- `RememberInitialTransform()`
+  - set `InitialTransform = GetActorTransform`
+- `ResetPrototypeState()`
+  - set `bIsDead = false`
+  - set actor transform to `InitialTransform`
+  - later this will also reset health/cooldowns/statuses
+
+Done when:
+- `BP_BattleCharacter` compiles.
+- The helper functions can be called from the graph.
+- You have not moved player-specific camera/input logic into this class.
+
+#### Reparent `BP_PlayerCharacter`
+1. Open `BP_PlayerCharacter`.
+2. Use `Class Settings`.
+3. Change parent class from `Character` to `BP_BattleCharacter`.
+4. Compile.
+5. Fix any broken references if UE reports them.
+6. Set player defaults:
+   - `TeamId = 1`
+   - `DisplayName = "Player"`
+   - `bCanBeTargeted = false` for now, unless enemies already need to target the player
+
+After reparenting, press Play and test:
+- player still spawns
+- movement still works
+- camera still follows
+- input mappings still fire
+- no Blueprint runtime errors appear
+
+Done when: Player control still works after the reparent.
+
+If something breaks:
+- Check `BP_GameMode_Prototype` still uses `BP_PlayerCharacter` as Default Pawn.
+- Check the Player Controller still adds `IMC_Prototype`.
+- Check camera components still exist on `BP_PlayerCharacter`.
+- Check any cast to `Character` or old parent class still makes sense.
 
 ### Step 3.2 - Create a prototype enemy actor
 - Do: Create `BP_EnemyCharacter` from `BP_BattleCharacter`.
@@ -302,19 +493,185 @@ Goal: Player and one enemy exist as combatants in the arena.
   - place it manually in the arena
   - use a visible placeholder mesh if needed
   - no full AI required yet
-- Done when: PIE always starts with at least one enemy actor present.
+
+#### Create `BP_EnemyCharacter`
+1. Content Browser -> `/Game/Blueprints/Characters`.
+2. Right-click -> Blueprint Class.
+3. Pick `BP_BattleCharacter` as the parent.
+4. Name it `BP_EnemyCharacter`.
+5. Open it and set defaults:
+   - `TeamId = 2`
+   - `DisplayName = "Training Enemy"`
+   - `bCanBeTargeted = true`
+
+#### Give it a visible placeholder
+Use whichever is fastest:
+- assign a basic mesh on the inherited `Mesh` component, or
+- add a simple static mesh component such as a cube/capsule, or
+- use the default character capsule plus a debug label
+
+The only requirement is that you can identify it immediately in PIE.
+
+#### Disable complexity for now
+For the first enemy:
+- no behavior tree
+- no patrol
+- no data-driven spawn
+- no ability loadout
+- no animation polish
+
+This actor is a target dummy. Its job is to prove the arena and shared combatant base work.
+
+#### Place the enemy
+1. Open the prototype arena map.
+2. Drag `BP_EnemyCharacter` into the level.
+3. Place it a few meters away from the player start.
+4. Rotate it toward the player if useful.
+5. In the placed instance details, confirm `TeamId = 2`.
+
+Optional but useful:
+- In `BeginPlay` for `BP_BattleCharacter`, call `RememberInitialTransform`.
+- Print `DisplayName` and `TeamId` once for placed combatants.
+
+Done when:
+- PIE always starts with at least one enemy actor present.
+- The enemy is visible.
+- Selecting the enemy in the Outliner shows it is a `BP_EnemyCharacter`.
+- It inherits from `BP_BattleCharacter`.
+
+If the enemy does not appear:
+- Confirm it was placed in the map that PIE actually opens.
+- Confirm it is not below the floor.
+- Confirm hidden flags are not set.
+- Confirm the mesh/material is visible, or rely on the capsule temporarily.
 
 ### Step 3.3 - Add a fast arena reset path
 - Do: Add one reset path in Level Blueprint, `BP_GameMode_Prototype`, or a tiny `BP_PrototypeArenaDirector`.
 - First version can:
   - respawn the test enemy, or
   - restore its transform/health
-- Done when: You can reset the arena without manual repositioning in the editor.
+- Recommendation: create `BP_PrototypeArenaDirector`.
+  - It keeps reset/debug arena logic out of the Level Blueprint.
+  - It can later become the bridge to `BP_EncounterDirector`.
+  - It is easier to find after a long break.
+
+#### Create `BP_PrototypeArenaDirector`
+1. Content Browser -> `/Game/Blueprints/Systems`.
+2. Create Blueprint Class -> `Actor`.
+3. Name it `BP_PrototypeArenaDirector`.
+4. Place one instance in the arena map.
+
+Recommended variables:
+- `EnemyClass` (`Class Reference` of `BP_EnemyCharacter`)
+- `EnemySpawnTransform` (`Transform`)
+- `CurrentEnemy` (`BP_EnemyCharacter Object Reference`)
+- `PlayerStartTransform` (`Transform`, optional)
+
+#### Choose reset approach A: restore placed enemy
+This is simplest if the enemy is already placed manually.
+
+Flow:
+1. On `BeginPlay`, find the placed `BP_EnemyCharacter`.
+2. Store it in `CurrentEnemy`.
+3. Call `RememberInitialTransform` on it.
+4. In `ResetArena`:
+   - if `CurrentEnemy` is valid, call `ResetPrototypeState`
+   - move player back to start if needed
+   - print `"Arena reset"`
+
+Use this approach first if you have exactly one target dummy.
+
+#### Choose reset approach B: destroy and respawn enemy
+This is better once death/destruction is involved.
+
+Flow:
+1. Set `EnemyClass = BP_EnemyCharacter`.
+2. Set `EnemySpawnTransform` from a scene component, arrow component, or manually typed transform.
+3. In `SpawnTestEnemy`:
+   - if `CurrentEnemy` is valid, destroy it
+   - `Spawn Actor from Class`
+   - save return value to `CurrentEnemy`
+   - call `RememberInitialTransform`
+4. In `ResetArena`:
+   - call `SpawnTestEnemy`
+   - reset player position if needed
+   - print `"Arena reset"`
+
+Use this approach once enemies can die and be removed.
+
+#### Bind reset to input
+First simple option:
+- Add `IA_ResetArena`.
+- Map it to `R` or another debug key in `IMC_Prototype`.
+- In `BP_PlayerController_Prototype`, on input:
+  - find `BP_PrototypeArenaDirector`
+  - call `ResetArena`
+
+Acceptable temporary option:
+- In Level Blueprint, bind a keyboard event and call the director.
+- Replace it later when debug input is centralized.
+
+Done when:
+- You can reset the arena without manual repositioning in the editor.
+- Reset works repeatedly in one PIE session.
+- There is no need to stop PIE just to place the enemy again.
+- The reset code has one obvious owner (`BP_PrototypeArenaDirector` or `BP_GameMode_Prototype`).
+
+Common mistakes:
+- Putting reset logic partly in Level Blueprint and partly in the enemy.
+- Spawning multiple enemies because old `CurrentEnemy` was never destroyed.
+- Resetting transform but forgetting future health/status state.
+- Making reset depend on final encounter data too early.
+
+### Phase 3 Exit Test
+Before moving to targeting, verify:
+- Player spawns, moves, and camera works.
+- `BP_PlayerCharacter` parent is `BP_BattleCharacter`.
+- `BP_EnemyCharacter` parent is `BP_BattleCharacter`.
+- Player has `TeamId = 1`.
+- Enemy has `TeamId = 2`.
+- Enemy is visible in the arena.
+- Reset can restore or respawn the enemy.
+- `BFL_SoAHelpers.GetGameDataService(self)` still works after these changes.
+
+If all are true, continue to Phase 4.
 
 ---
 
 ## Phase 4 - Targeting System (2-3 evenings)
 Goal: Soft target + hard lock works in the arena.
+
+This phase lets the player select the manual test enemy before real damage exists. Treat targeting as its own feature. Do not mix it with health, abilities, or AI yet.
+
+### Before You Start Phase 4
+You need these in place:
+- Phase 3 exit test passes.
+- `BP_PlayerCharacter` and `BP_EnemyCharacter` both inherit from `BP_BattleCharacter`.
+- The arena contains one visible `BP_EnemyCharacter`.
+- `BP_PlayerController_Prototype` owns input routing.
+- You have input actions for target next/previous/lock, or you are ready to add them.
+
+You do not need these yet:
+- `BP_HealthComponent`
+- `BP_CombatComponent`
+- line-of-sight checks
+- enemy AI
+- real UI target frames
+- final outline post-process materials
+
+### Targeting Ownership Decision
+Use this prototype default:
+- Put `BP_TargetingComponent` on `BP_PlayerController_Prototype`.
+
+Why:
+- Targeting belongs to player intent, not the pawn body.
+- If the player pawn is respawned or swapped, the controller can keep targeting state.
+- Input already routes through `BP_PlayerController_Prototype`.
+
+Acceptable alternative:
+- Put it on `BP_PlayerCharacter` if your current input work already lives there.
+
+Do not split ownership. Pick one owner and keep all current target state there.
 
 ### Step 4.1 - Targetable interface and component
 - Do: Create `BPI_Targetable`.
@@ -322,7 +679,58 @@ Goal: Soft target + hard lock works in the arena.
   - display name (optional)
   - target socket/bone (optional)
   - targetable enabled bool
-- Done when: A test enemy can implement/contain targetable behavior.
+
+#### Create `BPI_Targetable`
+1. Content Browser -> `/Game/Blueprints/Systems`.
+2. Right-click -> Blueprints -> Blueprint Interface.
+3. Name it `BPI_Targetable`.
+
+Add interface functions:
+- `CanBeTargeted() -> CanTarget(Boolean)`
+- `GetTargetDisplayName() -> DisplayName(Text)`
+- `GetTargetTeamId() -> TeamId(Integer)`
+- `GetTargetLocation() -> TargetLocation(Vector)`
+- `OnTargetLocked()`
+- `OnTargetUnlocked()`
+
+Keep these functions small. They expose target information; they do not choose targets.
+
+#### Implement `BPI_Targetable` on `BP_BattleCharacter`
+1. Open `BP_BattleCharacter`.
+2. Class Settings -> Interfaces -> add `BPI_Targetable`.
+3. Implement:
+   - `CanBeTargeted`: return `bCanBeTargeted and IsAlive()`
+   - `GetTargetDisplayName`: return `DisplayName`
+   - `GetTargetTeamId`: return `TeamId`
+   - `GetTargetLocation`: return `GetActorLocation`
+   - `OnTargetLocked`: print or trigger a temporary visual
+   - `OnTargetUnlocked`: clear the temporary visual
+
+This makes every future battle character targetable through the same API. Individual child classes can override behavior later.
+
+#### Create `BP_TargetableComponent` only if you want metadata separate
+For this prototype, the interface on `BP_BattleCharacter` is enough.
+
+Create `BP_TargetableComponent` if you prefer component-based metadata now:
+- Parent class: `Actor Component`
+- Variables:
+  - `bTargetableEnabled` (`Boolean`, default `true`)
+  - `DisplayNameOverride` (`Text`)
+  - `TargetSocketName` (`Name`, optional)
+  - `TargetRadius` (`Float`, default `80`)
+
+If you add this component, add it to `BP_BattleCharacter` and have the interface read from it. If that feels like busywork, skip the component until visual target bounds matter.
+
+Done when:
+- `BP_BattleCharacter` implements `BPI_Targetable`.
+- `BP_EnemyCharacter` returns `CanBeTargeted = true`.
+- `BP_PlayerCharacter` returns `CanBeTargeted = false` for now, unless you need enemies to target the player.
+- Calling `CanBeTargeted` on the placed enemy returns true in PIE.
+
+Common mistakes:
+- Implementing target search inside the interface.
+- Making only `BP_EnemyCharacter` implement the interface, then forgetting future companions/bosses.
+- Letting dead or reset-disabled actors remain targetable.
 
 ### Step 4.2 - Targeting component
 - Do: Add `BP_TargetingComponent` to player controller or player character (pick one owner and keep it consistent).
@@ -331,11 +739,269 @@ Goal: Soft target + hard lock works in the arena.
   - `LockTarget`
   - `UnlockTarget`
   - `CycleNextTarget`
-- Done when: Target cycles and lock persists until target invalidates.
+
+#### Create `BP_TargetingComponent`
+1. Content Browser -> `/Game/Blueprints/Systems`.
+2. Create Blueprint Class -> `Actor Component`.
+3. Name it `BP_TargetingComponent`.
+4. Add it to `BP_PlayerController_Prototype`.
+
+Recommended variables:
+- `CurrentTarget` (`Actor Object Reference`)
+- `SoftTarget` (`Actor Object Reference`)
+- `SearchRadius` (`Float`, default `1800`)
+- `bHasHardLock` (`Boolean`, default `false`)
+- `TargetableActors` (`Array` of `Actor Object Reference`)
+- `TargetObjectTypes` or collision channel settings if using sphere traces
+- `OwnerController` (`BP_PlayerController_Prototype Object Reference`, optional)
+- `OwnerPawn` (`Pawn Object Reference`, optional cached value)
+
+Recommended event dispatchers:
+- `OnTargetChanged(NewTarget: Actor, bHardLocked: Boolean)`
+- `OnTargetCleared()`
+
+#### Initialize the component
+In `BP_TargetingComponent` `BeginPlay`:
+1. Get owner.
+2. Cast owner to `BP_PlayerController_Prototype`.
+3. Store `OwnerController`.
+4. Get controlled pawn.
+5. Store `OwnerPawn`.
+6. Optional: print `"Targeting ready"`.
+
+If the component is on the player character instead, owner is already the pawn. Adjust the cached variables accordingly.
+
+#### Implement `RefreshTargetList`
+Create function `RefreshTargetList`.
+
+Suggested signature:
+- Inputs:
+  - none for now
+- Outputs:
+  - `ValidTargets` (`Array` of `Actor Object Reference`)
+
+Simple first node flow:
+1. Clear `TargetableActors`.
+2. Get search origin:
+   - if `OwnerPawn` valid: `OwnerPawn.GetActorLocation`
+   - otherwise: controlled pawn location
+3. Use `Sphere Overlap Actors`
+   - origin: owner pawn location
+   - radius: `SearchRadius`
+   - class filter: `BP_BattleCharacter` if available, otherwise `Actor`
+4. For each overlapped actor:
+   - skip self/owner pawn
+   - check `Does Implement Interface` -> `BPI_Targetable`
+   - call `CanBeTargeted`
+   - call `GetTargetTeamId`
+   - compare team against player team if needed
+   - add valid actor to `TargetableActors`
+5. Return `TargetableActors`.
+
+Prototype team rule:
+- Player team is `1`.
+- Valid enemy targets have `TeamId != 1` and `TeamId != 0`.
+
+Do not add line-of-sight yet. A radius search is enough for the first lock-on loop.
+
+#### Implement `FindNearestTarget`
+Suggested signature:
+- Inputs:
+  - none
+- Outputs:
+  - `Found` (`Boolean`)
+  - `Target` (`Actor Object Reference`)
+
+Node flow:
+1. Call `RefreshTargetList`.
+2. If the list is empty:
+   - return `Found = false`
+   - return `None`
+3. Get origin from owner pawn.
+4. Loop over `TargetableActors`.
+5. Compute distance from origin to target actor location.
+6. Track the actor with the smallest distance.
+7. Return it.
+
+Done when a debug key can print the nearest enemy name.
+
+#### Implement `LockTarget`
+Suggested signature:
+- Input:
+  - `Target` (`Actor Object Reference`)
+- Output:
+  - `Success` (`Boolean`)
+
+Node flow:
+1. If `CurrentTarget` is valid and different from `Target`, call `OnTargetUnlocked` on old target.
+2. Validate new target:
+   - is valid
+   - implements `BPI_Targetable`
+   - `CanBeTargeted` returns true
+3. Set `CurrentTarget = Target`.
+4. Set `bHasHardLock = true`.
+5. Call `OnTargetLocked` on target.
+6. Broadcast `OnTargetChanged`.
+7. Return success.
+
+#### Implement `UnlockTarget`
+Node flow:
+1. If `CurrentTarget` is valid, call `OnTargetUnlocked`.
+2. Set `CurrentTarget = None`.
+3. Set `bHasHardLock = false`.
+4. Broadcast `OnTargetCleared`.
+
+#### Implement `LockNearestTarget`
+This is the input-friendly wrapper:
+1. Call `FindNearestTarget`.
+2. If found, call `LockTarget`.
+3. If not found, call `UnlockTarget` or print `"No target found"`.
+
+#### Implement `CycleNextTarget`
+First version:
+1. Call `RefreshTargetList`.
+2. If no targets: `UnlockTarget`.
+3. If no current target: lock the nearest target.
+4. Find current target index in `TargetableActors`.
+5. Add 1, wrap around with modulo.
+6. Lock the actor at the new index.
+
+For `CyclePreviousTarget`, subtract 1 and wrap.
+
+Sorting note:
+- `Sphere Overlap Actors` order may be inconsistent.
+- For the prototype, this is acceptable.
+- Later, sort by screen position or angle around the player if cycling feels random.
+
+#### Validate the current target
+Create function `ValidateCurrentTarget`.
+
+Call it:
+- before basic attacks
+- before ability activation
+- after arena reset
+- optionally on a slow timer, not every tick unless needed
+
+Node flow:
+1. If `CurrentTarget` is not valid: clear lock.
+2. If target no longer implements `BPI_Targetable`: clear lock.
+3. If `CanBeTargeted` returns false: clear lock.
+4. If distance is greater than `SearchRadius * 1.25`: clear lock.
+
+Done when:
+- Target cycles and lock persists until target invalidates.
+- Resetting the arena does not leave a stale destroyed target reference.
+- The component exposes a clean `CurrentTarget` for Phase 5 combat.
+
+Common mistakes:
+- Using `Get All Actors Of Class` every frame. It is okay for a debug key, but not as the final repeated search.
+- Storing target state in both controller and character.
+- Forgetting to unlock the old target before locking a new one.
+- Assuming a target is valid just because the reference variable is set.
 
 ### Step 4.3 - Visual feedback
 - Do: Add simple target indicator (widget or outline).
-- Done when: You can always tell which target is locked.
+
+Use the cheapest clear visual first. You are not building final UI yet.
+
+#### Option A: print strings only
+Fastest smoke test:
+- On lock: print `"Locked target: <DisplayName>"`
+- On unlock: print `"Target cleared"`
+
+This proves the logic works but is not enough to leave Phase 4.
+
+#### Option B: target ring actor
+Recommended first real visual.
+
+Create `BP_TargetIndicator`:
+1. Parent class: `Actor`.
+2. Add a simple mesh:
+   - torus, flat cylinder, decal, or plane with material
+3. Give it a bright debug material.
+4. Disable collision.
+5. Add function `AttachToTarget(TargetActor)`.
+
+In `BP_TargetingComponent`:
+- variable `TargetIndicator` (`BP_TargetIndicator Object Reference`)
+- on `LockTarget` success:
+  - spawn indicator if missing
+  - attach it to target actor, or set its location to target location
+  - show it
+- on `UnlockTarget`:
+  - hide it or destroy it
+
+Simple placement rule:
+- Put the ring at target actor location.
+- Add small Z offset if it z-fights with the floor.
+
+#### Option C: custom depth outline
+Better later, but optional now:
+- Enable custom depth on the target mesh when locked.
+- Disable custom depth when unlocked.
+- Requires project/post-process setup, so avoid this until the ring works.
+
+Done when:
+- You can always tell which target is locked.
+- Switching targets moves the visual to the new target.
+- Unlocking removes or hides the visual.
+- Resetting the arena does not leave the visual attached to an invalid actor.
+
+### Step 4.4 - Wire targeting input
+If not already done in Phase 1, create or confirm:
+- `IA_TargetNext`
+- `IA_TargetPrev`
+- `IA_LockTarget`
+
+In `BP_PlayerController_Prototype`:
+1. Ensure it has `BP_TargetingComponent`.
+2. On `IA_LockTarget`:
+   - if `bHasHardLock` is true, call `UnlockTarget`
+   - otherwise call `LockNearestTarget`
+3. On `IA_TargetNext`:
+   - call `CycleNextTarget`
+4. On `IA_TargetPrev`:
+   - call `CyclePreviousTarget`
+
+Suggested keys:
+- Tab: target next
+- Shift+Tab or Q: target previous
+- Middle Mouse or T: lock/unlock
+
+Done when:
+- You can lock a target without using editor-only calls.
+- You can cycle targets from input.
+- Inputs still work after arena reset.
+
+### Step 4.5 - Add targeting debug helpers
+Add these to `BP_TargetingComponent`:
+- `DebugPrintTargets`
+  - prints target count, current target, hard lock state
+- `DebugDrawSearchRadius`
+  - optional: draw debug sphere around player
+- `GetCurrentTarget() -> Target, Found`
+  - Phase 5 combat will call this
+
+Done when:
+- You can quickly answer "why is nothing targetable?"
+- Combat code can ask for the current target without reading component internals.
+
+### Phase 4 Exit Test
+Before moving to health/combat:
+- Press Play.
+- Enemy is visible.
+- Press lock key.
+- Enemy becomes current target.
+- Visual target indicator appears.
+- Press lock key again.
+- Target clears and indicator disappears.
+- Press target next/previous.
+- Target changes or stays stable if only one enemy exists.
+- Press reset.
+- Target reference clears or retargets cleanly.
+- `GetCurrentTarget` returns the locked enemy while locked.
+
+If all are true, continue to Phase 5.
 
 ---
 
@@ -510,13 +1176,14 @@ Notes:
 ---
 
 ## "What To Do First" (recommended order for your next sessions)
-1. Finish `BP_GameInstance_SoA` + `BP_GameDataService` object construction flow.
-2. Build `DT_Stats` + `DT_Attributes` caches and typed getters.
-3. Add `BFL_SoAHelpers.GetGameDataService`.
-4. Create `BP_BattleCharacter` and reparent `BP_PlayerCharacter`.
-5. Place one `BP_EnemyCharacter` in the arena and add a reset path.
-6. Build targeting, health, and one basic attack against that manual enemy.
-7. Only then expand into items, talents, and data-driven encounters.
+1. Finish `BP_GameInstance_SoA` + `BP_GameDataService` object construction flow. See Steps 2.3-2.6.
+2. Build `DT_Stats` + `DT_Attributes` caches and typed getters. See Steps 2.7-2.9.
+3. Add `BFL_SoAHelpers.GetGameDataService`. See Step 2.10, then smoke test with Step 2.11.
+4. Create `BP_BattleCharacter` and reparent `BP_PlayerCharacter`. See Step 3.1.
+5. Place one `BP_EnemyCharacter` in the arena. See Step 3.2.
+6. Add a fast reset path. See Step 3.3.
+7. Build targeting, health, and one basic attack against that manual enemy. See Phases 4-5.
+8. Only then expand into items, talents, and data-driven encounters.
 
 ---
 

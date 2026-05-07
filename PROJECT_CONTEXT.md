@@ -32,12 +32,11 @@ The core entities cover gameplay, economy, world, narrative, encounters, and pro
 - `PROJECT_CONTEXT.md`: current architecture, handoff notes, system status, and next work.
 - `backend/data/IMPORT_ORDER_GUIDE.txt`: CSV import order only; keep dependency rules there instead of duplicating them in feature docs.
 - `UE5_Integration_Plan.md`: canonical UE5 direction, currently the Real-Time Top-Down Able prototype.
-- `UE5_Integration/UE5_Prototype_Step_By_Step.md`: concrete implementation sequence for the canonical Real-Time Able prototype.
+- `UE5_Integration/UE5_Prototype_Step_By_Step.md`: concrete implementation sequence for the canonical Real-Time Able prototype, including the restart checklist and detailed Blueprint tutorial steps for `BP_GameDataService`, Phase 3 combatants, and Phase 4 targeting.
 - `UE5_Integration/UE5_Blueprint_Integration_Guide.txt`: canonical UE structs, enums, and DataTable import checklist.
 - `UE5_Integration/UE5_Data_Relationship_Map.md`: field-level relationship and validation reference.
 - `UE5_Integration/UE5_Blueprint_Systems.md`: Blueprint subsystem ownership and runtime boundaries.
 - `UE5_Integration/World_Travel_System.md`: `location_routes` movement graph design.
-- `UE5_Integration_Plan_turn_based.md`: alternate/exploratory turn-based JRPG plan, not the current main implementation path.
 
 ## System Map
 
@@ -48,6 +47,7 @@ The core entities cover gameplay, economy, world, narrative, encounters, and pro
 - CSV import/export: backend has explicit source CSVs for DB regeneration and UE CSVs for Unreal-friendly DataTable output.
 - Location graph: `locations` are nodes; `location_routes` are explicit movement edges.
 - UE integration: CSV/DataTable mirror consumed by Blueprint systems, with Real-Time Able as the canonical gameplay prototype track.
+- UE prototype current implementation shape: `BP_GameInstance_SoA` constructs a `BP_GameDataService` Blueprint Object, `BFL_SoAHelpers` exposes stateless service access, `BP_BattleCharacter` is the shared combatant base, and `BP_TargetingComponent` lives on `BP_PlayerController_Prototype` for the first targeting loop.
 
 ## Backend Architecture
 
@@ -218,6 +218,16 @@ Completed through 2026-05-03:
 - UE integration docs were updated to include `location_routes` as an exported DataTable and to avoid the obsolete `connected_locations` idea.
 
 ## Current Next Work
+
+UE prototype restart path:
+
+1. Confirm `BP_GameInstance_SoA` constructs and initializes `BP_GameDataService`.
+2. Confirm `DT_Stats` and `DT_Attributes` caches and typed getters work.
+3. Add and smoke-test `BFL_SoAHelpers.GetGameDataService`.
+4. Build Phase 3 combatants: `BP_BattleCharacter`, reparented `BP_PlayerCharacter`, manual `BP_EnemyCharacter`, and `BP_PrototypeArenaDirector` reset.
+5. Build Phase 4 targeting: `BPI_Targetable`, controller-owned `BP_TargetingComponent`, lock/cycle input, and a simple target indicator.
+
+Web app/content tool backlog:
 
 1. Finish Item Authoring 1.0 polish: make all common item fields editable without Advanced Form, tighten modifier/effect/requirement controls, and keep shop-source context read-only.
 2. Continue Shop/Merchant Authoring: improve inventory card editing, item picking, stock and price controls, and requirement/availability display.
