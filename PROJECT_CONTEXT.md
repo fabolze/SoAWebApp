@@ -47,7 +47,7 @@ The core entities cover gameplay, economy, world, narrative, encounters, and pro
 - CSV import/export: backend has explicit source CSVs for DB regeneration and UE CSVs for Unreal-friendly DataTable output.
 - Location graph: `locations` are nodes; `location_routes` are explicit movement edges.
 - UE integration: CSV/DataTable mirror consumed by Blueprint systems, with Real-Time Able as the canonical gameplay prototype track.
-- UE prototype current implementation shape: `BP_GameInstance_SoA` constructs a `BP_GameDataService` Blueprint Object, `BFL_SoAHelpers` exposes stateless service access, `BP_BattleCharacter` is the shared combatant base, and `BP_TargetingComponent` lives on `BP_PlayerController_Prototype` for the first targeting loop.
+- UE prototype current implementation shape: `BP_GameInstance_SoA` constructs a `BP_GameDataService` Blueprint Object, `BFL_SoAHelpers` exposes stateless service access, `BP_BattleCharacter` is the shared combatant base, and `BP_TargetingComponent` on `BP_PlayerController_Prototype` owns player-facing `CurrentEnemyTarget`, `CurrentAllyTarget`, and `PartyFocusTarget`.
 
 ## Backend Architecture
 
@@ -225,7 +225,7 @@ UE prototype restart path:
 2. Confirm `DT_Stats` and `DT_Attributes` caches and typed getters work.
 3. Add and smoke-test `BFL_SoAHelpers.GetGameDataService`.
 4. Build Phase 3 combatants: `BP_BattleCharacter`, reparented `BP_PlayerCharacter`, manual `BP_EnemyCharacter`, and `BP_PrototypeArenaDirector` reset.
-5. Build Phase 4 targeting: `BPI_Targetable`, controller-owned `BP_TargetingComponent`, lock/cycle input, and a simple target indicator.
+5. Build Phase 4 targeting: `BPI_Targetable`, player/controller `BP_TargetingComponent`, enemy/ally/focus target state, lock/cycle input, and a simple target indicator.
 
 Web app/content tool backlog:
 

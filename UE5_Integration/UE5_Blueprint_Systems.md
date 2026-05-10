@@ -85,10 +85,10 @@ Overworld Runtime (BP_GameState/BP_PlayerController components or world manager 
   Receives context from travel/events, filters encounter candidates by requirement, content pack, and difficulty, seeds RNG for deterministic runs, and forwards selected encounters to the event sequencer or combat director.
 
 - **`BP_EncounterDirector` (Blueprint world manager: GameState/Controller component or placed actor)**  
-  Builds combat scenes: spawns player + companions, instantiates combatants using `FCombatProfileData` and `FCharacterClassData`, applies route/environment modifiers (weather, terrain), and packages `FCombatContext`.
+  Builds combat scenes: spawns the directly controlled player, optional AI companions, and 1-3 enemies, instantiates combatants using `FCombatProfileData` and `FCharacterClassData`, applies route/environment modifiers (weather, terrain), and packages `FCombatContext`. First encounter bands are simple = 1 enemy, normal = 2-3 enemies, special = 1 stronger enemy plus 1-2 weaker enemies, and boss = 1 boss with optional limited adds.
 
 - **`BP_CombatComponent` (Actor Component on Combatants)**  
-  Central API for basic attacks and ability requests, validates targets and range, triggers damage pipeline, and emits combat events for UI and AI.
+  Central API for automatic basic attacks and ability requests, validates targets and range, triggers damage pipeline, and emits combat events for UI and AI. Player basic attacks fire automatically against `CurrentEnemyTarget` when valid and in range; important abilities remain manually triggered.
 
 - **`BP_StatsComponent` (Actor Component on Combatants)**  
   Stores base and derived stats, applies modifiers, and emits `OnStatsChanged`.
@@ -97,16 +97,16 @@ Overworld Runtime (BP_GameState/BP_PlayerController components or world manager 
   Tracks current/max health, emits `OnHealthChanged`, and signals death to combat flow.
 
 - **`BP_TargetingComponent` (Actor Component on `BP_PlayerController_Prototype` for the prototype)**  
-  Maintains soft target and hard lock, refreshes valid targets with a radius overlap around the controlled pawn, cycles next/prev targets, validates stale target references after reset/death/range breaks, and exposes `GetCurrentTarget` for combat. LOS and screen-angle sorting are later refinements.
+  Maintains player-facing target intent: `CurrentEnemyTarget`, `CurrentAllyTarget`, `PartyFocusTarget`, optional pending `GroundTargetLocation`, soft enemy target, and hard lock state. It refreshes valid enemy/ally target lists around the controlled pawn, cycles next/prev enemy targets, lets manual targets override auto-targeting, validates stale references after reset/death/range breaks, and exposes target getters for combat and UI. LOS and screen-angle sorting are later refinements.
 
 - **`BPI_Targetable` + optional `BP_TargetableComponent` (Interface + Component)**  
-  `BPI_Targetable` is implemented first on `BP_BattleCharacter` and exposes `CanBeTargeted`, display name, team id, target location, and lock/unlock hooks. `BP_TargetableComponent` is optional metadata if target radius/socket/display overrides grow beyond the base class.
+  `BPI_Targetable` is implemented first on `BP_BattleCharacter` and exposes `CanBeTargeted`, display name, team id, target location, and lock/unlock hooks. `BP_TargetableComponent` is optional metadata if target radius/socket/display overrides grow beyond the base class. These describe whether an actor can be targeted; they do not store who is targeting whom.
 
 - **`BP_TargetIndicator` (Prototype visual feedback actor)**  
   Simple ring/decal/mesh actor spawned or attached by `BP_TargetingComponent` on hard lock. Use this before investing in custom-depth outline materials or final UI target frames.
 
 - **`BP_AbleAbilityComponent` (Able Plugin Component)**  
-  Executes abilities, cooldowns, casts, and channels. Wrapper helpers should expose `TryActivateAbility`, `CancelAbility`, and cooldown queries to UI.
+  Executes abilities, cooldowns, casts, and channels. Wrapper helpers should expose `TryActivateAbility`, `CancelAbility`, and cooldown queries to UI. Ability activation resolves enemies, allies, self, or ground positions from the ability targeting type.
 
 - **`BP_TelegraphActor` / `BP_TelegraphComponent`**  
   Spawns AOE warnings from Able ability timelines and cleans up on execute or cancel.
@@ -115,7 +115,7 @@ Overworld Runtime (BP_GameState/BP_PlayerController components or world manager 
   Interface hooks for hit, cast start/end, telegraph, and impact cues.
 
 - **`BP_EffectResolver` (Blueprint Function Library)**  
-  Applies damage/heal/buff/debuff effects using `calculation_basis`, `value_type`, `value`, `scaling_stat_id`, `scaling_multiplier`, and optional `damage_type`/`tick_interval`. Interfaces with `BP_CombatFormulaLibrary` for calculations and `BP_StatusComponent` for persistent states.
+  Applies damage/heal/buff/debuff effects using `calculation_basis`, `value_type`, `value`, `scaling_stat_id`, `scaling_multiplier`, and optional `damage_type`/`tick_interval`. Interfaces with `BP_CombatFormulaLibrary` for calculations and `BP_StatusComponent` for persistent states. Friendly fire is off by default: offensive effects affect enemies and healing/support effects affect allies unless an ability explicitly defines mixed behavior.
 
 - **`BP_StatusComponent` (Actor Component on Combatants)**  
   Manages timed effects, stacking, immunities, and tick-based damage. Emits events for UI/AI when states change.
@@ -124,10 +124,13 @@ Overworld Runtime (BP_GameState/BP_PlayerController components or world manager 
   Centralises formulas (damage, crit, resistance), pulling coefficients from DataTables so balancing can change without blueprint rewiring. Ability scaling reads `ability_scaling_links.stat_id` (Stats), not Attributes.
 
 - **`BP_BattleCharacter` / `BP_PlayerCharacter` / `BP_EnemyCharacter` / `BP_CompanionCharacter`**  
-  Base combatant class plus specialisations. Prototype baseline includes team id, display name, targetability, initial transform, alive/dead state, reset helper, and later components for stats, health, combat, abilities, item usage, AI hooks, and animation triggers.
+  Base combatant class plus specialisations. Prototype baseline includes team id, display name, targetability, initial transform, alive/dead state, reset helper, and later components for stats, health, combat, abilities, item usage, AI hooks, and animation triggers. The player normally controls only `BP_PlayerCharacter`; companions are AI-driven and commandable rather than directly possessed by the player.
 
 - **`BP_EnemyBrain` (Actor Component)**  
-  Wraps AI behaviour for enemies. Consumes behaviour tags from combat profile data, scores abilities against current battlefield state, and picks targets.
+  Wraps AI behaviour for enemies. Consumes behaviour tags from combat profile data, scores abilities against current battlefield state, and picks targets. Enemy movement should enter attack range, avoid obvious blocking, and remain readable; simple avoidance and occasional overlap are acceptable for v1.
+
+- **`BP_CompanionBrain` (Actor Component on Companions)**
+  Handles companion follow, attack, support, protect, and regroup behavior. It can consume `PartyFocusTarget`, but falls back to local AI when the focus target dies, becomes invalid, or no command is active.
 
 - **`BP_RewardDistributor` (Function Library)**  
   Routes XP, currency, items, reputation, and flags after combat or scripted events through `BP_CurrencyManager`, `BP_ItemManager`, `BP_ReputationSystem`, and `BP_FlagManager`.
@@ -160,7 +163,7 @@ Overworld Runtime (BP_GameState/BP_PlayerController components or world manager 
   Exposes commands (`SpawnEncounter`, `ToggleEncounters`, `SetFlag`, `GiveItem`, `DebugLookupRow`, `UnlockRoute`, `TravelTo`, etc.). Only active in Development builds.
 
 - **`BP_DebugOverlayWidget`**  
-  UI for toggling cheats, viewing travel graph, inspecting current requirements, and visualising encounter odds or targeting debug data.
+  UI for toggling cheats, viewing travel graph, inspecting current requirements, and visualising encounter odds or targeting debug data, including `CurrentEnemyTarget`, `CurrentAllyTarget`, and `PartyFocusTarget`.
 
 - **Automation Tests (Blueprint-based)**  
   - Data integrity suite (per-table row validation, dangling ULIDs, enum mismatches).  

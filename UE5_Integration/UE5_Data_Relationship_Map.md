@@ -27,9 +27,9 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 
 ## Abilities and Effects
 ### Abilities (`m_abilities.py`)
-- **Key fields:** `damage_type_source`, `damage_type`.
+- **Key fields:** `targeting`, `damage_type_source`, `damage_type`.
 - **References:** AbilityEffectLink, AbilityScalingLink, Items (imbued abilities), Character Classes (starting kits).
-- **Blueprint owners:** `BP_EncounterDirector` (loadout assembly), `BP_CombatComponent`, `BP_AbleAbilityComponent`, `BP_EnemyBrain`. `BP_TargetingComponent` only supplies selected target actors; it does not own ability data.
+- **Blueprint owners:** `BP_EncounterDirector` (loadout assembly), `BP_CombatComponent`, `BP_AbleAbilityComponent`, `BP_EnemyBrain`. `BP_TargetingComponent` supplies player-facing `CurrentEnemyTarget`, `CurrentAllyTarget`, `PartyFocusTarget`, or a pending ground target location; it does not own ability data.
 
 ### Ability-to-Effect Link (`m_abilities_links.py`)
 - **Purpose:** Connects abilities to payload Effects.
@@ -42,7 +42,7 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 
 ### Effects (`m_effects.py`)
 - **Key fields:** `type`, `target`, `value_type`, `value`, `calculation_basis`, `scaling_stat_id`, `scaling_multiplier`, `damage_type`, `tick_interval`, `attribute_id`, `duration`, `stackable`, `status_id`, `apply_chance`.
-- **Blueprint owners:** `BP_EffectResolver`, `BP_StatusComponent`, requirement or dialogue side-effects.
+- **Blueprint owners:** `BP_EffectResolver`, `BP_StatusComponent`, requirement or dialogue side-effects. Default combat filtering is faction-safe: offensive effects affect enemies, healing/support effects affect allies, and mixed behavior must be explicit on the ability/effect.
 
 ### Statuses (`m_statuses.py`)
 - **Key fields:** `category`, `default_duration`, `stackable`, `max_stacks`.

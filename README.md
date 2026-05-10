@@ -12,7 +12,7 @@ This repository contains a Flask backend and a React frontend for local game-con
 - `UE5_Integration/UE5_Data_Relationship_Map.md`: field-level relationships and import validation reference.
 - `UE5_Integration/World_Travel_System.md`: location route graph and travel system design.
 
-Current UE prototype implementation path: follow `UE5_Integration/UE5_Prototype_Step_By_Step.md`, especially the "Returning After A Long Break" checklist and "What To Do First" section. The immediate Blueprint sequence is `BP_GameDataService` helper access, `BP_BattleCharacter`, manual `BP_EnemyCharacter`, arena reset, and then controller-owned targeting.
+Current UE prototype implementation path: follow `UE5_Integration/UE5_Prototype_Step_By_Step.md`, especially the "Returning After A Long Break" checklist and "What To Do First" section. The immediate Blueprint sequence is `BP_GameDataService` helper access, `BP_BattleCharacter`, manual `BP_EnemyCharacter`, arena reset, and then player/controller targeting with `CurrentEnemyTarget`, `CurrentAllyTarget`, and `PartyFocusTarget`.
 
 ## Backend setup
 

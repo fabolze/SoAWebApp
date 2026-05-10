@@ -639,7 +639,7 @@ If all are true, continue to Phase 4.
 ---
 
 ## Phase 4 - Targeting System (2-3 evenings)
-Goal: Soft target + hard lock works in the arena.
+Goal: enemy target, ally/support target, party focus target, and hard lock work in the arena.
 
 This phase lets the player select the manual test enemy before real damage exists. Treat targeting as its own feature. Do not mix it with health, abilities, or AI yet.
 
@@ -662,16 +662,26 @@ You do not need these yet:
 ### Targeting Ownership Decision
 Use this prototype default:
 - Put `BP_TargetingComponent` on `BP_PlayerController_Prototype`.
+- Let `BP_PlayerController_Prototype` own player-facing target intent.
 
 Why:
-- Targeting belongs to player intent, not the pawn body.
-- If the player pawn is respawned or swapped, the controller can keep targeting state.
+- The player directly controls the main character, not every companion.
+- Enemy targeting, ally/support targeting, party focus commands, and ground target confirmation are player intent.
 - Input already routes through `BP_PlayerController_Prototype`.
+- Keeping enemy and ally targets separate lets the player heal an ally without losing the current enemy target.
 
-Acceptable alternative:
-- Put it on `BP_PlayerCharacter` if your current input work already lives there.
+Shared logic:
+- Do not duplicate player-facing targeting logic in player, companion, and enemy blueprints.
+- Put target state and target switching functions in `BP_TargetingComponent`.
+- Put targetable metadata on actors through `BPI_Targetable` and `BP_TargetableComponent`.
+- Let companion/enemy AI keep local targets in their AI components if needed, influenced by `PartyFocusTarget`.
 
-Do not split ownership. Pick one owner and keep all current target state there.
+Ownership rule:
+- `BP_PlayerController_Prototype`: owns input and click interpretation.
+- `BP_TargetingComponent`: owns `CurrentEnemyTarget`, `CurrentAllyTarget`, `PartyFocusTarget`, optional `GroundTargetLocation`, soft enemy target, and lock state.
+- `BP_PlayerCharacter`: reads controller target state for auto-basic attacks and player-triggered abilities.
+- Companions: use AI and may consume `PartyFocusTarget`; the player does not normally possess companions directly.
+- `BPI_Targetable`: exposes whether an actor can be targeted; it does not store who is targeting whom.
 
 ### Step 4.1 - Targetable interface and component
 - Do: Create `BPI_Targetable`.
@@ -733,12 +743,14 @@ Common mistakes:
 - Letting dead or reset-disabled actors remain targetable.
 
 ### Step 4.2 - Targeting component
-- Do: Add `BP_TargetingComponent` to player controller or player character (pick one owner and keep it consistent).
+- Do: Add `BP_TargetingComponent` to `BP_PlayerController_Prototype`.
 - Implement:
-  - `FindNearestTarget`
-  - `LockTarget`
-  - `UnlockTarget`
-  - `CycleNextTarget`
+  - `FindNearestEnemyTarget`
+  - `SetEnemyTarget`
+  - `SetAllyTarget`
+  - `SetPartyFocusTarget`
+  - `ClearEnemyTarget`
+  - `CycleNextEnemyTarget`
 
 #### Create `BP_TargetingComponent`
 1. Content Browser -> `/Game/Blueprints/Systems`.
@@ -747,18 +759,26 @@ Common mistakes:
 4. Add it to `BP_PlayerController_Prototype`.
 
 Recommended variables:
-- `CurrentTarget` (`Actor Object Reference`)
-- `SoftTarget` (`Actor Object Reference`)
+- `CurrentEnemyTarget` (`Actor Object Reference`)
+- `CurrentAllyTarget` (`Actor Object Reference`)
+- `PartyFocusTarget` (`Actor Object Reference`)
+- `SoftEnemyTarget` (`Actor Object Reference`)
+- `GroundTargetLocation` (`Vector`)
+- `bHasPendingGroundTarget` (`Boolean`, default `false`)
 - `SearchRadius` (`Float`, default `1800`)
 - `bHasHardLock` (`Boolean`, default `false`)
-- `TargetableActors` (`Array` of `Actor Object Reference`)
+- `EnemyTargetableActors` (`Array` of `Actor Object Reference`)
+- `AllyTargetableActors` (`Array` of `Actor Object Reference`)
 - `TargetObjectTypes` or collision channel settings if using sphere traces
-- `OwnerController` (`BP_PlayerController_Prototype Object Reference`, optional)
+- `OwnerController` (`BP_PlayerController_Prototype Object Reference`)
 - `OwnerPawn` (`Pawn Object Reference`, optional cached value)
 
 Recommended event dispatchers:
-- `OnTargetChanged(NewTarget: Actor, bHardLocked: Boolean)`
-- `OnTargetCleared()`
+- `OnEnemyTargetChanged(NewTarget: Actor, bHardLocked: Boolean)`
+- `OnAllyTargetChanged(NewTarget: Actor)`
+- `OnPartyFocusChanged(NewTarget: Actor)`
+- `OnEnemyTargetCleared()`
+- `OnAllyTargetCleared()`
 
 #### Initialize the component
 In `BP_TargetingComponent` `BeginPlay`:
@@ -769,19 +789,18 @@ In `BP_TargetingComponent` `BeginPlay`:
 5. Store `OwnerPawn`.
 6. Optional: print `"Targeting ready"`.
 
-If the component is on the player character instead, owner is already the pawn. Adjust the cached variables accordingly.
-
-#### Implement `RefreshTargetList`
-Create function `RefreshTargetList`.
+#### Implement `RefreshTargetLists`
+Create function `RefreshTargetLists`.
 
 Suggested signature:
 - Inputs:
   - none for now
 - Outputs:
-  - `ValidTargets` (`Array` of `Actor Object Reference`)
+  - `EnemyTargets` (`Array` of `Actor Object Reference`)
+  - `AllyTargets` (`Array` of `Actor Object Reference`)
 
 Simple first node flow:
-1. Clear `TargetableActors`.
+1. Clear `EnemyTargetableActors` and `AllyTargetableActors`.
 2. Get search origin:
    - if `OwnerPawn` valid: `OwnerPawn.GetActorLocation`
    - otherwise: controlled pawn location
@@ -794,17 +813,21 @@ Simple first node flow:
    - check `Does Implement Interface` -> `BPI_Targetable`
    - call `CanBeTargeted`
    - call `GetTargetTeamId`
-   - compare team against player team if needed
-   - add valid actor to `TargetableActors`
-5. Return `TargetableActors`.
+   - compare team against player team
+   - add enemies to `EnemyTargetableActors`
+   - add allies to `AllyTargetableActors`
+5. Return both arrays.
 
 Prototype team rule:
-- Player team is `1`.
-- Valid enemy targets have `TeamId != 1` and `TeamId != 0`.
+- Player/friendly team is `1`.
+- Enemy team is `2`.
+- Valid enemy targets have `TargetTeamId != 1` and `TargetTeamId != 0`.
+- Valid ally/support targets have `TargetTeamId == 1`.
+- Friendly fire is off by default. Offensive abilities affect enemies, and healing/support abilities affect allies unless an ability explicitly defines mixed behavior.
 
 Do not add line-of-sight yet. A radius search is enough for the first lock-on loop.
 
-#### Implement `FindNearestTarget`
+#### Implement `FindNearestEnemyTarget`
 Suggested signature:
 - Inputs:
   - none
@@ -813,19 +836,19 @@ Suggested signature:
   - `Target` (`Actor Object Reference`)
 
 Node flow:
-1. Call `RefreshTargetList`.
-2. If the list is empty:
+1. Call `RefreshTargetLists`.
+2. If `EnemyTargetableActors` is empty:
    - return `Found = false`
    - return `None`
-3. Get origin from owner pawn.
-4. Loop over `TargetableActors`.
+3. Get origin from `OwnerPawn`.
+4. Loop over `EnemyTargetableActors`.
 5. Compute distance from origin to target actor location.
 6. Track the actor with the smallest distance.
 7. Return it.
 
 Done when a debug key can print the nearest enemy name.
 
-#### Implement `LockTarget`
+#### Implement `SetEnemyTarget`
 Suggested signature:
 - Input:
   - `Target` (`Actor Object Reference`)
@@ -833,40 +856,87 @@ Suggested signature:
   - `Success` (`Boolean`)
 
 Node flow:
-1. If `CurrentTarget` is valid and different from `Target`, call `OnTargetUnlocked` on old target.
+1. If `CurrentEnemyTarget` is valid and different from `Target`, call `OnTargetUnlocked` on old target.
 2. Validate new target:
    - is valid
    - implements `BPI_Targetable`
    - `CanBeTargeted` returns true
-3. Set `CurrentTarget = Target`.
+   - target team is enemy team
+3. Set `CurrentEnemyTarget = Target`.
 4. Set `bHasHardLock = true`.
 5. Call `OnTargetLocked` on target.
-6. Broadcast `OnTargetChanged`.
+6. Broadcast `OnEnemyTargetChanged`.
 7. Return success.
 
-#### Implement `UnlockTarget`
+Manual enemy targeting rule:
+- Manual clicks and cycle input always override auto-targeting.
+- Do not auto-switch away from `CurrentEnemyTarget` until it dies, becomes invalid, or the player chooses another enemy.
+
+#### Implement `SetAllyTarget`
+Suggested signature:
+- Input:
+  - `Target` (`Actor Object Reference`)
+- Output:
+  - `Success` (`Boolean`)
+
 Node flow:
-1. If `CurrentTarget` is valid, call `OnTargetUnlocked`.
-2. Set `CurrentTarget = None`.
+1. Validate target:
+   - is valid
+   - implements `BPI_Targetable`
+   - `CanBeTargeted` returns true
+   - target team is player/friendly team
+2. Set `CurrentAllyTarget = Target`.
+3. Broadcast `OnAllyTargetChanged`.
+4. Return success.
+
+Important:
+- Setting `CurrentAllyTarget` must not clear `CurrentEnemyTarget`.
+- This lets the player keep attacking Wolf A while healing a companion.
+
+#### Implement `SetPartyFocusTarget`
+Suggested signature:
+- Input:
+  - `Target` (`Actor Object Reference`)
+- Output:
+  - `Success` (`Boolean`)
+
+Node flow:
+1. Validate target is targetable and alive.
+2. Set `PartyFocusTarget = Target`.
+3. Broadcast `OnPartyFocusChanged`.
+4. Companion AI reads this value and prioritizes it.
+
+If the focus target dies or becomes invalid, clear it and let companions return to default AI.
+
+#### Implement `ClearEnemyTarget`
+Node flow:
+1. If `CurrentEnemyTarget` is valid, call `OnTargetUnlocked`.
+2. Set `CurrentEnemyTarget = None`.
 3. Set `bHasHardLock = false`.
-4. Broadcast `OnTargetCleared`.
+4. Broadcast `OnEnemyTargetCleared`.
 
-#### Implement `LockNearestTarget`
+#### Implement `AutoSelectEnemyTarget`
 This is the input-friendly wrapper:
-1. Call `FindNearestTarget`.
-2. If found, call `LockTarget`.
-3. If not found, call `UnlockTarget` or print `"No target found"`.
+1. If `CurrentEnemyTarget` is valid, do nothing.
+2. Call `FindNearestEnemyTarget`.
+3. If found, call `SetEnemyTarget`.
+4. If not found, call `ClearEnemyTarget` or print `"No enemy target found"`.
 
-#### Implement `CycleNextTarget`
+Auto-target priority:
+1. Closest enemy in attack range.
+2. Closest visible enemy.
+3. No target if no valid enemies exist.
+
+#### Implement `CycleNextEnemyTarget`
 First version:
-1. Call `RefreshTargetList`.
-2. If no targets: `UnlockTarget`.
-3. If no current target: lock the nearest target.
-4. Find current target index in `TargetableActors`.
+1. Call `RefreshTargetLists`.
+2. If no enemy targets: `ClearEnemyTarget`.
+3. If no current enemy target: set the nearest enemy target.
+4. Find current enemy target index in `EnemyTargetableActors`.
 5. Add 1, wrap around with modulo.
-6. Lock the actor at the new index.
+6. Set the actor at the new index as `CurrentEnemyTarget`.
 
-For `CyclePreviousTarget`, subtract 1 and wrap.
+For `CyclePreviousEnemyTarget`, subtract 1 and wrap.
 
 Sorting note:
 - `Sphere Overlap Actors` order may be inconsistent.
@@ -874,7 +944,7 @@ Sorting note:
 - Later, sort by screen position or angle around the player if cycling feels random.
 
 #### Validate the current target
-Create function `ValidateCurrentTarget`.
+Create functions `ValidateEnemyTarget`, `ValidateAllyTarget`, and `ValidatePartyFocusTarget`.
 
 Call it:
 - before basic attacks
@@ -883,19 +953,22 @@ Call it:
 - optionally on a slow timer, not every tick unless needed
 
 Node flow:
-1. If `CurrentTarget` is not valid: clear lock.
+1. If the stored target is not valid: clear that target variable.
 2. If target no longer implements `BPI_Targetable`: clear lock.
 3. If `CanBeTargeted` returns false: clear lock.
 4. If distance is greater than `SearchRadius * 1.25`: clear lock.
+5. If `CurrentEnemyTarget` was cleared, call `AutoSelectEnemyTarget` if auto-targeting is allowed.
 
 Done when:
-- Target cycles and lock persists until target invalidates.
+- Enemy target cycles and lock persists until target invalidates.
+- Ally target can change without clearing enemy target.
+- Party focus target can be set for companions.
 - Resetting the arena does not leave a stale destroyed target reference.
-- The component exposes a clean `CurrentTarget` for Phase 5 combat.
+- The component exposes clean target getters for Phase 5 combat.
 
 Common mistakes:
 - Using `Get All Actors Of Class` every frame. It is okay for a debug key, but not as the final repeated search.
-- Storing target state in both controller and character.
+- Storing player-facing target state in both controller and character.
 - Forgetting to unlock the old target before locking a new one.
 - Assuming a target is valid just because the reference variable is set.
 
@@ -924,15 +997,15 @@ Create `BP_TargetIndicator`:
 
 In `BP_TargetingComponent`:
 - variable `TargetIndicator` (`BP_TargetIndicator Object Reference`)
-- on `LockTarget` success:
+- on `SetEnemyTarget` success:
   - spawn indicator if missing
   - attach it to target actor, or set its location to target location
   - show it
-- on `UnlockTarget`:
+- on `ClearEnemyTarget`:
   - hide it or destroy it
 
 Simple placement rule:
-- Put the ring at target actor location.
+- Put the ring at the current enemy target actor location.
 - Add small Z offset if it z-fights with the floor.
 
 #### Option C: custom depth outline
@@ -952,39 +1025,58 @@ If not already done in Phase 1, create or confirm:
 - `IA_TargetNext`
 - `IA_TargetPrev`
 - `IA_LockTarget`
+- optional later: `IA_SelectOrTargetClick`
 
 In `BP_PlayerController_Prototype`:
 1. Ensure it has `BP_TargetingComponent`.
-2. On `IA_LockTarget`:
-   - if `bHasHardLock` is true, call `UnlockTarget`
-   - otherwise call `LockNearestTarget`
-3. On `IA_TargetNext`:
-   - call `CycleNextTarget`
-4. On `IA_TargetPrev`:
-   - call `CyclePreviousTarget`
+2. On enemy click:
+   - call `SetEnemyTarget`
+3. On ally or party UI click:
+   - call `SetAllyTarget`
+   - do not clear `CurrentEnemyTarget`
+4. On focus command input plus enemy click:
+   - call `SetPartyFocusTarget`
+5. On `IA_LockTarget`:
+   - if `bHasHardLock` is true, call `ClearEnemyTarget`
+   - otherwise call `AutoSelectEnemyTarget`
+6. On `IA_TargetNext`:
+   - call `CycleNextEnemyTarget`
+7. On `IA_TargetPrev`:
+   - call `CyclePreviousEnemyTarget`
+8. For ground-target abilities:
+   - enter pending ground target mode
+   - show targeting circle later in Phase 6
+   - on ground click, set `GroundTargetLocation` and activate/confirm the ability
+   - on right-click or Escape, cancel pending ground target
 
 Suggested keys:
 - Tab: target next
 - Shift+Tab or Q: target previous
 - Middle Mouse or T: lock/unlock
+- Dedicated command key + click: set party focus target
+- Right-click or Escape: cancel pending ground target
 
 Done when:
 - You can lock a target without using editor-only calls.
-- You can cycle targets from input.
+- You can cycle enemy targets from input.
+- Clicking an ally changes support target without changing enemy target.
+- Setting party focus gives companion AI a target to prioritize later.
 - Inputs still work after arena reset.
 
 ### Step 4.5 - Add targeting debug helpers
 Add these to `BP_TargetingComponent`:
 - `DebugPrintTargets`
-  - prints target count, current target, hard lock state
+  - prints enemy target count, ally target count, current enemy target, current ally target, party focus target, and hard lock state
 - `DebugDrawSearchRadius`
   - optional: draw debug sphere around player
-- `GetCurrentTarget() -> Target, Found`
+- `GetCurrentEnemyTarget() -> Target, Found`
+- `GetCurrentAllyTarget() -> Target, Found`
+- `GetPartyFocusTarget() -> Target, Found`
   - Phase 5 combat will call this
 
 Done when:
 - You can quickly answer "why is nothing targetable?"
-- Combat code can ask for the current target without reading component internals.
+- Combat code can ask for the needed target without reading component internals.
 
 ### Phase 4 Exit Test
 Before moving to health/combat:
@@ -993,13 +1085,17 @@ Before moving to health/combat:
 - Press lock key.
 - Enemy becomes current target.
 - Visual target indicator appears.
+- Click an ally or party UI test actor.
+- Ally target changes and enemy target remains unchanged.
+- Set party focus target.
+- Debug print shows party focus target.
 - Press lock key again.
 - Target clears and indicator disappears.
 - Press target next/previous.
 - Target changes or stays stable if only one enemy exists.
 - Press reset.
 - Target reference clears or retargets cleanly.
-- `GetCurrentTarget` returns the locked enemy while locked.
+- `GetCurrentEnemyTarget` returns the locked enemy while locked.
 
 If all are true, continue to Phase 5.
 
@@ -1020,12 +1116,18 @@ Goal: Basic damage works and health changes are visible.
 
 ### Step 5.2 - Combat component
 - Add `BP_CombatComponent` to `BP_BattleCharacter` or both combatant children.
-- Implement one basic attack path:
-  - validate target
-  - range check
+- Implement one automatic basic attack path:
+  - player combat reads `GetCurrentEnemyTarget` from `BP_TargetingComponent`
+  - validate enemy target
+  - range check against weapon/basic attack range
+  - if valid and attack timer/cooldown is ready, fire the basic attack
   - produce damage payload
   - call resolver
-- Done when: Player can damage a test enemy.
+- Implement ability target resolution separately:
+  - offensive single-target ability uses `CurrentEnemyTarget`
+  - heal/shield/buff uses `CurrentAllyTarget` or self fallback if allowed
+  - ground-target ability uses confirmed `GroundTargetLocation`
+- Done when: Player automatically damages the selected enemy while in range, and ally targeting does not clear enemy targeting.
 
 ### Step 5.3 - Effect resolver hook
 - Create a minimal `BP_EffectResolver` function library.
@@ -1081,7 +1183,13 @@ Goal: Gear and talents modify stats and combat output.
 ---
 
 ## Phase 8 - Encounter Flow (3-6 evenings)
-Goal: Spawn boss + companions, fight, and reset fast.
+Goal: Spawn small readable encounters, optional companions, fight, and reset fast.
+
+Start encounter scale small:
+- simple encounter: 1 enemy
+- normal encounter: 2-3 enemies
+- special encounter: 1 stronger enemy plus 1-2 weaker enemies
+- boss encounter: 1 boss, optionally with limited adds
 
 ### Step 8.1 - Character and encounter data prerequisites
 - Import the minimum data needed for data-driven combat:
@@ -1099,12 +1207,14 @@ Goal: Spawn boss + companions, fight, and reset fast.
 - Resolve data through `BP_GameDataService`:
   - encounter -> participants
   - participant -> character/combat profile
-- Done when: Encounter spawns the right actors and teams.
+- Done when: Encounter spawns the right actors and teams for 1-3 enemy fights.
 
-### Step 8.3 - Boss AI
+### Step 8.3 - Enemy and companion AI
 - Add a simple state machine or behavior logic in `BP_EnemyBrain`.
-- Start with 1-2 abilities.
-- Done when: Boss attacks and can be defeated.
+- Enemies move toward their target, try to enter attack range, and reposition if blocked.
+- Use simple avoidance first. Slight overlap is acceptable if combat remains readable.
+- Add companion AI later through a small command set: focus enemy, protect ally, support character, regroup.
+- Done when: Enemies attack, companions can consume `PartyFocusTarget`, and the fight remains readable.
 
 ### Step 8.4 - Reset loop
 - Add one reset path (debug key/button/cheat).
@@ -1182,7 +1292,7 @@ Notes:
 4. Create `BP_BattleCharacter` and reparent `BP_PlayerCharacter`. See Step 3.1.
 5. Place one `BP_EnemyCharacter` in the arena. See Step 3.2.
 6. Add a fast reset path. See Step 3.3.
-7. Build targeting, health, and one basic attack against that manual enemy. See Phases 4-5.
+7. Build targeting, health, and automatic basic attack against that manual enemy. See Phases 4-5.
 8. Only then expand into items, talents, and data-driven encounters.
 
 ---
@@ -1190,6 +1300,8 @@ Notes:
 ## Minimal Playable Loop Checklist
 You are done with the first prototype loop when:
 - You can move, target, basic-attack, and defeat a test enemy in one arena.
+- Clicking an ally/support target does not clear the enemy target.
+- A party focus target can be assigned for companion AI later.
 - The arena can be reset quickly.
 - Able abilities can be triggered through your combat wrapper.
 - Encounter data can later spawn the same fight without hand-placing enemies.

@@ -2,7 +2,7 @@
 
 Canonical UE roadmap. Use this plan for direction and `UE5_Integration/UE5_Prototype_Step_By_Step.md` for active implementation work. The step-by-step guide is the operational source for the current Blueprint sequence.
 
-A blueprint-only roadmap to build a real-time, top-down prototype inspired by Mini Healer, but with a fully buildable main character (talents, gear, and ability loadout). This plan uses Able for abilities and stays data-driven from the SoA exports.
+A blueprint-only roadmap to build a real-time, top-down arena combat prototype inspired by Mini Healer, but adapted for a story-driven RPG campaign. The player directly controls one buildable main character, while companions act through AI and receive simple commands. This plan uses Able for abilities and stays data-driven from the SoA exports.
 
 Companion docs:
 - `UE5_Integration/UE5_Prototype_Step_By_Step.md` - active build order, restart checklist, and detailed Blueprint implementation steps.
@@ -11,9 +11,11 @@ Companion docs:
 - `UE5_Integration/UE5_Blueprint_Systems.md` - subsystem ownership and class boundaries.
 
 ## Vision and Prototype Scope
-- Real-time, top-down boss encounter with a small party (player + 1-2 AI companions).
+- Real-time, top-down arena combat for story encounters, regular RPG fights, and boss encounters.
 - Player is any buildable archetype (not forced healer). Talents and gear define role.
-- One arena map, one boss encounter, a few abilities, and a small set of items.
+- One arena map, 1-3 enemies per encounter, a few abilities, and a small set of items.
+- Automatic basic attacks against the current enemy target when in range.
+- Manual movement, enemy target selection, active ability usage, and companion focus/support commands.
 - Data-driven: content comes from SoA DataTables and is reimportable.
 - Blueprint-only logic with Able for abilities and telegraphs.
 
@@ -22,6 +24,7 @@ Companion docs:
 - Able is the ability system (abilities, cooldowns, cast times, telegraphs).
 - Enhanced Input for all controls.
 - Top-down camera with follow, free pan, and optional lock-on.
+- Friendly fire is off by default. Offensive abilities affect enemies, and healing/support abilities affect allies unless an ability explicitly says otherwise.
 
 ## 0. Project and Framework Basis
 1. Game framework classes:
@@ -54,14 +57,17 @@ Runtime data access:
 Enhanced Input mapping contexts:
 - Movement: WASD / left stick, click-to-move optional.
 - Camera: zoom, rotate, pan.
-- Combat: basic attack, ability slots 1-4, interact.
-- Targeting: next/prev, lock/unlock, aim-at-mouse optional.
-- Companion commands: focus target, regroup, burst/ult.
+- Combat: automatic basic attack, ability slots 1-4, interact.
+- Targeting: click enemy, click ally/party frame, next/prev enemy, lock/unlock, ground-target confirmation.
+- Companion commands: focus enemy, protect ally, support character, regroup.
 - Debug: reset encounter, toggle hitboxes, toggle god mode.
 
 Player control flow:
 - `BP_PlayerController_Prototype` handles input routing.
-- `BP_PlayerCharacter` consumes movement, facing, and ability requests.
+- `BP_PlayerController_Prototype` owns player-facing targeting intent: `CurrentEnemyTarget`, `CurrentAllyTarget`, `PartyFocusTarget`, and optional pending `GroundTargetLocation`.
+- `BP_PlayerCharacter` consumes movement and executes automatic basic attacks against `CurrentEnemyTarget` when valid and in range.
+- Active abilities are manually triggered and resolve enemies, allies, self, or ground positions from their targeting type.
+- `BP_CompanionCharacter` is AI-controlled. The player does not normally switch full control away from the main character.
 
 ## 3. Camera System (Top-Down)
 - SpringArm + Camera rig with collision testing and lag tuning.
@@ -69,18 +75,21 @@ Player control flow:
 - Helpers: `CursorToWorld`, `ScreenToWorld`, `GetMouseHit` for targeting.
 
 ## 4. Targeting System
-- Prototype default: `BP_TargetingComponent` lives on `BP_PlayerController_Prototype`.
-- `BPI_Targetable` is implemented first on `BP_BattleCharacter`; `BP_TargetableComponent` is optional metadata if the interface starts to grow.
+- Prototype default: `BP_TargetingComponent` is a PlayerController component that stores player-facing target intent.
+- `BPI_Targetable` is implemented first on `BP_BattleCharacter`; `BP_TargetableComponent` is optional metadata if the interface starts to grow. These expose whether an actor can be targeted; they do not store who is targeting whom.
 - Target selection logic:
-  - Build a valid target list with a radius overlap around the controlled pawn.
-  - Soft target: nearest valid enemy.
-  - Hard lock: cycle next/prev targets and keep until invalidated.
+  - Build valid enemy and ally target lists with radius overlap around the controlled pawn.
+  - `CurrentEnemyTarget`: enemy used for auto-basic attacks and offensive abilities.
+  - `CurrentAllyTarget`: ally used for heals, shields, buffs, and support actions.
+  - `PartyFocusTarget`: enemy or ally command target consumed by companion AI.
+  - Soft enemy target: nearest valid enemy when no manual enemy target exists.
+  - Manual target choices override auto-targeting until the target dies or becomes invalid.
   - Validate stale targets after reset, death, or range breaks.
 - First visual feedback: simple `BP_TargetIndicator` ring actor. Outline/post-process can come later.
 
 ## 5. Combat System (Real-Time with Able)
 Core components:
-- `BP_CombatComponent`: central API for attack/ability requests and validation.
+- `BP_CombatComponent`: central API for automatic basic attacks, ability requests, target validation, and range checks.
 - `BP_StatsComponent` and `BP_HealthComponent` with events `OnStatsChanged` and `OnHealthChanged`.
 - `BP_EffectResolver` + `BP_CombatFormulaLibrary` to apply `DamageSpec` (mitigation -> apply -> death).
 - `BP_StatusComponent` for buffs, debuffs, and timed effects.
@@ -90,6 +99,7 @@ Able integration:
 - Wrapper functions: `TryActivateAbility`, `CancelAbility`, `GetCooldownRemaining`.
 - Ability context:
   - Instigator, target(s), target location, and source stats.
+  - Affected faction: enemies, allies, self, or explicit mixed behavior.
 - Telegraphs:
   - `BP_TelegraphActor` spawned by ability and cleaned on execute/cancel.
 
@@ -117,8 +127,9 @@ Inventory and equipment:
 
 ## 7. AI and Encounter Flow
 Encounter setup:
-- `BP_EncounterDirector` spawns player, companions, and boss from `FEncounterData`.
+- `BP_EncounterDirector` spawns player, optional AI companions, and 1-3 enemies from `FEncounterData`.
 - `FCombatProfileData` provides stats, abilities, and AI tags.
+- First encounter bands: simple = 1 enemy, normal = 2-3 enemies, special = 1 stronger enemy plus 1-2 weaker enemies, boss = 1 boss with optional limited adds.
 
 Boss AI:
 - Behavior Tree or simple state machine.
@@ -126,7 +137,12 @@ Boss AI:
 
 Companion AI:
 - Follow, assist, and command states.
-- Focus target and regroup logic tied to input commands.
+- Focus target, protect ally, support character, and regroup logic tied to input commands.
+- Companions move, attack, and use simple abilities through AI while consuming `PartyFocusTarget` when present.
+
+Enemy movement:
+- Enemies move toward their target, try to enter attack range, and reposition when needed.
+- Simple avoidance is enough for v1; slight overlap is acceptable if combat remains readable.
 
 ## 8. UI (Prototype Level)
 Minimum UI:
@@ -167,10 +183,10 @@ Phase 3: Combatant foundation and test enemy
 - `BP_BattleCharacter`, reparented player, manual `BP_EnemyCharacter`, and fast arena reset.
 
 Phase 4: Targeting
-- `BPI_Targetable`, controller-owned `BP_TargetingComponent`, lock/cycle input, debug helpers, and target indicator.
+- `BPI_Targetable`, player/controller `BP_TargetingComponent`, enemy/ally/focus target state, lock/cycle input, debug helpers, and target indicator.
 
 Phase 5: Combat scaffolding
-- Stats, health, combat component, basic attack, and effect resolver hook.
+- Stats, health, combat component, automatic basic attack against `CurrentEnemyTarget`, and effect resolver hook.
 
 Phase 6: Able integration
 - Ability activation, wrapper API, cooldowns, and telegraphs.
@@ -191,4 +207,4 @@ Phase 9-11: UI, save/load, and debug tools
 - Talent and gear changes affect stats and damage output.
 - Debug commands allow fast iteration and reproducible tests.
 
-With these pillars in place, the prototype supports a Mini Healer style fight flow while allowing any buildable main character in a real-time top-down combat loop.
+With these pillars in place, the prototype supports a Mini Healer style fight flow while allowing any buildable main character in a story-driven real-time top-down combat loop.
