@@ -43,11 +43,13 @@ from backend.app.routes.r_authoring import bp as authoring_bp
 from backend.app.routes.r_ui_items import bp as ui_items_bp
 from backend.app.routes.r_ui_characters import bp as ui_characters_bp
 from backend.app.routes.r_ui_location_graph import bp as ui_location_graph_bp
+from backend.app.routes.r_recovery import bp as recovery_bp
+from backend.app.services.recovery import run_startup_recovery
 
 __all__ = ["create_app", "generate_ulid"]
 
 
-def create_app() -> Flask:
+def create_app(startup_recovery: bool = True) -> Flask:
     app = Flask(__name__)
     CORS(app)
 
@@ -106,12 +108,16 @@ def create_app() -> Flask:
         authoring_bp,
         ui_items_bp,
         ui_characters_bp,
-        ui_location_graph_bp
+        ui_location_graph_bp,
+        recovery_bp
     ]
     
     for blueprint in blueprints:
         app.register_blueprint(blueprint)
         print(f"âœ… Registered {blueprint.name} blueprint")
+
+    if startup_recovery:
+        run_startup_recovery(app)
 
     return app
 
