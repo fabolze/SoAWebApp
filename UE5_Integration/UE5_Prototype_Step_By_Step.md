@@ -769,6 +769,10 @@ Recommended variables:
 - `bHasHardLock` (`Boolean`, default `false`)
 - `EnemyTargetableActors` (`Array` of `Actor Object Reference`)
 - `AllyTargetableActors` (`Array` of `Actor Object Reference`)
+- `RecentEnemyTargets` (`Array` of `Actor Object Reference`)
+  - small cycle history used by `CycleNextEnemyTarget`
+- `RecentEnemyTargetLimit` (`Integer`, default `2`)
+  - keep this low so Tab can move through targets without making the nearest enemy hard to return to
 - `TargetObjectTypes` or collision channel settings if using sphere traces
 - `OwnerController` (`BP_PlayerController_Prototype Object Reference`)
 - `OwnerPawn` (`Pawn Object Reference`, optional cached value)
@@ -779,6 +783,7 @@ Recommended event dispatchers:
 - `OnPartyFocusChanged(NewTarget: Actor)`
 - `OnEnemyTargetCleared()`
 - `OnAllyTargetCleared()`
+- optional: `OnPartyFocusCleared()`
 
 #### Initialize the component
 In `BP_TargetingComponent` `BeginPlay`:
@@ -798,6 +803,8 @@ Suggested signature:
 - Outputs:
   - `EnemyTargets` (`Array` of `Actor Object Reference`)
   - `AllyTargets` (`Array` of `Actor Object Reference`)
+  - optional: `bFoundEnemy` (`Boolean`)
+  - optional: `bFoundAlly` (`Boolean`)
 
 Simple first node flow:
 1. Clear `EnemyTargetableActors` and `AllyTargetableActors`.
@@ -817,6 +824,11 @@ Simple first node flow:
    - add enemies to `EnemyTargetableActors`
    - add allies to `AllyTargetableActors`
 5. Return both arrays.
+6. If using the optional bool outputs:
+   - `bFoundEnemy = EnemyTargetableActors Length > 0`
+   - `bFoundAlly = AllyTargetableActors Length > 0`
+
+The optional bool outputs are only readability helpers. Keep them derived from the array lengths at the end of the function so they cannot get out of sync with the actual target arrays.
 
 Prototype team rule:
 - Player/friendly team is `1`.
@@ -870,7 +882,9 @@ Node flow:
 
 Manual enemy targeting rule:
 - Manual clicks and cycle input always override auto-targeting.
-- Do not auto-switch away from `CurrentEnemyTarget` until it dies, becomes invalid, or the player chooses another enemy.
+- Do not auto-switch away from `CurrentEnemyTarget` because of range.
+- Keep the selected enemy for UI information such as health, casting, status, and "return to fight" behavior.
+- Clear or replace `CurrentEnemyTarget` only when the target is destroyed, no longer valid as a gameplay target, manually cleared, or the player chooses another enemy.
 
 #### Implement `SetAllyTarget`
 Suggested signature:
@@ -915,6 +929,17 @@ Node flow:
 3. Set `bHasHardLock = false`.
 4. Broadcast `OnEnemyTargetCleared`.
 
+#### Implement `ClearAllyTarget`
+Node flow:
+1. Set `CurrentAllyTarget = None`.
+2. Broadcast `OnAllyTargetCleared`.
+
+#### Implement `ClearPartyFocusTarget`
+Node flow:
+1. Set `PartyFocusTarget = None`.
+2. Broadcast `OnPartyFocusChanged(None)`.
+3. Optional: also broadcast `OnPartyFocusCleared` if you created that dispatcher.
+
 #### Implement `AutoSelectEnemyTarget`
 This is the input-friendly wrapper:
 1. If `CurrentEnemyTarget` is valid, do nothing.
@@ -923,25 +948,72 @@ This is the input-friendly wrapper:
 4. If not found, call `ClearEnemyTarget` or print `"No enemy target found"`.
 
 Auto-target priority:
-1. Closest enemy in attack range.
-2. Closest visible enemy.
+1. Closest valid enemy inside the targeting search radius.
+2. Closest visible enemy if line-of-sight rules exist later.
 3. No target if no valid enemies exist.
 
+Range note:
+- Auto-selection can use `SearchRadius` to discover a first target.
+- Once selected, the target should not be cleared just because the player moves out of attack range or outside the search radius.
+- Combat and UI should handle range separately, for example by disabling the attack, showing "Out of range", or moving the player toward the target later.
+
 #### Implement `CycleNextEnemyTarget`
-First version:
+Use nearest-not-recent cycling instead of relying on overlap order.
+
+Intent:
+- first Tab press selects the nearest valid enemy
+- next Tab press selects the nearest valid enemy that was not just selected
+- a short recent-target history prevents immediately bouncing back to the same target
+- the history stays small so nearby enemies can become selectable again quickly
+
+Recommended history settings:
+- `RecentEnemyTargets` stores the last selected enemy targets
+- `RecentEnemyTargetLimit = 2`
+- treat the array like a queue:
+  - index `0` is the oldest entry
+  - the last index is the newest entry
+
+Node flow:
 1. Call `RefreshTargetLists`.
-2. If no enemy targets: `ClearEnemyTarget`.
-3. If no current enemy target: set the nearest enemy target.
-4. Find current enemy target index in `EnemyTargetableActors`.
-5. Add 1, wrap around with modulo.
-6. Set the actor at the new index as `CurrentEnemyTarget`.
+2. If `EnemyTargetableActors` is empty:
+   - clear `RecentEnemyTargets`
+   - if `CurrentEnemyTarget` is valid, keep it selected and optionally print `"No cycle candidates"`
+   - if `CurrentEnemyTarget` is not valid, call `ClearEnemyTarget`
+   - return
+3. Get origin:
+   - if `OwnerPawn` valid: `OwnerPawn.GetActorLocation`
+   - otherwise use `OwnerController.GetControlledPawn.GetActorLocation`
+4. Find the nearest candidate that is not recently selected:
+   - set local `BestCandidate = None`
+   - set local `BestDistance = 999999999.0`
+   - loop over `EnemyTargetableActors`
+   - skip the actor if it equals `CurrentEnemyTarget`
+   - skip the actor if `RecentEnemyTargets Contains` it
+   - compute `Vector Distance` from origin to actor location
+   - if distance is smaller than `BestDistance`, store this actor as `BestCandidate`
+5. If `BestCandidate` is not valid:
+   - clear `RecentEnemyTargets`
+   - repeat the nearest-candidate loop, but only skip `CurrentEnemyTarget`
+   - this lets the nearest enemies become selectable again after the short history is exhausted
+6. If `BestCandidate` is still not valid:
+   - call `FindNearestEnemyTarget`                        
+   - if found, use that target as `BestCandidate`
+   - this handles the one-enemy case by keeping or reselecting the only valid enemy
+7. If `BestCandidate` is valid:
+   - call `SetEnemyTarget(BestCandidate)`
+   - if success, add `BestCandidate` to `RecentEnemyTargets`
+   - while `RecentEnemyTargets Length > RecentEnemyTargetLimit`, remove index `0`
 
-For `CyclePreviousEnemyTarget`, subtract 1 and wrap.
+Example with `RecentEnemyTargetLimit = 2`:
+- enemy distances are `A = 300`, `B = 700`, `C = 1200`
+- Tab presses select `A`, then `B`, then `C`, then `A`
+- with four or more enemies, this still favors nearby targets instead of forcing a full long cycle before returning to the nearest enemy
 
-Sorting note:
-- `Sphere Overlap Actors` order may be inconsistent.
-- For the prototype, this is acceptable.
-- Later, sort by screen position or angle around the player if cycling feels random.
+For `CyclePreviousEnemyTarget`, do not implement a true previous order yet unless you have a stable sorted list. For the prototype, either:
+- call the same nearest-not-recent helper as `CycleNextEnemyTarget`, or
+- leave previous targeting unimplemented until screen-angle sorting exists
+
+Do not let `SetEnemyTarget` manage `RecentEnemyTargets`. Keep cycle history inside cycle functions so manual clicks, ability targeting, and UI selection do not unexpectedly change Tab behavior.
 
 #### Validate the current target
 Create functions `ValidateEnemyTarget`, `ValidateAllyTarget`, and `ValidatePartyFocusTarget`.
@@ -952,15 +1024,42 @@ Call it:
 - after arena reset
 - optionally on a slow timer, not every tick unless needed
 
-Node flow:
-1. If the stored target is not valid: clear that target variable.
-2. If target no longer implements `BPI_Targetable`: clear lock.
-3. If `CanBeTargeted` returns false: clear lock.
-4. If distance is greater than `SearchRadius * 1.25`: clear lock.
-5. If `CurrentEnemyTarget` was cleared, call `AutoSelectEnemyTarget` if auto-targeting is allowed.
+Shared validation rule:
+- clear a stored target only when it is not valid anymore as a gameplay target
+- do not clear stored targets because of distance
+- range belongs to combat, ability, and UI checks, not to target ownership
+
+`ValidateEnemyTarget` node flow:
+1. If `CurrentEnemyTarget` is not valid: call `ClearEnemyTarget` and return `false`.
+2. If it no longer implements `BPI_Targetable`: call `ClearEnemyTarget` and return `false`.
+3. If `CanBeTargeted` returns false because the target is dead, destroyed, hidden from combat, or otherwise not a legal target anymore: call `ClearEnemyTarget` and return `false`.
+4. If the target team is not an enemy team anymore: call `ClearEnemyTarget` and return `false`.
+5. Do not clear because of distance.
+6. Return `true`.
+7. If `CurrentEnemyTarget` was cleared for a true invalidation reason, call `AutoSelectEnemyTarget` only if auto-targeting is allowed.
+
+`ValidateAllyTarget` node flow:
+1. If `CurrentAllyTarget` is not valid: call `ClearAllyTarget` and return `false`.
+2. If it no longer implements `BPI_Targetable`: call `ClearAllyTarget` and return `false`.
+3. If `CanBeTargeted` returns false because the target is dead, destroyed, hidden from combat, or otherwise not a legal support target anymore: call `ClearAllyTarget` and return `false`.
+4. If the target team is not the player/friendly team anymore: call `ClearAllyTarget` and return `false`.
+5. Do not clear because of distance.
+6. Return `true`.
+
+`ValidatePartyFocusTarget` node flow:
+1. If `PartyFocusTarget` is not valid: call `ClearPartyFocusTarget` and return `false`.
+2. If it no longer implements `BPI_Targetable`: call `ClearPartyFocusTarget` and return `false`.
+3. If `CanBeTargeted` returns false because the target is dead, destroyed, hidden from combat, or otherwise not a legal focus target anymore: call `ClearPartyFocusTarget` and return `false`.
+4. Do not clear because of distance.
+5. Return `true`.
+
+Keep range validation separate:
+- target validation answers "does this selected target still exist and make sense as this kind of target?"
+- ability/basic attack range checks answer "can this action currently reach the target?"
+- UI can still display the selected target while showing an out-of-range state.
 
 Done when:
-- Enemy target cycles and lock persists until target invalidates.
+- Enemy target cycles and lock persists through moving in and out of range.
 - Ally target can change without clearing enemy target.
 - Party focus target can be set for companions.
 - Resetting the arena does not leave a stale destroyed target reference.
@@ -971,6 +1070,10 @@ Common mistakes:
 - Storing player-facing target state in both controller and character.
 - Forgetting to unlock the old target before locking a new one.
 - Assuming a target is valid just because the reference variable is set.
+
+
+
+
 
 ### Step 4.3 - Visual feedback
 - Do: Add simple target indicator (widget or outline).
@@ -1093,6 +1196,8 @@ Before moving to health/combat:
 - Target clears and indicator disappears.
 - Press target next/previous.
 - Target changes or stays stable if only one enemy exists.
+- Move away from the selected enemy.
+- Target remains selected, but combat/range checks can report it as out of range.
 - Press reset.
 - Target reference clears or retargets cleanly.
 - `GetCurrentEnemyTarget` returns the locked enemy while locked.
@@ -1119,8 +1224,9 @@ Goal: Basic damage works and health changes are visible.
 - Implement one automatic basic attack path:
   - player combat reads `GetCurrentEnemyTarget` from `BP_TargetingComponent`
   - validate enemy target
-  - range check against weapon/basic attack range
-  - if valid and attack timer/cooldown is ready, fire the basic attack
+  - range check against weapon/basic attack range without clearing the selected target
+  - if target is valid, in range, and attack timer/cooldown is ready, fire the basic attack
+  - if target is valid but out of range, keep the target and skip the attack or show an out-of-range state
   - produce damage payload
   - call resolver
 - Implement ability target resolution separately:
