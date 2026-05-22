@@ -1071,57 +1071,138 @@ Common mistakes:
 - Forgetting to unlock the old target before locking a new one.
 - Assuming a target is valid just because the reference variable is set.
 
-
-
-
-
 ### Step 4.3 - Visual feedback
-- Do: Add simple target indicator (widget or outline).
+- Do: Add a custom depth outline for the locked target.
 
-Use the cheapest clear visual first. You are not building final UI yet.
+The outline is visual feedback only. `BP_TargetingComponent` still owns target state, and targetable actors still expose visual hooks through `BPI_Targetable.OnTargetLocked` and `BPI_Targetable.OnTargetUnlocked`.
 
-#### Option A: print strings only
-Fastest smoke test:
-- On lock: print `"Locked target: <DisplayName>"`
-- On unlock: print `"Target cleared"`
+#### Enable the custom depth buffer
+1. Project Settings -> Rendering.
+2. Search for `Custom Depth-Stencil Pass`.
+3. Set it to `Enabled with Stencil`.
+4. Restart the editor if Unreal asks.
 
-This proves the logic works but is not enough to leave Phase 4.
+Use stencil from the start even if the first outline uses one color. Stencil values let you separate enemy target, ally target, party focus, hover, and debug states later without changing the targeting API.
 
-#### Option B: target ring actor
-Recommended first real visual.
+Recommended stencil values:
+- `250`: enemy hard lock
+- `251`: ally/support target
+- `252`: party focus target
+- `253`: hover/soft target
+- `254`: debug selected actor
 
-Create `BP_TargetIndicator`:
-1. Parent class: `Actor`.
-2. Add a simple mesh:
-   - torus, flat cylinder, decal, or plane with material
-3. Give it a bright debug material.
-4. Disable collision.
-5. Add function `AttachToTarget(TargetActor)`.
+For Step 4.3, use only `250` for `CurrentEnemyTarget`.
 
-In `BP_TargetingComponent`:
-- variable `TargetIndicator` (`BP_TargetIndicator Object Reference`)
-- on `SetEnemyTarget` success:
-  - spawn indicator if missing
-  - attach it to target actor, or set its location to target location
-  - show it
-- on `ClearEnemyTarget`:
-  - hide it or destroy it
+#### Create the outline post-process material
+Create `M_PP_TargetOutline`.
 
-Simple placement rule:
-- Put the ring at the current enemy target actor location.
-- Add small Z offset if it z-fights with the floor.
+Material settings:
+- Material Domain: `Post Process`
+- Blendable Location: start with `After Tonemapping` for easier debug colors
+- Shading Model: leave default
 
-#### Option C: custom depth outline
-Better later, but optional now:
-- Enable custom depth on the target mesh when locked.
-- Disable custom depth when unlocked.
-- Requires project/post-process setup, so avoid this until the ring works.
+Material intent:
+- Read `SceneTexture: PostProcessInput0` for normal scene color.
+- Read `SceneTexture: CustomStencil` to know which pixels belong to outlined targets.
+- Sample neighboring screen pixels around the current pixel.
+- If a neighboring pixel has stencil `250` and the current pixel does not, output the outline color.
+- Otherwise output the original scene color.
+
+Simple material node structure:
+1. Add `SceneTexture` node set to `PostProcessInput0`.
+2. Add `SceneTexture` node set to `CustomStencil`.
+3. Add `ScreenPosition` or `ViewportUV`.
+4. Add small UV offsets based on `SceneTexelSize`, for example:
+   - right: `UV + float2(SceneTexelSize.x * OutlineWidth, 0)`
+   - left: `UV - float2(SceneTexelSize.x * OutlineWidth, 0)`
+   - up: `UV + float2(0, SceneTexelSize.y * OutlineWidth)`
+   - down: `UV - float2(0, SceneTexelSize.y * OutlineWidth)`
+5. Sample `CustomStencil` at those neighbor UVs.
+6. Build an `OutlineMask`:
+   - neighbor stencil equals `250`
+   - current stencil is not `250`
+7. Use `Lerp`:
+   - A: `PostProcessInput0`
+   - B: outline color, for example bright yellow/cyan
+   - Alpha: `OutlineMask`
+8. Connect the result to `Emissive Color`.
+
+Recommended material parameters:
+- `EnemyOutlineColor` (`Vector`, default bright yellow or cyan)
+- `OutlineWidth` (`Scalar`, default `1.0` or `2.0`)
+- optional later: `FocusOutlineColor`, `AllyOutlineColor`, `HoverOutlineColor`
+
+Keep the first material ugly but obvious. The goal is a reliable selection outline, not final art.
+
+#### Add the post-process material to the arena
+1. Open the prototype arena map.
+2. Add a `PostProcessVolume`.
+3. Enable `Infinite Extent (Unbound)`.
+4. In Rendering Features -> Post Process Materials, add `M_PP_TargetOutline` as a blendable.
+
+If the outline does not appear, first confirm the volume affects the camera. A common failure is a correct material placed in a local post-process volume that the top-down camera never enters.
+
+#### Add outline helpers to `BP_BattleCharacter`
+Create function `SetTargetOutlineEnabled`.
+
+Suggested signature:
+- Input:
+  - `bEnabled` (`Boolean`)
+  - `StencilValue` (`Integer`, default `250`)
+
+Node flow:
+1. Get the character `Mesh`.
+2. `Set Render CustomDepth` -> `bEnabled`.
+3. `Set CustomDepth Stencil Value` -> `StencilValue`.
+4. If the character has extra visible mesh components later, apply the same two calls to each one.
+
+For now, one skeletal mesh is enough. Do not search all components every frame. Either use the known `Mesh` component or cache an array of outline-capable mesh components on BeginPlay if the actor becomes more complex.
+
+Wire the interface:
+- `OnTargetLocked`
+  - call `SetTargetOutlineEnabled(true, 250)`
+- `OnTargetUnlocked`
+  - call `SetTargetOutlineEnabled(false, 250)`
+
+#### Keep target switching clean
+In `BP_TargetingComponent.SetEnemyTarget`:
+1. If `CurrentEnemyTarget` is valid and different from the new target, call `OnTargetUnlocked` on the old target.
+2. Validate the new target.
+3. Set `CurrentEnemyTarget`.
+4. Set `bHasHardLock = true`.
+5. Call `OnTargetLocked` on the new target.
+6. Broadcast `OnEnemyTargetChanged`.
+
+In `ClearEnemyTarget`:
+1. If `CurrentEnemyTarget` is valid, call `OnTargetUnlocked`.
+2. Set `CurrentEnemyTarget = None`.
+3. Set `bHasHardLock = false`.
+4. Broadcast `OnEnemyTargetCleared`.
+
+This order matters. Most outline bugs in this phase come from enabling the new target but forgetting to disable the old one.
+
+#### Debug checklist
+If the outline does not show:
+- Confirm Project Settings has `Custom Depth-Stencil Pass = Enabled with Stencil`.
+- Confirm the target mesh has `Render CustomDepth` enabled while locked.
+- Confirm the target mesh stencil value is `250`.
+- In the viewport, use a buffer visualization for Custom Depth or Custom Stencil to confirm the mesh is writing to the buffer.
+- Confirm the `PostProcessVolume` is unbound or actually affects the camera.
+- Temporarily make the material output a full-screen debug color when `CustomStencil == 250`.
+- Confirm `OnTargetLocked` and `OnTargetUnlocked` are actually firing with print strings.
+
+Things to watch:
+- Some translucent materials and masked effects can behave differently with depth/stencil. Test on the normal character mesh first.
+- If the mesh has multiple visible parts, only outlined components with custom depth enabled will appear in the buffer.
+- If the outline is too thin from the top-down camera, increase `OutlineWidth` before changing targeting logic.
+- If the outline appears through walls or floors, that is expected for a simple custom-depth outline. Later, compare `CustomDepth` against scene depth to hide occluded outlines.
+- Do not clear a target just because the outline is not visible. Visibility and target validity are separate systems.
 
 Done when:
 - You can always tell which target is locked.
-- Switching targets moves the visual to the new target.
-- Unlocking removes or hides the visual.
-- Resetting the arena does not leave the visual attached to an invalid actor.
+- Switching targets removes the outline from the old target and applies it to the new target.
+- Unlocking removes the outline.
+- Resetting the arena does not leave an outlined stale or destroyed actor.
 
 ### Step 4.4 - Wire targeting input
 If not already done in Phase 1, create or confirm:
@@ -1187,13 +1268,13 @@ Before moving to health/combat:
 - Enemy is visible.
 - Press lock key.
 - Enemy becomes current target.
-- Visual target indicator appears.
+- Custom-depth outline appears on the enemy.
 - Click an ally or party UI test actor.
 - Ally target changes and enemy target remains unchanged.
 - Set party focus target.
 - Debug print shows party focus target.
 - Press lock key again.
-- Target clears and indicator disappears.
+- Target clears and outline disappears.
 - Press target next/previous.
 - Target changes or stays stable if only one enemy exists.
 - Move away from the selected enemy.

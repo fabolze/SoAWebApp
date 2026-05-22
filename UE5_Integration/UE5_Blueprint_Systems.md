@@ -102,8 +102,8 @@ Overworld Runtime (BP_GameState/BP_PlayerController components or world manager 
 - **`BPI_Targetable` + optional `BP_TargetableComponent` (Interface + Component)**  
   `BPI_Targetable` is implemented first on `BP_BattleCharacter` and exposes `CanBeTargeted`, display name, team id, target location, and lock/unlock hooks. `BP_TargetableComponent` is optional metadata if target radius/socket/display overrides grow beyond the base class. These describe whether an actor can be targeted; they do not store who is targeting whom.
 
-- **`BP_TargetIndicator` (Prototype visual feedback actor)**  
-  Simple ring/decal/mesh actor spawned or attached by `BP_TargetingComponent` on hard lock. Use this before investing in custom-depth outline materials or final UI target frames.
+- **Custom-depth target outline (Prototype visual feedback)**  
+  `BPI_Targetable.OnTargetLocked` enables custom depth/stencil on the target's visible mesh components, and `OnTargetUnlocked` disables it. A level post-process material renders the outline. `BP_TargetingComponent` only changes target state and calls the interface hooks; it does not own mesh rendering details.
 
 - **`BP_AbleAbilityComponent` (Able Plugin Component)**  
   Executes abilities, cooldowns, casts, and channels. Wrapper helpers should expose `TryActivateAbility`, `CancelAbility`, and cooldown queries to UI. Ability activation resolves enemies, allies, self, or ground positions from the ability targeting type.
