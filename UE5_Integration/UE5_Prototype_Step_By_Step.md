@@ -657,7 +657,7 @@ You do not need these yet:
 - line-of-sight checks
 - enemy AI
 - real UI target frames
-- final outline post-process materials
+- final target marker meshes/materials
 
 ### Targeting Ownership Decision
 Use this prototype default:
@@ -1072,97 +1072,145 @@ Common mistakes:
 - Assuming a target is valid just because the reference variable is set.
 
 ### Step 4.3 - Visual feedback
-- Do: Add a custom depth outline for the locked target.
+- Do: Add a visible target ring mesh for the locked enemy target.
 
-The outline is visual feedback only. `BP_TargetingComponent` still owns target state, and targetable actors still expose visual hooks through `BPI_Targetable.OnTargetLocked` and `BPI_Targetable.OnTargetUnlocked`.
+The ring is visual feedback only. `BP_TargetingComponent` still owns target state, and targetable actors still expose visual hooks through `BPI_Targetable.OnTargetLocked` and `BPI_Targetable.OnTargetUnlocked`.
 
-#### Enable the custom depth buffer
-1. Project Settings -> Rendering.
-2. Search for `Custom Depth-Stencil Pass`.
-3. Set it to `Enabled with Stencil`.
-4. Restart the editor if Unreal asks.
+Use a mesh marker for the prototype. A ring actor is easy to debug, easy to scale per enemy, does not need renderer settings, and works even when the target uses placeholder meshes.
 
-Use stencil from the start even if the first outline uses one color. Stencil values let you separate enemy target, ally target, party focus, hover, and debug states later without changing the targeting API.
+#### Create the target ring asset
+Use whichever is fastest:
+- a thin torus static mesh,
+- a flat ring mesh imported from DCC,
+- a simple circular decal if you already prefer decals,
+- or a flat plane with a transparent ring material.
 
-Recommended stencil values:
-- `250`: enemy hard lock
-- `251`: ally/support target
-- `252`: party focus target
-- `253`: hover/soft target
-- `254`: debug selected actor
+Recommended first version:
+1. Create or choose a flat ring mesh that sits on the ground plane.
+2. Create `M_TargetRing_Enemy`.
+3. Give it an obvious emissive color, for example yellow/cyan.
+4. Set the material to unlit if you want it readable in any arena lighting.
+5. If using transparency, set Blend Mode to `Translucent` or `Masked`.
 
-For Step 4.3, use only `250` for `CurrentEnemyTarget`.
+Keep the first material simple and obvious. The goal is a reliable selection marker, not final art.
 
-#### Create the outline post-process material
-Create `M_PP_TargetOutline`.
+#### Create `BP_TargetRingActor`
+Create a small actor that owns the visual marker.
 
-Material settings:
-- Material Domain: `Post Process`
-- Blendable Location: start with `After Tonemapping` for easier debug colors
-- Shading Model: leave default
+1. Content Browser -> `/Game/Blueprints/Systems`.
+2. Create Blueprint Class -> `Actor`.
+3. Name it `BP_TargetRingActor`.
+4. Add components:
+   - `SceneRoot`
+   - `RingMesh` (`Static Mesh Component`)
+5. Assign the ring mesh and `M_TargetRing_Enemy` to `RingMesh`.
 
-Material intent:
-- Read `SceneTexture: PostProcessInput0` for normal scene color.
-- Read `SceneTexture: CustomStencil` to know which pixels belong to outlined targets.
-- Sample neighboring screen pixels around the current pixel.
-- If a neighboring pixel has stencil `250` and the current pixel does not, output the outline color.
-- Otherwise output the original scene color.
+Recommended component settings:
+- Collision Enabled: `No Collision`
+- Cast Shadows: `false`
+- Hidden In Game: `false`
+- Mobility: `Movable`
+- Relative Location: `(0, 0, 2)` or just above the floor
+- Relative Rotation: align the ring flat to the ground
 
-Simple material node structure:
-1. Add `SceneTexture` node set to `PostProcessInput0`.
-2. Add `SceneTexture` node set to `CustomStencil`.
-3. Add `ScreenPosition` or `ViewportUV`.
-4. Add small UV offsets based on `SceneTexelSize`, for example:
-   - right: `UV + float2(SceneTexelSize.x * OutlineWidth, 0)`
-   - left: `UV - float2(SceneTexelSize.x * OutlineWidth, 0)`
-   - up: `UV + float2(0, SceneTexelSize.y * OutlineWidth)`
-   - down: `UV - float2(0, SceneTexelSize.y * OutlineWidth)`
-5. Sample `CustomStencil` at those neighbor UVs.
-6. Build an `OutlineMask`:
-   - neighbor stencil equals `250`
-   - current stencil is not `250`
-7. Use `Lerp`:
-   - A: `PostProcessInput0`
-   - B: outline color, for example bright yellow/cyan
-   - Alpha: `OutlineMask`
-8. Connect the result to `Emissive Color`.
+Recommended variables:
+- `TargetActor` (`Actor Object Reference`)
+- `TargetAnchor` (`Scene Component Object Reference`, optional)
+- `FollowGroundZOffset` (`Float`, default `2.0`)
+- `DefaultScale` (`Float`, default `1.0`)
+- `bFollowTarget` (`Boolean`, default `true`)
 
-Recommended material parameters:
-- `EnemyOutlineColor` (`Vector`, default bright yellow or cyan)
-- `OutlineWidth` (`Scalar`, default `1.0` or `2.0`)
-- optional later: `FocusOutlineColor`, `AllyOutlineColor`, `HoverOutlineColor`
+Create function `AttachToTarget`.
 
-Keep the first material ugly but obvious. The goal is a reliable selection outline, not final art.
+Suggested signature:
+- Input:
+  - `InTarget` (`Actor Object Reference`)
+  - `InTargetAnchor` (`Scene Component Object Reference`, optional)
+  - `TargetRadius` (`Float`, default `90`)
 
-#### Add the post-process material to the arena
-1. Open the prototype arena map.
-2. Add a `PostProcessVolume`.
-3. Enable `Infinite Extent (Unbound)`.
-4. In Rendering Features -> Post Process Materials, add `M_PP_TargetOutline` as a blendable.
+Node flow:
+1. Set `TargetActor = InTarget`.
+2. Set `TargetAnchor = InTargetAnchor`.
+3. If `TargetActor` is not valid, hide the actor and return.
+4. Set actor hidden in game to `false`.
+5. Set ring location:
+   - if `TargetAnchor` is valid, use `TargetAnchor.GetWorldLocation + (0, 0, FollowGroundZOffset)`
+   - otherwise use `TargetActor.GetActorLocation + (0, 0, FollowGroundZOffset)`
+6. Set ring scale from `TargetRadius`:
+   - start with `TargetRadius / 90.0`
+   - clamp to a useful range such as `0.6` to `3.0`
 
-If the outline does not appear, first confirm the volume affects the camera. A common failure is a correct material placed in a local post-process volume that the top-down camera never enters.
+For the first prototype, it is acceptable to update the ring location on `Tick` while `bFollowTarget` is true:
+1. If `TargetAnchor` is valid, set ring actor location to anchor location plus Z offset.
+2. Else if `TargetActor` is valid, set ring actor location to target location plus Z offset.
+3. If `TargetActor` is not valid, destroy the ring actor or hide it.
 
-#### Add outline helpers to `BP_BattleCharacter`
-Create function `SetTargetOutlineEnabled`.
+Later, if the marker should be cheaper or more deterministic, attach it to the target actor instead of ticking:
+- `Attach Actor To Actor`
+- Parent: target actor
+- Location Rule: `Keep World` or `Snap to Target`
+- then set relative location to the ground offset
+
+#### Add a ring anchor to `BP_BattleCharacter`
+Add a `Scene Component` to `BP_BattleCharacter`:
+- Name: `TargetRingAnchor`
+- Parent: capsule/root component
+- Relative Location: near the character's feet
+
+For a default `Character` capsule, start with:
+- `X = 0`
+- `Y = 0`
+- `Z = -CapsuleHalfHeight + 2`
+
+The exact Z value can be adjusted visually in the viewport. The anchor exists so the target ring sits on the floor instead of floating at the character capsule center.
+
+#### Add marker ownership to `BP_BattleCharacter`
+Create variables on `BP_BattleCharacter`:
+- `TargetRingClass` (`Class Reference` of `BP_TargetRingActor`, default `BP_TargetRingActor`)
+- `ActiveTargetRing` (`BP_TargetRingActor Object Reference`)
+- `TargetRingRadius` (`Float`, default `90`)
+
+Create function `SetTargetRingEnabled`.
 
 Suggested signature:
 - Input:
   - `bEnabled` (`Boolean`)
-  - `StencilValue` (`Integer`, default `250`)
 
 Node flow:
-1. Get the character `Mesh`.
-2. `Set Render CustomDepth` -> `bEnabled`.
-3. `Set CustomDepth Stencil Value` -> `StencilValue`.
-4. If the character has extra visible mesh components later, apply the same two calls to each one.
+1. If `bEnabled` is true:
+   - if `ActiveTargetRing` is valid, call `AttachToTarget(self, TargetRingAnchor, TargetRingRadius)` and return
+   - spawn `TargetRingClass` at `GetActorLocation`
+   - save the return value to `ActiveTargetRing`
+   - call `AttachToTarget(self, TargetRingAnchor, TargetRingRadius)`
+2. If `bEnabled` is false:
+   - if `ActiveTargetRing` is valid, destroy it
+   - set `ActiveTargetRing = None`
 
-For now, one skeletal mesh is enough. Do not search all components every frame. Either use the known `Mesh` component or cache an array of outline-capable mesh components on BeginPlay if the actor becomes more complex.
+Alternative component version:
+- Add `TargetRingMesh` directly to `BP_BattleCharacter`.
+- Assign the ring mesh/material.
+- Attach it to `TargetRingAnchor`.
+- Set it hidden by default.
+- In `SetTargetRingEnabled`, only toggle `Set Hidden In Game`.
+
+Use the actor version if you want one reusable marker class with its own follow/scale logic. Use the component version if you want the fewest moving parts. Do not implement both in the prototype.
 
 Wire the interface:
 - `OnTargetLocked`
-  - call `SetTargetOutlineEnabled(true, 250)`
+  - call `SetTargetRingEnabled(true)`
 - `OnTargetUnlocked`
-  - call `SetTargetOutlineEnabled(false, 250)`
+  - call `SetTargetRingEnabled(false)`
+
+#### Optional: support different marker types
+Do not add this until the enemy lock marker works.
+
+When needed, extend `SetTargetRingEnabled` or create `SetTargetMarkerState` with:
+- `EnemyHardLock`: yellow/cyan ring
+- `AllyTarget`: green/blue ring
+- `PartyFocus`: orange/white ring
+- `HoverSoftTarget`: thin dim ring
+
+Keep this driven by target state changes, not by every frame of input.
 
 #### Keep target switching clean
 In `BP_TargetingComponent.SetEnemyTarget`:
@@ -1179,30 +1227,31 @@ In `ClearEnemyTarget`:
 3. Set `bHasHardLock = false`.
 4. Broadcast `OnEnemyTargetCleared`.
 
-This order matters. Most outline bugs in this phase come from enabling the new target but forgetting to disable the old one.
+This order matters. Most marker bugs in this phase come from spawning a new ring while leaving the old target's ring alive.
 
 #### Debug checklist
-If the outline does not show:
-- Confirm Project Settings has `Custom Depth-Stencil Pass = Enabled with Stencil`.
-- Confirm the target mesh has `Render CustomDepth` enabled while locked.
-- Confirm the target mesh stencil value is `250`.
-- In the viewport, use a buffer visualization for Custom Depth or Custom Stencil to confirm the mesh is writing to the buffer.
-- Confirm the `PostProcessVolume` is unbound or actually affects the camera.
-- Temporarily make the material output a full-screen debug color when `CustomStencil == 250`.
-- Confirm `OnTargetLocked` and `OnTargetUnlocked` are actually firing with print strings.
+If the ring does not show:
+- Confirm `OnTargetLocked` and `OnTargetUnlocked` are firing with print strings.
+- Confirm `TargetRingClass` is assigned on `BP_BattleCharacter`.
+- Confirm `BP_TargetRingActor` has a mesh assigned to `RingMesh`.
+- Confirm `TargetRingAnchor` is near the target's feet.
+- Confirm the material is not fully transparent.
+- Confirm the ring is above the floor and not z-fighting.
+- Confirm `SetTargetRingEnabled(true)` saves the spawned actor into `ActiveTargetRing`.
+- Temporarily set the ring scale larger, for example `2.0`.
+- Temporarily disable shadowing and collision on `RingMesh`.
 
 Things to watch:
-- Some translucent materials and masked effects can behave differently with depth/stencil. Test on the normal character mesh first.
-- If the mesh has multiple visible parts, only outlined components with custom depth enabled will appear in the buffer.
-- If the outline is too thin from the top-down camera, increase `OutlineWidth` before changing targeting logic.
-- If the outline appears through walls or floors, that is expected for a simple custom-depth outline. Later, compare `CustomDepth` against scene depth to hide occluded outlines.
-- Do not clear a target just because the outline is not visible. Visibility and target validity are separate systems.
+- A ring attached to the character root may float if the character capsule origin is high. Prefer `TargetRingAnchor` for ground markers.
+- Large enemies may need a larger `TargetRingRadius`.
+- If enemies can die or be destroyed, call `OnTargetUnlocked` or `SetTargetRingEnabled(false)` before destruction/reset.
+- Do not clear a target just because the ring is not visible. Visibility and target validity are separate systems.
 
 Done when:
-- You can always tell which target is locked.
-- Switching targets removes the outline from the old target and applies it to the new target.
-- Unlocking removes the outline.
-- Resetting the arena does not leave an outlined stale or destroyed actor.
+- You can always tell which enemy target is locked.
+- Switching targets removes the ring from the old target and applies it to the new target.
+- Unlocking removes the ring.
+- Resetting the arena does not leave a stale ring actor in the level.
 
 ### Step 4.4 - Wire targeting input
 If not already done in Phase 1, create or confirm:
@@ -1268,13 +1317,13 @@ Before moving to health/combat:
 - Enemy is visible.
 - Press lock key.
 - Enemy becomes current target.
-- Custom-depth outline appears on the enemy.
+- Target ring appears on or under the enemy.
 - Click an ally or party UI test actor.
 - Ally target changes and enemy target remains unchanged.
 - Set party focus target.
 - Debug print shows party focus target.
 - Press lock key again.
-- Target clears and outline disappears.
+- Target clears and target ring disappears.
 - Press target next/previous.
 - Target changes or stays stable if only one enemy exists.
 - Move away from the selected enemy.
