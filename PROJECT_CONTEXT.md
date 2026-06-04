@@ -227,7 +227,7 @@ UE prototype restart path:
 2. Confirm `DT_Stats` and `DT_Attributes` caches and typed getters work.
 3. Add and smoke-test `BFL_SoAHelpers.GetGameDataService`.
 4. Build Phase 3 combatants: `BP_BattleCharacter`, reparented `BP_PlayerCharacter`, manual `BP_EnemyCharacter`, and `BP_PrototypeArenaDirector` reset.
-5. Build Phase 4 targeting: `BPI_Targetable`, player/controller `BP_TargetingComponent`, enemy/ally/focus target state, lock/cycle input, and a simple target indicator.
+5. Build Phase 4 targeting: `BPI_Targetable`, player/controller `BP_TargetingComponent`, enemy/ally/focus target state, lock/cycle input, and a custom-depth target outline.
 
 Web app/content tool backlog:
 

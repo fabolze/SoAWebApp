@@ -657,7 +657,7 @@ You do not need these yet:
 - line-of-sight checks
 - enemy AI
 - real UI target frames
-- final outline post-process materials
+- final target marker meshes/materials
 
 ### Targeting Ownership Decision
 Use this prototype default:
@@ -769,6 +769,10 @@ Recommended variables:
 - `bHasHardLock` (`Boolean`, default `false`)
 - `EnemyTargetableActors` (`Array` of `Actor Object Reference`)
 - `AllyTargetableActors` (`Array` of `Actor Object Reference`)
+- `RecentEnemyTargets` (`Array` of `Actor Object Reference`)
+  - small cycle history used by `CycleNextEnemyTarget`
+- `RecentEnemyTargetLimit` (`Integer`, default `2`)
+  - keep this low so Tab can move through targets without making the nearest enemy hard to return to
 - `TargetObjectTypes` or collision channel settings if using sphere traces
 - `OwnerController` (`BP_PlayerController_Prototype Object Reference`)
 - `OwnerPawn` (`Pawn Object Reference`, optional cached value)
@@ -779,6 +783,7 @@ Recommended event dispatchers:
 - `OnPartyFocusChanged(NewTarget: Actor)`
 - `OnEnemyTargetCleared()`
 - `OnAllyTargetCleared()`
+- optional: `OnPartyFocusCleared()`
 
 #### Initialize the component
 In `BP_TargetingComponent` `BeginPlay`:
@@ -798,6 +803,8 @@ Suggested signature:
 - Outputs:
   - `EnemyTargets` (`Array` of `Actor Object Reference`)
   - `AllyTargets` (`Array` of `Actor Object Reference`)
+  - optional: `bFoundEnemy` (`Boolean`)
+  - optional: `bFoundAlly` (`Boolean`)
 
 Simple first node flow:
 1. Clear `EnemyTargetableActors` and `AllyTargetableActors`.
@@ -817,6 +824,11 @@ Simple first node flow:
    - add enemies to `EnemyTargetableActors`
    - add allies to `AllyTargetableActors`
 5. Return both arrays.
+6. If using the optional bool outputs:
+   - `bFoundEnemy = EnemyTargetableActors Length > 0`
+   - `bFoundAlly = AllyTargetableActors Length > 0`
+
+The optional bool outputs are only readability helpers. Keep them derived from the array lengths at the end of the function so they cannot get out of sync with the actual target arrays.
 
 Prototype team rule:
 - Player/friendly team is `1`.
@@ -870,7 +882,9 @@ Node flow:
 
 Manual enemy targeting rule:
 - Manual clicks and cycle input always override auto-targeting.
-- Do not auto-switch away from `CurrentEnemyTarget` until it dies, becomes invalid, or the player chooses another enemy.
+- Do not auto-switch away from `CurrentEnemyTarget` because of range.
+- Keep the selected enemy for UI information such as health, casting, status, and "return to fight" behavior.
+- Clear or replace `CurrentEnemyTarget` only when the target is destroyed, no longer valid as a gameplay target, manually cleared, or the player chooses another enemy.
 
 #### Implement `SetAllyTarget`
 Suggested signature:
@@ -915,6 +929,17 @@ Node flow:
 3. Set `bHasHardLock = false`.
 4. Broadcast `OnEnemyTargetCleared`.
 
+#### Implement `ClearAllyTarget`
+Node flow:
+1. Set `CurrentAllyTarget = None`.
+2. Broadcast `OnAllyTargetCleared`.
+
+#### Implement `ClearPartyFocusTarget`
+Node flow:
+1. Set `PartyFocusTarget = None`.
+2. Broadcast `OnPartyFocusChanged(None)`.
+3. Optional: also broadcast `OnPartyFocusCleared` if you created that dispatcher.
+
 #### Implement `AutoSelectEnemyTarget`
 This is the input-friendly wrapper:
 1. If `CurrentEnemyTarget` is valid, do nothing.
@@ -923,25 +948,72 @@ This is the input-friendly wrapper:
 4. If not found, call `ClearEnemyTarget` or print `"No enemy target found"`.
 
 Auto-target priority:
-1. Closest enemy in attack range.
-2. Closest visible enemy.
+1. Closest valid enemy inside the targeting search radius.
+2. Closest visible enemy if line-of-sight rules exist later.
 3. No target if no valid enemies exist.
 
+Range note:
+- Auto-selection can use `SearchRadius` to discover a first target.
+- Once selected, the target should not be cleared just because the player moves out of attack range or outside the search radius.
+- Combat and UI should handle range separately, for example by disabling the attack, showing "Out of range", or moving the player toward the target later.
+
 #### Implement `CycleNextEnemyTarget`
-First version:
+Use nearest-not-recent cycling instead of relying on overlap order.
+
+Intent:
+- first Tab press selects the nearest valid enemy
+- next Tab press selects the nearest valid enemy that was not just selected
+- a short recent-target history prevents immediately bouncing back to the same target
+- the history stays small so nearby enemies can become selectable again quickly
+
+Recommended history settings:
+- `RecentEnemyTargets` stores the last selected enemy targets
+- `RecentEnemyTargetLimit = 2`
+- treat the array like a queue:
+  - index `0` is the oldest entry
+  - the last index is the newest entry
+
+Node flow:
 1. Call `RefreshTargetLists`.
-2. If no enemy targets: `ClearEnemyTarget`.
-3. If no current enemy target: set the nearest enemy target.
-4. Find current enemy target index in `EnemyTargetableActors`.
-5. Add 1, wrap around with modulo.
-6. Set the actor at the new index as `CurrentEnemyTarget`.
+2. If `EnemyTargetableActors` is empty:
+   - clear `RecentEnemyTargets`
+   - if `CurrentEnemyTarget` is valid, keep it selected and optionally print `"No cycle candidates"`
+   - if `CurrentEnemyTarget` is not valid, call `ClearEnemyTarget`
+   - return
+3. Get origin:
+   - if `OwnerPawn` valid: `OwnerPawn.GetActorLocation`
+   - otherwise use `OwnerController.GetControlledPawn.GetActorLocation`
+4. Find the nearest candidate that is not recently selected:
+   - set local `BestCandidate = None`
+   - set local `BestDistance = 999999999.0`
+   - loop over `EnemyTargetableActors`
+   - skip the actor if it equals `CurrentEnemyTarget`
+   - skip the actor if `RecentEnemyTargets Contains` it
+   - compute `Vector Distance` from origin to actor location
+   - if distance is smaller than `BestDistance`, store this actor as `BestCandidate`
+5. If `BestCandidate` is not valid:
+   - clear `RecentEnemyTargets`
+   - repeat the nearest-candidate loop, but only skip `CurrentEnemyTarget`
+   - this lets the nearest enemies become selectable again after the short history is exhausted
+6. If `BestCandidate` is still not valid:
+   - call `FindNearestEnemyTarget`                        
+   - if found, use that target as `BestCandidate`
+   - this handles the one-enemy case by keeping or reselecting the only valid enemy
+7. If `BestCandidate` is valid:
+   - call `SetEnemyTarget(BestCandidate)`
+   - if success, add `BestCandidate` to `RecentEnemyTargets`
+   - while `RecentEnemyTargets Length > RecentEnemyTargetLimit`, remove index `0`
 
-For `CyclePreviousEnemyTarget`, subtract 1 and wrap.
+Example with `RecentEnemyTargetLimit = 2`:
+- enemy distances are `A = 300`, `B = 700`, `C = 1200`
+- Tab presses select `A`, then `B`, then `C`, then `A`
+- with four or more enemies, this still favors nearby targets instead of forcing a full long cycle before returning to the nearest enemy
 
-Sorting note:
-- `Sphere Overlap Actors` order may be inconsistent.
-- For the prototype, this is acceptable.
-- Later, sort by screen position or angle around the player if cycling feels random.
+For `CyclePreviousEnemyTarget`, do not implement a true previous order yet unless you have a stable sorted list. For the prototype, either:
+- call the same nearest-not-recent helper as `CycleNextEnemyTarget`, or
+- leave previous targeting unimplemented until screen-angle sorting exists
+
+Do not let `SetEnemyTarget` manage `RecentEnemyTargets`. Keep cycle history inside cycle functions so manual clicks, ability targeting, and UI selection do not unexpectedly change Tab behavior.
 
 #### Validate the current target
 Create functions `ValidateEnemyTarget`, `ValidateAllyTarget`, and `ValidatePartyFocusTarget`.
@@ -952,15 +1024,42 @@ Call it:
 - after arena reset
 - optionally on a slow timer, not every tick unless needed
 
-Node flow:
-1. If the stored target is not valid: clear that target variable.
-2. If target no longer implements `BPI_Targetable`: clear lock.
-3. If `CanBeTargeted` returns false: clear lock.
-4. If distance is greater than `SearchRadius * 1.25`: clear lock.
-5. If `CurrentEnemyTarget` was cleared, call `AutoSelectEnemyTarget` if auto-targeting is allowed.
+Shared validation rule:
+- clear a stored target only when it is not valid anymore as a gameplay target
+- do not clear stored targets because of distance
+- range belongs to combat, ability, and UI checks, not to target ownership
+
+`ValidateEnemyTarget` node flow:
+1. If `CurrentEnemyTarget` is not valid: call `ClearEnemyTarget` and return `false`.
+2. If it no longer implements `BPI_Targetable`: call `ClearEnemyTarget` and return `false`.
+3. If `CanBeTargeted` returns false because the target is dead, destroyed, hidden from combat, or otherwise not a legal target anymore: call `ClearEnemyTarget` and return `false`.
+4. If the target team is not an enemy team anymore: call `ClearEnemyTarget` and return `false`.
+5. Do not clear because of distance.
+6. Return `true`.
+7. If `CurrentEnemyTarget` was cleared for a true invalidation reason, call `AutoSelectEnemyTarget` only if auto-targeting is allowed.
+
+`ValidateAllyTarget` node flow:
+1. If `CurrentAllyTarget` is not valid: call `ClearAllyTarget` and return `false`.
+2. If it no longer implements `BPI_Targetable`: call `ClearAllyTarget` and return `false`.
+3. If `CanBeTargeted` returns false because the target is dead, destroyed, hidden from combat, or otherwise not a legal support target anymore: call `ClearAllyTarget` and return `false`.
+4. If the target team is not the player/friendly team anymore: call `ClearAllyTarget` and return `false`.
+5. Do not clear because of distance.
+6. Return `true`.
+
+`ValidatePartyFocusTarget` node flow:
+1. If `PartyFocusTarget` is not valid: call `ClearPartyFocusTarget` and return `false`.
+2. If it no longer implements `BPI_Targetable`: call `ClearPartyFocusTarget` and return `false`.
+3. If `CanBeTargeted` returns false because the target is dead, destroyed, hidden from combat, or otherwise not a legal focus target anymore: call `ClearPartyFocusTarget` and return `false`.
+4. Do not clear because of distance.
+5. Return `true`.
+
+Keep range validation separate:
+- target validation answers "does this selected target still exist and make sense as this kind of target?"
+- ability/basic attack range checks answer "can this action currently reach the target?"
+- UI can still display the selected target while showing an out-of-range state.
 
 Done when:
-- Enemy target cycles and lock persists until target invalidates.
+- Enemy target cycles and lock persists through moving in and out of range.
 - Ally target can change without clearing enemy target.
 - Party focus target can be set for companions.
 - Resetting the arena does not leave a stale destroyed target reference.
@@ -973,52 +1072,186 @@ Common mistakes:
 - Assuming a target is valid just because the reference variable is set.
 
 ### Step 4.3 - Visual feedback
-- Do: Add simple target indicator (widget or outline).
+- Do: Add a visible target ring mesh for the locked enemy target.
 
-Use the cheapest clear visual first. You are not building final UI yet.
+The ring is visual feedback only. `BP_TargetingComponent` still owns target state, and targetable actors still expose visual hooks through `BPI_Targetable.OnTargetLocked` and `BPI_Targetable.OnTargetUnlocked`.
 
-#### Option A: print strings only
-Fastest smoke test:
-- On lock: print `"Locked target: <DisplayName>"`
-- On unlock: print `"Target cleared"`
+Use a mesh marker for the prototype. A ring actor is easy to debug, easy to scale per enemy, does not need renderer settings, and works even when the target uses placeholder meshes.
 
-This proves the logic works but is not enough to leave Phase 4.
+#### Create the target ring asset
+Use whichever is fastest:
+- a thin torus static mesh,
+- a flat ring mesh imported from DCC,
+- a simple circular decal if you already prefer decals,
+- or a flat plane with a transparent ring material.
 
-#### Option B: target ring actor
-Recommended first real visual.
+Recommended first version:
+1. Create or choose a flat ring mesh that sits on the ground plane.
+2. Create `M_TargetRing_Enemy`.
+3. Give it an obvious emissive color, for example yellow/cyan.
+4. Set the material to unlit if you want it readable in any arena lighting.
+5. If using transparency, set Blend Mode to `Translucent` or `Masked`.
 
-Create `BP_TargetIndicator`:
-1. Parent class: `Actor`.
-2. Add a simple mesh:
-   - torus, flat cylinder, decal, or plane with material
-3. Give it a bright debug material.
-4. Disable collision.
-5. Add function `AttachToTarget(TargetActor)`.
+Keep the first material simple and obvious. The goal is a reliable selection marker, not final art.
 
-In `BP_TargetingComponent`:
-- variable `TargetIndicator` (`BP_TargetIndicator Object Reference`)
-- on `SetEnemyTarget` success:
-  - spawn indicator if missing
-  - attach it to target actor, or set its location to target location
-  - show it
-- on `ClearEnemyTarget`:
-  - hide it or destroy it
+#### Create `BP_TargetRingActor`
+Create a small actor that owns the visual marker.
 
-Simple placement rule:
-- Put the ring at the current enemy target actor location.
-- Add small Z offset if it z-fights with the floor.
+1. Content Browser -> `/Game/Blueprints/Systems`.
+2. Create Blueprint Class -> `Actor`.
+3. Name it `BP_TargetRingActor`.
+4. Add components:
+   - `SceneRoot`
+   - `RingMesh` (`Static Mesh Component`)
+5. Assign the ring mesh and `M_TargetRing_Enemy` to `RingMesh`.
 
-#### Option C: custom depth outline
-Better later, but optional now:
-- Enable custom depth on the target mesh when locked.
-- Disable custom depth when unlocked.
-- Requires project/post-process setup, so avoid this until the ring works.
+Recommended component settings:
+- Collision Enabled: `No Collision`
+- Cast Shadows: `false`
+- Hidden In Game: `false`
+- Mobility: `Movable`
+- Relative Location: `(0, 0, 2)` or just above the floor
+- Relative Rotation: align the ring flat to the ground
+
+Recommended variables:
+- `TargetActor` (`Actor Object Reference`)
+- `TargetAnchor` (`Scene Component Object Reference`, optional)
+- `FollowGroundZOffset` (`Float`, default `2.0`)
+- `DefaultScale` (`Float`, default `1.0`)
+- `bFollowTarget` (`Boolean`, default `true`)
+
+Create function `AttachToTarget`.
+
+Suggested signature:
+- Input:
+  - `InTarget` (`Actor Object Reference`)
+  - `InTargetAnchor` (`Scene Component Object Reference`, optional)
+  - `TargetRadius` (`Float`, default `90`)
+
+Node flow:
+1. Set `TargetActor = InTarget`.
+2. Set `TargetAnchor = InTargetAnchor`.
+3. If `TargetActor` is not valid, hide the actor and return.
+4. Set actor hidden in game to `false`.
+5. Set ring location:
+   - if `TargetAnchor` is valid, use `TargetAnchor.GetWorldLocation + (0, 0, FollowGroundZOffset)`
+   - otherwise use `TargetActor.GetActorLocation + (0, 0, FollowGroundZOffset)`
+6. Set ring scale from `TargetRadius`:
+   - start with `TargetRadius / 90.0`
+   - clamp to a useful range such as `0.6` to `3.0`
+
+For the first prototype, it is acceptable to update the ring location on `Tick` while `bFollowTarget` is true:
+1. If `TargetAnchor` is valid, set ring actor location to anchor location plus Z offset.
+2. Else if `TargetActor` is valid, set ring actor location to target location plus Z offset.
+3. If `TargetActor` is not valid, destroy the ring actor or hide it.
+
+Later, if the marker should be cheaper or more deterministic, attach it to the target actor instead of ticking:
+- `Attach Actor To Actor`
+- Parent: target actor
+- Location Rule: `Keep World` or `Snap to Target`
+- then set relative location to the ground offset
+
+#### Add a ring anchor to `BP_BattleCharacter`
+Add a `Scene Component` to `BP_BattleCharacter`:
+- Name: `TargetRingAnchor`
+- Parent: capsule/root component
+- Relative Location: near the character's feet
+
+For a default `Character` capsule, start with:
+- `X = 0`
+- `Y = 0`
+- `Z = -CapsuleHalfHeight + 2`
+
+The exact Z value can be adjusted visually in the viewport. The anchor exists so the target ring sits on the floor instead of floating at the character capsule center.
+
+#### Add marker ownership to `BP_BattleCharacter`
+Create variables on `BP_BattleCharacter`:
+- `TargetRingClass` (`Class Reference` of `BP_TargetRingActor`, default `BP_TargetRingActor`)
+- `ActiveTargetRing` (`BP_TargetRingActor Object Reference`)
+- `TargetRingRadius` (`Float`, default `90`)
+
+Create function `SetTargetRingEnabled`.
+
+Suggested signature:
+- Input:
+  - `bEnabled` (`Boolean`)
+
+Node flow:
+1. If `bEnabled` is true:
+   - if `ActiveTargetRing` is valid, call `AttachToTarget(self, TargetRingAnchor, TargetRingRadius)` and return
+   - spawn `TargetRingClass` at `GetActorLocation`
+   - save the return value to `ActiveTargetRing`
+   - call `AttachToTarget(self, TargetRingAnchor, TargetRingRadius)`
+2. If `bEnabled` is false:
+   - if `ActiveTargetRing` is valid, destroy it
+   - set `ActiveTargetRing = None`
+
+Alternative component version:
+- Add `TargetRingMesh` directly to `BP_BattleCharacter`.
+- Assign the ring mesh/material.
+- Attach it to `TargetRingAnchor`.
+- Set it hidden by default.
+- In `SetTargetRingEnabled`, only toggle `Set Hidden In Game`.
+
+Use the actor version if you want one reusable marker class with its own follow/scale logic. Use the component version if you want the fewest moving parts. Do not implement both in the prototype.
+
+Wire the interface:
+- `OnTargetLocked`
+  - call `SetTargetRingEnabled(true)`
+- `OnTargetUnlocked`
+  - call `SetTargetRingEnabled(false)`
+
+#### Optional: support different marker types
+Do not add this until the enemy lock marker works.
+
+When needed, extend `SetTargetRingEnabled` or create `SetTargetMarkerState` with:
+- `EnemyHardLock`: yellow/cyan ring
+- `AllyTarget`: green/blue ring
+- `PartyFocus`: orange/white ring
+- `HoverSoftTarget`: thin dim ring
+
+Keep this driven by target state changes, not by every frame of input.
+
+#### Keep target switching clean
+In `BP_TargetingComponent.SetEnemyTarget`:
+1. If `CurrentEnemyTarget` is valid and different from the new target, call `OnTargetUnlocked` on the old target.
+2. Validate the new target.
+3. Set `CurrentEnemyTarget`.
+4. Set `bHasHardLock = true`.
+5. Call `OnTargetLocked` on the new target.
+6. Broadcast `OnEnemyTargetChanged`.
+
+In `ClearEnemyTarget`:
+1. If `CurrentEnemyTarget` is valid, call `OnTargetUnlocked`.
+2. Set `CurrentEnemyTarget = None`.
+3. Set `bHasHardLock = false`.
+4. Broadcast `OnEnemyTargetCleared`.
+
+This order matters. Most marker bugs in this phase come from spawning a new ring while leaving the old target's ring alive.
+
+#### Debug checklist
+If the ring does not show:
+- Confirm `OnTargetLocked` and `OnTargetUnlocked` are firing with print strings.
+- Confirm `TargetRingClass` is assigned on `BP_BattleCharacter`.
+- Confirm `BP_TargetRingActor` has a mesh assigned to `RingMesh`.
+- Confirm `TargetRingAnchor` is near the target's feet.
+- Confirm the material is not fully transparent.
+- Confirm the ring is above the floor and not z-fighting.
+- Confirm `SetTargetRingEnabled(true)` saves the spawned actor into `ActiveTargetRing`.
+- Temporarily set the ring scale larger, for example `2.0`.
+- Temporarily disable shadowing and collision on `RingMesh`.
+
+Things to watch:
+- A ring attached to the character root may float if the character capsule origin is high. Prefer `TargetRingAnchor` for ground markers.
+- Large enemies may need a larger `TargetRingRadius`.
+- If enemies can die or be destroyed, call `OnTargetUnlocked` or `SetTargetRingEnabled(false)` before destruction/reset.
+- Do not clear a target just because the ring is not visible. Visibility and target validity are separate systems.
 
 Done when:
-- You can always tell which target is locked.
-- Switching targets moves the visual to the new target.
-- Unlocking removes or hides the visual.
-- Resetting the arena does not leave the visual attached to an invalid actor.
+- You can always tell which enemy target is locked.
+- Switching targets removes the ring from the old target and applies it to the new target.
+- Unlocking removes the ring.
+- Resetting the arena does not leave a stale ring actor in the level.
 
 ### Step 4.4 - Wire targeting input
 If not already done in Phase 1, create or confirm:
@@ -1084,15 +1317,17 @@ Before moving to health/combat:
 - Enemy is visible.
 - Press lock key.
 - Enemy becomes current target.
-- Visual target indicator appears.
+- Target ring appears on or under the enemy.
 - Click an ally or party UI test actor.
 - Ally target changes and enemy target remains unchanged.
 - Set party focus target.
 - Debug print shows party focus target.
 - Press lock key again.
-- Target clears and indicator disappears.
+- Target clears and target ring disappears.
 - Press target next/previous.
 - Target changes or stays stable if only one enemy exists.
+- Move away from the selected enemy.
+- Target remains selected, but combat/range checks can report it as out of range.
 - Press reset.
 - Target reference clears or retargets cleanly.
 - `GetCurrentEnemyTarget` returns the locked enemy while locked.
@@ -1119,8 +1354,9 @@ Goal: Basic damage works and health changes are visible.
 - Implement one automatic basic attack path:
   - player combat reads `GetCurrentEnemyTarget` from `BP_TargetingComponent`
   - validate enemy target
-  - range check against weapon/basic attack range
-  - if valid and attack timer/cooldown is ready, fire the basic attack
+  - range check against weapon/basic attack range without clearing the selected target
+  - if target is valid, in range, and attack timer/cooldown is ready, fire the basic attack
+  - if target is valid but out of range, keep the target and skip the attack or show an out-of-range state
   - produce damage payload
   - call resolver
 - Implement ability target resolution separately:

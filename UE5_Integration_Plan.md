@@ -85,7 +85,7 @@ Player control flow:
   - Soft enemy target: nearest valid enemy when no manual enemy target exists.
   - Manual target choices override auto-targeting until the target dies or becomes invalid.
   - Validate stale targets after reset, death, or range breaks.
-- First visual feedback: simple `BP_TargetIndicator` ring actor. Outline/post-process can come later.
+- First visual feedback: custom-depth outline driven by `BPI_Targetable.OnTargetLocked` / `OnTargetUnlocked`.
 
 ## 5. Combat System (Real-Time with Able)
 Core components:
@@ -183,7 +183,7 @@ Phase 3: Combatant foundation and test enemy
 - `BP_BattleCharacter`, reparented player, manual `BP_EnemyCharacter`, and fast arena reset.
 
 Phase 4: Targeting
-- `BPI_Targetable`, player/controller `BP_TargetingComponent`, enemy/ally/focus target state, lock/cycle input, debug helpers, and target indicator.
+- `BPI_Targetable`, player/controller `BP_TargetingComponent`, enemy/ally/focus target state, lock/cycle input, debug helpers, and custom-depth target outline.
 
 Phase 5: Combat scaffolding
 - Stats, health, combat component, automatic basic attack against `CurrentEnemyTarget`, and effect resolver hook.
