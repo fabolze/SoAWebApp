@@ -1,1 +1,2 @@
 Name,id,slug,name,description,flag_type,default_value,content_pack_id,tags
+intro-done,01KTA75B6D1XSDXDC0DBFDZ3EY,intro done,Intro Done,Once the player has finished the intro this is granted,Story Progress,False,,"[""flag"", ""altrail"", ""tutorial""]"
