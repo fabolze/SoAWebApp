@@ -89,8 +89,8 @@ const AUTHORING_CONFIGS: Record<Exclude<AuthoringKind, "location-map">, Authorin
     title: "Location Authoring",
     accent: "sky",
     identityFields: ["name", "slug", "description", "image_path", "tags"],
-    primaryFields: ["biome", "biome_modifier", "region", "level_range"],
-    secondaryFields: ["coordinates", "is_safe_zone", "is_fast_travel_point", "has_respawn_point"],
+    primaryFields: ["location_type", "parent_location_id", "place_kind", "biome", "biome_inheritance", "biome_modifier", "region", "environment_tags", "level_range"],
+    secondaryFields: ["coordinates", "sort_order", "is_playable_space", "is_world_map_node", "is_safe_zone", "is_fast_travel_point", "has_respawn_point"],
     detailFields: ["encounters"],
   },
 };
@@ -111,6 +111,12 @@ function displayText(value: unknown, fallback = ""): string {
   if (value === null || value === undefined) return fallback;
   const text = String(value).trim();
   return text || fallback;
+}
+
+function defaultPlaceKindForLocationType(locationType: string): string {
+  if (["World", "Continent", "Region"].includes(locationType)) return "AbstractRegion";
+  if (["Room", "Interior"].includes(locationType)) return "Interior";
+  return "Wilderness";
 }
 
 function formatNumber(value: unknown): string {
@@ -203,8 +209,15 @@ function makeNewEntryDefaults(config: AuthoringConfig): EntryRecord {
       slug: "",
       name: "",
       description: "",
-      biome: "Plains",
+      biome: "",
+      location_type: "Zone",
+      place_kind: defaultPlaceKindForLocationType("Zone"),
+      environment_tags: [],
+      biome_inheritance: "",
       region: "",
+      sort_order: 0,
+      is_playable_space: true,
+      is_world_map_node: true,
       level_range: { min: 1, max: 5 },
       coordinates: { x: 50, y: 50 },
       encounters: [],
@@ -455,7 +468,7 @@ function AuthoringHeader({
   onReset: () => void;
 }) {
   const imagePath = displayText(data.icon_path || data.image_path);
-  const subtitle = [data.type, data.rarity, data.role, data.biome, data.region].map((value) => displayText(value)).filter(Boolean).slice(0, 3);
+  const subtitle = [data.type, data.rarity, data.role, data.place_kind, data.biome, data.region].map((value) => displayText(value)).filter(Boolean).slice(0, 3);
   return (
     <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -866,14 +879,26 @@ function LocationAuthoringSurface(props: AuthoringSurfaceProps) {
   const { schema, data, onChange, persisted } = props;
   const biomeOptions = getOptions(schema.properties?.biome);
   const modifierOptions = getOptions(schema.properties?.biome_modifier);
+  const locationTypeOptions = getOptions(schema.properties?.location_type);
+  const placeKindOptions = getOptions(schema.properties?.place_kind);
+  const biomeInheritanceOptions = getOptions(schema.properties?.biome_inheritance);
+  const setLocationType = (value: string) => {
+    const currentTypeDefault = defaultPlaceKindForLocationType(displayText(data.location_type, "Zone"));
+    const currentPlaceKind = displayText(data.place_kind);
+    const next: EntryRecord = { ...data, location_type: value, biome_inheritance: "" };
+    if (!currentPlaceKind || currentPlaceKind === currentTypeDefault) {
+      next.place_kind = defaultPlaceKindForLocationType(value);
+    }
+    onChange(next);
+  };
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
       <AuthoringPanel title="Location Card" subtitle="Edit the place description and visual identity.">
         <LocationPreview data={data} />
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
           <Fact label="Region" value={displayText(data.region, "No region")} />
+          <Fact label="Place Kind" value={displayText(data.place_kind, "Unclassified")} />
           <Fact label="Level Range" value={levelRangeLabel(data.level_range)} />
-          <Fact label="Encounters" value={String(countValues(data.encounters))} />
         </div>
         <div className="mt-4 space-y-4">
           <InlineFieldGrid>
@@ -883,6 +908,7 @@ function LocationAuthoringSurface(props: AuthoringSurfaceProps) {
           <InlineField schema={schema} data={data} fieldKey="description" label="Description" kind="textarea" onChange={onChange} />
           <InlineField schema={schema} data={data} fieldKey="image_path" label="Image Path" onChange={onChange} />
           <EditableTagList tags={data.tags} onChange={(tags) => onChange({ ...data, tags })} />
+          <EditableTagList label="Environment Tags" tags={data.environment_tags} onChange={(environment_tags) => onChange({ ...data, environment_tags })} />
         </div>
       </AuthoringPanel>
       <div className="space-y-4">
@@ -894,10 +920,19 @@ function LocationAuthoringSurface(props: AuthoringSurfaceProps) {
             <TogglePill label="Respawn" active={Boolean(data.has_respawn_point)} onChange={(value) => onChange({ ...data, has_respawn_point: value })} />
           </div>
         </AuthoringPanel>
-        <AuthoringPanel title="Region And Encounters" subtitle="Biome, region, level range and encounter hooks.">
+        <AuthoringPanel title="Place And Ecology" subtitle="Classify the place separately from biome, inheritance and encounter ecology.">
           <div className="space-y-4">
-            <SelectBadgeGroup label="Biome" value={data.biome} options={biomeOptions} onChange={(value) => onChange({ ...data, biome: value })} />
-            <SelectBadgeGroup label="Biome Modifier" value={data.biome_modifier} options={modifierOptions} onChange={(value) => onChange({ ...data, biome_modifier: value })} />
+            <SelectBadgeGroup label="Location Type" value={data.location_type} options={locationTypeOptions} onChange={setLocationType} />
+            <ReferenceChipPicker label="Parent Location" value={data.parent_location_id} reference="locations" onChange={(value) => onChange({ ...data, parent_location_id: value })} />
+            <InlineField schema={schema} data={data} fieldKey="sort_order" label="Sort Order" kind="number" onChange={onChange} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TogglePill label="Playable Space" active={data.is_playable_space !== false} onChange={(value) => onChange({ ...data, is_playable_space: value })} />
+              <TogglePill label="World Map Node" active={data.is_world_map_node !== false} onChange={(value) => onChange({ ...data, is_world_map_node: value })} />
+            </div>
+            <SelectBadgeGroup label="Place Kind" value={data.place_kind} options={placeKindOptions} allowUnset unsetLabel="Unclassified" onChange={(value) => onChange({ ...data, place_kind: value })} />
+            <SelectBadgeGroup label="Biome Inheritance" value={data.biome_inheritance} options={biomeInheritanceOptions} allowUnset unsetLabel="Auto" onChange={(value) => onChange({ ...data, biome_inheritance: value })} />
+            <SelectBadgeGroup label="Biome" value={data.biome} options={biomeOptions} allowUnset unsetLabel="No biome" onChange={(value) => onChange({ ...data, biome: value })} />
+            <SelectBadgeGroup label="Biome Modifier" value={data.biome_modifier} options={modifierOptions} allowUnset unsetLabel="No modifier" onChange={(value) => onChange({ ...data, biome_modifier: value })} />
             <InlineField schema={schema} data={data} fieldKey="region" label="Region" onChange={onChange} />
             <LevelRangeEditor data={data} onChange={onChange} />
             <ReferenceArrayPicker label="Encounters" reference="encounters" values={data.encounters} onChange={(encounters) => onChange({ ...data, encounters })} />
@@ -1403,6 +1438,7 @@ function ProfileCard({
 }
 
 function LocationPreview({ data }: { data: EntryRecord }) {
+  const biomeLabel = displayText(data.effective_biome, displayText(data.biome, "No biome"));
   return (
     <div className="rounded-md border border-sky-200 bg-sky-50 p-4 text-sky-950 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100">
       <div className="flex items-start gap-3">
@@ -1410,11 +1446,12 @@ function LocationPreview({ data }: { data: EntryRecord }) {
           <MapPinIcon className="h-8 w-8" />
         </div>
         <div className="min-w-0">
-          <div className="text-xs font-semibold uppercase opacity-75">{displayText(data.biome, "Biome")} / {displayText(data.region, "No region")}</div>
+          <div className="text-xs font-semibold uppercase opacity-75">{displayText(data.place_kind, "Unclassified")} / {biomeLabel} / {displayText(data.region, "No region")}</div>
           <div className="mt-1 truncate text-xl font-semibold">{displayText(data.name, "Unnamed Location")}</div>
           <p className="mt-2 text-sm opacity-80">{displayText(data.description, "No location description yet.")}</p>
           <div className="mt-3 flex flex-wrap gap-1 text-xs font-semibold">
             <Badge label={levelRangeLabel(data.level_range)} />
+            {displayText(data.biome_inheritance) && <Badge label={displayText(data.biome_inheritance)} />}
             {displayText(data.biome_modifier) && <Badge label={displayText(data.biome_modifier)} />}
             {Boolean(data.is_safe_zone) && <Badge label="safe zone" />}
             {Boolean(data.is_fast_travel_point) && <Badge label="fast travel" />}
@@ -1644,6 +1681,7 @@ function LocationAtlasPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [regionFilter, setRegionFilter] = useState("");
+  const [placeKindFilter, setPlaceKindFilter] = useState("");
   const [biomeFilter, setBiomeFilter] = useState("");
   const [routeTypeFilter, setRouteTypeFilter] = useState("");
   const [routeFlagFilter, setRouteFlagFilter] = useState("");
@@ -1675,15 +1713,18 @@ function LocationAtlasPage() {
   }, []);
 
   const regions = useMemo(() => Array.from(new Set(locations.map((location) => displayText(location.region)).filter(Boolean))).sort(), [locations]);
-  const biomes = useMemo(() => Array.from(new Set(locations.map((location) => displayText(location.biome)).filter(Boolean))).sort(), [locations]);
+  const placeKinds = useMemo(() => Array.from(new Set(locations.map((location) => displayText(location.place_kind)).filter(Boolean))).sort(), [locations]);
+  const biomes = useMemo(() => Array.from(new Set(locations.map((location) => displayText(location.effective_biome, displayText(location.biome))).filter(Boolean))).sort(), [locations]);
   const routeTypes = useMemo(() => Array.from(new Set(routes.map((route) => displayText(route.route_type)).filter(Boolean))).sort(), [routes]);
   const locationsById = useMemo(() => new Map(locations.map((location) => [displayText(location.id), location])), [locations]);
   const filtered = locations.filter((location) => {
-    const text = `${location.name || ""} ${location.region || ""} ${location.biome || ""}`.toLowerCase();
+    const effectiveBiome = displayText(location.effective_biome, displayText(location.biome));
+    const text = `${location.name || ""} ${location.region || ""} ${location.place_kind || ""} ${effectiveBiome} ${(Array.isArray(location.environment_tags) ? location.environment_tags : []).join(" ")}`.toLowerCase();
     const matchesSearch = text.includes(filter.trim().toLowerCase());
     const matchesRegion = !regionFilter || displayText(location.region) === regionFilter;
-    const matchesBiome = !biomeFilter || displayText(location.biome) === biomeFilter;
-    return matchesSearch && matchesRegion && matchesBiome;
+    const matchesPlaceKind = !placeKindFilter || displayText(location.place_kind) === placeKindFilter;
+    const matchesBiome = !biomeFilter || effectiveBiome === biomeFilter;
+    return matchesSearch && matchesRegion && matchesPlaceKind && matchesBiome;
   });
   const visibleLocationIds = new Set(filtered.map((location) => displayText(location.id)));
   const filteredRoutes = routes.filter((route) => {
@@ -1710,19 +1751,23 @@ function LocationAtlasPage() {
                 <Badge label={`${filtered.length} visible`} />
               </div>
             </div>
-            <div className="grid w-full gap-2 lg:w-auto lg:grid-cols-[minmax(180px,260px)_150px_150px_150px_140px]">
+            <div className="grid w-full gap-2 lg:w-auto lg:grid-cols-[minmax(180px,260px)_150px_150px_150px_150px_140px]">
               <input
                 className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
-                placeholder="Filter by name, region, biome"
+                placeholder="Filter by name, place, ecology"
               />
               <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)}>
                 <option value="">All regions</option>
                 {regions.map((region) => <option key={region} value={region}>{region}</option>)}
               </select>
+              <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={placeKindFilter} onChange={(event) => setPlaceKindFilter(event.target.value)}>
+                <option value="">All place kinds</option>
+                {placeKinds.map((placeKind) => <option key={placeKind} value={placeKind}>{placeKind}</option>)}
+              </select>
               <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={biomeFilter} onChange={(event) => setBiomeFilter(event.target.value)}>
-                <option value="">All biomes</option>
+                <option value="">All effective biomes</option>
                 {biomes.map((biome) => <option key={biome} value={biome}>{biome}</option>)}
               </select>
               <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={routeTypeFilter} onChange={(event) => setRouteTypeFilter(event.target.value)}>
@@ -1779,6 +1824,7 @@ function LocationAtlasPage() {
           ) : (
             filtered.map((location) => {
               const coordinates = isRecord(location.coordinates) ? location.coordinates : {};
+              const effectiveBiome = displayText(location.effective_biome, displayText(location.biome));
               const x = clamp(Number(coordinates.x ?? 50), 0, 100);
               const y = clamp(Number(coordinates.y ?? 50), 0, 100);
               const id = displayText(location.id);
@@ -1786,9 +1832,9 @@ function LocationAtlasPage() {
                 <Link
                   key={id}
                   to={`/author/locations/${encodeURIComponent(id)}`}
-                  className={`absolute flex max-w-[190px] -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium shadow hover:border-sky-500 hover:text-sky-700 dark:hover:border-sky-400 dark:hover:text-sky-300 ${locationPointClass(displayText(location.biome))}`}
+                  className={`absolute flex max-w-[190px] -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium shadow hover:border-sky-500 hover:text-sky-700 dark:hover:border-sky-400 dark:hover:text-sky-300 ${locationPointClass(displayText(location.place_kind), effectiveBiome)}`}
                   style={{ left: `${x}%`, top: `${y}%` }}
-                  title={`${displayText(location.name, "Unnamed")} (${displayText(location.biome, "No biome")}, ${levelRangeLabel(location.level_range)})`}
+                  title={`${displayText(location.name, "Unnamed")} (${displayText(location.place_kind, "Unclassified")}, ${displayText(effectiveBiome, "No biome")}, ${levelRangeLabel(location.level_range)})`}
                 >
                   <MapPinIcon className="h-4 w-4 shrink-0" />
                   <span className="truncate">{displayText(location.name, "Unnamed")}</span>
@@ -1846,7 +1892,13 @@ function rarityClass(rarity: string): string {
   }
 }
 
-function locationPointClass(biome: string): string {
+function locationPointClass(placeKind: string, biome: string): string {
+  const kind = placeKind.toLowerCase();
+  if (kind.includes("settlement")) return "border-violet-300 bg-violet-50/95 text-violet-900 dark:border-violet-800 dark:bg-violet-950/95 dark:text-violet-100";
+  if (kind.includes("dungeon") || kind.includes("interior")) return "border-slate-400 bg-slate-100/95 text-slate-900 dark:border-slate-700 dark:bg-slate-950/95 dark:text-slate-100";
+  if (kind.includes("waterway")) return "border-sky-300 bg-sky-50/95 text-sky-900 dark:border-sky-800 dark:bg-sky-950/95 dark:text-sky-100";
+  if (kind.includes("landmark")) return "border-amber-300 bg-amber-50/95 text-amber-900 dark:border-amber-800 dark:bg-amber-950/95 dark:text-amber-100";
+  if (kind.includes("abstract")) return "border-indigo-300 bg-indigo-50/95 text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950/95 dark:text-indigo-100";
   const normalized = biome.toLowerCase();
   if (normalized.includes("city") || normalized.includes("fortress")) return "border-violet-300 bg-violet-50/95 text-violet-900 dark:border-violet-800 dark:bg-violet-950/95 dark:text-violet-100";
   if (normalized.includes("forest") || normalized.includes("fungal")) return "border-emerald-300 bg-emerald-50/95 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/95 dark:text-emerald-100";

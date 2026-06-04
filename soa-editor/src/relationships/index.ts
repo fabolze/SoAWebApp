@@ -223,7 +223,22 @@ export function summarizeEntryRelationships(index: RelationshipIndex, schemaName
     }
   }
 
-  const relatedSchemas = new Set(["quests", "dialogues", "dialogue_nodes", "encounters", "items", "requirements", "flags", "locations"]);
+  const relatedSchemas = new Set([
+    "quests",
+    "dialogues",
+    "dialogue_nodes",
+    "encounters",
+    "items",
+    "requirements",
+    "flags",
+    "locations",
+    "location_routes",
+    "location_pois",
+    "location_encounter_tables",
+    "route_event_bindings",
+    "travel_tuning",
+    "location_creative_briefs",
+  ]);
   const relatedMap = new Map<string, RelationshipEntry>();
   outbound.forEach((ref) => {
     if (ref.targetEntry && relatedSchemas.has(ref.targetSchemaName)) relatedMap.set(`${ref.targetSchemaName}:${ref.targetId}`, ref.targetEntry);

@@ -6,7 +6,7 @@ Last reviewed: 2026-05-03
 
 SoAWebApp is a local content-authoring tool for a game project. It has a Flask/SQLite backend that stores game data, a React/Vite frontend that edits that data through JSON-schema-driven forms, and UE5 integration docs/export paths for turning the data into Unreal-friendly CSV/DataTable assets.
 
-The core entities cover gameplay, economy, world, narrative, encounters, and progression: abilities, effects, statuses, stats, attributes, character classes, talent trees/nodes, items, currencies, shops, requirements, locations, location routes, factions, lore, characters, combat profiles, interaction profiles, dialogues, quests, story arcs, timelines, events, encounters, flags, and content packs.
+The core entities cover gameplay, economy, world, narrative, encounters, and progression: abilities, effects, statuses, stats, attributes, character classes, talent trees/nodes, items, currencies, shops, requirements, locations, location routes, location POIs, location encounter tables, route event bindings, travel tuning, location creative briefs, factions, lore, characters, combat profiles, interaction profiles, dialogues, quests, story arcs, timelines, events, encounters, flags, and content packs.
 
 ## Repository Layout
 
@@ -36,6 +36,7 @@ The core entities cover gameplay, economy, world, narrative, encounters, and pro
 - `UE5_Integration/UE5_Blueprint_Integration_Guide.txt`: canonical UE structs, enums, and DataTable import checklist.
 - `UE5_Integration/UE5_Data_Relationship_Map.md`: field-level relationship and validation reference.
 - `UE5_Integration/UE5_Blueprint_Systems.md`: Blueprint subsystem ownership and runtime boundaries.
+- `UE5_Integration/World_Building_Authoring_Guide.md`: current world-building/location authoring capability assessment, limitations, and next data additions.
 - `UE5_Integration/World_Travel_System.md`: `location_routes` movement graph design.
 
 ## System Map
@@ -45,7 +46,7 @@ The core entities cover gameplay, economy, world, narrative, encounters, and pro
 - Immersive authoring: RPG-style input views for items, shops, characters, and locations. These are editing surfaces, not just inspectors.
 - Authoring Studio: offline deterministic recipes, composer, variants, bundle drafts, and fix/enrich suggestions. It creates patches or drafts; saves still go through normal CRUD endpoints.
 - CSV import/export: backend has explicit source CSVs for DB regeneration and UE CSVs for Unreal-friendly DataTable output.
-- Location graph: `locations` are nodes; `location_routes` are explicit movement edges.
+- Location graph: `locations` are hierarchy/map nodes with place kind plus optional biome ecology; `location_routes` are explicit movement edges. World-building packets add POIs, encounter placement, route events, travel tuning, and creative briefs.
 - UE integration: CSV/DataTable mirror consumed by Blueprint systems, with Real-Time Able as the canonical gameplay prototype track.
 - UE prototype current implementation shape: `BP_GameInstance_SoA` constructs a `BP_GameDataService` Blueprint Object, `BFL_SoAHelpers` exposes stateless service access, `BP_BattleCharacter` is the shared combatant base, and `BP_TargetingComponent` on `BP_PlayerController_Prototype` owns player-facing `CurrentEnemyTarget`, `CurrentAllyTarget`, and `PartyFocusTarget`.
 
@@ -104,8 +105,9 @@ Immersive authoring views are alternate input surfaces for high-use content type
 - `/author/items/new` and `/author/items/<id>` provide RPG item-card editing for identity, rarity/type, economy, effects, requirements, and stat/attribute modifiers.
 - `/author/shops/new` and `/author/shops/<id>` provide merchant-counter editing for shop identity, location/shopkeeper/currency, pricing layers, and embedded inventory rows.
 - `/author/characters/new` and `/author/characters/<id>` provide dossier editing for identity, portrait, class, faction, home location, and linked combat/interaction profile context.
-- `/author/locations/new` and `/author/locations/<id>` provide location-card editing, map coordinate placement, biome/region/level fields, encounter hooks, and route summaries.
+- `/author/locations/new` and `/author/locations/<id>` provide location-card editing, map coordinate placement, place-kind/ecology/region/level fields, encounter hooks, and route summaries.
 - `/author/locations/map` shows the location atlas with nodes and `location_routes` edges.
+- `/author/world` provides the engine-agnostic world-building workspace for hierarchy browsing, atlas review, POIs/interactables, encounter placement, route events, travel tuning, creative references, and world validation.
 
 Use Author View for normal content creation when the entity has a specialized route. Use Advanced Form when a rare technical field is missing from the immersive surface, when debugging schema behavior, or when editing a dataset without a specialized view. New-entry authoring routes such as `/author/items/new` create local drafts first; nothing is saved until the normal save action posts through the existing CRUD endpoint.
 
@@ -125,7 +127,7 @@ Adding or changing an entity usually requires synchronized edits in several plac
 
 Important naming detail: backend API paths are not always the same as schema/table names. Examples: schema `combat_profiles` uses API path `combat_profiles`; `content_packs` uses `content-packs`; `shops_inventory` uses `shop-inventory`; `dialogue_nodes` uses `dialogue-nodes`.
 
-World graph detail: `locations` are graph nodes. `location_routes` are graph edges and are exported/imported as their own table. Do not add `connected_locations` back to the `locations` schema or model.
+World graph detail: `locations` are graph nodes and can be nested through `parent_location_id`. `location_routes` are graph edges and are exported/imported as their own table. Do not add `connected_locations` back to the `locations` schema or model.
 
 ## CSV / UE Export Notes
 
@@ -145,7 +147,7 @@ UE CSV behavior:
 
 Tests in `backend/tests/test_csv_tools.py` cover row-key ordering, slug sync, uniqueness, enum token export, slugless fallbacks, and transient reference slug aliases.
 
-`location_routes` participates in CSV export/import like any other model table. Import order: `locations` first, then `requirements` if route gates are used, then `location_routes`.
+`location_routes` and the world-building tables participate in CSV export/import like any other model table. Import order: `locations` first, then `requirements` if route gates are used, then `location_routes` and `travel_tuning`; dependency-heavy world tables such as POIs, encounter tables, route event bindings, and creative briefs import after their referenced narrative/gameplay tables.
 
 ## Simulation And Authoring Helpers
 

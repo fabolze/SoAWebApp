@@ -33,9 +33,27 @@ If/when you add NPC/enemy gameplay CSVs:
 11) locations (if used by characters)
 12) requirements (if used by travel gates, items, quests, events, encounters)
 13) location_routes (after locations; after requirements if routes are gated)
-14) characters
-15) combat_profiles
-16) encounters
+14) travel_tuning (after locations/location_routes enum setup; no hard foreign keys)
+15) characters
+16) combat_profiles
+17) interaction_profiles
+18) items
+19) item_stat_modifiers
+20) item_attribute_modifiers
+21) shops
+22) shops_inventory
+23) timelines
+24) story_arcs
+25) lore_entries
+26) quests
+27) dialogues
+28) dialogue_nodes
+29) encounters
+30) events
+31) location_pois (after locations, requirements, events, dialogues, encounters, items)
+32) location_encounter_tables (after locations, requirements, encounters)
+33) route_event_bindings (after location_routes, events, requirements)
+34) location_creative_briefs (after locations)
 
 General rule for new CSV files (going forward)
 ----------------------------------------------
@@ -50,6 +68,11 @@ Quick dependency examples
 - effects depends on: statuses, stats, attributes (optional), items (optional in related_items)
 - items depends on: currencies (optional), effects (optional), stats/attributes (in modifiers)
 - location_routes depends on: locations, requirements (optional)
+- location_pois depends on: locations, requirements (optional), events (optional), dialogues (optional), encounters (optional), items (optional)
+- location_encounter_tables depends on: locations, requirements (optional), encounters in encounter_entries
+- route_event_bindings depends on: location_routes, events, requirements (optional)
+- travel_tuning depends on: route type, place kind, and biome enum values only
+- location_creative_briefs depends on: locations
 - combat_profiles depends on: characters, stats, abilities, items/currencies/factions/quests (optional)
 - encounters depends on: characters (+ combat_profiles for Combat context)
 

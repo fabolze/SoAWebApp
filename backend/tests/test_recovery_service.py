@@ -12,6 +12,35 @@ def test_ordered_tables_uses_canonical_order_then_alphabetical_unknowns():
     assert unordered == ["custom_a", "custom_b"]
 
 
+def test_world_building_recovery_tables_follow_dependencies():
+    ordered, _unordered = recovery.ordered_tables({
+        "locations",
+        "location_routes",
+        "items",
+        "dialogues",
+        "encounters",
+        "events",
+        "location_pois",
+        "location_encounter_tables",
+        "route_event_bindings",
+        "travel_tuning",
+        "location_creative_briefs",
+    })
+
+    position = {table: index for index, table in enumerate(ordered)}
+
+    assert position["location_routes"] > position["locations"]
+    assert position["travel_tuning"] > position["location_routes"]
+    assert position["location_pois"] > position["items"]
+    assert position["location_pois"] > position["dialogues"]
+    assert position["location_pois"] > position["encounters"]
+    assert position["location_pois"] > position["events"]
+    assert position["location_encounter_tables"] > position["encounters"]
+    assert position["route_event_bindings"] > position["location_routes"]
+    assert position["route_event_bindings"] > position["events"]
+    assert position["location_creative_briefs"] > position["locations"]
+
+
 def test_collect_csv_paths_normalizes_seed_and_source_suffixes(tmp_path: Path):
     (tmp_path / "items_seed.csv").write_text("id\n", encoding="utf-8")
     (tmp_path / "stats.source.csv").write_text("id\n", encoding="utf-8")

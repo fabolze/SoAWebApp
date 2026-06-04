@@ -1,5 +1,5 @@
 from backend.app.routes.base_route import BaseRoute
-from backend.app.models.m_locations import Location, Biome, BiomeModifier
+from backend.app.models.m_locations import Biome, BiomeInheritance, BiomeModifier, Location, LocationType, PlaceKind
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -14,23 +14,51 @@ class LocationRoute(BaseRoute):
         )
         
     def get_required_fields(self) -> List[str]:
-        return ["id", "slug", "name", "biome"]
+        return ["id", "slug", "name"]
         
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
         return data["id"]
         
     def process_input_data(self, db_session: Session, location: Location, data: Dict[str, Any]) -> None:
+        data = dict(data)
+        if data.get("biome") == "":
+            data["biome"] = None
+        if data.get("biome_modifier") == "":
+            data["biome_modifier"] = None
+        if data.get("location_type") == "":
+            data["location_type"] = LocationType.Zone
+        if data.get("place_kind") == "":
+            data["place_kind"] = None
+        if data.get("biome_inheritance") == "":
+            data["biome_inheritance"] = None
+        data["parent_location_id"] = _none_if_blank(data.get("parent_location_id"))
+
         # Validate enums
         self.validate_enums(data, {
             "biome": Biome,
-            "biome_modifier": BiomeModifier
+            "biome_modifier": BiomeModifier,
+            "location_type": LocationType,
+            "place_kind": PlaceKind,
+            "biome_inheritance": BiomeInheritance,
         })
+        self.validate_relationships(db_session, data, {"parent_location_id": Location})
         
         # Required fields
         location.slug = data["slug"]
         location.name = data["name"]
-        location.biome = data["biome"]  # Already converted to enum
+        location.biome = data.get("biome")
         location.biome_modifier = data.get("biome_modifier")
+        location.place_kind = data.get("place_kind")
+        location.environment_tags = data.get("environment_tags", [])
+        location.biome_inheritance = data.get("biome_inheritance")
+        parent_location_id = data.get("parent_location_id")
+        if parent_location_id == location.id:
+            raise ValueError("parent_location_id cannot reference the same location")
+        location.parent_location_id = parent_location_id
+        location.location_type = data.get("location_type", LocationType.Zone)
+        location.sort_order = _integer_or_default(data.get("sort_order", 0), "sort_order")
+        location.is_playable_space = data.get("is_playable_space") if data.get("is_playable_space") is not None else True
+        location.is_world_map_node = data.get("is_world_map_node") if data.get("is_world_map_node") is not None else True
         
         # Optional fields
         location.description = data.get("description")
@@ -91,5 +119,20 @@ class LocationRoute(BaseRoute):
 
 # Create the route instance
 bp = LocationRoute().bp
+
+
+def _integer_or_default(value: Any, field_name: str) -> int:
+    if value in (None, ""):
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be an integer") from exc
+
+
+def _none_if_blank(value: Any) -> Any:
+    if isinstance(value, str) and value.strip() == "":
+        return None
+    return value
 
 

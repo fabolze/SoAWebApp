@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Location Creative Brief",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "ui": { "widget": "hidden" }, "description": "Stable creative brief identifier." },
+    "slug": { "type": "string", "ui": { "widget": "text", "label": "ID/Slug" }, "description": "Readable creative brief identifier." },
+    "location_id": { "type": "string", "description": "Location this creative brief belongs to.", "ui": { "widget": "reference", "reference": "locations", "label": "Location" } },
+    "mood": { "type": "string", "description": "Mood or emotional target.", "ui": { "widget": "textarea", "label": "Mood" } },
+    "visual_ideas": { "type": "string", "description": "Visual ideas and composition notes.", "ui": { "widget": "textarea", "label": "Visual Ideas" } },
+    "concept_refs": { "type": "array", "description": "Concept or mood reference links/labels.", "items": { "type": "string" }, "ui": { "widget": "tags", "label": "Concept Refs" } },
+    "ambience_ideas": { "type": "string", "description": "Ambient sound or atmosphere ideas.", "ui": { "widget": "textarea", "label": "Ambience Ideas" } },
+    "music_state": { "type": "string", "description": "Suggested music state or mood.", "ui": { "widget": "text", "label": "Music State" } },
+    "vfx_ideas": { "type": "string", "description": "VFX ideas.", "ui": { "widget": "textarea", "label": "VFX Ideas" } },
+    "asset_ideas": { "type": "string", "description": "Asset ideas or kit notes.", "ui": { "widget": "textarea", "label": "Asset Ideas" } },
+    "landmarks": { "type": "array", "description": "Important landmarks in this location.", "items": { "type": "string" }, "ui": { "widget": "tags", "label": "Landmarks" } },
+    "story_notes": { "type": "string", "description": "Narrative or lore notes.", "ui": { "widget": "textarea", "label": "Story Notes" } },
+    "tags": { "type": "array", "description": "Tags for filtering.", "items": { "type": "string" }, "ui": { "widget": "tags", "label": "Tags" } }
+  },
+  "required": ["id", "slug", "location_id"]
+}

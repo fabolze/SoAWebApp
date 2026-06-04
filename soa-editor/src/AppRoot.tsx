@@ -21,11 +21,15 @@ import IndexPageEditorPage from "./pages/IndexPageEditor";
 import InteractionProfilesEditorPage from "./pages/InteractionProfilesEditor";
 import ItemsEditorPage from "./pages/ItemsEditor";
 import ItemInspectorPage from "./pages/ItemInspectorPage";
+import LocationCreativeBriefsEditorPage from "./pages/LocationCreativeBriefsEditor";
+import LocationEncounterTablesEditorPage from "./pages/LocationEncounterTablesEditor";
+import LocationPoisEditorPage from "./pages/LocationPoisEditor";
 import LocationRoutesEditorPage from "./pages/LocationRoutesEditor";
 import LocationsEditorPage from "./pages/LocationsEditor";
 import LoreEntriesEditorPage from "./pages/LoreEntriesEditor";
 import QuestsEditorPage from "./pages/QuestsEditor";
 import RequirementsEditorPage from "./pages/RequirementsEditor";
+import RouteEventBindingsEditorPage from "./pages/RouteEventBindingsEditor";
 import SettingsPage from "./pages/SettingsPage";
 import ShopsEditorPage from "./pages/ShopsEditor";
 import ShopsInventoryEditorPage from "./pages/ShopsInventoryEditor";
@@ -37,6 +41,8 @@ import TalentNodeLinksEditorPage from "./pages/TalentNodeLinksEditor";
 import TalentNodesEditorPage from "./pages/TalentNodesEditor";
 import TalentTreesEditorPage from "./pages/TalentTreesEditor";
 import TimelinesEditorPage from "./pages/TimelinesEditor";
+import TravelTuningEditorPage from "./pages/TravelTuningEditor";
+import WorldBuilderPage from "./pages/WorldBuilderPage";
 import {
   CharacterAuthoringPage,
   ItemAuthoringPage,
@@ -97,19 +103,25 @@ export default function AppRoot() {
               <Route path="author/locations/new" element={<LocationAuthoringPage />} />
               <Route path="author/locations/map" element={<LocationMapAuthoringPage />} />
               <Route path="author/locations/:id" element={<LocationAuthoringPage />} />
+              <Route path="author/world" element={<WorldBuilderPage />} />
               <Route path="currencies" element={<CurrenciesEditorPage />} />
               <Route path="interaction-profiles" element={<InteractionProfilesEditorPage />} />
+              <Route path="location-creative-briefs" element={<LocationCreativeBriefsEditorPage />} />
+              <Route path="location-encounter-tables" element={<LocationEncounterTablesEditorPage />} />
+              <Route path="location-pois" element={<LocationPoisEditorPage />} />
               <Route path="location-routes" element={<LocationRoutesEditorPage />} />
               <Route path="locations" element={<LocationsEditorPage />} />
               <Route path="lore-entries" element={<LoreEntriesEditorPage />} />
               <Route path="quests" element={<QuestsEditorPage />} />
               <Route path="requirements" element={<RequirementsEditorPage />} />
+              <Route path="route-event-bindings" element={<RouteEventBindingsEditorPage />} />
               <Route path="shops" element={<ShopsEditorPage />} />
               <Route path="shops-inventory" element={<ShopsInventoryEditorPage />} />
               <Route path="stats" element={<StatsEditorPage />} />
               <Route path="statuses" element={<StatusesEditorPage />} />
               <Route path="story-arcs" element={<StoryArcsEditorPage />} />
               <Route path="timelines" element={<TimelinesEditorPage />} />
+              <Route path="travel-tuning" element={<TravelTuningEditorPage />} />
               <Route path="talent-trees" element={<TalentTreesEditorPage />} />
               <Route path="talent-nodes" element={<TalentNodesEditorPage />} />
               <Route path="talent-node-links" element={<TalentNodeLinksEditorPage />} />

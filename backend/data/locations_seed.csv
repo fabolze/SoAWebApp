@@ -1,1 +1,1 @@
-Name,id,slug,name,description,biome,biome_modifier,region,level_range,coordinates,image_path,encounters,is_safe_zone,is_fast_travel_point,has_respawn_point,tags
+Name,id,slug,name,description,biome,biome_modifier,region,place_kind,environment_tags,biome_inheritance,parent_location_id,location_type,sort_order,is_playable_space,is_world_map_node,level_range,coordinates,image_path,encounters,is_safe_zone,is_fast_travel_point,has_respawn_point,tags

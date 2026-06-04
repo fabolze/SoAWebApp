@@ -105,6 +105,12 @@ def _upgrade_sqlite_schema(active_engine) -> None:
     try:
         inspector = inspect(active_engine)
         table_names = set(inspector.get_table_names())
+        if "locations" in table_names:
+            biome_column = next((column for column in inspector.get_columns("locations") if column["name"] == "biome"), None)
+            if biome_column and not biome_column.get("nullable", True):
+                _rebuild_locations_table_for_nullable_biome(active_engine)
+                inspector = inspect(active_engine)
+                table_names = set(inspector.get_table_names())
         with active_engine.begin() as connection:
             if "abilities" in table_names:
                 ability_columns = {column["name"] for column in inspector.get_columns("abilities")}
@@ -122,9 +128,84 @@ def _upgrade_sqlite_schema(active_engine) -> None:
                 for column_name, column_type in additive_effect_columns.items():
                     if column_name not in effect_columns:
                         connection.execute(text(f"ALTER TABLE effects ADD COLUMN {column_name} {column_type}"))
+
+            if "locations" in table_names:
+                location_columns = {column["name"] for column in inspector.get_columns("locations")}
+                additive_location_columns = {
+                    "parent_location_id": "VARCHAR",
+                    "location_type": "VARCHAR",
+                    "place_kind": "VARCHAR",
+                    "environment_tags": "JSON",
+                    "biome_inheritance": "VARCHAR",
+                    "sort_order": "INTEGER",
+                    "is_playable_space": "BOOLEAN",
+                    "is_world_map_node": "BOOLEAN",
+                }
+                for column_name, column_type in additive_location_columns.items():
+                    if column_name not in location_columns:
+                        connection.execute(text(f"ALTER TABLE locations ADD COLUMN {column_name} {column_type}"))
+                connection.execute(text("UPDATE locations SET location_type = 'Zone' WHERE location_type IS NULL"))
+                connection.execute(text("UPDATE locations SET sort_order = 0 WHERE sort_order IS NULL"))
+                connection.execute(text("UPDATE locations SET is_playable_space = 1 WHERE is_playable_space IS NULL"))
+                connection.execute(text("UPDATE locations SET is_world_map_node = 1 WHERE is_world_map_node IS NULL"))
+
+            if "travel_tuning" in table_names:
+                tuning_columns = {column["name"] for column in inspector.get_columns("travel_tuning")}
+                if "place_kind" not in tuning_columns:
+                    connection.execute(text("ALTER TABLE travel_tuning ADD COLUMN place_kind VARCHAR"))
     except Exception:
         # Keep application startup resilient; model metadata handles fresh databases.
         pass
+
+
+def _rebuild_locations_table_for_nullable_biome(active_engine) -> None:
+    """Rebuild legacy SQLite locations table so biome can become nullable."""
+    with active_engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        connection.execute(text("DROP TABLE IF EXISTS locations_new"))
+        connection.execute(text("""
+            CREATE TABLE locations_new (
+                id VARCHAR NOT NULL PRIMARY KEY,
+                slug VARCHAR NOT NULL UNIQUE,
+                name VARCHAR NOT NULL,
+                description TEXT,
+                biome VARCHAR,
+                biome_modifier VARCHAR,
+                region VARCHAR,
+                place_kind VARCHAR,
+                environment_tags JSON,
+                biome_inheritance VARCHAR,
+                parent_location_id VARCHAR REFERENCES locations(id),
+                location_type VARCHAR,
+                sort_order INTEGER,
+                is_playable_space BOOLEAN,
+                is_world_map_node BOOLEAN,
+                level_range JSON,
+                coordinates JSON,
+                image_path VARCHAR,
+                encounters JSON,
+                is_safe_zone BOOLEAN,
+                is_fast_travel_point BOOLEAN,
+                has_respawn_point BOOLEAN,
+                tags JSON
+            )
+        """))
+        source_columns = [
+            row[1]
+            for row in connection.exec_driver_sql("PRAGMA table_info(locations)").fetchall()
+            if row[1] != "id"
+        ]
+        target_columns = [
+            row[1]
+            for row in connection.exec_driver_sql("PRAGMA table_info(locations_new)").fetchall()
+            if row[1] != "id"
+        ]
+        common_columns = ["id"] + [column for column in target_columns if column in source_columns]
+        column_list = ", ".join(common_columns)
+        connection.execute(text(f"INSERT INTO locations_new ({column_list}) SELECT {column_list} FROM locations"))
+        connection.execute(text("DROP TABLE locations"))
+        connection.execute(text("ALTER TABLE locations_new RENAME TO locations"))
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
 
 
 def get_db_session():

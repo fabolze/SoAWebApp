@@ -171,17 +171,30 @@ export function SelectBadgeGroup({
   value,
   options,
   onChange,
+  allowUnset = false,
+  unsetLabel = "Unset",
 }: {
   label: string;
   value: unknown;
   options: string[];
   onChange: (value: string) => void;
+  allowUnset?: boolean;
+  unsetLabel?: string;
 }) {
   const current = displayText(value);
   return (
     <div>
       <FieldCaption label={label} changed={false} />
       <div className="flex flex-wrap gap-1">
+        {allowUnset && (
+          <button
+            type="button"
+            className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${current === "" ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white text-slate-700 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"}`}
+            onClick={() => onChange("")}
+          >
+            {unsetLabel}
+          </button>
+        )}
         {options.map((option) => {
           const active = current === option;
           return (
@@ -203,9 +216,11 @@ export function SelectBadgeGroup({
 export function EditableTagList({
   tags,
   onChange,
+  label = "Tags",
 }: {
   tags: unknown;
   onChange: (tags: string[]) => void;
+  label?: string;
 }) {
   const values = Array.isArray(tags) ? tags.map((tag) => displayText(tag)).filter(Boolean) : [];
   const [draft, setDraft] = useState("");
@@ -217,7 +232,7 @@ export function EditableTagList({
   };
   return (
     <div>
-      <FieldCaption label="Tags" changed={false} />
+      <FieldCaption label={label} changed={false} />
       <div className="flex flex-wrap gap-1">
         {values.map((tag) => (
           <button

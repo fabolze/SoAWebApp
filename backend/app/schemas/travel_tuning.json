@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Travel Tuning",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "ui": { "widget": "hidden" }, "description": "Stable tuning identifier." },
+    "slug": { "type": "string", "ui": { "widget": "text", "label": "ID/Slug" }, "description": "Readable tuning identifier." },
+    "name": { "type": "string", "description": "Tuning row name.", "ui": { "widget": "text", "label": "Name" } },
+    "description": { "type": "string", "description": "What this tuning row represents.", "ui": { "widget": "textarea", "label": "Description" } },
+    "route_type": {
+      "type": "string",
+      "description": "Optional route type this tuning applies to.",
+      "enum": ["Road", "Trail", "CavePassage", "Portal", "ShipRoute", "FlightPath", "DungeonDoor", "SecretPath"],
+      "ui": { "widget": "select", "label": "Route Type", "options": ["Road", "Trail", "CavePassage", "Portal", "ShipRoute", "FlightPath", "DungeonDoor", "SecretPath"] }
+    },
+    "place_kind": {
+      "type": "string",
+      "description": "Optional kind of place this tuning applies to.",
+      "enum": ["Wilderness", "Settlement", "Dungeon", "Interior", "Road", "Waterway", "Landmark", "AbstractRegion", "Other"],
+      "ui": { "widget": "select", "label": "Place Kind", "options": ["Wilderness", "Settlement", "Dungeon", "Interior", "Road", "Waterway", "Landmark", "AbstractRegion", "Other"] }
+    },
+    "biome": {
+      "type": "string",
+      "description": "Optional biome this tuning applies to.",
+      "enum": ["Plains", "Forest", "Cave", "Mountain", "Desert", "Swamp", "Coast", "Tundra", "City", "Ruins", "Fortress", "Sky Isles", "Cloud Sea", "Crystal Caverns", "Magma Veins", "Fungal Undergrowth", "Abyss"],
+      "ui": { "widget": "select", "label": "Biome", "options": ["Plains", "Forest", "Cave", "Mountain", "Desert", "Swamp", "Coast", "Tundra", "City", "Ruins", "Fortress", "Sky Isles", "Cloud Sea", "Crystal Caverns", "Magma Veins", "Fungal Undergrowth", "Abyss"] }
+    },
+    "encounter_chance": { "type": "number", "description": "Chance from 0 to 100.", "ui": { "widget": "number", "label": "Encounter Chance" } },
+    "travel_time_multiplier": { "type": "number", "description": "Travel time multiplier.", "ui": { "widget": "number", "label": "Time Multiplier" } },
+    "travel_cost_multiplier": { "type": "number", "description": "Travel cost multiplier.", "ui": { "widget": "number", "label": "Cost Multiplier" } },
+    "safe_zone_multiplier": { "type": "number", "description": "Safe-zone modifier.", "ui": { "widget": "number", "label": "Safe Zone Multiplier" } },
+    "fatigue_cost": { "type": "number", "description": "Abstract fatigue cost.", "ui": { "widget": "number", "label": "Fatigue Cost" } },
+    "risk_score": { "type": "number", "description": "Abstract route risk score.", "ui": { "widget": "number", "label": "Risk Score" } },
+    "tags": { "type": "array", "description": "Tags for filtering.", "items": { "type": "string" }, "ui": { "widget": "tags", "label": "Tags" } }
+  },
+  "required": ["id", "slug", "name"]
+}

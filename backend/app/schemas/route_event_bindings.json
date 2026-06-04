@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Route Event Binding",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "ui": { "widget": "hidden" }, "description": "Stable binding identifier." },
+    "slug": { "type": "string", "ui": { "widget": "text", "label": "ID/Slug" }, "description": "Readable binding identifier." },
+    "route_id": { "type": "string", "description": "Route this event can trigger on.", "ui": { "widget": "reference", "reference": "location_routes", "label": "Route" } },
+    "event_id": { "type": "string", "description": "Event triggered by this route binding.", "ui": { "widget": "reference", "reference": "events", "label": "Event" } },
+    "trigger_mode": {
+      "type": "string",
+      "description": "When this route event should trigger.",
+      "enum": ["Always", "FirstTime", "RandomChance", "RequirementMet", "StoryForced"],
+      "ui": { "widget": "select", "label": "Trigger Mode", "options": ["Always", "FirstTime", "RandomChance", "RequirementMet", "StoryForced"] }
+    },
+    "chance": { "type": "number", "description": "Trigger chance from 0 to 100.", "ui": { "widget": "number", "label": "Chance" } },
+    "requirements_id": { "type": "string", "description": "Optional requirement gate.", "ui": { "widget": "reference", "reference": "requirements", "label": "Requirements" } },
+    "priority": { "type": "integer", "description": "Higher priority bindings can be resolved first.", "ui": { "widget": "number", "label": "Priority" } },
+    "cooldown": { "type": "number", "description": "Abstract cooldown before this event can repeat.", "ui": { "widget": "number", "label": "Cooldown" } },
+    "description": { "type": "string", "description": "Designer notes for this binding.", "ui": { "widget": "textarea", "label": "Description" } },
+    "tags": { "type": "array", "description": "Tags for filtering.", "items": { "type": "string" }, "ui": { "widget": "tags", "label": "Tags" } }
+  },
+  "required": ["id", "slug", "route_id", "event_id", "trigger_mode"]
+}

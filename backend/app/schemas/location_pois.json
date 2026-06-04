@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Location POI",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "ui": { "widget": "hidden" }, "description": "Stable POI identifier." },
+    "slug": { "type": "string", "ui": { "widget": "text", "label": "ID/Slug" }, "description": "Readable POI identifier." },
+    "location_id": { "type": "string", "description": "Location that owns this POI.", "ui": { "widget": "reference", "reference": "locations", "label": "Location" } },
+    "name": { "type": "string", "description": "POI display name.", "ui": { "widget": "text", "label": "Name" } },
+    "description": { "type": "string", "description": "Designer/player-facing POI description.", "ui": { "widget": "textarea", "label": "Description" } },
+    "poi_type": {
+      "type": "string",
+      "description": "Type of point of interest or interactable.",
+      "enum": ["Door", "Shrine", "LootNode", "QuestMarker", "NPCPlacement", "DiscoveryPoint", "RestPoint", "ResourceNode", "Hazard", "Interactable", "Other"],
+      "ui": { "widget": "select", "label": "POI Type", "options": ["Door", "Shrine", "LootNode", "QuestMarker", "NPCPlacement", "DiscoveryPoint", "RestPoint", "ResourceNode", "Hazard", "Interactable", "Other"] }
+    },
+    "requirements_id": { "type": "string", "description": "Optional requirement gate.", "ui": { "widget": "reference", "reference": "requirements", "label": "Requirements" } },
+    "event_id": { "type": "string", "description": "Optional event triggered by this POI.", "ui": { "widget": "reference", "reference": "events", "label": "Event" } },
+    "dialogue_id": { "type": "string", "description": "Optional dialogue linked to this POI.", "ui": { "widget": "reference", "reference": "dialogues", "label": "Dialogue" } },
+    "encounter_id": { "type": "string", "description": "Optional encounter linked to this POI.", "ui": { "widget": "reference", "reference": "encounters", "label": "Encounter" } },
+    "item_id": { "type": "string", "description": "Optional item linked to this POI.", "ui": { "widget": "reference", "reference": "items", "label": "Item" } },
+    "coordinates": {
+      "type": "object",
+      "description": "Abstract local placement coordinates.",
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "placement_notes": { "type": "string", "description": "Authoring notes about where and how this POI should be placed.", "ui": { "widget": "textarea", "label": "Placement Notes" } },
+    "is_discoverable": { "type": "boolean", "description": "Whether the player can discover this POI.", "ui": { "widget": "checkbox", "label": "Discoverable" } },
+    "discovery_hint": { "type": "string", "description": "Hint or condition for discovering this POI.", "ui": { "widget": "textarea", "label": "Discovery Hint" } },
+    "tags": { "type": "array", "description": "Tags for filtering.", "items": { "type": "string" }, "ui": { "widget": "tags", "label": "Tags" } }
+  },
+  "required": ["id", "slug", "location_id", "name", "poi_type"]
+}

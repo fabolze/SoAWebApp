@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Location Encounter Table",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "ui": { "widget": "hidden" }, "description": "Stable encounter table identifier." },
+    "slug": { "type": "string", "ui": { "widget": "text", "label": "ID/Slug" }, "description": "Readable encounter table identifier." },
+    "location_id": { "type": "string", "description": "Location this encounter table belongs to.", "ui": { "widget": "reference", "reference": "locations", "label": "Location" } },
+    "name": { "type": "string", "description": "Encounter table name.", "ui": { "widget": "text", "label": "Name" } },
+    "description": { "type": "string", "description": "Encounter placement intent.", "ui": { "widget": "textarea", "label": "Description" } },
+    "spawn_rules": { "type": "string", "description": "Rules for when and how this table spawns encounters.", "ui": { "widget": "textarea", "label": "Spawn Rules" } },
+    "environmental_modifiers": { "type": "array", "description": "Environmental modifier notes or tags.", "items": { "type": "string" }, "ui": { "widget": "tags", "label": "Environmental Modifiers" } },
+    "requirements_id": { "type": "string", "description": "Optional requirement gate.", "ui": { "widget": "reference", "reference": "requirements", "label": "Requirements" } },
+    "encounter_entries": {
+      "type": "array",
+      "description": "Weighted encounter rows for this location.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "encounter_id": { "type": "string", "ui": { "widget": "reference", "reference": "encounters", "label": "Encounter" }, "description": "Encounter that can spawn." },
+          "weight": { "type": "number", "ui": { "widget": "number", "label": "Weight" }, "description": "Relative selection weight." },
+          "spawn_group": { "type": "string", "ui": { "widget": "text", "label": "Spawn Group" }, "description": "Named spawn group or band." },
+          "min_count": { "type": "integer", "ui": { "widget": "number", "label": "Min Count" } },
+          "max_count": { "type": "integer", "ui": { "widget": "number", "label": "Max Count" } },
+          "spawn_notes": { "type": "string", "ui": { "widget": "textarea", "label": "Spawn Notes" } }
+        },
+        "required": ["encounter_id", "weight"]
+      }
+    },
+    "tags": { "type": "array", "description": "Tags for filtering.", "items": { "type": "string" }, "ui": { "widget": "tags", "label": "Tags" } }
+  },
+  "required": ["id", "slug", "location_id", "name"]
+}

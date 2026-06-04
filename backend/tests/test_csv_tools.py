@@ -2,12 +2,17 @@ from backend.app.models.m_abilities_links import AbilityEffectLink
 from backend.app.models.m_abilities import Ability
 from backend.app.models.m_attributes import Attribute
 from backend.app.models.m_items import Item
+from backend.app.models.m_location_creative_briefs import LocationCreativeBrief
+from backend.app.models.m_location_encounter_tables import LocationEncounterTable
+from backend.app.models.m_location_pois import LocationPoi
 from backend.app.models.m_location_routes import LocationRoute
 from backend.app.models.m_locations import Location
+from backend.app.models.m_route_event_bindings import RouteEventBinding
 from backend.app.models.m_shop_inventory import ShopInventory
 from backend.app.models.m_shops import Shop
 from backend.app.models.m_stats import Stat
 from backend.app.models.m_story_arcs import StoryArc
+from backend.app.models.m_travel_tuning import TravelTuning
 from backend.app.utils import csv_tools
 from backend.app.routes import r_export
 from flask import Flask
@@ -345,8 +350,13 @@ def test_source_export_does_not_sync_slug_to_row_key(monkeypatch):
 
 def test_ue_export_includes_required_world_and_economy_columns():
     required_by_table = {
-        "locations": (Location, {"id", "slug", "name", "biome", "region", "level_range", "coordinates", "image_path", "encounters"}),
+        "locations": (Location, {"id", "slug", "name", "biome", "place_kind", "environment_tags", "biome_inheritance", "region", "level_range", "coordinates", "image_path", "encounters"}),
         "location_routes": (LocationRoute, {"id", "slug", "from_location_id", "to_location_id", "route_type", "travel_cost", "travel_time", "requirements_id"}),
+        "location_pois": (LocationPoi, {"id", "slug", "location_id", "name", "poi_type", "event_id", "coordinates"}),
+        "location_encounter_tables": (LocationEncounterTable, {"id", "slug", "location_id", "name", "encounter_entries", "spawn_rules"}),
+        "route_event_bindings": (RouteEventBinding, {"id", "slug", "route_id", "event_id", "trigger_mode", "chance"}),
+        "travel_tuning": (TravelTuning, {"id", "slug", "name", "route_type", "place_kind", "biome", "encounter_chance"}),
+        "location_creative_briefs": (LocationCreativeBrief, {"id", "slug", "location_id", "mood", "concept_refs", "music_state"}),
         "shops": (Shop, {"id", "slug", "name", "currency_id", "location_id", "character_id", "requirements_id", "price_modifiers"}),
         "shops_inventory": (ShopInventory, {"id", "slug", "shop_id", "item_id", "stock", "currency_id", "requirements_id"}),
         "items": (Item, {"id", "slug", "name", "type", "base_price", "base_currency_id", "effects", "requirements_id", "icon_path"}),

@@ -78,7 +78,7 @@
           "Abyss"
         ]
       },
-      "description": "Environmental type or region category for this location."
+      "description": "Optional ecology, spawning, travel, or ambience layer for this location. Use place_kind for what the location actually is."
     },
     "biome_modifier": {
       "type": "string",
@@ -108,6 +108,126 @@
       "ui": {
         "widget": "text",
         "label": "Region"
+      }
+    },
+    "place_kind": {
+      "type": "string",
+      "description": "What kind of place this location is, independent from ecology or biome.",
+      "enum": [
+        "Wilderness",
+        "Settlement",
+        "Dungeon",
+        "Interior",
+        "Road",
+        "Waterway",
+        "Landmark",
+        "AbstractRegion",
+        "Other"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Place Kind",
+        "options": [
+          "Wilderness",
+          "Settlement",
+          "Dungeon",
+          "Interior",
+          "Road",
+          "Waterway",
+          "Landmark",
+          "AbstractRegion",
+          "Other"
+        ]
+      }
+    },
+    "environment_tags": {
+      "type": "array",
+      "description": "World-design descriptors such as village, river, sewer, market, underground, sacred, or flooded.",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Environment Tags"
+      }
+    },
+    "biome_inheritance": {
+      "type": "string",
+      "description": "How this location resolves its ecology biome. Leave unset for automatic behavior based on location type.",
+      "enum": [
+        "Own",
+        "InheritFromParent",
+        "None",
+        "Mixed"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Biome Inheritance",
+        "options": [
+          "Own",
+          "InheritFromParent",
+          "None",
+          "Mixed"
+        ]
+      }
+    },
+    "parent_location_id": {
+      "type": "string",
+      "description": "Optional parent location used for world hierarchy.",
+      "ui": {
+        "widget": "reference",
+        "reference": "locations",
+        "label": "Parent Location"
+      }
+    },
+    "location_type": {
+      "type": "string",
+      "description": "World-building hierarchy type for this location.",
+      "enum": [
+        "World",
+        "Continent",
+        "Region",
+        "Zone",
+        "Subzone",
+        "Room",
+        "Interior"
+      ],
+      "ui": {
+        "widget": "select",
+        "label": "Location Type",
+        "options": [
+          "World",
+          "Continent",
+          "Region",
+          "Zone",
+          "Subzone",
+          "Room",
+          "Interior"
+        ]
+      }
+    },
+    "sort_order": {
+      "type": "integer",
+      "description": "Ordering value inside the parent hierarchy.",
+      "ui": {
+        "widget": "number",
+        "label": "Sort Order"
+      }
+    },
+    "is_playable_space": {
+      "type": "boolean",
+      "description": "Whether this location represents a playable space.",
+      "ui": {
+        "widget": "checkbox",
+        "label": "Playable Space"
+      }
+    },
+    "is_world_map_node": {
+      "type": "boolean",
+      "description": "Whether this location should appear as a world-map node.",
+      "ui": {
+        "widget": "checkbox",
+        "label": "World Map Node"
       }
     },
     "level_range": {
@@ -197,7 +317,6 @@
   "required": [
     "id",
     "slug",
-    "name",
-    "biome"
+    "name"
   ]
 }

@@ -10,6 +10,7 @@ This repository contains a Flask backend and a React frontend for local game-con
 - `UE5_Integration/UE5_Prototype_Step_By_Step.md`: concrete Real-Time Able build sequence, including the current restart checklist and detailed Phase 2-4 Blueprint steps.
 - `UE5_Integration/UE5_Blueprint_Integration_Guide.txt`: canonical UE structs, enums, and DataTable import checklist.
 - `UE5_Integration/UE5_Data_Relationship_Map.md`: field-level relationships and import validation reference.
+- `UE5_Integration/World_Building_Authoring_Guide.md`: engine-agnostic world-building authoring capabilities, validation, CSV handoff, and remaining limits.
 - `UE5_Integration/World_Travel_System.md`: location route graph and travel system design.
 
 Current UE prototype implementation path: follow `UE5_Integration/UE5_Prototype_Step_By_Step.md`, especially the "Returning After A Long Break" checklist and "What To Do First" section. The immediate Blueprint sequence is `BP_GameDataService` helper access, `BP_BattleCharacter`, manual `BP_EnemyCharacter`, arena reset, and then player/controller targeting with `CurrentEnemyTarget`, `CurrentAllyTarget`, and `PartyFocusTarget`.
@@ -83,6 +84,7 @@ Use these Author Views when creating normal content. They are input surfaces tha
 - `/<dataset>`: generic schema editor for a dataset, for example `/items`, `/shops`, or `/location-routes`.
 - `/<dataset>?selected=<id>`: opens a generic editor with a specific entry selected when available.
 - `/author/items/new`, `/author/shops/new`, `/author/characters/new`, `/author/locations/new`: create local drafts in immersive authoring mode.
+- `/author/world`: world-building workspace for hierarchy, atlas, POIs/interactables, encounter placement, route events, travel tuning, creative briefs, and validation.
 - `/simulation`: local heuristic simulation sandbox.
 
 ## Validation

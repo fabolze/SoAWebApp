@@ -222,8 +222,14 @@ const DEFAULT_GROUPS: SidebarGroup[] = [
   {
     label: "World",
     items: [
+      { to: "/author/world", label: "World Builder", icon: MapIcon },
       { to: "/locations", label: "Locations", icon: MapIcon },
       { to: "/location-routes", label: "Location Routes", icon: MapIcon },
+      { to: "/location-pois", label: "Location POIs", icon: MapIcon },
+      { to: "/location-encounter-tables", label: "Encounter Tables", icon: ClipboardDocumentListIcon },
+      { to: "/route-event-bindings", label: "Route Events", icon: ClipboardDocumentListIcon },
+      { to: "/travel-tuning", label: "Travel Tuning", icon: ChartBarIcon },
+      { to: "/location-creative-briefs", label: "Creative Briefs", icon: SparklesIcon },
       { to: "/factions", label: "Factions", icon: UserGroupIcon },
       { to: "/lore-entries", label: "Lore Entries", icon: BookOpenIcon },
       { to: "/characters", label: "Characters", icon: UsersIcon },

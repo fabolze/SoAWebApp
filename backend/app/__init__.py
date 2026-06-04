@@ -24,6 +24,11 @@ from backend.app.routes.r_flags import bp as flags_bp
 from backend.app.routes.r_items import bp as items_bp
 from backend.app.routes.r_location_routes import bp as location_routes_bp
 from backend.app.routes.r_locations import bp as locations_bp
+from backend.app.routes.r_location_pois import bp as location_pois_bp
+from backend.app.routes.r_location_encounter_tables import bp as location_encounter_tables_bp
+from backend.app.routes.r_route_event_bindings import bp as route_event_bindings_bp
+from backend.app.routes.r_travel_tuning import bp as travel_tuning_bp
+from backend.app.routes.r_location_creative_briefs import bp as location_creative_briefs_bp
 from backend.app.routes.r_lore_entries import bp as lore_entries_bp
 from backend.app.routes.r_quests import bp as quests_bp
 from backend.app.routes.r_requirements import bp as requirements_bp
@@ -43,6 +48,7 @@ from backend.app.routes.r_authoring import bp as authoring_bp
 from backend.app.routes.r_ui_items import bp as ui_items_bp
 from backend.app.routes.r_ui_characters import bp as ui_characters_bp
 from backend.app.routes.r_ui_location_graph import bp as ui_location_graph_bp
+from backend.app.routes.r_ui_world_builder import bp as ui_world_builder_bp
 from backend.app.routes.r_recovery import bp as recovery_bp
 from backend.app.services.recovery import run_startup_recovery
 
@@ -90,6 +96,11 @@ def create_app(startup_recovery: bool = True) -> Flask:
         items_bp,
         location_routes_bp,
         locations_bp,
+        location_pois_bp,
+        location_encounter_tables_bp,
+        route_event_bindings_bp,
+        travel_tuning_bp,
+        location_creative_briefs_bp,
         lore_entries_bp,
         quests_bp,
         requirements_bp,
@@ -109,6 +120,7 @@ def create_app(startup_recovery: bool = True) -> Flask:
         ui_items_bp,
         ui_characters_bp,
         ui_location_graph_bp,
+        ui_world_builder_bp,
         recovery_bp
     ]
     

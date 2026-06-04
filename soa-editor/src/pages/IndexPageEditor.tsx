@@ -78,10 +78,16 @@ const pageGroups: PageGroup[] = [
   },
   {
     label: 'World',
-    description: 'Places, people, factions, and reusable NPC behavior definitions.',
+    description: 'World hierarchy, locations, travel, POIs, encounters, creative briefs, people, and factions.',
     pages: [
+      { path: '/author/world', name: 'World Builder', icon: MapIcon },
       { path: '/locations', name: 'Locations', icon: MapIcon },
       { path: '/location-routes', name: 'Location Routes', icon: MapIcon },
+      { path: '/location-pois', name: 'Location POIs', icon: MapIcon },
+      { path: '/location-encounter-tables', name: 'Encounter Tables', icon: ClipboardDocumentListIcon },
+      { path: '/route-event-bindings', name: 'Route Events', icon: ClipboardDocumentListIcon },
+      { path: '/travel-tuning', name: 'Travel Tuning', icon: ChartBarIcon },
+      { path: '/location-creative-briefs', name: 'Creative Briefs', icon: SparklesIcon },
       { path: '/factions', name: 'Factions', icon: UserGroupIcon },
       { path: '/lore-entries', name: 'Lore Entries', icon: BookOpenIcon },
       { path: '/characters', name: 'Characters', icon: UsersIcon },
