@@ -37,6 +37,11 @@ export function displayText(value: unknown, fallback = ""): string {
   return text || fallback;
 }
 
+function editableText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
 export function toNumberInput(value: unknown): string {
   if (value === null || value === undefined || value === "") return "";
   return String(value);
@@ -95,7 +100,7 @@ export function InlineField({
         <FieldCaption label={resolvedLabel} changed={false} />
         <textarea
           className={`${baseClass} min-h-24 resize-y`}
-          value={displayText(value)}
+          value={editableText(value)}
           placeholder={placeholder}
           onChange={(event) => onChange(updateField(data, fieldKey, event.target.value))}
         />
@@ -154,7 +159,7 @@ export function InlineField({
       <FieldCaption label={resolvedLabel} changed={false} />
       <input
         className={baseClass}
-        value={displayText(value)}
+        value={editableText(value)}
         placeholder={placeholder}
         onChange={(event) => onChange(updateField(data, fieldKey, event.target.value))}
       />

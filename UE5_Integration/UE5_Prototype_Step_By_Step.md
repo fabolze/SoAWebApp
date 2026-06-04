@@ -860,6 +860,14 @@ Node flow:
 
 Done when a debug key can print the nearest enemy name.
 
+If cycling only switches after you move closer to another enemy, debug `RefreshTargetLists` first:
+- print `EnemyTargetableActors Length` before the cycle candidate loop
+- confirm the other enemy is inside `SearchRadius`
+- confirm the overlap object/channel settings include that enemy's capsule or collision component
+- confirm the enemy implements `BPI_Targetable`, returns `CanBeTargeted = true`, and has enemy team id
+
+Tab cycling can only choose actors currently returned by `RefreshTargetLists`. If you want Tab to cycle through all enemies in the active encounter regardless of player distance, use a wider `CycleSearchRadius` or an encounter-owned enemy list for cycling, and keep attack/ability range checks separate in `BP_CombatComponent`.
+
 #### Implement `SetEnemyTarget`
 Suggested signature:
 - Input:
@@ -1117,8 +1125,10 @@ Recommended variables:
 - `TargetActor` (`Actor Object Reference`)
 - `TargetAnchor` (`Scene Component Object Reference`, optional)
 - `FollowGroundZOffset` (`Float`, default `2.0`)
-- `DefaultScale` (`Float`, default `1.0`)
+- `RingScale` (`Float`, default `1.0`)
 - `bFollowTarget` (`Boolean`, default `true`)
+
+At this point the actor only has data and a visible mesh. It does not follow anything yet. The follow behavior is added in the next function.
 
 Create function `AttachToTarget`.
 
@@ -1126,7 +1136,6 @@ Suggested signature:
 - Input:
   - `InTarget` (`Actor Object Reference`)
   - `InTargetAnchor` (`Scene Component Object Reference`, optional)
-  - `TargetRadius` (`Float`, default `90`)
 
 Node flow:
 1. Set `TargetActor = InTarget`.
@@ -1136,20 +1145,24 @@ Node flow:
 5. Set ring location:
    - if `TargetAnchor` is valid, use `TargetAnchor.GetWorldLocation + (0, 0, FollowGroundZOffset)`
    - otherwise use `TargetActor.GetActorLocation + (0, 0, FollowGroundZOffset)`
-6. Set ring scale from `TargetRadius`:
-   - start with `TargetRadius / 90.0`
-   - clamp to a useful range such as `0.6` to `3.0`
+6. Set the visible mesh scale:
+   - call `SetRelativeScale3D` on `RingMesh`
+   - value = `(RingScale, RingScale, 1.0)`
 
-For the first prototype, it is acceptable to update the ring location on `Tick` while `bFollowTarget` is true:
-1. If `TargetAnchor` is valid, set ring actor location to anchor location plus Z offset.
-2. Else if `TargetActor` is valid, set ring actor location to target location plus Z offset.
-3. If `TargetActor` is not valid, destroy the ring actor or hide it.
+For the first prototype, do not make this more mathematical than it needs to be. The ring only has to be readable and roughly fit the target.
 
-Later, if the marker should be cheaper or more deterministic, attach it to the target actor instead of ticking:
-- `Attach Actor To Actor`
-- Parent: target actor
-- Location Rule: `Keep World` or `Snap to Target`
-- then set relative location to the ground offset
+Why `Z = 1.0`:
+- the ring is a flat ground marker
+- changing X and Y makes the circle wider
+- changing Z can make a torus/mesh look vertically stretched or oddly thick
+
+Optional later: if you want large enemies to size automatically, replace `RingScale` with a radius-based setup:
+- add `TargetRingRadius` on `BP_BattleCharacter`
+- add `RingMeshRadiusAtScale1` on `BP_TargetRingActor`
+- compute `DesiredScale = TargetRingRadius / RingMeshRadiusAtScale1`
+- call `SetRelativeScale3D` on `RingMesh` with `(DesiredScale, DesiredScale, 1.0)`
+
+Only add this later if you have enemies with meaningfully different footprint sizes. Until then, one manually tuned `RingScale` is enough.
 
 #### Add a ring anchor to `BP_BattleCharacter`
 Add a `Scene Component` to `BP_BattleCharacter`:
@@ -1168,7 +1181,6 @@ The exact Z value can be adjusted visually in the viewport. The anchor exists so
 Create variables on `BP_BattleCharacter`:
 - `TargetRingClass` (`Class Reference` of `BP_TargetRingActor`, default `BP_TargetRingActor`)
 - `ActiveTargetRing` (`BP_TargetRingActor Object Reference`)
-- `TargetRingRadius` (`Float`, default `90`)
 
 Create function `SetTargetRingEnabled`.
 
@@ -1178,10 +1190,10 @@ Suggested signature:
 
 Node flow:
 1. If `bEnabled` is true:
-   - if `ActiveTargetRing` is valid, call `AttachToTarget(self, TargetRingAnchor, TargetRingRadius)` and return
-   - spawn `TargetRingClass` at `GetActorLocation`
-   - save the return value to `ActiveTargetRing`
-   - call `AttachToTarget(self, TargetRingAnchor, TargetRingRadius)`
+   - if `ActiveTargetRing` is not valid:
+     - spawn `TargetRingClass` at `GetActorLocation`
+     - save the return value to `ActiveTargetRing`
+   - call `AttachToTarget(self, TargetRingAnchor)`
 2. If `bEnabled` is false:
    - if `ActiveTargetRing` is valid, destroy it
    - set `ActiveTargetRing = None`
@@ -1201,14 +1213,116 @@ Wire the interface:
 - `OnTargetUnlocked`
   - call `SetTargetRingEnabled(false)`
 
+#### Make the ring follow its target
+Add this after `AttachToTarget`, `TargetRingAnchor`, and `SetTargetRingEnabled` exist.
+
+The simplest prototype approach is to update the ring location on `Tick` while `bFollowTarget` is true. This is acceptable here because there is only one active selected-target marker most of the time.
+
+In `BP_TargetRingActor` Event Graph:
+1. If `TargetAnchor` is valid, set ring actor location to anchor location plus Z offset.
+2. Else if `TargetActor` is valid, set ring actor location to target location plus Z offset.
+3. If `TargetActor` is not valid, destroy the ring actor or hide it.
+
+Later, if the marker should be cheaper or more deterministic, attach it to the target actor instead of ticking:
+- `Attach Actor To Actor`
+- Parent: target actor
+- Location Rule: `Keep World` or `Snap to Target`
+- then set relative location to the ground offset
+
+#### First visual test
+Only test this after `BP_TargetRingActor`, `TargetRingAnchor`, `SetTargetRingEnabled`, and the interface wiring above exist.
+
+1. Set `RingScale = 1.0` on `BP_TargetRingActor`.
+2. Press Play.
+3. Lock the enemy target.
+4. Look at the ring from the gameplay camera.
+5. If it is too small, try `1.25`, `1.5`, or `2.0`.
+6. If it is too large, try `0.75`.
+
+This is intentionally visual tuning. The exact value depends on the mesh you chose, the camera angle, and how large the enemy appears in game.
+
 #### Optional: support different marker types
 Do not add this until the enemy lock marker works.
 
-When needed, extend `SetTargetRingEnabled` or create `SetTargetMarkerState` with:
-- `EnemyHardLock`: yellow/cyan ring
-- `AllyTarget`: green/blue ring
-- `PartyFocus`: orange/white ring
-- `HoverSoftTarget`: thin dim ring
+The current `OnTargetLocked` / `OnTargetUnlocked` interface is enough for one enemy lock marker. It does not say what kind of marker should be shown. If you need ally, focus, and hover markers later, add a slightly more general marker function on `BP_BattleCharacter`.
+
+Keep this visual-only. Do not make a new canonical gameplay enum unless the integration guide adds one later.
+
+Implementation order:
+1. Make material instances for each marker style.
+2. Add `SetMarkerStyle` to `BP_TargetRingActor`.
+3. Add `SetTargetMarkerState` to `BP_BattleCharacter`.
+4. Convert `SetTargetRingEnabled` into a wrapper for the enemy lock style.
+5. Update `SetAllyTarget`, `SetPartyFocusTarget`, and hover code to call `SetTargetMarkerState` directly.
+
+Recommended simple setup:
+1. Create material instances:
+   - `MI_TargetRing_EnemyHardLock`: yellow/cyan
+   - `MI_TargetRing_AllyTarget`: green/blue
+   - `MI_TargetRing_PartyFocus`: orange/white
+   - `MI_TargetRing_HoverSoftTarget`: dim/thin
+2. In `BP_TargetRingActor`, add variables:
+   - `MI_EnemyHardLock` (`Material Instance`)
+   - `MI_AllyTarget` (`Material Instance`)
+   - `MI_PartyFocus` (`Material Instance`)
+   - `MI_HoverSoftTarget` (`Material Instance`)
+3. In `BP_TargetRingActor`, create function `SetMarkerStyle`.
+
+Suggested `SetMarkerStyle` signature:
+- Input:
+  - `MarkerStyle` (`Name`)
+
+Node flow:
+1. Switch on `MarkerStyle`.
+2. If `EnemyHardLock`, set `RingMesh` material to `MI_EnemyHardLock`.
+3. If `AllyTarget`, set `RingMesh` material to `MI_AllyTarget`.
+4. If `PartyFocus`, set `RingMesh` material to `MI_PartyFocus`.
+5. If `HoverSoftTarget`, set `RingMesh` material to `MI_HoverSoftTarget`.
+6. Optional: set a different `RingScale` for hover/focus if needed.
+
+Use exact `Name` values for the prototype:
+- `EnemyHardLock`
+- `AllyTarget`
+- `PartyFocus`
+- `HoverSoftTarget`
+
+Then, in `BP_BattleCharacter`, create `SetTargetMarkerState`.
+
+Suggested signature:
+- Inputs:
+  - `bEnabled` (`Boolean`)
+  - `MarkerStyle` (`Name`, default `EnemyHardLock`)
+
+Node flow:
+1. If `bEnabled` is true:
+   - if `ActiveTargetRing` is not valid:
+     - spawn `TargetRingClass` at `GetActorLocation`
+     - save the return value to `ActiveTargetRing`
+   - call `SetMarkerStyle(MarkerStyle)` on `ActiveTargetRing`
+   - call `AttachToTarget(self, TargetRingAnchor)` on `ActiveTargetRing`
+2. If `bEnabled` is false:
+   - if `ActiveTargetRing` is valid, destroy it
+   - set `ActiveTargetRing = None`
+
+After this exists, `SetTargetRingEnabled` can become a tiny wrapper:
+- if `bEnabled` is true, call `SetTargetMarkerState(true, EnemyHardLock)`
+- if `bEnabled` is false, call `SetTargetMarkerState(false, EnemyHardLock)`
+
+This keeps the existing interface wiring working:
+- `OnTargetLocked` still calls `SetTargetRingEnabled(true)`
+- `OnTargetUnlocked` still calls `SetTargetRingEnabled(false)`
+
+For other marker types, call `SetTargetMarkerState` from the system that owns that state:
+- `SetAllyTarget`: call `SetTargetMarkerState(true, AllyTarget)` on the new ally target, and clear the previous ally marker first
+- `SetPartyFocusTarget`: call `SetTargetMarkerState(true, PartyFocus)` on the focus target, and clear the previous focus marker first
+- hover/soft target: call `SetTargetMarkerState(true, HoverSoftTarget)` only when hover changes, and clear the previous hover marker
+
+This simple setup supports one active marker actor per combatant. If the same actor can be both enemy lock and party focus at the same time, pick a prototype priority:
+- `EnemyHardLock` wins over `PartyFocus`
+- `PartyFocus` wins over `HoverSoftTarget`
+- `AllyTarget` wins over `HoverSoftTarget`
+
+Do not support stacked rings yet unless you truly need it. Stacked rings require separate marker actors/components per marker layer, such as `ActiveEnemyRing`, `ActiveFocusRing`, and `ActiveHoverRing`.
 
 Keep this driven by target state changes, not by every frame of input.
 
@@ -1243,7 +1357,7 @@ If the ring does not show:
 
 Things to watch:
 - A ring attached to the character root may float if the character capsule origin is high. Prefer `TargetRingAnchor` for ground markers.
-- Large enemies may need a larger `TargetRingRadius`.
+- Large enemies may need their own `BP_TargetRingActor` default `RingScale`, or the optional radius-based setup described above.
 - If enemies can die or be destroyed, call `OnTargetUnlocked` or `SetTargetRingEnabled(false)` before destruction/reset.
 - Do not clear a target just because the ring is not visible. Visibility and target validity are separate systems.
 
@@ -1252,6 +1366,8 @@ Done when:
 - Switching targets removes the ring from the old target and applies it to the new target.
 - Unlocking removes the ring.
 - Resetting the arena does not leave a stale ring actor in the level.
+
+
 
 ### Step 4.4 - Wire targeting input
 If not already done in Phase 1, create or confirm:
