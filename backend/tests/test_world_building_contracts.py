@@ -302,6 +302,10 @@ def test_world_builder_endpoint_returns_world_packets(monkeypatch):
 
     assert len(payload["locations"]) == 2
     assert len(payload["routes"]) == 1
+    assert "events" in payload
+    assert "encounters" in payload
+    assert "quests" in payload
+    assert "story_arcs" in payload
     assert payload["locations"][1]["effective_biome"] == "Forest"
     assert payload["pois"][0]["poi_type"] == "Shrine"
 

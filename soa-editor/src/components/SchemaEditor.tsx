@@ -1,7 +1,7 @@
 // soa-editor/src/components/SchemaEditor.tsx
 // This file acts as a template for the other pages
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ArchiveBoxArrowDownIcon,
   ArrowDownTrayIcon,
@@ -128,6 +128,7 @@ export default function SchemaEditor({
 }: SchemaEditorProps) {
   const [schema, setSchema] = useState<SchemaDefinition | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const [data, setData] = useState<EntryRecord>({});
   const [entries, setEntries] = useState<EntryRecord[]>([]);
   const [entriesLoaded, setEntriesLoaded] = useState(false);
@@ -165,6 +166,10 @@ export default function SchemaEditor({
   const querySelectedId = useMemo(() => {
     const selected = new URLSearchParams(location.search).get("selected");
     return selected?.trim() || "";
+  }, [location.search]);
+  const returnTo = useMemo(() => {
+    const value = new URLSearchParams(location.search).get("returnTo");
+    return value?.startsWith("/") ? value : "";
   }, [location.search]);
 
   const getEntryId = useCallback(
@@ -352,6 +357,10 @@ export default function SchemaEditor({
       if (localStorage.getItem(lastKey) === draftKey) {
         localStorage.removeItem(lastKey);
       }
+      if (returnTo) {
+        navigate(returnTo);
+        return;
+      }
     } else {
       const payload = await readJsonSafe(res);
       const msg = asMessage(payload) ? `Save failed: ${asMessage(payload)}` : "Save failed";
@@ -360,7 +369,7 @@ export default function SchemaEditor({
 
     if (toastTimeout.current) clearTimeout(toastTimeout.current);
     toastTimeout.current = setTimeout(() => setToast(null), 3000);
-  }, [apiPath, data, entries, getEntryId, loadEntries, originalData, rememberRecentEntry, schemaName]);
+  }, [apiPath, data, entries, getEntryId, loadEntries, navigate, originalData, rememberRecentEntry, returnTo, schemaName]);
 
   // Get all field names from schema for table columns.
   const fieldKeys = useMemo(() => Object.keys(schema?.properties || {}), [schema]);

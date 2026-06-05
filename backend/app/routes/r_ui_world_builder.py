@@ -1,12 +1,17 @@
 from flask import Blueprint, jsonify
 
 from backend.app.db.init_db import get_db_session
+from backend.app.models.m_dialogues import Dialogue
+from backend.app.models.m_encounters import Encounter
+from backend.app.models.m_events import Event
 from backend.app.models.m_location_creative_briefs import LocationCreativeBrief
 from backend.app.models.m_location_encounter_tables import LocationEncounterTable
 from backend.app.models.m_location_pois import LocationPoi
 from backend.app.models.m_location_routes import LocationRoute
 from backend.app.models.m_locations import Location
 from backend.app.models.m_route_event_bindings import RouteEventBinding
+from backend.app.models.m_quests import Quest
+from backend.app.models.m_story_arcs import StoryArc
 from backend.app.models.m_travel_tuning import TravelTuning
 
 
@@ -77,6 +82,11 @@ def get_world_builder():
         route_event_bindings = db_session.query(RouteEventBinding).all()
         travel_tuning = db_session.query(TravelTuning).all()
         creative_briefs = db_session.query(LocationCreativeBrief).all()
+        events = db_session.query(Event).all()
+        encounters = db_session.query(Encounter).all()
+        quests = db_session.query(Quest).all()
+        story_arcs = db_session.query(StoryArc).all()
+        dialogues = db_session.query(Dialogue).all()
 
         location_ids = {location.id for location in locations}
         locations_by_id = {location.id: location for location in locations}
@@ -113,6 +123,11 @@ def get_world_builder():
             "route_event_bindings": [_columns(binding) for binding in route_event_bindings],
             "travel_tuning": [_columns(tuning) for tuning in travel_tuning],
             "creative_briefs": [_columns(brief) for brief in creative_briefs],
+            "events": [_columns(event) for event in events],
+            "encounters": [_columns(encounter) for encounter in encounters],
+            "quests": [_columns(quest) for quest in quests],
+            "story_arcs": [_columns(arc) for arc in story_arcs],
+            "dialogues": [_columns(dialogue) for dialogue in dialogues],
             "warnings": warnings,
         })
     finally:

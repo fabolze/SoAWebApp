@@ -27,6 +27,7 @@ import {
   useReferenceMap,
   useReferenceOptions,
 } from "./controls";
+import { readDraft, removeDraft } from "./worldAuthoringDrafts";
 
 type AuthoringMode = "author" | "advanced";
 type AuthoringKind = "item" | "shop" | "character" | "location" | "location-map";
@@ -283,6 +284,10 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
   const missingRequiredFields = useMemo(() => requiredFields.filter((field) => isEmpty(data[field])), [data, requiredFields]);
   const formValid = missingRequiredFields.length === 0;
   const label = displayText(data.name, displayText(data.title, displayText(data.slug, id || "Untitled")));
+  const returnTo = useMemo(() => {
+    const value = new URLSearchParams(location.search).get("returnTo");
+    return value?.startsWith("/") ? value : "";
+  }, [location.search]);
 
   useEffect(() => {
     const source = dirtySource.current;
@@ -296,9 +301,10 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
       setLoading(true);
       setError(null);
       try {
+        const localDraft = !isNewDraft && id ? readDraft(config.schemaName, id) : null;
         const [schemaModule, response] = await Promise.all([
           import(`../../../backend/app/schemas/${config.schemaName}.json`),
-          isNewDraft ? Promise.resolve(null) : apiFetch(`/api/${config.apiPath}/${encodeURIComponent(id)}`),
+          isNewDraft || localDraft ? Promise.resolve(null) : apiFetch(`/api/${config.apiPath}/${encodeURIComponent(id)}`),
         ]);
         if (cancelled) return;
         const moduleWithDefault = schemaModule as { default?: SchemaDefinition };
@@ -307,6 +313,11 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
           const draft = makeNewEntryDefaults(config);
           setData(draft);
           setOriginal(draft);
+          return;
+        }
+        if (localDraft) {
+          setData(localDraft);
+          setOriginal(localDraft);
           return;
         }
         if (!response) throw new Error(`${config.title} entry not found.`);
@@ -347,7 +358,12 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
       const saved = refresh.ok && isRecord(refreshedPayload) ? refreshedPayload : data;
       setData(saved);
       setOriginal(saved);
+      if (savedId) removeDraft(config.schemaName, savedId);
       setNotice({ type: "success", message: "Saved successfully." });
+      if (returnTo) {
+        navigate(returnTo);
+        return;
+      }
       if (isNewDraft && savedId) {
         navigate(getAuthoringPath(config.kind, savedId), { replace: true });
       }
@@ -356,7 +372,7 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
     } finally {
       setSaving(false);
     }
-  }, [config.apiPath, config.kind, data, id, isNewDraft, navigate]);
+  }, [config.apiPath, config.kind, config.schemaName, data, id, isNewDraft, navigate, returnTo]);
 
   const reset = useCallback(() => {
     setData(original);
