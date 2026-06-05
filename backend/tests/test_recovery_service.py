@@ -51,17 +51,116 @@ def test_collect_csv_paths_normalizes_seed_and_source_suffixes(tmp_path: Path):
     assert paths["stats"].name == "stats.source.csv"
 
 
-def test_startup_recovery_skips_non_empty_database(monkeypatch, tmp_path: Path):
+def test_startup_recovery_missing_mode_partially_imports_non_empty_database(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(recovery, "RECOVERY_STARTUP_IMPORT_MODE", "missing")
     monkeypatch.setattr(recovery, "is_database_empty", lambda: False)
+    monkeypatch.setattr(recovery, "import_missing_source_csvs", lambda app, source_dir=None: {
+        "status": "success",
+        "message": "Partial recovery import completed for empty tables with source rows.",
+        "database_empty": None,
+        "tables": [],
+        "warnings": [],
+        "errors": [],
+    })
+    monkeypatch.setattr(recovery, "get_sync_status", lambda source_dir=None: {
+        "csv_newer_than_db": False,
+        "restore_recommended": False,
+        "latest_csv_mtime": None,
+        "latest_csv_mtime_iso": None,
+        "active_db_mtime": None,
+        "active_db_mtime_iso": None,
+    })
+    state_writes = []
+    monkeypatch.setattr(recovery, "_write_recovery_state", lambda operation, source_dir=None: state_writes.append(operation))
     printed = []
     monkeypatch.setattr(recovery, "print_recovery_report", lambda title, report: printed.append((title, report)))
 
     report = recovery.run_startup_recovery(Flask(__name__), tmp_path)
 
+    assert report["status"] == "success"
+    assert report["database_empty"] is False
+    assert "Partial recovery" in report["message"]
+    assert state_writes == ["startup_partial_import"]
+    assert printed[0][0] == "Startup recovery"
+
+
+def test_startup_recovery_newer_mode_replaces_when_csvs_are_newer(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(recovery, "RECOVERY_STARTUP_IMPORT_MODE", "newer")
+    monkeypatch.setattr(recovery, "is_database_empty", lambda: False)
+    monkeypatch.setattr(recovery, "get_sync_status", lambda source_dir=None: {
+        "csv_newer_than_db": True,
+        "restore_recommended": True,
+        "latest_csv_mtime": 200.0,
+        "latest_csv_mtime_iso": "1970-01-01T00:03:20+00:00",
+        "active_db_mtime": 100.0,
+        "active_db_mtime_iso": "1970-01-01T00:01:40+00:00",
+    })
+    monkeypatch.setattr(recovery, "replace_tables_from_source_csvs", lambda app, source_dir=None: {
+        "status": "success",
+        "message": "Recovery import completed.",
+        "database_empty": None,
+        "tables": [{"table": "locations", "status": "success", "imported": 3, "deleted": 2}],
+        "warnings": [],
+        "errors": [],
+    })
+    state_writes = []
+    monkeypatch.setattr(recovery, "_write_recovery_state", lambda operation, source_dir=None: state_writes.append(operation))
+    monkeypatch.setattr(recovery, "print_recovery_report", lambda title, report: None)
+
+    report = recovery.run_startup_recovery(Flask(__name__), tmp_path)
+
+    assert report["status"] == "success"
+    assert report["database_empty"] is False
+    assert report["startup_import_mode"] == "newer"
+    assert report["tables"][0]["table"] == "locations"
+    assert state_writes == ["startup_newer_csv_import"]
+
+
+def test_startup_recovery_off_mode_skips_import(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(recovery, "RECOVERY_STARTUP_IMPORT_MODE", "off")
+    monkeypatch.setattr(recovery, "is_database_empty", lambda: False)
+    monkeypatch.setattr(recovery, "get_sync_status", lambda source_dir=None: {
+        "csv_newer_than_db": True,
+        "restore_recommended": True,
+        "latest_csv_mtime": 200.0,
+        "latest_csv_mtime_iso": "1970-01-01T00:03:20+00:00",
+        "active_db_mtime": 100.0,
+        "active_db_mtime_iso": "1970-01-01T00:01:40+00:00",
+    })
+    monkeypatch.setattr(recovery, "print_recovery_report", lambda title, report: None)
+
+    report = recovery.run_startup_recovery(Flask(__name__), tmp_path)
+
     assert report["status"] == "skipped"
     assert report["database_empty"] is False
-    assert "not empty" in report["message"]
-    assert printed[0][0] == "Startup recovery"
+    assert report["startup_import_mode"] == "off"
+
+
+def test_import_missing_source_csvs_only_imports_empty_tables_with_rows(monkeypatch, tmp_path: Path):
+    (tmp_path / "stats_seed.csv").write_text("id\nstat-1\n", encoding="utf-8")
+    (tmp_path / "locations_seed.csv").write_text("id,slug,name\nloc-1,loc-1,Location\n", encoding="utf-8")
+    (tmp_path / "items_seed.csv").write_text("id\n", encoding="utf-8")
+
+    monkeypatch.setattr(recovery, "RECOVERY_IMPORT_ORDER", ["stats", "locations", "items"])
+    monkeypatch.setattr(recovery, "_table_row_count", lambda table: {"stats": 2, "locations": 0, "items": 0}[table])
+    monkeypatch.setattr(recovery, "is_database_empty", lambda: False)
+
+    imported = []
+    app = Flask(__name__)
+
+    @app.post("/api/source/import/csv/<table_name>")
+    def import_table(table_name):
+        imported.append(table_name)
+        return {"status": "success", "imported": 1, "deleted": 0}
+
+    report = recovery.import_missing_source_csvs(app, tmp_path)
+
+    statuses = {table["table"]: table["status"] for table in report["tables"]}
+    assert report["status"] == "success"
+    assert imported == ["locations"]
+    assert statuses["stats"] == "skipped"
+    assert statuses["locations"] == "success"
+    assert statuses["items"] == "skipped"
 
 
 def test_export_source_csvs_writes_reported_files(monkeypatch, tmp_path: Path):

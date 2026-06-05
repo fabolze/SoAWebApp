@@ -1,3 +1,5 @@
+from io import BytesIO
+
 from flask import Flask
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
@@ -21,6 +23,7 @@ from backend.app.routes import (
     r_location_pois,
     r_location_routes,
     r_locations,
+    r_export,
     r_route_event_bindings,
     r_travel_tuning,
     r_ui_world_builder,
@@ -325,6 +328,32 @@ def test_legacy_locations_table_rebuild_makes_biome_nullable(tmp_path):
     assert "place_kind" in columns
     with engine.begin() as connection:
         connection.execute(text("INSERT INTO locations (id, slug, name, biome) VALUES ('loc-2', 'loc-2', 'Loc 2', NULL)"))
+
+
+def test_source_import_flushes_same_file_location_hierarchy(monkeypatch):
+    client, Session = _app_with_session(monkeypatch)
+
+    def get_session():
+        return Session()
+
+    monkeypatch.setattr(r_export, "get_db_session", get_session)
+    app = Flask(__name__)
+    app.register_blueprint(r_locations.bp)
+    app.register_blueprint(r_export.bp)
+
+    csv_content = (
+        "id,slug,name,parent_location_id,location_type\n"
+        "world,world,World,,World\n"
+        "room,room,Room,world,Room\n"
+    )
+    response = app.test_client().post(
+        "/api/source/import/csv/locations",
+        data={"file": (BytesIO(csv_content.encode("utf-8")), "locations_seed.csv")},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    assert Session().get(Location, "room").parent_location_id == "world"
 
 
 def test_world_building_tables_export_required_columns():

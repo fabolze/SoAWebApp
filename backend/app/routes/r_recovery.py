@@ -21,3 +21,9 @@ def recovery_status():
 def restore_recovery_source():
     report = recovery.restore_database_from_source(current_app)
     return jsonify(report), 500 if report.get("status") in ("error", "warning") else 200
+
+
+@bp.route("/api/recovery/import-source", methods=["POST"])
+def import_recovery_source():
+    report = recovery.replace_tables_from_source_csvs(current_app)
+    return jsonify(report), 500 if report.get("status") in ("error", "warning") else 200

@@ -246,6 +246,7 @@ def _import_csv(table_name, strict_json=False):
                             setattr(obj, key, value)
 
                 session.add(obj)
+                session.flush()
                 count += 1
 
             # Replace-all semantics with ORM deletes (preserves relationship logic).

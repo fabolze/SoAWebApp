@@ -13,3 +13,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 SQLALCHEMY_DATABASE_URI = f"sqlite:///{DATA_DIR / 'db.sqlite'}"
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret")
+RECOVERY_STARTUP_IMPORT_MODE = os.getenv(
+    "RECOVERY_STARTUP_IMPORT_MODE",
+    os.getenv("SOA_STARTUP_CSV_IMPORT_MODE", "newer"),
+).strip().lower()
