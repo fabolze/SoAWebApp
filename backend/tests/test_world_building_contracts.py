@@ -310,6 +310,170 @@ def test_world_builder_endpoint_returns_world_packets(monkeypatch):
     assert payload["pois"][0]["poi_type"] == "Shrine"
 
 
+def test_world_builder_bundle_saves_linked_world_records_atomically(monkeypatch):
+    client, Session = _app_with_session(monkeypatch)
+    _seed_world(Session)
+
+    response = client.post("/api/ui/world_builder/bundle", json={
+        "locations": [{
+            "id": "subzone",
+            "slug": "subzone",
+            "name": "Subzone",
+            "parent_location_id": "zone",
+            "location_type": "Subzone",
+            "place_kind": "Wilderness",
+            "environment_tags": ["mist"],
+            "level_range": {"min": 2, "max": 5},
+            "coordinates": {"x": 20, "y": 30},
+            "encounters": ["enc-1"],
+            "tags": ["World"],
+        }],
+        "routes": [{
+            "id": "route-2",
+            "slug": "route-2",
+            "from_location_id": "zone",
+            "to_location_id": "subzone",
+            "route_type": "Trail",
+            "travel_cost": 1,
+            "travel_time": 2,
+            "tags": ["Trail"],
+        }],
+        "pois": [{
+            "id": "poi-1",
+            "slug": "poi-1",
+            "location_id": "subzone",
+            "name": "Marker",
+            "poi_type": "DiscoveryPoint",
+            "coordinates": {"x": 1, "y": 2},
+            "tags": [],
+        }],
+        "encounter_tables": [{
+            "id": "table-1",
+            "slug": "table-1",
+            "location_id": "subzone",
+            "name": "Table",
+            "environmental_modifiers": ["mist"],
+            "encounter_entries": [{"encounter_id": "enc-1", "weight": 2, "min_count": 1, "max_count": 2}],
+            "tags": [],
+        }],
+        "route_event_bindings": [{
+            "id": "binding-1",
+            "slug": "binding-1",
+            "route_id": "route-2",
+            "event_id": "event-1",
+            "trigger_mode": "RandomChance",
+            "chance": 25,
+            "priority": 1,
+            "cooldown": 0,
+            "tags": [],
+        }],
+        "travel_tuning": [{
+            "id": "tuning-1",
+            "slug": "tuning-1",
+            "name": "Tuning",
+            "route_type": "Trail",
+            "encounter_chance": 10,
+            "travel_time_multiplier": 1.2,
+            "travel_cost_multiplier": 1,
+            "safe_zone_multiplier": 1,
+            "fatigue_cost": 1,
+            "risk_score": 2,
+            "tags": [],
+        }],
+        "creative_briefs": [{
+            "id": "brief-1",
+            "slug": "brief-1",
+            "location_id": "subzone",
+            "concept_refs": ["fog"],
+            "landmarks": ["tower"],
+            "tags": ["Mood"],
+        }],
+    })
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert any(location["id"] == "subzone" for location in body["locations"])
+    assert Session().get(Location, "subzone").tags == ["world"]
+    assert Session().get(LocationRoute, "route-2")
+    assert Session().get(LocationPoi, "poi-1")
+    assert Session().get(LocationEncounterTable, "table-1")
+    assert Session().get(RouteEventBinding, "binding-1")
+    assert Session().get(TravelTuning, "tuning-1")
+    assert Session().get(LocationCreativeBrief, "brief-1")
+
+
+def test_world_builder_bundle_rolls_back_and_locks_linked_record_ownership(monkeypatch):
+    client, Session = _app_with_session(monkeypatch)
+    _seed_world(Session)
+    session = Session()
+    session.add(LocationPoi(id="poi-owned", slug="poi-owned", location_id="zone", name="Owned", poi_type=PoiType.Other))
+    session.commit()
+    session.close()
+
+    response = client.post("/api/ui/world_builder/bundle", json={
+        "locations": [{"id": "new-location", "slug": "new-location", "name": "New Location", "tags": []}],
+        "encounter_tables": [{
+            "id": "bad-table",
+            "slug": "bad-table",
+            "location_id": "zone",
+            "name": "Bad",
+            "encounter_entries": [{"encounter_id": "missing", "weight": 1}],
+            "tags": [],
+        }],
+    })
+    assert response.status_code == 400
+    assert Session().get(Location, "new-location") is None
+
+    response = client.post("/api/ui/world_builder/bundle", json={
+        "pois": [{
+            "id": "poi-owned",
+            "slug": "poi-owned",
+            "location_id": "world",
+            "name": "Moved",
+            "poi_type": "Other",
+            "tags": [],
+        }],
+    })
+    assert response.status_code == 400
+    assert Session().get(LocationPoi, "poi-owned").location_id == "zone"
+
+
+def test_world_builder_bundle_rejects_hierarchy_cycles_and_invalid_shapes(monkeypatch):
+    client, Session = _app_with_session(monkeypatch)
+    _seed_world(Session)
+
+    cycle = client.post("/api/ui/world_builder/bundle", json={
+        "locations": [
+            {"id": "world", "slug": "world", "name": "World", "parent_location_id": "zone", "tags": []},
+            {"id": "zone", "slug": "zone", "name": "Zone", "parent_location_id": "world", "tags": []},
+        ],
+    })
+    assert cycle.status_code == 400
+
+    bad_tags = client.post("/api/ui/world_builder/bundle", json={
+        "locations": [{"id": "bad-tags", "slug": "bad-tags", "name": "Bad Tags", "tags": {"bad": True}}],
+    })
+    assert bad_tags.status_code == 400
+
+    bad_encounter = client.post("/api/ui/world_builder/bundle", json={
+        "locations": [{"id": "bad-encounter", "slug": "bad-encounter", "name": "Bad Encounter", "encounters": ["missing"], "tags": []}],
+    })
+    assert bad_encounter.status_code == 400
+
+    bad_coordinate = client.post("/api/ui/world_builder/bundle", json={
+        "pois": [{
+            "id": "bad-poi",
+            "slug": "bad-poi",
+            "location_id": "zone",
+            "name": "Bad POI",
+            "poi_type": "Other",
+            "coordinates": {"x": "1", "y": 2},
+            "tags": [],
+        }],
+    })
+    assert bad_coordinate.status_code == 400
+
+
 def test_legacy_locations_table_rebuild_makes_biome_nullable(tmp_path):
     db_path = tmp_path / "legacy.sqlite"
     engine = create_engine(f"sqlite:///{db_path}", future=True)

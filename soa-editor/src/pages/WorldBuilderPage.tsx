@@ -533,10 +533,10 @@ export default function WorldBuilderPage() {
     const location = locationsById.get(id);
     if (!location) return;
     const next = { ...location, coordinates: { ...coordinatesFromEntry(location), x: coordinates.x, y: coordinates.y } };
-    const response = await apiFetch("/api/locations", {
+    const response = await apiFetch("/api/ui/world_builder/bundle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(next),
+      body: JSON.stringify({ locations: [next] }),
     });
     if (!response.ok) {
       setNotice("Could not save map placement. Reloading last saved world data.");
@@ -547,10 +547,10 @@ export default function WorldBuilderPage() {
   }, [load, locationsById]);
 
   const quickSaveLocation = useCallback(async (next: EntryRecord) => {
-    const response = await apiFetch("/api/locations", {
+    const response = await apiFetch("/api/ui/world_builder/bundle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(next),
+      body: JSON.stringify({ locations: [next] }),
     });
     if (!response.ok) {
       setNotice("Could not save quick edit changes.");
@@ -1277,7 +1277,16 @@ function LocationDetails({
       </Panel>
 
       <Panel title="POIs / Interactables" link={withReturnTo("/location-pois")}>
-        <EntryList entries={pois} empty="No POIs for this location." detail={(entry) => text(entry.poi_type)} />
+        <EntryList entries={pois} empty="No POIs for this location." detail={(entry) => {
+          const links = [
+            text(entry.event_id) && "event",
+            text(entry.dialogue_id) && "dialogue",
+            text(entry.encounter_id) && "encounter",
+            text(entry.item_id) && "item",
+            text(entry.requirements_id) && "locked",
+          ].filter(Boolean);
+          return `${text(entry.poi_type)}${links.length ? ` / ${links.join(", ")}` : ""}${text(entry.placement_notes) ? ` / ${text(entry.placement_notes)}` : ""}`;
+        }} />
       </Panel>
 
       <Panel title="Encounter Placement" link={withReturnTo("/location-encounter-tables")}>
@@ -1304,6 +1313,13 @@ function LocationDetails({
                     );
                   })}
                 </div>
+                {(text(table.spawn_rules) || arrayText(table.environmental_modifiers).length > 0 || text(table.requirements_id)) && (
+                  <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                    {text(table.spawn_rules) && <div>Rules: {text(table.spawn_rules)}</div>}
+                    {arrayText(table.environmental_modifiers).length > 0 && <div>Modifiers: {arrayText(table.environmental_modifiers).join(", ")}</div>}
+                    {text(table.requirements_id) && <div>Requirement: {text(table.requirements_id)}</div>}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1311,7 +1327,7 @@ function LocationDetails({
       </Panel>
 
       <Panel title="Travel Tuning" link="/travel-tuning">
-        <EntryList entries={tuning} empty="No matching travel tuning rows." detail={(entry) => `${text(entry.route_type, "Any route")} / ${text(entry.place_kind, "Any place")} / ${text(entry.biome, "Any biome")} / risk ${numberValue(entry.risk_score)}`} />
+        <EntryList entries={tuning} empty="No matching travel tuning rows." detail={(entry) => `${text(entry.route_type, "Any route")} / ${text(entry.place_kind, "Any place")} / ${text(entry.biome, "Any biome")} / encounter ${numberValue(entry.encounter_chance)}% / time x${numberValue(entry.travel_time_multiplier, 1)} / cost x${numberValue(entry.travel_cost_multiplier, 1)} / safe x${numberValue(entry.safe_zone_multiplier, 1)} / fatigue ${numberValue(entry.fatigue_cost)} / risk ${numberValue(entry.risk_score)}`} />
       </Panel>
 
       <Panel title="Creative Brief" link={withReturnTo("/location-creative-briefs")}>
@@ -1321,6 +1337,11 @@ function LocationDetails({
             {text(brief.visual_ideas) && <p><span className="font-semibold">Visual:</span> {text(brief.visual_ideas)}</p>}
             {text(brief.ambience_ideas) && <p><span className="font-semibold">Ambience:</span> {text(brief.ambience_ideas)}</p>}
             {text(brief.music_state) && <p><span className="font-semibold">Music:</span> {text(brief.music_state)}</p>}
+            {arrayText(brief.concept_refs).length > 0 && <p><span className="font-semibold">Refs:</span> {arrayText(brief.concept_refs).join(", ")}</p>}
+            {text(brief.vfx_ideas) && <p><span className="font-semibold">VFX:</span> {text(brief.vfx_ideas)}</p>}
+            {text(brief.asset_ideas) && <p><span className="font-semibold">Assets:</span> {text(brief.asset_ideas)}</p>}
+            {arrayText(brief.landmarks).length > 0 && <p><span className="font-semibold">Landmarks:</span> {arrayText(brief.landmarks).join(", ")}</p>}
+            {text(brief.story_notes) && <p><span className="font-semibold">Story:</span> {text(brief.story_notes)}</p>}
           </div>
         ))}
       </Panel>

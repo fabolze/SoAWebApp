@@ -28,6 +28,7 @@ import {
   useReferenceOptions,
 } from "./controls";
 import { readDraft, removeDraft } from "./worldAuthoringDrafts";
+import CharacterCreatorPage from "./CharacterCreatorPage";
 
 type AuthoringMode = "author" | "advanced";
 type AuthoringKind = "item" | "shop" | "character" | "location" | "location-map";
@@ -249,7 +250,7 @@ export function ShopAuthoringPage() {
 }
 
 export function CharacterAuthoringPage() {
-  return <ImmersiveAuthoringPage config={AUTHORING_CONFIGS.character} />;
+  return <CharacterCreatorPage />;
 }
 
 export function LocationAuthoringPage() {

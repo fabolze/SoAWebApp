@@ -27,6 +27,17 @@ class InteractionProfileRoute(BaseRoute):
         return data["id"]
 
     def process_input_data(self, db_session: Session, profile: InteractionProfile, data: Dict[str, Any]) -> None:
+        def _require_list(value: Any, field_name: str) -> List[Any]:
+            if value is None:
+                return []
+            if not isinstance(value, list):
+                raise ValueError(f"{field_name} must be an array")
+            return value
+
+        def _validate_number(value: Any, field_name: str) -> None:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{field_name} must be a number")
+
         # Validate enums
         self.validate_enums(data, {
             "role": InteractionRole
@@ -43,32 +54,38 @@ class InteractionProfileRoute(BaseRoute):
 
         # Optional fields
         profile.role = data.get("role")
-        profile.dialogue_tree_id = data.get("dialogue_tree_id")
+        profile.dialogue_tree_id = data.get("dialogue_tree_id") or None
 
         # Validate quests
-        available_quests = data.get("available_quests", [])
+        available_quests = _require_list(data.get("available_quests", []), "available_quests")
         for quest_id in available_quests:
             if not db_session.get(Quest, quest_id):
                 raise ValueError(f"Invalid quest_id: {quest_id}")
 
         # Validate inventory items
-        inventory = data.get("inventory", [])
+        inventory = _require_list(data.get("inventory", []), "inventory")
         for item in inventory:
-            item_id = item.get("item_id") if isinstance(item, dict) else None
-            if item_id and not db_session.get(Item, item_id):
+            if not isinstance(item, dict):
+                raise ValueError("inventory entries must be objects")
+            item_id = item.get("item_id")
+            if not item_id or item.get("price") is None:
+                raise ValueError("inventory entries must include item_id and price")
+            _validate_number(item.get("price"), "inventory.price")
+            if not db_session.get(Item, item_id):
                 raise ValueError(f"Invalid item_id in inventory: {item_id}")
 
         # Validate flags
-        flags_set_on_interaction = data.get("flags_set_on_interaction", [])
+        flags_set_on_interaction = _require_list(data.get("flags_set_on_interaction", []), "flags_set_on_interaction")
         for flag_id in flags_set_on_interaction:
             if not db_session.get(Flag, flag_id):
                 raise ValueError(f"Invalid flag_id: {flag_id}")
+        tags = _require_list(data.get("tags", []), "tags")
 
         # JSON fields
         profile.available_quests = available_quests
         profile.inventory = inventory
         profile.flags_set_on_interaction = flags_set_on_interaction
-        profile.tags = data.get("tags", [])
+        profile.tags = tags
 
     def serialize_item(self, profile: InteractionProfile) -> Dict[str, Any]:
         return self.serialize_model(profile)
@@ -98,5 +115,6 @@ class InteractionProfileRoute(BaseRoute):
             db_session.close()
 
 
-bp = InteractionProfileRoute().bp
+route = InteractionProfileRoute()
+bp = route.bp
 

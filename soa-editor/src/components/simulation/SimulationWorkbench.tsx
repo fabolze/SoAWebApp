@@ -23,6 +23,7 @@ interface SimulationWorkbenchProps {
   draftEntity?: Record<string, unknown> | null;
   compact?: boolean;
   title?: string;
+  datasetOverlays?: Partial<SimulationDatasets>;
 }
 
 const SCHEMA_LABELS: Record<SimulationSchemaName, string> = {
@@ -73,6 +74,7 @@ export default function SimulationWorkbench({
   draftEntity,
   compact = false,
   title = "Simulation Sandbox",
+  datasetOverlays,
 }: SimulationWorkbenchProps) {
   const [schemaName, setSchemaName] = useState<SimulationSchemaName>(
     fixedSchemaName || initialSchemaName || "abilities"
@@ -137,25 +139,42 @@ export default function SimulationWorkbench({
     return fromList || null;
   }, [debouncedDraftEntity, draftMode, entities, selectedEntityId]);
 
+  const effectiveDatasets = useMemo(() => {
+    if (!datasets || !datasetOverlays) return datasets;
+    const next = { ...datasets };
+    (Object.keys(datasetOverlays) as SimulationSchemaName[]).forEach((key) => {
+      const overlays = datasetOverlays[key] || [];
+      const overlayIds = new Set(overlays.map((entry) => toText(entry.id)).filter(Boolean));
+      const overlayCharacterIds = key === "combat_profiles"
+        ? new Set(overlays.map((entry) => toText(entry.character_id)).filter(Boolean))
+        : new Set<string>();
+      next[key] = [
+        ...next[key].filter((entry) => !overlayIds.has(toText(entry.id)) && !overlayCharacterIds.has(toText(entry.character_id))),
+        ...overlays,
+      ];
+    });
+    return next;
+  }, [datasetOverlays, datasets]);
+
   const runSimulation = useCallback(() => {
-    if (!datasets || !activeEntity) return;
+    if (!effectiveDatasets || !activeEntity) return;
     const scenario = getSimulationScenarioById(scenarioId);
     const next = simulateEntity({
       schemaName: activeSchema,
       entity: activeEntity,
-      datasets,
+      datasets: effectiveDatasets,
       scenario,
       runs: boundedRuns(runs),
       seed,
     });
     setResult(next);
-  }, [activeEntity, activeSchema, datasets, runs, scenarioId, seed]);
+  }, [activeEntity, activeSchema, effectiveDatasets, runs, scenarioId, seed]);
 
   useEffect(() => {
     if (!autoRefresh || !draftMode) return;
-    if (!datasets || !activeEntity) return;
+    if (!effectiveDatasets || !activeEntity) return;
     runSimulation();
-  }, [autoRefresh, draftMode, datasets, activeEntity, runSimulation]);
+  }, [autoRefresh, draftMode, effectiveDatasets, activeEntity, runSimulation]);
 
   const summaryText = result ? getSimulationSummary(result.metrics) : "Run a simulation to get balancing feedback.";
 

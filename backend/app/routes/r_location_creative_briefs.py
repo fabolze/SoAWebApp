@@ -23,6 +23,8 @@ class LocationCreativeBriefRoute(BaseRoute):
 
     def process_input_data(self, db_session: Session, brief: LocationCreativeBrief, data: Dict[str, Any]) -> None:
         data = dict(data)
+        for field in ["concept_refs", "landmarks", "tags"]:
+            _require_list(data.get(field, []), field)
 
         self.validate_relationships(db_session, data, {"location_id": Location})
 
@@ -43,4 +45,10 @@ class LocationCreativeBriefRoute(BaseRoute):
         return self.serialize_model(brief)
 
 
-bp = LocationCreativeBriefRoute().bp
+def _require_list(value: Any, field_name: str) -> None:
+    if not isinstance(value, list):
+        raise ValueError(f"{field_name} must be an array")
+
+
+route = LocationCreativeBriefRoute()
+bp = route.bp

@@ -26,6 +26,7 @@ class TravelTuningRoute(BaseRoute):
         data = dict(data)
         for field in ["route_type", "place_kind", "biome"]:
             data[field] = _none_if_blank(data.get(field))
+        _require_list(data.get("tags", []), "tags")
 
         self.validate_enums(data, {"route_type": LocationRouteType, "place_kind": PlaceKind, "biome": Biome})
 
@@ -57,6 +58,8 @@ def _bounded_number(value: Any, field_name: str, minimum: float, maximum: float)
 def _non_negative_number(value: Any, field_name: str) -> float:
     if value in (None, ""):
         return 0
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be a number")
     try:
         numeric = float(value)
     except (TypeError, ValueError) as exc:
@@ -72,4 +75,10 @@ def _none_if_blank(value: Any) -> Any:
     return value
 
 
-bp = TravelTuningRoute().bp
+def _require_list(value: Any, field_name: str) -> None:
+    if not isinstance(value, list):
+        raise ValueError(f"{field_name} must be an array")
+
+
+route = TravelTuningRoute()
+bp = route.bp

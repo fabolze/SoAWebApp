@@ -24,6 +24,11 @@ class LocationRouteRoute(BaseRoute):
         return data["id"]
 
     def process_input_data(self, db_session: Session, route: LocationRoute, data: Dict[str, Any]) -> None:
+        data = dict(data)
+        data["requirements_id"] = _none_if_blank(data.get("requirements_id"))
+        _require_list(data.get("tags", []), "tags")
+        for field in ["bidirectional", "is_hidden", "is_fast_travel_enabled"]:
+            _require_boolean(data.get(field), field)
         self.validate_enums(data, {"route_type": LocationRouteType})
         self.validate_relationships(db_session, data, {
             "from_location_id": Location,
@@ -59,6 +64,8 @@ class LocationRouteRoute(BaseRoute):
 def _non_negative_number(value: Any, field_name: str) -> float:
     if value in (None, ""):
         return 0
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be a number")
     try:
         numeric = float(value)
     except (TypeError, ValueError) as exc:
@@ -68,4 +75,21 @@ def _non_negative_number(value: Any, field_name: str) -> float:
     return numeric
 
 
-bp = LocationRouteRoute().bp
+def _none_if_blank(value: Any) -> Any:
+    if isinstance(value, str) and value.strip() == "":
+        return None
+    return value
+
+
+def _require_list(value: Any, field_name: str) -> None:
+    if not isinstance(value, list):
+        raise ValueError(f"{field_name} must be an array")
+
+
+def _require_boolean(value: Any, field_name: str) -> None:
+    if value is not None and not isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a boolean")
+
+
+route = LocationRouteRoute()
+bp = route.bp

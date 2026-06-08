@@ -26,6 +26,8 @@ class LocationEncounterTableRoute(BaseRoute):
     def process_input_data(self, db_session: Session, table: LocationEncounterTable, data: Dict[str, Any]) -> None:
         data = dict(data)
         data["requirements_id"] = _none_if_blank(data.get("requirements_id"))
+        _require_list(data.get("environmental_modifiers", []), "environmental_modifiers")
+        _require_list(data.get("tags", []), "tags")
 
         self.validate_relationships(db_session, data, {
             "location_id": Location,
@@ -41,7 +43,9 @@ class LocationEncounterTableRoute(BaseRoute):
             if not isinstance(entry, dict):
                 raise ValueError(f"encounter_entries[{index}] must be an object")
             encounter_id = entry.get("encounter_id")
-            if encounter_id and not db_session.get(Encounter, encounter_id):
+            if not encounter_id:
+                raise ValueError(f"encounter_entries[{index}] must include encounter_id")
+            if not db_session.get(Encounter, encounter_id):
                 raise ValueError(f"Invalid encounter_entries[{index}].encounter_id: {encounter_id}")
             weight = _non_negative_number(entry.get("weight", 1), f"encounter_entries[{index}].weight")
             min_count = _non_negative_int(entry.get("min_count", 1), f"encounter_entries[{index}].min_count")
@@ -69,6 +73,8 @@ class LocationEncounterTableRoute(BaseRoute):
 def _non_negative_number(value: Any, field_name: str) -> float:
     if value in (None, ""):
         return 0
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be a number")
     try:
         numeric = float(value)
     except (TypeError, ValueError) as exc:
@@ -79,8 +85,10 @@ def _non_negative_number(value: Any, field_name: str) -> float:
 
 
 def _non_negative_int(value: Any, field_name: str) -> int:
-    numeric = int(_non_negative_number(value, field_name))
-    return numeric
+    numeric = _non_negative_number(value, field_name)
+    if not numeric.is_integer():
+        raise ValueError(f"{field_name} must be an integer")
+    return int(numeric)
 
 
 def _none_if_blank(value: Any) -> Any:
@@ -89,4 +97,10 @@ def _none_if_blank(value: Any) -> Any:
     return value
 
 
-bp = LocationEncounterTableRoute().bp
+def _require_list(value: Any, field_name: str) -> None:
+    if not isinstance(value, list):
+        raise ValueError(f"{field_name} must be an array")
+
+
+route = LocationEncounterTableRoute()
+bp = route.bp

@@ -25,6 +25,13 @@ class CharacterRoute(BaseRoute):
         return data["id"]
 
     def process_input_data(self, db_session: Session, character: Character, data: Dict[str, Any]) -> None:
+        tags = data.get("tags", [])
+        if not isinstance(tags, list):
+            raise ValueError("tags must be an array")
+        level = data.get("level")
+        if level is not None and (isinstance(level, bool) or not isinstance(level, (int, float)) or not float(level).is_integer()):
+            raise ValueError("level must be an integer")
+
         # Validate relationships
         self.validate_relationships(db_session, data, {
             "class_id": CharacterClass,
@@ -40,15 +47,15 @@ class CharacterRoute(BaseRoute):
         character.title = data.get("title")
         character.description = data.get("description")
         character.image_path = data.get("image_path")
-        character.level = data.get("level")
+        character.level = int(level) if level is not None else None
 
         # Optional relationships
-        character.class_id = data.get("class_id")
-        character.faction_id = data.get("faction_id")
-        character.home_location_id = data.get("home_location_id")
+        character.class_id = data.get("class_id") or None
+        character.faction_id = data.get("faction_id") or None
+        character.home_location_id = data.get("home_location_id") or None
 
         # JSON fields
-        character.tags = data.get("tags", [])
+        character.tags = tags
 
     def serialize_item(self, character: Character) -> Dict[str, Any]:
         return self.serialize_model(character)
@@ -78,5 +85,6 @@ class CharacterRoute(BaseRoute):
             db_session.close()
 
 
-bp = CharacterRoute().bp
+route = CharacterRoute()
+bp = route.bp
 

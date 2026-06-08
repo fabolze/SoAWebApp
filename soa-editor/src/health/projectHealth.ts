@@ -395,6 +395,8 @@ function scanWorldDesign(bundles: DatasetBundle[], indexes: Map<string, Set<stri
   const requirementIds = indexes.get("requirements") || new Set<string>();
   const eventIds = indexes.get("events") || new Set<string>();
   const encounterIds = indexes.get("encounters") || new Set<string>();
+  const dialogueIds = indexes.get("dialogues") || new Set<string>();
+  const itemIds = indexes.get("items") || new Set<string>();
   const locationsById = new Map(locationsBundle.entries.map((entry) => [entryId(entry), entry]));
   const childrenByParent = new Map<string, EntryRecord[]>();
   for (const location of locationsBundle.entries) {
@@ -422,6 +424,7 @@ function scanWorldDesign(bundles: DatasetBundle[], indexes: Map<string, Set<stri
 
   const routeConnected = new Set<string>();
   const adjacency = new Map<string, Set<string>>();
+  const routeSignatures = new Map<string, EntryRecord>();
   for (const route of routesBundle.entries) {
     const fromId = getString(route, "from_location_id");
     const toId = getString(route, "to_location_id");
@@ -441,8 +444,15 @@ function scanWorldDesign(bundles: DatasetBundle[], indexes: Map<string, Set<stri
     if (route.is_hidden && !getString(route, "description") && (!Array.isArray(route.tags) || route.tags.length === 0)) {
       addWorldIssue(issues, routesBundle, route, "warning", "is_hidden", "Hidden route lacks discovery intent", "Hidden routes should have description or tags explaining how they are found.");
     }
+    const signature = [fromId, toId].sort().join("|") + `|${getString(route, "route_type")}`;
+    if (fromId && toId && routeSignatures.has(signature)) {
+      addWorldIssue(issues, routesBundle, route, "warning", "from_location_id", "Possible duplicate route", "Another route connects the same endpoints with the same route type.");
+    } else if (fromId && toId) {
+      routeSignatures.set(signature, route);
+    }
   }
 
+  const coordinateOwners = new Map<string, EntryRecord>();
   for (const location of locationsBundle.entries) {
     const id = entryId(location);
     const type = getString(location, "location_type");
@@ -454,6 +464,10 @@ function scanWorldDesign(bundles: DatasetBundle[], indexes: Map<string, Set<stri
     const hasChildren = (childrenByParent.get(id) || []).length > 0;
     const hasEncounters = Array.isArray(location.encounters) && location.encounters.length > 0;
     const hasNotes = Boolean(getString(location, "description"));
+    const embeddedEncounters = Array.isArray(location.encounters) ? location.encounters.map(String).filter(Boolean) : [];
+    embeddedEncounters.forEach((encounterId, index) => {
+      if (!encounterIds.has(encounterId)) addWorldIssue(issues, locationsBundle, location, "error", `encounters[${index}]`, "Missing embedded encounter", `Location encounter "${encounterId}" does not exist.`);
+    });
     if (isWorldMapNode && !routeConnected.has(id)) {
       addWorldIssue(issues, locationsBundle, location, "warning", "location_routes", "World-map location has no routes", "World-map nodes should normally connect to at least one route.");
     }
@@ -480,6 +494,17 @@ function scanWorldDesign(bundles: DatasetBundle[], indexes: Map<string, Set<stri
     }
     if (isPlayable && !resolvedBiome && !["None", "Mixed"].includes(inheritanceMode)) {
       addWorldIssue(issues, locationsBundle, location, "warning", "biome", "Playable location has no effective biome", "Playable or tuning-relevant locations should usually have an own or inherited biome.");
+    }
+    if (location.is_fast_travel_point && !routesBundle.entries.some((route) => (getString(route, "from_location_id") === id || getString(route, "to_location_id") === id) && route.is_fast_travel_enabled)) {
+      addWorldIssue(issues, locationsBundle, location, "warning", "is_fast_travel_point", "Fast-travel point has no fast-travel route", "Connect this point to at least one fast-travel-enabled route.");
+    }
+    if (isWorldMapNode && isRecord(location.coordinates)) {
+      const coordinateKey = `${getNumber(location.coordinates, "x", 50).toFixed(1)}|${getNumber(location.coordinates, "y", 50).toFixed(1)}`;
+      if (coordinateOwners.has(coordinateKey)) {
+        addWorldIssue(issues, locationsBundle, location, "warning", "coordinates", "World-map nodes overlap", "Another world-map location uses the same coordinates.");
+      } else {
+        coordinateOwners.set(coordinateKey, location);
+      }
     }
   }
 
@@ -509,14 +534,28 @@ function scanWorldDesign(bundles: DatasetBundle[], indexes: Map<string, Set<stri
   const poiBundle = getBundle(bundles, "location_pois");
   for (const poi of poiBundle?.entries || []) {
     if (!locationIds.has(getString(poi, "location_id"))) addWorldIssue(issues, poiBundle!, poi, "error", "location_id", "Orphaned POI", "POI references a missing location.");
+    for (const [field, ids, label] of [
+      ["requirements_id", requirementIds, "requirement"],
+      ["event_id", eventIds, "event"],
+      ["dialogue_id", dialogueIds, "dialogue"],
+      ["encounter_id", encounterIds, "encounter"],
+      ["item_id", itemIds, "item"],
+    ] as const) {
+      const referenceId = getString(poi, field);
+      if (referenceId && !ids.has(referenceId)) addWorldIssue(issues, poiBundle!, poi, "error", field, `Missing POI ${label}`, `POI references missing ${label} "${referenceId}".`);
+    }
   }
 
   const encounterTableBundle = getBundle(bundles, "location_encounter_tables");
   for (const table of encounterTableBundle?.entries || []) {
+    if (!locationIds.has(getString(table, "location_id"))) addWorldIssue(issues, encounterTableBundle!, table, "error", "location_id", "Orphaned encounter table", "Encounter table references a missing location.");
+    const requirementId = getString(table, "requirements_id");
+    if (requirementId && !requirementIds.has(requirementId)) addWorldIssue(issues, encounterTableBundle!, table, "error", "requirements_id", "Missing encounter-table requirement", `Requirement "${requirementId}" does not exist.`);
     const entries = Array.isArray(table.encounter_entries) ? table.encounter_entries.filter(isRecord) : [];
     if (entries.length === 0) addWorldIssue(issues, encounterTableBundle!, table, "warning", "encounter_entries", "Encounter table is empty", "Encounter placement tables should include at least one weighted encounter entry.");
     entries.forEach((row, index) => {
       const encounterId = getString(row, "encounter_id");
+      if (!encounterId) addWorldIssue(issues, encounterTableBundle!, table, "error", `encounter_entries[${index}].encounter_id`, "Encounter row is incomplete", "Encounter rows require an encounter reference.");
       if (encounterId && !encounterIds.has(encounterId)) addWorldIssue(issues, encounterTableBundle!, table, "error", `encounter_entries[${index}].encounter_id`, "Missing encounter", `Encounter entry references missing encounter "${encounterId}".`);
       if (getNumber(row, "weight", 0) <= 0) addWorldIssue(issues, encounterTableBundle!, table, "warning", `encounter_entries[${index}].weight`, "Invalid encounter weight", "Encounter weights should be greater than 0.");
       if (getNumber(row, "max_count", 1) < getNumber(row, "min_count", 1)) addWorldIssue(issues, encounterTableBundle!, table, "warning", `encounter_entries[${index}].max_count`, "Invalid spawn count", "max_count should not be less than min_count.");
@@ -527,6 +566,8 @@ function scanWorldDesign(bundles: DatasetBundle[], indexes: Map<string, Set<stri
   for (const binding of routeEventBundle?.entries || []) {
     if (!routeIds.has(getString(binding, "route_id"))) addWorldIssue(issues, routeEventBundle!, binding, "error", "route_id", "Missing route", "Route event binding references a missing route.");
     if (!eventIds.has(getString(binding, "event_id"))) addWorldIssue(issues, routeEventBundle!, binding, "error", "event_id", "Missing event", "Route event binding references a missing event.");
+    const requirementId = getString(binding, "requirements_id");
+    if (requirementId && !requirementIds.has(requirementId)) addWorldIssue(issues, routeEventBundle!, binding, "error", "requirements_id", "Missing binding requirement", `Requirement "${requirementId}" does not exist.`);
     const chance = getNumber(binding, "chance", 100);
     if (chance < 0 || chance > 100) addWorldIssue(issues, routeEventBundle!, binding, "warning", "chance", "Invalid event chance", "Route event chance should stay between 0 and 100.");
     if (getNumber(binding, "cooldown", 0) < 0) addWorldIssue(issues, routeEventBundle!, binding, "warning", "cooldown", "Invalid cooldown", "Cooldown should not be negative.");
@@ -540,6 +581,107 @@ function scanWorldDesign(bundles: DatasetBundle[], indexes: Map<string, Set<stri
     if (chance < 0 || chance > 100) addWorldIssue(issues, tuningBundle!, tuning, "warning", "encounter_chance", "Invalid encounter chance", "Encounter chance should stay between 0 and 100.");
     for (const key of ["travel_time_multiplier", "travel_cost_multiplier", "safe_zone_multiplier", "fatigue_cost", "risk_score"]) {
       if (getNumber(tuning, key, 0) < 0) addWorldIssue(issues, tuningBundle!, tuning, "warning", key, "Invalid travel tuning value", `${key} should not be negative.`);
+    }
+  }
+
+  const briefBundle = getBundle(bundles, "location_creative_briefs");
+  const briefLocations = new Set<string>();
+  for (const brief of briefBundle?.entries || []) {
+    const locationId = getString(brief, "location_id");
+    if (!locationIds.has(locationId)) addWorldIssue(issues, briefBundle!, brief, "error", "location_id", "Orphaned creative brief", "Creative brief references a missing location.");
+    if (locationId && briefLocations.has(locationId)) addWorldIssue(issues, briefBundle!, brief, "warning", "location_id", "Multiple creative briefs for location", "Confirm that multiple briefs for this location are intentional.");
+    briefLocations.add(locationId);
+  }
+}
+
+function scanCharacterDesign(bundles: DatasetBundle[], issues: HealthIssue[]) {
+  const characters = getBundle(bundles, "characters");
+  const combatProfiles = getBundle(bundles, "combat_profiles");
+  const interactionProfiles = getBundle(bundles, "interaction_profiles");
+  const encounters = getBundle(bundles, "encounters");
+  const dialogues = getBundle(bundles, "dialogues");
+  const shops = getBundle(bundles, "shops");
+  if (!characters || !combatProfiles || !interactionProfiles || !encounters || !dialogues || !shops) return;
+
+  const combatByCharacter = new Map(combatProfiles.entries.map((entry) => [getString(entry, "character_id"), entry]));
+  const interactionByCharacter = new Map(interactionProfiles.entries.map((entry) => [getString(entry, "character_id"), entry]));
+  const encounterCount = new Map<string, number>();
+  for (const encounter of encounters.entries) {
+    const participants = Array.isArray(encounter.participants) ? encounter.participants.filter(isRecord) : [];
+    participants.forEach((participant) => {
+      const characterId = getString(participant, "character_id");
+      if (characterId) encounterCount.set(characterId, (encounterCount.get(characterId) || 0) + 1);
+    });
+  }
+  const dialogueCount = new Map<string, number>();
+  dialogues.entries.forEach((dialogue) => {
+    const characterId = getString(dialogue, "character_id");
+    if (characterId) dialogueCount.set(characterId, (dialogueCount.get(characterId) || 0) + 1);
+  });
+  const shopCount = new Map<string, number>();
+  shops.entries.forEach((shop) => {
+    const characterId = getString(shop, "character_id");
+    if (characterId) shopCount.set(characterId, (shopCount.get(characterId) || 0) + 1);
+  });
+
+  const addCharacterIssue = (entry: EntryRecord, path: string, title: string, detail: string) => addIssue(issues, {
+    severity: "warning",
+    category: "empty",
+    schemaName: characters.dataset.schemaName,
+    schemaLabel: characters.dataset.label,
+    routePath: characters.dataset.routePath,
+    apiPath: characters.dataset.apiPath,
+    entryId: entryId(entry),
+    entryLabel: entryLabel(entry),
+    path,
+    title,
+    detail,
+  });
+
+  const combatScore = (character: EntryRecord, combat: EntryRecord) => {
+    const statTotal = (Array.isArray(combat.custom_stats) ? combat.custom_stats.filter(isRecord) : []).reduce((sum, row) => sum + Math.abs(getNumber(row, "value", 0)), 0);
+    return {
+      threat: getNumber(character, "level", 0) * 10 + (Array.isArray(combat.custom_abilities) ? combat.custom_abilities.length * 5 : 0) + statTotal,
+      reward: getNumber(combat, "xp_reward", 0) + (Array.isArray(combat.loot_table) ? combat.loot_table.length * 10 : 0),
+    };
+  };
+  const standards = characters.entries.flatMap((character) => {
+    const tags = Array.isArray(character.tags) ? character.tags.map(String).map((tag) => tag.toLowerCase()) : [];
+    const combat = combatByCharacter.get(entryId(character));
+    return combat && tags.includes("enemy") && !tags.includes("elite") && !tags.includes("boss")
+      ? [{ ...combatScore(character, combat), level: getNumber(character, "level", 0), enemyType: getString(combat, "enemy_type") }]
+      : [];
+  });
+  for (const character of characters.entries) {
+    const id = entryId(character);
+    const tags = Array.isArray(character.tags) ? character.tags.map(String).map((tag) => tag.toLowerCase()) : [];
+    const combat = combatByCharacter.get(id);
+    const interaction = interactionByCharacter.get(id);
+    const isEnemy = tags.some((tag) => ["enemy", "elite", "boss"].includes(tag));
+    const isElite = tags.includes("elite") || tags.includes("boss");
+    if (combat && !getString(character, "class_id")) addCharacterIssue(character, "class_id", "Combat character has no class", "Combat profiles require a character class and level.");
+    if (combat && getNumber(character, "level", 0) <= 0) addCharacterIssue(character, "level", "Combat character has no valid level", "Combat characters should have a level above zero.");
+    if (combat && (!Array.isArray(combat.custom_abilities) || combat.custom_abilities.length === 0)) addCharacterIssue(character, "combat_profile.custom_abilities", "Combat profile has no abilities", "Add at least one ability or confirm this combatant intentionally has none.");
+    if (isEnemy && !combat) addCharacterIssue(character, "combat_profile", "Enemy has no combat profile", "Enemy-tagged characters need a combat profile.");
+    if (isEnemy && !encounterCount.get(id)) addCharacterIssue(character, "encounters", "Enemy has no encounter placement", "This enemy never appears in an encounter.");
+    if (getString(interaction, "role") === "Merchant" && (!Array.isArray(interaction?.inventory) || interaction.inventory.length === 0) && !shopCount.get(id)) addCharacterIssue(character, "interaction_profile.inventory", "Merchant has no inventory or shop", "Merchant characters should expose goods through an interaction inventory or shop.");
+    if (getString(interaction, "role") === "Questgiver" && (!Array.isArray(interaction?.available_quests) || interaction.available_quests.length === 0)) addCharacterIssue(character, "interaction_profile.available_quests", "Quest giver offers no quests", "Questgiver characters should normally offer at least one quest.");
+    if (dialogueCount.get(id) && !interaction) addCharacterIssue(character, "interaction_profile", "Dialogue character has no interaction profile", "Characters with dialogue should normally have an interaction profile.");
+
+    if (combat) {
+      const { threat, reward } = combatScore(character, combat);
+      if (isElite && standards.length > 0) {
+        const level = getNumber(character, "level", 0);
+        const enemyType = getString(combat, "enemy_type");
+        const sameTypeNearby = standards.filter((row) => row.enemyType === enemyType && Math.abs(row.level - level) <= 5);
+        const nearby = sameTypeNearby.length > 0
+          ? sameTypeNearby
+          : [...standards].sort((a, b) => Math.abs(a.level - level) - Math.abs(b.level - level)).slice(0, 5);
+        const averageThreat = nearby.reduce((sum, row) => sum + row.threat, 0) / nearby.length;
+        const averageReward = nearby.reduce((sum, row) => sum + row.reward, 0) / nearby.length;
+        if (threat < averageThreat) addCharacterIssue(character, "combat_profile", "Elite or boss is weaker than standard enemies", "Review level, stats, and abilities for this elite-tier enemy.");
+        if (reward < averageReward) addCharacterIssue(character, "combat_profile.xp_reward", "Elite or boss reward is below standard enemies", "Review XP and loot for this elite-tier enemy.");
+      }
     }
   }
 }
@@ -557,6 +699,7 @@ export async function buildProjectHealthSummary(): Promise<HealthSummary> {
     scanRewardValues(bundle, issues);
   }
   scanWorldDesign(bundles, indexes, issues);
+  scanCharacterDesign(bundles, issues);
 
   const sortedIssues = issues.sort((a, b) => {
     const severityScore: Record<Severity, number> = { error: 0, warning: 1, info: 2 };

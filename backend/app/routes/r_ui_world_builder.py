@@ -1,4 +1,5 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, abort, jsonify, request
+from werkzeug.exceptions import HTTPException
 
 from backend.app.db.init_db import get_db_session
 from backend.app.models.m_dialogues import Dialogue
@@ -13,6 +14,13 @@ from backend.app.models.m_route_event_bindings import RouteEventBinding
 from backend.app.models.m_quests import Quest
 from backend.app.models.m_story_arcs import StoryArc
 from backend.app.models.m_travel_tuning import TravelTuning
+from backend.app.routes.r_location_creative_briefs import route as creative_brief_route
+from backend.app.routes.r_location_encounter_tables import route as encounter_table_route
+from backend.app.routes.r_location_pois import route as poi_route
+from backend.app.routes.r_location_routes import route as location_route_route
+from backend.app.routes.r_locations import route as location_route
+from backend.app.routes.r_route_event_bindings import route as route_event_binding_route
+from backend.app.routes.r_travel_tuning import route as travel_tuning_route
 
 
 bp = Blueprint("ui_world_builder", __name__)
@@ -71,64 +79,237 @@ def _location_columns(location: Location, locations_by_id: dict[str, Location]):
     return payload
 
 
+def _world_packet(db_session):
+    locations = db_session.query(Location).all()
+    routes = db_session.query(LocationRoute).all()
+    pois = db_session.query(LocationPoi).all()
+    encounter_tables = db_session.query(LocationEncounterTable).all()
+    route_event_bindings = db_session.query(RouteEventBinding).all()
+    travel_tuning = db_session.query(TravelTuning).all()
+    creative_briefs = db_session.query(LocationCreativeBrief).all()
+    events = db_session.query(Event).all()
+    encounters = db_session.query(Encounter).all()
+    quests = db_session.query(Quest).all()
+    story_arcs = db_session.query(StoryArc).all()
+    dialogues = db_session.query(Dialogue).all()
+
+    location_ids = {location.id for location in locations}
+    locations_by_id = {location.id: location for location in locations}
+    route_ids = {route.id for route in routes}
+    event_ids = {event.id for event in events}
+    encounter_ids = {encounter.id for encounter in encounters}
+    warnings = []
+
+    for location in locations:
+        if location.parent_location_id and location.parent_location_id not in location_ids:
+            warnings.append({
+                "schema": "locations",
+                "entry_id": location.id,
+                "message": f"Location parent_location_id references missing location {location.parent_location_id}",
+            })
+        visited = {location.id}
+        parent_id = location.parent_location_id
+        while parent_id:
+            if parent_id in visited:
+                warnings.append({
+                    "schema": "locations",
+                    "entry_id": location.id,
+                    "message": "Location participates in a parent hierarchy cycle",
+                })
+                break
+            visited.add(parent_id)
+            parent = locations_by_id.get(parent_id)
+            parent_id = parent.parent_location_id if parent else None
+        for encounter_id in location.encounters or []:
+            if encounter_id not in encounter_ids:
+                warnings.append({
+                    "schema": "locations",
+                    "entry_id": location.id,
+                    "message": f"Location references missing encounter {encounter_id}",
+                })
+    for route in routes:
+        if route.from_location_id not in location_ids or route.to_location_id not in location_ids:
+            warnings.append({
+                "schema": "location_routes",
+                "entry_id": route.id,
+                "message": "Route references one or more missing locations",
+            })
+    for binding in route_event_bindings:
+        if binding.route_id not in route_ids:
+            warnings.append({
+                "schema": "route_event_bindings",
+                "entry_id": binding.id,
+                "message": f"Route event binding references missing route {binding.route_id}",
+            })
+        if binding.event_id not in event_ids:
+            warnings.append({
+                "schema": "route_event_bindings",
+                "entry_id": binding.id,
+                "message": f"Route event binding references missing event {binding.event_id}",
+            })
+    for poi in pois:
+        if poi.location_id not in location_ids:
+            warnings.append({
+                "schema": "location_pois",
+                "entry_id": poi.id,
+                "message": f"POI references missing location {poi.location_id}",
+            })
+    for table in encounter_tables:
+        if table.location_id not in location_ids:
+            warnings.append({
+                "schema": "location_encounter_tables",
+                "entry_id": table.id,
+                "message": f"Encounter table references missing location {table.location_id}",
+            })
+        for entry in table.encounter_entries or []:
+            if not isinstance(entry, dict) or entry.get("encounter_id") not in encounter_ids:
+                warnings.append({
+                    "schema": "location_encounter_tables",
+                    "entry_id": table.id,
+                    "message": "Encounter table contains a missing or invalid encounter reference",
+                })
+    for brief in creative_briefs:
+        if brief.location_id not in location_ids:
+            warnings.append({
+                "schema": "location_creative_briefs",
+                "entry_id": brief.id,
+                "message": f"Creative brief references missing location {brief.location_id}",
+            })
+
+    return {
+        "locations": [_location_columns(location, locations_by_id) for location in locations],
+        "routes": [_columns(route) for route in routes],
+        "pois": [_columns(poi) for poi in pois],
+        "encounter_tables": [_columns(table) for table in encounter_tables],
+        "route_event_bindings": [_columns(binding) for binding in route_event_bindings],
+        "travel_tuning": [_columns(tuning) for tuning in travel_tuning],
+        "creative_briefs": [_columns(brief) for brief in creative_briefs],
+        "events": [_columns(event) for event in events],
+        "encounters": [_columns(encounter) for encounter in encounters],
+        "quests": [_columns(quest) for quest in quests],
+        "story_arcs": [_columns(arc) for arc in story_arcs],
+        "dialogues": [_columns(dialogue) for dialogue in dialogues],
+        "warnings": warnings,
+    }
+
+
+def _upsert_with_route(db_session, route, model, data):
+    if not isinstance(data, dict):
+        abort(400, description=f"{model.__tablename__} bundle entries must be objects")
+    item_id = data.get("id")
+    if not item_id:
+        abort(400, description=f"{model.__tablename__}.id is required")
+    item = db_session.get(model, item_id) or model(id=item_id)
+    route.validate_required_fields(data, route.get_schema_required_fields(model.__name__.lower()))
+    route.process_input_data(db_session, item, dict(data))
+    route._normalize_common_fields(item, data)
+    db_session.add(item)
+    db_session.flush()
+    return item
+
+
+def _bundle_rows(payload, key):
+    rows = payload.get(key, [])
+    if not isinstance(rows, list):
+        abort(400, description=f"{key} must be an array")
+    ids = [row.get("id") for row in rows if isinstance(row, dict)]
+    if len(ids) != len(set(ids)):
+        abort(400, description=f"{key} contains duplicate ids")
+    return rows
+
+
+def _validate_owner_unchanged(db_session, model, data, owner_field, label):
+    existing = db_session.get(model, data.get("id"))
+    if existing and getattr(existing, owner_field) != data.get(owner_field):
+        abort(400, description=f"{label}.{owner_field} cannot be reassigned through the world bundle")
+
+
+def _save_locations_parent_first(db_session, rows):
+    pending = {row.get("id"): row for row in rows if isinstance(row, dict)}
+    if len(pending) != len(rows):
+        abort(400, description="locations bundle entries must be objects with unique ids")
+    while pending:
+        progressed = False
+        for location_id, data in list(pending.items()):
+            parent_id = data.get("parent_location_id")
+            if parent_id and parent_id in pending:
+                continue
+            _upsert_with_route(db_session, location_route, Location, data)
+            del pending[location_id]
+            progressed = True
+        if not progressed:
+            abort(400, description="locations contain an unresolved parent hierarchy cycle")
+
+
+def _validate_location_hierarchy(db_session):
+    locations = db_session.query(Location).all()
+    by_id = {location.id: location for location in locations}
+    for location in locations:
+        visited = {location.id}
+        parent_id = location.parent_location_id
+        while parent_id:
+            if parent_id in visited:
+                abort(400, description=f"location hierarchy cycle includes {location.id}")
+            visited.add(parent_id)
+            parent = by_id.get(parent_id)
+            parent_id = parent.parent_location_id if parent else None
+
+
 @bp.route("/api/ui/world_builder", methods=["GET"])
 def get_world_builder():
     db_session = get_db_session()
     try:
-        locations = db_session.query(Location).all()
-        routes = db_session.query(LocationRoute).all()
-        pois = db_session.query(LocationPoi).all()
-        encounter_tables = db_session.query(LocationEncounterTable).all()
-        route_event_bindings = db_session.query(RouteEventBinding).all()
-        travel_tuning = db_session.query(TravelTuning).all()
-        creative_briefs = db_session.query(LocationCreativeBrief).all()
-        events = db_session.query(Event).all()
-        encounters = db_session.query(Encounter).all()
-        quests = db_session.query(Quest).all()
-        story_arcs = db_session.query(StoryArc).all()
-        dialogues = db_session.query(Dialogue).all()
+        return jsonify(_world_packet(db_session))
+    finally:
+        db_session.close()
 
-        location_ids = {location.id for location in locations}
-        locations_by_id = {location.id: location for location in locations}
-        route_ids = {route.id for route in routes}
-        warnings = []
 
-        for location in locations:
-            if location.parent_location_id and location.parent_location_id not in location_ids:
-                warnings.append({
-                    "schema": "locations",
-                    "entry_id": location.id,
-                    "message": f"Location parent_location_id references missing location {location.parent_location_id}",
-                })
-        for route in routes:
-            if route.from_location_id not in location_ids or route.to_location_id not in location_ids:
-                warnings.append({
-                    "schema": "location_routes",
-                    "entry_id": route.id,
-                    "message": "Route references one or more missing locations",
-                })
-        for binding in route_event_bindings:
-            if binding.route_id not in route_ids:
-                warnings.append({
-                    "schema": "route_event_bindings",
-                    "entry_id": binding.id,
-                    "message": f"Route event binding references missing route {binding.route_id}",
-                })
+@bp.route("/api/ui/world_builder/bundle", methods=["POST"])
+def save_world_builder_bundle():
+    db_session = get_db_session()
+    try:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            abort(400, description="world bundle must be an object")
 
-        return jsonify({
-            "locations": [_location_columns(location, locations_by_id) for location in locations],
-            "routes": [_columns(route) for route in routes],
-            "pois": [_columns(poi) for poi in pois],
-            "encounter_tables": [_columns(table) for table in encounter_tables],
-            "route_event_bindings": [_columns(binding) for binding in route_event_bindings],
-            "travel_tuning": [_columns(tuning) for tuning in travel_tuning],
-            "creative_briefs": [_columns(brief) for brief in creative_briefs],
-            "events": [_columns(event) for event in events],
-            "encounters": [_columns(encounter) for encounter in encounters],
-            "quests": [_columns(quest) for quest in quests],
-            "story_arcs": [_columns(arc) for arc in story_arcs],
-            "dialogues": [_columns(dialogue) for dialogue in dialogues],
-            "warnings": warnings,
-        })
+        locations = _bundle_rows(payload, "locations")
+        routes = _bundle_rows(payload, "routes")
+        pois = _bundle_rows(payload, "pois")
+        encounter_tables = _bundle_rows(payload, "encounter_tables")
+        bindings = _bundle_rows(payload, "route_event_bindings")
+        tuning = _bundle_rows(payload, "travel_tuning")
+        briefs = _bundle_rows(payload, "creative_briefs")
+
+        for data in pois:
+            _validate_owner_unchanged(db_session, LocationPoi, data, "location_id", "poi")
+        for data in encounter_tables:
+            _validate_owner_unchanged(db_session, LocationEncounterTable, data, "location_id", "encounter_table")
+        for data in bindings:
+            _validate_owner_unchanged(db_session, RouteEventBinding, data, "route_id", "route_event_binding")
+        for data in briefs:
+            _validate_owner_unchanged(db_session, LocationCreativeBrief, data, "location_id", "creative_brief")
+
+        _save_locations_parent_first(db_session, locations)
+        for data in routes:
+            _upsert_with_route(db_session, location_route_route, LocationRoute, data)
+        for data in pois:
+            _upsert_with_route(db_session, poi_route, LocationPoi, data)
+        for data in encounter_tables:
+            _upsert_with_route(db_session, encounter_table_route, LocationEncounterTable, data)
+        for data in bindings:
+            _upsert_with_route(db_session, route_event_binding_route, RouteEventBinding, data)
+        for data in tuning:
+            _upsert_with_route(db_session, travel_tuning_route, TravelTuning, data)
+        for data in briefs:
+            _upsert_with_route(db_session, creative_brief_route, LocationCreativeBrief, data)
+        _validate_location_hierarchy(db_session)
+
+        db_session.commit()
+        return jsonify(_world_packet(db_session))
+    except Exception as error:
+        db_session.rollback()
+        if isinstance(error, HTTPException):
+            raise
+        abort(400, description=str(error))
     finally:
         db_session.close()

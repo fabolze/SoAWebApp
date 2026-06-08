@@ -8,6 +8,7 @@ from backend.app.models.m_interaction_profiles import InteractionProfile
 from backend.app.models.m_flags import Flag
 from backend.app.models.m_currencies import Currency
 from backend.app.models.m_factions import Faction
+from backend.app.models.m_items import Item
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from backend.app.db.init_db import get_db_session
@@ -27,6 +28,17 @@ class EncounterRoute(BaseRoute):
         return data["id"]
         
     def process_input_data(self, db_session: Session, encounter: Encounter, data: Dict[str, Any]) -> None:
+        def _require_list(value: Any, field_name: str) -> List[Any]:
+            if value is None:
+                return []
+            if not isinstance(value, list):
+                raise ValueError(f"{field_name} must be an array")
+            return value
+
+        def _validate_number(value: Any, field_name: str) -> None:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{field_name} must be a number")
+
         # Validate enums
         self.validate_enums(data, {
             "encounter_type": EncounterType
@@ -44,12 +56,10 @@ class EncounterRoute(BaseRoute):
         
         # Optional fields
         encounter.description = data.get("description")
-        encounter.requirements_id = data.get("requirements_id")
+        encounter.requirements_id = data.get("requirements_id") or None
         
         # Validate participants
-        participants = data.get("participants", [])
-        if not isinstance(participants, list):
-            raise ValueError("Participants must be a list")
+        participants = _require_list(data.get("participants", []), "participants")
         allowed_contexts = {"Combat", "Interaction"}
         allowed_sides = {"Hostile", "Friendly", "Neutral"}
         for entry in participants:
@@ -81,29 +91,49 @@ class EncounterRoute(BaseRoute):
         rewards = data.get("rewards", {})
         if not isinstance(rewards, dict):
             raise ValueError("Rewards must be provided as an object")
-        if "flags_set" in rewards:
-            for flag_id in rewards["flags_set"]:
+        if rewards.get("xp") is not None:
+            _validate_number(rewards.get("xp"), "rewards.xp")
+        flags_set = _require_list(rewards.get("flags_set", []), "rewards.flags_set")
+        for flag_id in flags_set:
                 if not db_session.get(Flag, flag_id):
                     raise ValueError(f"Invalid flag_id in rewards: {flag_id}")
-        currencies = rewards.get("currencies", [])
+        items = _require_list(rewards.get("items", []), "rewards.items")
+        for entry in items:
+            if not isinstance(entry, dict):
+                raise ValueError("Item rewards must be objects")
+            item_id = entry.get("item_id")
+            if not item_id or entry.get("quantity") is None:
+                raise ValueError("Item rewards must include item_id and quantity")
+            _validate_number(entry.get("quantity"), "rewards.items.quantity")
+            if not db_session.get(Item, item_id):
+                raise ValueError(f"Invalid item_id in rewards: {item_id}")
+        currencies = _require_list(rewards.get("currencies", []), "rewards.currencies")
         for entry in currencies:
             if not isinstance(entry, dict):
                 raise ValueError("Currency rewards must be objects")
             currency_id = entry.get("currency_id")
-            if currency_id and not db_session.get(Currency, currency_id):
+            if not currency_id or entry.get("amount") is None:
+                raise ValueError("Currency rewards must include currency_id and amount")
+            _validate_number(entry.get("amount"), "rewards.currencies.amount")
+            if not db_session.get(Currency, currency_id):
                 raise ValueError(f"Invalid currency_id in rewards: {currency_id}")
-        reputation = rewards.get("reputation", [])
+        reputation = _require_list(rewards.get("reputation", []), "rewards.reputation")
         for entry in reputation:
             if not isinstance(entry, dict):
                 raise ValueError("Reputation rewards must be objects")
             faction_id = entry.get("faction_id")
-            if faction_id and not db_session.get(Faction, faction_id):
+            if not faction_id or entry.get("amount") is None:
+                raise ValueError("Reputation rewards must include faction_id and amount")
+            _validate_number(entry.get("amount"), "rewards.reputation.amount")
+            if not db_session.get(Faction, faction_id):
                 raise ValueError(f"Invalid faction_id in rewards: {faction_id}")
         rewards["currencies"] = currencies
         rewards["reputation"] = reputation
+        rewards["items"] = items
+        rewards["flags_set"] = flags_set
         
         encounter.rewards = rewards
-        encounter.tags = data.get("tags", [])
+        encounter.tags = _require_list(data.get("tags", []), "tags")
         
     def serialize_item(self, encounter: Encounter) -> Dict[str, Any]:
         return self.serialize_model(encounter)
@@ -133,5 +163,6 @@ class EncounterRoute(BaseRoute):
             db_session.close()
 
 # Create the route instance
-bp = EncounterRoute().bp
+route = EncounterRoute()
+bp = route.bp
 

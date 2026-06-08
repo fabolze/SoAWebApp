@@ -26,6 +26,7 @@ class RouteEventBindingRoute(BaseRoute):
     def process_input_data(self, db_session: Session, binding: RouteEventBinding, data: Dict[str, Any]) -> None:
         data = dict(data)
         data["requirements_id"] = _none_if_blank(data.get("requirements_id"))
+        _require_list(data.get("tags", []), "tags")
 
         self.validate_enums(data, {"trigger_mode": RouteEventTriggerMode})
         self.validate_relationships(db_session, data, {
@@ -63,6 +64,8 @@ def _bounded_number(value: Any, field_name: str, minimum: float, maximum: float)
 def _non_negative_number(value: Any, field_name: str) -> float:
     if value in (None, ""):
         return 0
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be a number")
     try:
         numeric = float(value)
     except (TypeError, ValueError) as exc:
@@ -75,10 +78,9 @@ def _non_negative_number(value: Any, field_name: str) -> float:
 def _integer_or_default(value: Any, field_name: str) -> int:
     if value in (None, ""):
         return 0
-    try:
-        return int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{field_name} must be an integer") from exc
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not float(value).is_integer():
+        raise ValueError(f"{field_name} must be an integer")
+    return int(value)
 
 
 def _none_if_blank(value: Any) -> Any:
@@ -87,4 +89,10 @@ def _none_if_blank(value: Any) -> Any:
     return value
 
 
-bp = RouteEventBindingRoute().bp
+def _require_list(value: Any, field_name: str) -> None:
+    if not isinstance(value, list):
+        raise ValueError(f"{field_name} must be an array")
+
+
+route = RouteEventBindingRoute()
+bp = route.bp
