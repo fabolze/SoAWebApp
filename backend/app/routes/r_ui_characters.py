@@ -12,6 +12,7 @@ from backend.app.routes.r_characters import route as character_route
 from backend.app.routes.r_combat_profiles import route as combat_profile_route
 from backend.app.routes.r_encounters import route as encounter_route
 from backend.app.routes.r_interaction_profiles import route as interaction_profile_route
+from backend.app.routes.bundle_validation import bundle_error_response, wrap_bundle_error
 
 
 bp = Blueprint("ui_characters", __name__)
@@ -131,15 +132,18 @@ def _character_packet(db_session, character: Character):
     }
 
 
-def _upsert_with_route(db_session, route, model, data):
-    item_id = route.get_id_from_data(data)
-    item = db_session.get(model, item_id) or model(id=item_id)
-    route.validate_required_fields(data, route.get_schema_required_fields(model.__name__.lower()))
-    route.process_input_data(db_session, item, data)
-    route._normalize_common_fields(item, data)
-    db_session.add(item)
-    db_session.flush()
-    return item
+def _upsert_with_route(db_session, route, model, data, path):
+    try:
+        item_id = route.get_id_from_data(data)
+        item = db_session.get(model, item_id) or model(id=item_id)
+        route.validate_required_fields(data, route.get_schema_required_fields(model.__name__.lower()))
+        route.process_input_data(db_session, item, data)
+        route._normalize_common_fields(item, data)
+        db_session.add(item)
+        db_session.flush()
+        return item
+    except Exception as error:
+        raise wrap_bundle_error(path, error) from error
 
 
 def _require_list(data, key, owner):
@@ -226,18 +230,19 @@ def save_character_authoring_bundle():
         if interaction_data is not None:
             _validate_profile_ownership(db_session, InteractionProfile, interaction_data, character_id, "interaction_profile")
 
-        character = _upsert_with_route(db_session, character_route, Character, character_data)
+        character = _upsert_with_route(db_session, character_route, Character, character_data, "character")
         if combat_data is not None:
-            _upsert_with_route(db_session, combat_profile_route, CombatProfile, combat_data)
+            _upsert_with_route(db_session, combat_profile_route, CombatProfile, combat_data, "combat_profile")
         if interaction_data is not None:
-            _upsert_with_route(db_session, interaction_profile_route, InteractionProfile, interaction_data)
+            _upsert_with_route(db_session, interaction_profile_route, InteractionProfile, interaction_data, "interaction_profile")
 
         encounters = payload.get("encounters", [])
         if not isinstance(encounters, list):
             abort(400, description="encounters must be an array")
-        for encounter_data in encounters:
+        for encounter_index, encounter_data in enumerate(encounters):
+            encounter_path = f"encounters[{encounter_index}]"
             if not isinstance(encounter_data, dict):
-                abort(400, description="encounter bundle entries must be objects")
+                raise wrap_bundle_error(encounter_path, ValueError("encounter bundle entries must be objects"))
             encounter_data = dict(encounter_data)
             encounter_id = encounter_data.get("id")
             if not encounter_id:
@@ -275,7 +280,7 @@ def save_character_authoring_bundle():
                     abort(400, description="character bundle cannot change other encounter participants")
                 full_data = _serialize_encounter(existing)
                 full_data["participants"] = encounter_data.get("participants", [])
-                _upsert_with_route(db_session, encounter_route, Encounter, full_data)
+                _upsert_with_route(db_session, encounter_route, Encounter, full_data, encounter_path)
             else:
                 allowed = {"id", "slug", "name", "description", "encounter_type", "participants", "rewards", "tags"}
                 unexpected = set(encounter_data) - allowed
@@ -292,15 +297,15 @@ def save_character_authoring_bundle():
                     abort(400, description="new character-bundle encounter rewards must be an object")
                 if any(rewards.get(key) for key in ["items", "currencies", "reputation", "flags_set"]) or rewards.get("xp") not in (None, 0):
                     abort(400, description="new character-bundle encounters cannot create rewards")
-                _upsert_with_route(db_session, encounter_route, Encounter, encounter_data)
+                _upsert_with_route(db_session, encounter_route, Encounter, encounter_data, encounter_path)
 
         db_session.commit()
         refreshed = db_session.get(Character, character.id)
         return jsonify(_character_packet(db_session, refreshed))
     except Exception as error:
         db_session.rollback()
-        if isinstance(error, HTTPException):
+        if isinstance(error, HTTPException) and error.code != 400:
             raise
-        abort(400, description=str(error))
+        return bundle_error_response(error)
     finally:
         db_session.close()

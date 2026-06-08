@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type PointerEvent, type ReactNode, type SetStateAction } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../lib/api";
-import { buildProjectHealthSummary, type HealthIssue } from "../health/projectHealth";
+import { responseErrorMessage } from "../lib/apiErrors";
+import { buildProjectHealthSummary, healthIssueTarget, type HealthIssue } from "../health/projectHealth";
 import { generateSlug, generateUlid } from "../utils/generateId";
 import {
   coordinatesFromEntry,
@@ -37,6 +38,10 @@ interface WorldBuilderPayload {
   dialogues: EntryRecord[];
   warnings: EntryRecord[];
 }
+
+type WorldBundlePatch = Partial<Pick<WorldBuilderPayload, "locations" | "routes" | "pois" | "encounter_tables" | "route_event_bindings" | "travel_tuning" | "creative_briefs">> & {
+  deletions?: Partial<Record<"pois" | "encounter_tables" | "creative_briefs", string[]>>;
+};
 
 interface DragState {
   id: string;
@@ -276,6 +281,7 @@ function storyBeatAllowed(beat: StoryBeat, filter: StoryFilter): boolean {
 
 export default function WorldBuilderPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const boardRef = useRef<HTMLDivElement | null>(null);
   const [payload, setPayload] = useState<WorldBuilderPayload | null>(null);
   const [selectedId, setSelectedId] = useState("");
@@ -300,6 +306,7 @@ export default function WorldBuilderPage() {
   const [layer, setLayer] = useState<LayerMode>("all");
   const [storyFilter, setStoryFilter] = useState<StoryFilter>("all");
   const [showRouteLabels, setShowRouteLabels] = useState(true);
+  const requestedSelectedId = searchParams.get("selected") || "";
 
   const refreshLocationDrafts = useCallback(() => {
     setLocationDrafts(readDrafts("locations"));
@@ -333,14 +340,19 @@ export default function WorldBuilderPage() {
       setPayload(nextPayload);
       setHealthIssues(health?.issues.filter((issue) => issue.category === "world") ?? []);
       if (nextPayload.locations.length > 0) {
-        setSelectedId((current) => current || entryId(nextPayload.locations[0]));
+        setSelectedId((current) => {
+          if (requestedSelectedId && nextPayload.locations.some((location) => entryId(location) === requestedSelectedId)) {
+            return requestedSelectedId;
+          }
+          return current || entryId(nextPayload.locations[0]);
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "World builder failed to load.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [requestedSelectedId]);
 
   useEffect(() => {
     void load();
@@ -539,7 +551,7 @@ export default function WorldBuilderPage() {
       body: JSON.stringify({ locations: [next] }),
     });
     if (!response.ok) {
-      setNotice("Could not save map placement. Reloading last saved world data.");
+      setNotice(`Could not save map placement: ${await responseErrorMessage(response, "World bundle failed to save.")}`);
       await load();
       return;
     }
@@ -553,11 +565,26 @@ export default function WorldBuilderPage() {
       body: JSON.stringify({ locations: [next] }),
     });
     if (!response.ok) {
-      setNotice("Could not save quick edit changes.");
+      setNotice(`Could not save quick edit changes: ${await responseErrorMessage(response, "World bundle failed to save.")}`);
       return;
     }
     setNotice("Location quick edit saved.");
     await load();
+  }, [load]);
+
+  const saveWorldPacket = useCallback(async (patch: WorldBundlePatch): Promise<boolean> => {
+    const response = await apiFetch("/api/ui/world_builder/bundle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (!response.ok) {
+      setNotice(`Could not save location packet: ${await responseErrorMessage(response, "World bundle failed to save.")}`);
+      return false;
+    }
+    setNotice("Location packet saved.");
+    await load();
+    return true;
   }, [load]);
 
   const createSketchLocation = useCallback((coordinates: MapCoordinates) => {
@@ -953,6 +980,7 @@ export default function WorldBuilderPage() {
                 issues={selectedIssues}
                 storyBeats={selectedLocationStoryBeats}
                 onQuickSave={quickSaveLocation}
+                onSavePacket={saveWorldPacket}
                 onCreateRoute={startRouteFromSelected}
                 onCreatePoi={() => createPoiDraft(selected)}
               />
@@ -1191,6 +1219,185 @@ function LocationQuickEdit({ location, onSave }: { location: EntryRecord; onSave
   );
 }
 
+function InlineWorldPacketEditor({
+  location,
+  pois,
+  encounterTables,
+  briefs,
+  encountersById,
+  onSave,
+}: {
+  location: EntryRecord;
+  pois: EntryRecord[];
+  encounterTables: EntryRecord[];
+  briefs: EntryRecord[];
+  encountersById: Map<string, EntryRecord>;
+  onSave: (patch: WorldBundlePatch) => Promise<boolean>;
+}) {
+  const [poiDrafts, setPoiDrafts] = useState<EntryRecord[]>(pois);
+  const [tableDrafts, setTableDrafts] = useState<EntryRecord[]>(encounterTables);
+  const [briefDrafts, setBriefDrafts] = useState<EntryRecord[]>(briefs);
+  const [deletions, setDeletions] = useState<WorldBundlePatch["deletions"]>({});
+  const [saving, setSaving] = useState(false);
+  const original = JSON.stringify({ pois, encounterTables, briefs });
+  const dirty = JSON.stringify({ pois: poiDrafts, encounterTables: tableDrafts, briefs: briefDrafts }) !== original || Object.values(deletions || {}).some((ids) => ids && ids.length > 0);
+  const locationId = entryId(location);
+
+  useEffect(() => {
+    setPoiDrafts(pois);
+    setTableDrafts(encounterTables);
+    setBriefDrafts(briefs);
+    setDeletions({});
+  }, [briefs, encounterTables, locationId, pois]);
+
+  const updateRow = (setter: Dispatch<SetStateAction<EntryRecord[]>>, index: number, patch: EntryRecord) => {
+    setter((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
+  };
+  const addPoi = () => {
+    const name = `${label(location)} POI`;
+    setPoiDrafts((current) => [...current, {
+      id: generateUlid(), slug: generateSlug(name), location_id: locationId, name, poi_type: "Interactable",
+      description: "", placement_notes: "", is_discoverable: false, discovery_hint: "", tags: [],
+    }]);
+  };
+  const addTable = () => {
+    const name = `${label(location)} Encounters`;
+    setTableDrafts((current) => [...current, {
+      id: generateUlid(), slug: generateSlug(name), location_id: locationId, name, description: "", spawn_rules: "",
+      environmental_modifiers: [], encounter_entries: [], tags: [],
+    }]);
+  };
+  const addBrief = () => {
+    setBriefDrafts((current) => [...current, {
+      id: generateUlid(), slug: generateSlug(`${label(location)} creative brief`), location_id: locationId,
+      mood: "", visual_ideas: "", concept_refs: [], ambience_ideas: "", music_state: "", vfx_ideas: "",
+      asset_ideas: "", landmarks: [], story_notes: "", tags: [],
+    }]);
+  };
+  const reset = () => {
+    setPoiDrafts(pois);
+    setTableDrafts(encounterTables);
+    setBriefDrafts(briefs);
+    setDeletions({});
+  };
+  const removeOwnedRow = (
+    key: "pois" | "encounter_tables" | "creative_briefs",
+    row: EntryRecord,
+    setter: Dispatch<SetStateAction<EntryRecord[]>>,
+  ) => {
+    if (!window.confirm(`Delete ${label(row)} when this packet is saved?`)) return;
+    const id = entryId(row);
+    setter((current) => current.filter((entry) => entryId(entry) !== id));
+    const existed = key === "pois" ? pois.some((entry) => entryId(entry) === id)
+      : key === "encounter_tables" ? encounterTables.some((entry) => entryId(entry) === id)
+        : briefs.some((entry) => entryId(entry) === id);
+    if (existed) setDeletions((current) => ({ ...current, [key]: [...(current?.[key] || []), id] }));
+  };
+  const save = async () => {
+    setSaving(true);
+    const saved = await onSave({ pois: poiDrafts, encounter_tables: tableDrafts, creative_briefs: briefDrafts, deletions });
+    if (saved) reset();
+    setSaving(false);
+  };
+
+  return (
+    <Panel title="Inline Location Packet">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400">
+        <span>Edit linked placement and creative records without leaving the selected location.</span>
+        <div className="flex gap-2">
+          <button type="button" className={inactiveButton} disabled={!dirty || saving} onClick={reset}>Reset Packet</button>
+          <button type="button" className={activeButton} disabled={!dirty || saving} onClick={() => void save()}>{saving ? "Saving..." : "Save Packet"}</button>
+        </div>
+      </div>
+
+      <details className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
+        <summary className="cursor-pointer text-sm font-semibold">POIs / Interactables ({poiDrafts.length})</summary>
+        <div className="mt-3 grid gap-3">
+          {poiDrafts.map((poi, index) => (
+            <div key={entryId(poi)} className="grid gap-2 rounded-md bg-slate-50 p-3 dark:bg-slate-950 sm:grid-cols-2">
+              <input className={inputClass} value={editableText(poi.name)} onChange={(event) => updateRow(setPoiDrafts, index, { name: event.target.value })} placeholder="POI name" />
+              <select className={inputClass} value={text(poi.poi_type, "Interactable")} onChange={(event) => updateRow(setPoiDrafts, index, { poi_type: event.target.value })}>
+                {["Door", "Shrine", "LootNode", "QuestMarker", "NPCPlacement", "DiscoveryPoint", "RestPoint", "ResourceNode", "Hazard", "Interactable", "Other"].map((value) => <option key={value}>{value}</option>)}
+              </select>
+              <textarea className={`${inputClass} min-h-20 sm:col-span-2`} value={editableText(poi.placement_notes)} onChange={(event) => updateRow(setPoiDrafts, index, { placement_notes: event.target.value })} placeholder="Placement notes" />
+              <input className={inputClass} value={editableText(poi.discovery_hint)} onChange={(event) => updateRow(setPoiDrafts, index, { discovery_hint: event.target.value })} placeholder="Discovery hint" />
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(poi.is_discoverable)} onChange={(event) => updateRow(setPoiDrafts, index, { is_discoverable: event.target.checked })} /> Discoverable</label>
+              <button type="button" className="text-left text-xs font-medium text-red-600 dark:text-red-300" onClick={() => removeOwnedRow("pois", poi, setPoiDrafts)}>Delete POI on save</button>
+            </div>
+          ))}
+          <button type="button" className={inactiveButton} onClick={addPoi}>Add POI</button>
+        </div>
+      </details>
+
+      <details className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
+        <summary className="cursor-pointer text-sm font-semibold">Encounter Placement Tables ({tableDrafts.length})</summary>
+        <div className="mt-3 grid gap-3">
+          {tableDrafts.map((table, tableIndex) => (
+            <div key={entryId(table)} className="grid gap-2 rounded-md bg-slate-50 p-3 dark:bg-slate-950">
+              <input className={inputClass} value={editableText(table.name)} onChange={(event) => updateRow(setTableDrafts, tableIndex, { name: event.target.value })} placeholder="Table name" />
+              <textarea className={`${inputClass} min-h-20`} value={editableText(table.spawn_rules)} onChange={(event) => updateRow(setTableDrafts, tableIndex, { spawn_rules: event.target.value })} placeholder="Spawn rules" />
+              <input className={inputClass} value={arrayText(table.environmental_modifiers).join(", ")} onChange={(event) => updateRow(setTableDrafts, tableIndex, { environmental_modifiers: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="Environmental modifiers, comma separated" />
+              {encounterEntries(table).map((entry, entryIndex) => (
+                <div key={`${entryId(table)}-${entryIndex}`} className="grid gap-2 rounded border border-slate-200 p-2 dark:border-slate-800 sm:grid-cols-4">
+                  <select
+                    className={`${inputClass} sm:col-span-2`}
+                    value={text(entry.encounter_id)}
+                    onChange={(event) => {
+                      const rows = encounterEntries(table).map((row, index) => index === entryIndex ? { ...row, encounter_id: event.target.value } : row);
+                      updateRow(setTableDrafts, tableIndex, { encounter_entries: rows });
+                    }}
+                  >
+                    <option value="">Select encounter</option>
+                    {[...encountersById.values()].map((encounter) => <option key={entryId(encounter)} value={entryId(encounter)}>{label(encounter)}</option>)}
+                  </select>
+                  {(["weight", "min_count", "max_count"] as const).map((field) => (
+                    <input
+                      key={field}
+                      className={inputClass}
+                      type="number"
+                      value={numberValue(entry[field], field === "weight" ? 1 : 1)}
+                      title={field}
+                      onChange={(event) => {
+                        const rows = encounterEntries(table).map((row, index) => index === entryIndex ? { ...row, [field]: Number(event.target.value) } : row);
+                        updateRow(setTableDrafts, tableIndex, { encounter_entries: rows });
+                      }}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    className="text-left text-xs font-medium text-red-600 dark:text-red-300"
+                    onClick={() => updateRow(setTableDrafts, tableIndex, { encounter_entries: encounterEntries(table).filter((_, index) => index !== entryIndex) })}
+                  >
+                    Remove placement row
+                  </button>
+                </div>
+              ))}
+              <button type="button" className={inactiveButton} onClick={() => updateRow(setTableDrafts, tableIndex, { encounter_entries: [...encounterEntries(table), { encounter_id: "", weight: 1, min_count: 1, max_count: 1 }] })}>Add Encounter Row</button>
+              <button type="button" className="text-left text-xs font-medium text-red-600 dark:text-red-300" onClick={() => removeOwnedRow("encounter_tables", table, setTableDrafts)}>Delete encounter table on save</button>
+            </div>
+          ))}
+          <button type="button" className={inactiveButton} onClick={addTable}>Add Encounter Table</button>
+        </div>
+      </details>
+
+      <details className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
+        <summary className="cursor-pointer text-sm font-semibold">Creative Briefs ({briefDrafts.length})</summary>
+        <div className="mt-3 grid gap-3">
+          {briefDrafts.map((brief, index) => (
+            <div key={entryId(brief)} className="grid gap-2 rounded-md bg-slate-50 p-3 dark:bg-slate-950 sm:grid-cols-2">
+              {(["mood", "music_state"] as const).map((field) => <input key={field} className={inputClass} value={editableText(brief[field])} onChange={(event) => updateRow(setBriefDrafts, index, { [field]: event.target.value })} placeholder={field.replace("_", " ")} />)}
+              {(["visual_ideas", "ambience_ideas", "vfx_ideas", "asset_ideas", "story_notes"] as const).map((field) => <textarea key={field} className={`${inputClass} min-h-20`} value={editableText(brief[field])} onChange={(event) => updateRow(setBriefDrafts, index, { [field]: event.target.value })} placeholder={field.replace("_", " ")} />)}
+              {(["concept_refs", "landmarks"] as const).map((field) => <input key={field} className={inputClass} value={arrayText(brief[field]).join(", ")} onChange={(event) => updateRow(setBriefDrafts, index, { [field]: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder={`${field.replace("_", " ")}, comma separated`} />)}
+              <button type="button" className="text-left text-xs font-medium text-red-600 dark:text-red-300" onClick={() => removeOwnedRow("creative_briefs", brief, setBriefDrafts)}>Delete creative brief on save</button>
+            </div>
+          ))}
+          <button type="button" className={inactiveButton} onClick={addBrief}>Add Creative Brief</button>
+        </div>
+      </details>
+    </Panel>
+  );
+}
+
 function LocationDetails({
   location,
   routes,
@@ -1204,6 +1411,7 @@ function LocationDetails({
   issues,
   storyBeats,
   onQuickSave,
+  onSavePacket,
   onCreateRoute,
   onCreatePoi,
 }: {
@@ -1219,6 +1427,7 @@ function LocationDetails({
   issues: HealthIssue[];
   storyBeats: StoryBeat[];
   onQuickSave: (next: EntryRecord) => void;
+  onSavePacket: (patch: WorldBundlePatch) => Promise<boolean>;
   onCreateRoute: () => void;
   onCreatePoi: () => void;
 }) {
@@ -1245,6 +1454,14 @@ function LocationDetails({
       </div>
 
       <LocationQuickEdit location={location} onSave={onQuickSave} />
+      <InlineWorldPacketEditor
+        location={location}
+        pois={pois}
+        encounterTables={encounterTables}
+        briefs={briefs}
+        encountersById={encountersById}
+        onSave={onSavePacket}
+      />
       <StoryBeatPanel beats={storyBeats} />
 
       <div className="grid gap-2 sm:grid-cols-2">
@@ -1347,7 +1564,23 @@ function LocationDetails({
       </Panel>
 
       <Panel title="Validation Issues">
-        <EntryList entries={issues as unknown as EntryRecord[]} empty="No world validation issues for this location." detail={(entry) => text(entry.detail)} />
+        {issues.length === 0 ? (
+          <div className="text-sm text-slate-500 dark:text-slate-400">No world validation issues for this location.</div>
+        ) : (
+          <div className="grid gap-2">
+            {issues.map((issue) => (
+              <Link
+                key={issue.id}
+                className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900"
+                to={healthIssueTarget(issue)}
+              >
+                <div className="font-semibold">{issue.title}</div>
+                <div className="mt-1 text-xs">{issue.detail}</div>
+                <div className="mt-1 font-mono text-[11px] opacity-75">{issue.schemaName}.{issue.path}</div>
+              </Link>
+            ))}
+          </div>
+        )}
       </Panel>
     </div>
   );

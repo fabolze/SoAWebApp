@@ -422,6 +422,7 @@ def test_world_builder_bundle_rolls_back_and_locks_linked_record_ownership(monke
         }],
     })
     assert response.status_code == 400
+    assert response.get_json()["path"].startswith("encounter_tables[0]")
     assert Session().get(Location, "new-location") is None
 
     response = client.post("/api/ui/world_builder/bundle", json={
@@ -436,6 +437,36 @@ def test_world_builder_bundle_rolls_back_and_locks_linked_record_ownership(monke
     })
     assert response.status_code == 400
     assert Session().get(LocationPoi, "poi-owned").location_id == "zone"
+
+
+def test_world_builder_bundle_deletes_only_owned_location_packet_records(monkeypatch):
+    client, Session = _app_with_session(monkeypatch)
+    _seed_world(Session)
+    session = Session()
+    session.add_all([
+        LocationPoi(id="poi-delete", slug="poi-delete", location_id="zone", name="Delete", poi_type=PoiType.Other),
+        LocationEncounterTable(id="table-delete", slug="table-delete", location_id="zone", name="Delete"),
+        LocationCreativeBrief(id="brief-delete", slug="brief-delete", location_id="zone"),
+    ])
+    session.commit()
+    session.close()
+
+    response = client.post("/api/ui/world_builder/bundle", json={
+        "deletions": {
+            "pois": ["poi-delete"],
+            "encounter_tables": ["table-delete"],
+            "creative_briefs": ["brief-delete"],
+        },
+    })
+    assert response.status_code == 200
+    assert Session().get(LocationPoi, "poi-delete") is None
+    assert Session().get(LocationEncounterTable, "table-delete") is None
+    assert Session().get(LocationCreativeBrief, "brief-delete") is None
+
+    rejected = client.post("/api/ui/world_builder/bundle", json={"deletions": {"routes": ["route-1"]}})
+    assert rejected.status_code == 400
+    assert rejected.get_json()["path"] == "routes"
+    assert Session().get(LocationRoute, "route-1") is not None
 
 
 def test_world_builder_bundle_rejects_hierarchy_cycles_and_invalid_shapes(monkeypatch):

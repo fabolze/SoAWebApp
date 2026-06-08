@@ -137,10 +137,33 @@ def test_bundle_rolls_back_all_records_when_profile_is_invalid(monkeypatch):
     })
 
     assert response.status_code == 400
+    assert response.get_json()["path"].startswith("combat_profile")
     session = Session()
     assert session.get(Character, "char-1") is None
     assert session.get(CombatProfile, "combat-1") is None
     session.close()
+
+
+def test_bundle_returns_structured_error_path_for_encounter_rows(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+
+    response = client.post("/api/ui/characters/bundle", json={
+        "character": _character(),
+        "combat_profile": _combat(),
+        "encounters": [{
+            "id": "encounter-1",
+            "slug": "bad-placement",
+            "name": "Bad Placement",
+            "encounter_type": "Combat",
+            "participants": [{"character_id": "char-1", "contexts": ["Invalid"], "combat_side": "Hostile"}],
+            "rewards": {},
+            "tags": [],
+        }],
+    })
+
+    assert response.status_code == 400
+    assert response.get_json()["path"].startswith("encounters[0]")
 
 
 def test_bundle_existing_encounter_only_accepts_participant_changes(monkeypatch):

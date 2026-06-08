@@ -5,7 +5,7 @@ import {
   ExclamationTriangleIcon,
   ShieldExclamationIcon,
 } from "@heroicons/react/24/outline";
-import { buildProjectHealthSummary, type HealthIssue, type HealthSummary } from "../../health/projectHealth";
+import { buildProjectHealthSummary, healthIssueTarget, type HealthIssue, type HealthSummary } from "../../health/projectHealth";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../../styles/uiTokens";
 
 interface ProjectHealthPanelProps {
@@ -37,7 +37,7 @@ function openIssue(issue: HealthIssue) {
   nextWorkspace.selectedEntryId = issue.entryId;
   nextWorkspace.showEditor = true;
   localStorage.setItem(targetWorkspaceKey, JSON.stringify(nextWorkspace));
-  window.location.assign(`/${issue.routePath}`);
+  window.location.assign(healthIssueTarget(issue));
 }
 
 export default function ProjectHealthPanel({ onNavigateRequest }: ProjectHealthPanelProps) {

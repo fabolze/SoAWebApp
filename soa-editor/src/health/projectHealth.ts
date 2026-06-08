@@ -56,6 +56,17 @@ export interface HealthSummary {
   issues: HealthIssue[];
 }
 
+export function healthIssueTarget(issue: HealthIssue): string {
+  const params = new URLSearchParams();
+  params.set("selected", issue.entryId);
+  if (issue.path) params.set("field", issue.path);
+  if (issue.schemaName) params.set("schema", issue.schemaName);
+  if (issue.category === "world") {
+    return `/author/world?${params.toString()}`;
+  }
+  return `/${issue.routePath}?${params.toString()}`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

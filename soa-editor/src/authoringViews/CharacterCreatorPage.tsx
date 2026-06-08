@@ -7,6 +7,7 @@ import SchemaForm from "../components/SchemaForm";
 import { useDirtyState } from "../components/useDirtyState";
 import SimulationWorkbench from "../components/simulation/SimulationWorkbench";
 import { apiFetch } from "../lib/api";
+import { formatApiError } from "../lib/apiErrors";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import { getSimulationScenarioById, loadSimulationDatasets, simulateEntity, type SimulationDatasets } from "../simulation";
 import type { SchemaDefinition } from "../components/schemaForm/types";
@@ -92,10 +93,6 @@ function fillEmpty(base: EntryRecord, patch: EntryRecord): EntryRecord {
     if (current === null || current === undefined || current === "" || (Array.isArray(current) && current.length === 0)) next[key] = value;
   });
   return next;
-}
-
-function errorMessage(value: unknown): string {
-  return isRecord(value) && typeof value.message === "string" ? value.message : "Save failed.";
 }
 
 function arrayRows(value: unknown): EntryRecord[] {
@@ -257,7 +254,7 @@ export default function CharacterCreatorPage() {
         body: JSON.stringify({ character: bundle.character, combat_profile: bundle.combat_profile, interaction_profile: bundle.interaction_profile, encounters: encounterPayload }),
       });
       const payload = await response.json().catch(() => null);
-      if (!response.ok || !isRecord(payload)) throw new Error(errorMessage(payload));
+      if (!response.ok || !isRecord(payload)) throw new Error(formatApiError(payload, "Character bundle failed to save."));
       const saved = payload as unknown as CharacterBundle;
       setBundle(saved);
       setOriginal(saved);

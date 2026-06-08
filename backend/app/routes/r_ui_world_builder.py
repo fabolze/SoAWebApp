@@ -21,6 +21,7 @@ from backend.app.routes.r_location_routes import route as location_route_route
 from backend.app.routes.r_locations import route as location_route
 from backend.app.routes.r_route_event_bindings import route as route_event_binding_route
 from backend.app.routes.r_travel_tuning import route as travel_tuning_route
+from backend.app.routes.bundle_validation import bundle_error_response, wrap_bundle_error
 
 
 bp = Blueprint("ui_world_builder", __name__)
@@ -193,19 +194,22 @@ def _world_packet(db_session):
     }
 
 
-def _upsert_with_route(db_session, route, model, data):
-    if not isinstance(data, dict):
-        abort(400, description=f"{model.__tablename__} bundle entries must be objects")
-    item_id = data.get("id")
-    if not item_id:
-        abort(400, description=f"{model.__tablename__}.id is required")
-    item = db_session.get(model, item_id) or model(id=item_id)
-    route.validate_required_fields(data, route.get_schema_required_fields(model.__name__.lower()))
-    route.process_input_data(db_session, item, dict(data))
-    route._normalize_common_fields(item, data)
-    db_session.add(item)
-    db_session.flush()
-    return item
+def _upsert_with_route(db_session, route, model, data, path):
+    try:
+        if not isinstance(data, dict):
+            abort(400, description=f"{model.__tablename__} bundle entries must be objects")
+        item_id = data.get("id")
+        if not item_id:
+            abort(400, description=f"{model.__tablename__}.id is required")
+        item = db_session.get(model, item_id) or model(id=item_id)
+        route.validate_required_fields(data, route.get_schema_required_fields(model.__name__.lower()))
+        route.process_input_data(db_session, item, dict(data))
+        route._normalize_common_fields(item, data)
+        db_session.add(item)
+        db_session.flush()
+        return item
+    except Exception as error:
+        raise wrap_bundle_error(path, error) from error
 
 
 def _bundle_rows(payload, key):
@@ -224,8 +228,33 @@ def _validate_owner_unchanged(db_session, model, data, owner_field, label):
         abort(400, description=f"{label}.{owner_field} cannot be reassigned through the world bundle")
 
 
+def _delete_owned_rows(db_session, payload):
+    deletions = payload.get("deletions", {})
+    if not isinstance(deletions, dict):
+        abort(400, description="deletions must be an object")
+    allowed = {
+        "pois": LocationPoi,
+        "encounter_tables": LocationEncounterTable,
+        "creative_briefs": LocationCreativeBrief,
+    }
+    unexpected = set(deletions) - set(allowed)
+    if unexpected:
+        abort(400, description=f"world bundle cannot delete shared record types: {sorted(unexpected)}")
+    for key, model in allowed.items():
+        ids = deletions.get(key, [])
+        if not isinstance(ids, list) or any(not isinstance(item_id, str) or not item_id for item_id in ids):
+            abort(400, description=f"deletions.{key} must be an array of ids")
+        if len(ids) != len(set(ids)):
+            abort(400, description=f"deletions.{key} contains duplicate ids")
+        for item_id in ids:
+            item = db_session.get(model, item_id)
+            if item:
+                db_session.delete(item)
+
+
 def _save_locations_parent_first(db_session, rows):
     pending = {row.get("id"): row for row in rows if isinstance(row, dict)}
+    indexes = {row.get("id"): index for index, row in enumerate(rows) if isinstance(row, dict)}
     if len(pending) != len(rows):
         abort(400, description="locations bundle entries must be objects with unique ids")
     while pending:
@@ -234,7 +263,7 @@ def _save_locations_parent_first(db_session, rows):
             parent_id = data.get("parent_location_id")
             if parent_id and parent_id in pending:
                 continue
-            _upsert_with_route(db_session, location_route, Location, data)
+            _upsert_with_route(db_session, location_route, Location, data, f"locations[{indexes[location_id]}]")
             del pending[location_id]
             progressed = True
         if not progressed:
@@ -290,26 +319,27 @@ def save_world_builder_bundle():
             _validate_owner_unchanged(db_session, LocationCreativeBrief, data, "location_id", "creative_brief")
 
         _save_locations_parent_first(db_session, locations)
-        for data in routes:
-            _upsert_with_route(db_session, location_route_route, LocationRoute, data)
-        for data in pois:
-            _upsert_with_route(db_session, poi_route, LocationPoi, data)
-        for data in encounter_tables:
-            _upsert_with_route(db_session, encounter_table_route, LocationEncounterTable, data)
-        for data in bindings:
-            _upsert_with_route(db_session, route_event_binding_route, RouteEventBinding, data)
-        for data in tuning:
-            _upsert_with_route(db_session, travel_tuning_route, TravelTuning, data)
-        for data in briefs:
-            _upsert_with_route(db_session, creative_brief_route, LocationCreativeBrief, data)
+        for index, data in enumerate(routes):
+            _upsert_with_route(db_session, location_route_route, LocationRoute, data, f"routes[{index}]")
+        for index, data in enumerate(pois):
+            _upsert_with_route(db_session, poi_route, LocationPoi, data, f"pois[{index}]")
+        for index, data in enumerate(encounter_tables):
+            _upsert_with_route(db_session, encounter_table_route, LocationEncounterTable, data, f"encounter_tables[{index}]")
+        for index, data in enumerate(bindings):
+            _upsert_with_route(db_session, route_event_binding_route, RouteEventBinding, data, f"route_event_bindings[{index}]")
+        for index, data in enumerate(tuning):
+            _upsert_with_route(db_session, travel_tuning_route, TravelTuning, data, f"travel_tuning[{index}]")
+        for index, data in enumerate(briefs):
+            _upsert_with_route(db_session, creative_brief_route, LocationCreativeBrief, data, f"creative_briefs[{index}]")
+        _delete_owned_rows(db_session, payload)
         _validate_location_hierarchy(db_session)
 
         db_session.commit()
         return jsonify(_world_packet(db_session))
     except Exception as error:
         db_session.rollback()
-        if isinstance(error, HTTPException):
+        if isinstance(error, HTTPException) and error.code != 400:
             raise
-        abort(400, description=str(error))
+        return bundle_error_response(error)
     finally:
         db_session.close()

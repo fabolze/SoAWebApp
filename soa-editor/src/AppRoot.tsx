@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import { DirtyStateProvider } from "./components/DirtyStateContext";
@@ -20,7 +20,6 @@ import FlagsEditorPage from "./pages/FlagsEditor";
 import IndexPageEditorPage from "./pages/IndexPageEditor";
 import InteractionProfilesEditorPage from "./pages/InteractionProfilesEditor";
 import ItemsEditorPage from "./pages/ItemsEditor";
-import ItemInspectorPage from "./pages/ItemInspectorPage";
 import LocationCreativeBriefsEditorPage from "./pages/LocationCreativeBriefsEditor";
 import LocationEncounterTablesEditorPage from "./pages/LocationEncounterTablesEditor";
 import LocationPoisEditorPage from "./pages/LocationPoisEditor";
@@ -33,7 +32,6 @@ import RouteEventBindingsEditorPage from "./pages/RouteEventBindingsEditor";
 import SettingsPage from "./pages/SettingsPage";
 import ShopsEditorPage from "./pages/ShopsEditor";
 import ShopsInventoryEditorPage from "./pages/ShopsInventoryEditor";
-import SimulationSandboxPage from "./pages/SimulationSandboxPage";
 import StatsEditorPage from "./pages/StatsEditor";
 import StatusesEditorPage from "./pages/StatusesEditor";
 import StoryArcsEditorPage from "./pages/StoryArcsEditor";
@@ -42,14 +40,15 @@ import TalentNodesEditorPage from "./pages/TalentNodesEditor";
 import TalentTreesEditorPage from "./pages/TalentTreesEditor";
 import TimelinesEditorPage from "./pages/TimelinesEditor";
 import TravelTuningEditorPage from "./pages/TravelTuningEditor";
-import WorldBuilderPage from "./pages/WorldBuilderPage";
-import {
-  CharacterAuthoringPage,
-  ItemAuthoringPage,
-  LocationAuthoringPage,
-  LocationMapAuthoringPage,
-  ShopAuthoringPage,
-} from "./authoringViews/ImmersiveAuthoringPage";
+
+const ItemInspectorPage = lazy(() => import("./pages/ItemInspectorPage"));
+const SimulationSandboxPage = lazy(() => import("./pages/SimulationSandboxPage"));
+const WorldBuilderPage = lazy(() => import("./pages/WorldBuilderPage"));
+const CharacterAuthoringPage = lazy(() => import("./authoringViews/CharacterCreatorPage"));
+const ItemAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.ItemAuthoringPage })));
+const LocationAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.LocationAuthoringPage })));
+const LocationMapAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.LocationMapAuthoringPage })));
+const ShopAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.ShopAuthoringPage })));
 
 const SIDEBAR_COLLAPSED_KEY = "soa.sidebar.collapsed";
 
@@ -73,6 +72,7 @@ export default function AppRoot() {
     <DirtyStateProvider>
       <EditorStackProvider>
         <BrowserRouter>
+          <Suspense fallback={<div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading workspace...</div>}>
           <Routes>
             <Route
               path="/"
@@ -129,6 +129,7 @@ export default function AppRoot() {
               <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </EditorStackProvider>
     </DirtyStateProvider>
