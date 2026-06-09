@@ -1,6 +1,5 @@
 from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_timelines import Timeline
-from backend.app.models.m_story_arcs import StoryArc
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -30,15 +29,6 @@ class TimelineRoute(BaseRoute):
         timeline.start_year = data.get("start_year")
         timeline.end_year = data.get("end_year")
         
-        # Story Arc validation if provided
-        if "story_arcs" in data:
-            for arc_id in data["story_arcs"]:
-                if not db_session.get(StoryArc, arc_id):
-                    raise ValueError(f"Invalid story_arc_id: {arc_id}")
-                    
-        # JSON fields
-        timeline.story_arcs = data.get("story_arcs", [])
-        timeline.events_order = data.get("events_order", [])
         timeline.tags = data.get("tags", [])
 
     def serialize_item(self, timeline: Timeline) -> Dict[str, Any]:

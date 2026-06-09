@@ -100,5 +100,6 @@ class RequirementRoute(BaseRoute):
             db_session.close()
 
 # Create the route instance
-bp = RequirementRoute().bp
+route = RequirementRoute()
+bp = route.bp
 

@@ -162,14 +162,6 @@
         "widget": "tags",
         "label": "Tags"
       }
-    },
-    "icon_path": {
-      "type": "string",
-      "description": "Optional icon for this class",
-      "ui": {
-        "widget": "filepicker",
-        "label": "Icon"
-      }
     }
   },
   "required": [

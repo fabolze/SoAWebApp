@@ -53,17 +53,21 @@ class BaseRoute:
     
     def get_schema_required_fields(self, schema_name: str = None) -> List[str]:
         """Load the required fields from the JSON schema file for this resource."""
-        import glob
-        # Try both singular (model name) and plural (blueprint name) schema file names
+        schema = self.get_schema(schema_name)
+        return schema.get('required', []) if schema else []
+
+    def get_schema(self, schema_name: str = None) -> Dict[str, Any]:
+        """Load this resource's JSON schema, including table-name aliases."""
         schema_names = []
         if schema_name:
             schema_names.append(schema_name)
-        # Try to use the blueprint name if available
         if hasattr(self, 'bp') and hasattr(self.bp, 'name'):
             if self.bp.name not in schema_names:
                 schema_names.append(self.bp.name)
-        # Fallback: try both singular and plural
         if hasattr(self, 'model'):
+            table_name = getattr(self.model, "__tablename__", None)
+            if table_name and table_name not in schema_names:
+                schema_names.append(table_name)
             model_name = self.model.__name__.replace('Model', '').lower()
             if model_name not in schema_names:
                 schema_names.append(model_name)
@@ -75,12 +79,11 @@ class BaseRoute:
             schema_path = os.path.join(schemas_dir, f'{name}.json')
             if os.path.exists(schema_path):
                 try:
-                    with open(schema_path, 'r', encoding='utf-8') as f:
-                        schema = json.load(f)
-                    return schema.get('required', [])
+                    with open(schema_path, 'r', encoding='utf-8-sig') as f:
+                        return json.load(f)
                 except Exception:
                     continue
-        return []
+        return {}
 
     def validate_required_fields(self, data: Dict[str, Any], required_fields: List[str]) -> None:
         """Validate that all required fields are present in the data."""
@@ -115,9 +118,34 @@ class BaseRoute:
                              relationship_fields: Dict[str, Any]) -> None:
         """Validate that referenced entities exist."""
         for field, model in relationship_fields.items():
+            if field in data and data[field] == "":
+                data[field] = None
             if field in data and data[field]:
                 if not db_session.get(model, data[field]):
                     abort(400, description=f"Invalid {field}: {data[field]}")
+
+    def validate_persisted_schema_types(self, model_instance: Any) -> None:
+        """Ensure route processing did not put values into columns with the wrong schema shape."""
+        properties = self.get_schema().get("properties", {})
+        for column in model_instance.__table__.columns:
+            property_schema = properties.get(column.name)
+            if not property_schema:
+                continue
+            value = getattr(model_instance, column.name, None)
+            if value is None:
+                continue
+            expected = property_schema.get("type")
+            valid = (
+                expected == "array" and isinstance(value, list)
+                or expected == "object" and isinstance(value, dict)
+                or expected == "boolean" and isinstance(value, bool)
+                or expected == "integer" and isinstance(value, int) and not isinstance(value, bool)
+                or expected == "number" and isinstance(value, (int, float)) and not isinstance(value, bool)
+                or expected == "string" and isinstance(value, (str, enum.Enum))
+            )
+            if expected and not valid:
+                article = "an" if expected[0].lower() in "aeiou" else "a"
+                raise ValueError(f"{column.name} must be {article} {expected}")
 
     def _build_tag_filter_expression(self, raw_tag: str):
         """Build a case-insensitive tag filter expression for JSON array columns.
@@ -180,6 +208,7 @@ class BaseRoute:
             self.process_input_data(db_session, item, data)
             # Normalize common fields (slug/tags) regardless of custom processing
             self._normalize_common_fields(item, data)
+            self.validate_persisted_schema_types(item)
             db_session.add(item)
             db_session.commit()
             return jsonify({"status": "ok", "id": item.id})
@@ -311,7 +340,8 @@ class BaseRoute:
                     normalized = [str(t).strip().lower() for t in tags_val if str(t).strip() != ""]
                     setattr(model_instance, "tags", normalized)
                 elif isinstance(tags_val, str):
-                    setattr(model_instance, "tags", tags_val.strip().lower())
+                    normalized = tags_val.strip().lower()
+                    setattr(model_instance, "tags", [normalized] if normalized else [])
         except Exception:
             # Avoid breaking saves on normalization errors
             pass

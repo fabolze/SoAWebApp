@@ -40,33 +40,61 @@ class DialogueNodeRoute(BaseRoute):
         node.text = data["text"]
         
         # Optional relationship
-        node.requirements_id = data.get("requirements_id")
+        node.requirements_id = data.get("requirements_id") or None
         
         # Validate flags if present
+        set_flags = data.get("set_flags", [])
+        if not isinstance(set_flags, list):
+            raise ValueError("set_flags must be an array")
         if "set_flags" in data:
-            for flag_id in data["set_flags"]:
+            for flag_id in set_flags:
+                if not isinstance(flag_id, str) or not flag_id:
+                    raise ValueError("set_flags entries must be non-empty ids")
                 if not db_session.get(Flag, flag_id):
                     raise ValueError(f"Invalid flag_id: {flag_id}")
         
         # JSON fields with validation
         choices = data.get("choices", [])
+        if not isinstance(choices, list):
+            raise ValueError("choices must be an array")
         for choice in choices:
-            if not choice.get("next_node_id"):
+            if not isinstance(choice, dict):
+                raise ValueError("Choice entries must be objects")
+            if not isinstance(choice.get("next_node_id"), str) or not choice["next_node_id"]:
                 raise ValueError("Choice missing required field: next_node_id")
-            
+            if "choice_text" in choice and not isinstance(choice["choice_text"], str):
+                raise ValueError("Choice choice_text must be a string")
+            if "requirements_id" in choice and choice["requirements_id"] is not None and not isinstance(choice["requirements_id"], str):
+                raise ValueError("Choice requirements_id must be an id")
+            target = db_session.get(DialogueNode, choice["next_node_id"])
+            if not target:
+                raise ValueError(f"Invalid next_node_id: {choice['next_node_id']}")
+            if target.dialogue_id != node.dialogue_id:
+                raise ValueError(f"Choice target belongs to another dialogue: {choice['next_node_id']}")
+
             # Validate requirements in choices if present
-            if "requirements" in choice:
-                if not db_session.get(Requirement, choice["requirements"]):
-                    raise ValueError(f"Invalid requirements_id in choice: {choice['requirements']}")
+            if choice.get("requirements_id"):
+                if not db_session.get(Requirement, choice["requirements_id"]):
+                    raise ValueError(f"Invalid requirements_id in choice: {choice['requirements_id']}")
             
             # Validate flags in choices if present
             if "set_flags" in choice:
+                if not isinstance(choice["set_flags"], list):
+                    raise ValueError("Choice set_flags must be an array")
                 for flag_id in choice["set_flags"]:
+                    if not isinstance(flag_id, str) or not flag_id:
+                        raise ValueError("Choice set_flags entries must be non-empty ids")
                     if not db_session.get(Flag, flag_id):
                         raise ValueError(f"Invalid flag_id in choice: {flag_id}")
         
+        tags = data.get("tags", [])
+        if not isinstance(tags, list):
+            raise ValueError("tags must be an array")
+        if any(not isinstance(tag, str) for tag in tags):
+            raise ValueError("tags entries must be strings")
         node.choices = choices
-        node.set_flags = data.get("set_flags", [])
+        node.set_flags = set_flags
+        node.tags = tags
 
     def serialize_item(self, node: DialogueNode) -> Dict[str, Any]:
         return self.serialize_model(node)
@@ -106,5 +134,6 @@ class DialogueNodeRoute(BaseRoute):
             db_session.close()
 
 # Create the route instance
-bp = DialogueNodeRoute().bp
+route = DialogueNodeRoute()
+bp = route.bp
 

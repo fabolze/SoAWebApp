@@ -21,7 +21,7 @@ def infer_error_path(message: str) -> str:
     candidates = re.findall(r"[a-z][a-z0-9_]*(?:\[\d+\])?(?:\.[a-z][a-z0-9_]*(?:\[\d+\])?)*", message)
     bundle_roots = {
         "character", "combat_profile", "interaction_profile", "encounters", "locations", "routes", "pois",
-        "encounter_tables", "route_event_bindings", "travel_tuning", "creative_briefs", "deletions",
+        "encounter_tables", "route_event_bindings", "travel_tuning", "creative_briefs", "dialogue", "nodes", "deletions",
     }
     rooted = [candidate for candidate in candidates if candidate.split(".", 1)[0].split("[", 1)[0] in bundle_roots]
     if rooted:

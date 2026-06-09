@@ -39,9 +39,9 @@ class DialogueRoute(BaseRoute):
         })
         
         # Optional relationships
-        dialogue.character_id = data.get("character_id")
-        dialogue.location_id = data.get("location_id")
-        dialogue.requirements_id = data.get("requirements_id")
+        dialogue.character_id = data.get("character_id") or None
+        dialogue.location_id = data.get("location_id") or None
+        dialogue.requirements_id = data.get("requirements_id") or None
 
         if dialogue.character_id:
             profile = db_session.query(InteractionProfile).filter_by(character_id=dialogue.character_id).first()
@@ -49,7 +49,12 @@ class DialogueRoute(BaseRoute):
                 raise ValueError("Dialogue character requires an interaction profile")
         
         # JSON fields
-        dialogue.tags = data.get("tags", [])
+        tags = data.get("tags", [])
+        if not isinstance(tags, list):
+            raise ValueError("tags must be an array")
+        if any(not isinstance(tag, str) for tag in tags):
+            raise ValueError("tags entries must be strings")
+        dialogue.tags = tags
 
     def serialize_item(self, dialogue: Dialogue) -> Dict[str, Any]:
         return self.serialize_model(dialogue)
@@ -79,5 +84,6 @@ class DialogueRoute(BaseRoute):
             db_session.close()
 
 # Create the route instance
-bp = DialogueRoute().bp
+route = DialogueRoute()
+bp = route.bp
 

@@ -51,7 +51,7 @@
       "description": "Portrait or character image asset path."
     },
     "level": {
-      "type": "number",
+      "type": "integer",
       "ui": {
         "widget": "number",
         "label": "Level"

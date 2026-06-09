@@ -44,7 +44,7 @@
       "ui": { "widget": "text", "label": "Symbol" }
     },
     "decimal_precision": {
-      "type": "number",
+      "type": "integer",
       "description": "Digits supported after the decimal point",
       "ui": { "widget": "number", "label": "Decimal Precision" }
     },

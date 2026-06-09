@@ -36,7 +36,7 @@
       }
     },
     "min_rank_required": {
-      "type": "number",
+      "type": "integer",
       "description": "Minimum rank required on the prerequisite node",
       "ui": { "widget": "number", "label": "Min Rank Required" }
     }

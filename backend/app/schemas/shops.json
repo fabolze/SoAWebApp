@@ -239,7 +239,6 @@
   "required": [
     "id",
     "slug",
-    "name",
-    "inventory"
+    "name"
   ]
 }

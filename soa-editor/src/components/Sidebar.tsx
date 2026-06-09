@@ -240,6 +240,7 @@ const DEFAULT_GROUPS: SidebarGroup[] = [
   {
     label: "Narrative",
     items: [
+      { to: "/author/dialogues", label: "Dialogue Flow", icon: ChatBubbleLeftRightIcon },
       { to: "/dialogue-nodes", label: "Dialogue Nodes", icon: ChatBubbleLeftRightIcon },
       { to: "/dialogues", label: "Dialogues", icon: ChatBubbleLeftRightIcon },
       { to: "/quests", label: "Quests", icon: DocumentTextIcon },

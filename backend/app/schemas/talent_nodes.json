@@ -64,7 +64,7 @@
       }
     },
     "max_rank": {
-      "type": "number",
+      "type": "integer",
       "description": "Maximum ranks for this node",
       "ui": {
         "widget": "number",
@@ -72,7 +72,7 @@
       }
     },
     "point_cost": {
-      "type": "number",
+      "type": "integer",
       "description": "Points required per rank",
       "ui": {
         "widget": "number",

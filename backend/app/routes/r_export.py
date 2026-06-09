@@ -239,6 +239,7 @@ def _import_csv(table_name, strict_json=False):
                     obj = session.get(route.model, item_id) or route.model(id=item_id)
                     route.process_input_data(session, obj, clean_row)
                     route._normalize_common_fields(obj, clean_row)
+                    route.validate_persisted_schema_types(obj)
                 else:
                     obj = session.get(model_class, item_id) or model_class(id=item_id)
                     for key, value in clean_row.items():

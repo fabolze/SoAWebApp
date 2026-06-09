@@ -93,3 +93,96 @@ test("world packet surfaces structured bundle error paths", async ({ page }) => 
 
   await expect(page.getByText(/encounter_tables\[0\]\.encounter_entries\[0\]\.encounter_id/)).toBeVisible();
 });
+
+const dialoguePacket = {
+  dialogue: { id: "dialogue-1", slug: "dialogue-1", title: "Gate Talk", description: "", tags: [] },
+  nodes: [
+    { id: "node-1", slug: "node-1", dialogue_id: "dialogue-1", speaker: "Guide", text: "Choose.", choices: [{ choice_text: "Enter", next_node_id: "node-2", requirements_id: "req-1", set_flags: [] }], set_flags: [], tags: [] },
+    { id: "node-2", slug: "node-2", dialogue_id: "dialogue-1", speaker: "Guide", text: "Welcome.", choices: [], set_flags: [], tags: [] },
+  ],
+  requirements: [{ id: "req-1", slug: "req-1", required_flags: ["flag-1"], forbidden_flags: [], min_faction_reputation: [] }],
+  flags: [{ id: "flag-1", slug: "flag-1", name: "Allowed", description: "", default_value: false, tags: [] }],
+  factions: [],
+  context: { interaction_profiles: [], events: [], pois: [], character: null, location: null },
+};
+
+async function mockDialogueApi(page: Page, onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>) {
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/dialogues") return fulfillJson(route, [dialoguePacket.dialogue]);
+    if (url.pathname === "/api/ui/dialogues/dialogue-1") return fulfillJson(route, dialoguePacket);
+    if (url.pathname === "/api/ui/dialogues/bundle" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      if (onBundle) return onBundle(payload, route);
+      return fulfillJson(route, dialoguePacket);
+    }
+    if (url.pathname === "/api/requirements") return fulfillJson(route, dialoguePacket.requirements);
+    if (url.pathname === "/api/flags") return fulfillJson(route, dialoguePacket.flags);
+    if (url.pathname === "/api/factions") return fulfillJson(route, []);
+    return fulfillJson(route, []);
+  });
+}
+
+test("dialogue flow sketches, connects, and saves a complete bundle", async ({ page }) => {
+  let saved: Record<string, unknown> | null = null;
+  await mockDialogueApi(page, async (payload, route) => {
+    saved = payload;
+    const nodes = payload.nodes as Array<Record<string, unknown>>;
+    await fulfillJson(route, { ...dialoguePacket, dialogue: payload.dialogue, nodes });
+  });
+  await page.goto("/author/dialogues/dialogue-1");
+
+  await page.getByRole("button", { name: "Sketch" }).click();
+  await page.getByTestId("dialogue-canvas").dblclick({ position: { x: 500, y: 300 } });
+  await expect(page.getByText("3 nodes /")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save Flow" })).toBeDisabled();
+  await page.getByLabel("Dialogue Text").fill("A newly drafted line.");
+  await page.getByRole("button", { name: "Connect" }).click();
+  await page.getByTestId("dialogue-node-node-2").click();
+  await page.getByTestId("dialogue-node-node-1").click();
+  await page.getByRole("button", { name: "Save Flow" }).click();
+
+  await expect.poll(() => saved).not.toBeNull();
+  expect((saved?.nodes as unknown[]).length).toBe(3);
+});
+
+test("dialogue flow restores drafts and unlocks gated choices in playthrough", async ({ page }) => {
+  await mockDialogueApi(page);
+  await page.goto("/author/dialogues/dialogue-1");
+  await page.getByTestId("dialogue-node-node-1").click();
+  await page.getByLabel("Dialogue Text").fill("Unsaved changed line");
+  await page.waitForTimeout(450);
+  await page.reload();
+  await expect(page.getByText("Restored unsaved dialogue flow draft.")).toBeVisible();
+  await expect(page.getByLabel("Dialogue Text")).toHaveValue("Unsaved changed line");
+
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Enter" })).toBeDisabled();
+  await page.getByText("Temporary Player State").click();
+  await page.getByLabel("Flags Set").selectOption(["flag-1"]);
+  await expect(page.getByRole("button", { name: "Enter" })).toBeEnabled();
+  await page.getByRole("button", { name: "Enter" }).click();
+  await expect(page.getByText("Welcome.").last()).toBeVisible();
+});
+
+test("dialogue flow reset clears the persisted draft", async ({ page }) => {
+  await mockDialogueApi(page);
+  await page.goto("/author/dialogues/dialogue-1");
+  await page.getByTestId("dialogue-node-node-1").click();
+  await page.getByLabel("Dialogue Text").fill("Discard this line");
+  await page.waitForTimeout(450);
+  await page.getByRole("button", { name: "Reset" }).click();
+  await page.reload();
+  await expect(page.getByLabel("Dialogue Text")).toHaveValue("Choose.");
+  await expect(page.getByText("Restored unsaved dialogue flow draft.")).not.toBeVisible();
+});
+
+test("new dialogue draft survives a full reload", async ({ page }) => {
+  await mockDialogueApi(page);
+  await page.goto("/author/dialogues/new");
+  await page.getByLabel("Title").fill("Reloadable New Dialogue");
+  await page.waitForTimeout(450);
+  await page.reload();
+  await expect(page.getByText("Restored unsaved dialogue flow draft.")).toBeVisible();
+  await expect(page.getByLabel("Title")).toHaveValue("Reloadable New Dialogue");
+});

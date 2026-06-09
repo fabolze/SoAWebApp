@@ -70,7 +70,7 @@ class ShopRoute(BaseRoute):
                 raise ValueError("Shop character requires an interaction profile")
         
         # JSON fields
-        shop.price_modifiers = data.get("price_modifiers", {})  # Dict of discount/markup rules
+        shop.price_modifiers = data.get("price_modifiers", [])
         shop.tags = data.get("tags", [])
 
         if "inventory" in data:
