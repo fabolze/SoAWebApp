@@ -48,7 +48,7 @@ class RequirementMinFactionReputation(Base):
 
     id = Column(String, primary_key=True, default=generate_ulid)
     requirement_id = Column(String, ForeignKey('requirements.id'), nullable=False)
-    faction_id = Column(String, nullable=False)
+    faction_id = Column(String, ForeignKey('factions.id', ondelete='CASCADE'), nullable=False)
     min_value = Column(Float, nullable=False)
 
     requirement = relationship("Requirement", back_populates="min_faction_reputation")

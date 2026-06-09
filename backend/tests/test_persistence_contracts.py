@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from flask import Flask, jsonify
-from sqlalchemy import Boolean, Enum, Float, Integer, JSON, String, Text, create_engine
+from sqlalchemy import Boolean, Enum, Float, Integer, JSON, String, Text, create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -58,6 +58,17 @@ def test_resource_schema_fields_and_column_types_stay_aligned():
                 assert expected == "string", f"{table.name}.{name}"
             elif isinstance(column.type, (String, Text)):
                 assert expected == "string", f"{table.name}.{name}"
+
+
+def test_faction_reputation_has_cascading_database_foreign_key():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    foreign_keys = inspect(engine).get_foreign_keys("requirement_min_faction_reputation")
+    faction_fk = next(foreign_key for foreign_key in foreign_keys if foreign_key["constrained_columns"] == ["faction_id"])
+
+    assert faction_fk["referred_table"] == "factions"
+    assert faction_fk["referred_columns"] == ["id"]
+    assert faction_fk["options"]["ondelete"] == "CASCADE"
 
 
 def test_schema_lookup_handles_bom_and_table_name_aliases():

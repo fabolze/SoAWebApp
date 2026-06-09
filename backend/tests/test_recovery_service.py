@@ -3,6 +3,8 @@ from pathlib import Path
 from flask import Flask
 
 from backend.app.services import recovery
+from backend.app.models.m_factions import Faction
+from backend.app.models.m_requirements import Requirement, RequirementMinFactionReputation
 
 
 def test_ordered_tables_uses_canonical_order_then_alphabetical_unknowns():
@@ -217,3 +219,149 @@ def test_sync_status_does_not_recommend_restore_after_local_export_marker(monkey
 
     assert status["csv_newer_than_db"] is True
     assert status["restore_recommended"] is False
+
+
+def _write_source_csv(path: Path, header: str, rows: list[str]):
+    path.write_text("\n".join([header, *rows]) + "\n", encoding="utf-8")
+
+
+def _limit_preflight_to_reputation_tables(monkeypatch):
+    monkeypatch.setattr(recovery, "_model_by_table", lambda: {
+        "factions": Faction,
+        "requirements": Requirement,
+        "requirement_min_faction_reputation": RequirementMinFactionReputation,
+    })
+
+
+def test_source_preflight_validates_nested_and_normalized_faction_references(monkeypatch, tmp_path: Path):
+    _limit_preflight_to_reputation_tables(monkeypatch)
+    _write_source_csv(tmp_path / "factions_seed.csv", "Name,id,slug,name,alignment", ["guild,faction-1,guild,Guild,Friendly"])
+    _write_source_csv(
+        tmp_path / "requirements_seed.csv",
+        "Name,id,slug,required_flags,forbidden_flags,min_faction_reputation,tags",
+        ['gate,req-1,gate,[],[],\"[{\"\"faction_id\"\":\"\"faction-1\"\",\"\"min\"\":5}]\",[]'],
+    )
+    _write_source_csv(
+        tmp_path / "requirement_min_faction_reputation_seed.csv",
+        "Name,id,requirement_id,faction_id,min_value",
+        ["gate-guild,rep-1,req-1,faction-1,5"],
+    )
+
+    report = recovery.preflight_source_csvs(tmp_path)
+
+    assert report["status"] == "ok"
+    assert report["errors"] == []
+
+
+def test_source_preflight_reports_missing_faction_in_both_representations(monkeypatch, tmp_path: Path):
+    _limit_preflight_to_reputation_tables(monkeypatch)
+    _write_source_csv(tmp_path / "factions_seed.csv", "Name,id,slug,name,alignment", [])
+    _write_source_csv(
+        tmp_path / "requirements_seed.csv",
+        "Name,id,slug,required_flags,forbidden_flags,min_faction_reputation,tags",
+        ['gate,req-1,gate,[],[],\"[{\"\"faction_id\"\":\"\"missing\"\",\"\"min\"\":5}]\",[]'],
+    )
+    _write_source_csv(
+        tmp_path / "requirement_min_faction_reputation_seed.csv",
+        "Name,id,requirement_id,faction_id,min_value",
+        ["gate-missing,rep-1,req-1,missing,5"],
+    )
+
+    report = recovery.preflight_source_csvs(tmp_path)
+
+    assert report["status"] == "error"
+    fields = {(error["table"], error["field"]) for error in report["errors"]}
+    assert ("requirements", "min_faction_reputation[0].faction_id") in fields
+    assert ("requirement_min_faction_reputation", "faction_id") in fields
+
+
+def test_source_preflight_rejects_disagreeing_reputation_representations(monkeypatch, tmp_path: Path):
+    _limit_preflight_to_reputation_tables(monkeypatch)
+    _write_source_csv(tmp_path / "factions_seed.csv", "Name,id,slug,name,alignment", ["guild,faction-1,guild,Guild,Friendly"])
+    _write_source_csv(
+        tmp_path / "requirements_seed.csv",
+        "Name,id,slug,required_flags,forbidden_flags,min_faction_reputation,tags",
+        ['gate,req-1,gate,[],[],\"[{\"\"faction_id\"\":\"\"faction-1\"\",\"\"min\"\":5}]\",[]'],
+    )
+    _write_source_csv(
+        tmp_path / "requirement_min_faction_reputation_seed.csv",
+        "Name,id,requirement_id,faction_id,min_value",
+        [],
+    )
+
+    report = recovery.preflight_source_csvs(tmp_path)
+
+    assert report["status"] == "error"
+    assert any("missing from requirement_min_faction_reputation CSV" in error["message"] for error in report["errors"])
+
+
+def test_restore_preflight_failure_does_not_reset_database(monkeypatch, tmp_path: Path):
+    _limit_preflight_to_reputation_tables(monkeypatch)
+    _write_source_csv(
+        tmp_path / "requirements_seed.csv",
+        "Name,id,slug,required_flags,forbidden_flags,min_faction_reputation,tags",
+        [],
+    )
+    _write_source_csv(tmp_path / "factions_seed.csv", "Name,id,slug,name,alignment", [])
+    _write_source_csv(
+        tmp_path / "requirement_min_faction_reputation_seed.csv",
+        "Name,id,requirement_id,faction_id,min_value",
+        ["bad,rep-1,missing-req,missing-faction,5"],
+    )
+    resets = []
+    app = Flask(__name__)
+
+    @app.post("/api/db/reset")
+    def reset():
+        resets.append(True)
+        return {"status": "ok"}
+
+    report = recovery.restore_database_from_source(app, tmp_path)
+
+    assert report["status"] == "error"
+    assert "not reset" in report["message"]
+    assert resets == []
+
+
+def test_source_preflight_rejects_incomplete_rebuild_directory(monkeypatch, tmp_path: Path):
+    _limit_preflight_to_reputation_tables(monkeypatch)
+    _write_source_csv(tmp_path / "factions_seed.csv", "Name,id,slug,name,alignment", [])
+
+    report = recovery.preflight_source_csvs(tmp_path)
+
+    assert report["status"] == "error"
+    missing_tables = {error["table"] for error in report["errors"] if "Missing source CSV" in error["message"]}
+    assert missing_tables == {"requirements", "requirement_min_faction_reputation"}
+
+
+def test_reset_rebuild_reports_post_import_foreign_key_failures(monkeypatch, tmp_path: Path):
+    _write_source_csv(tmp_path / "stats_seed.csv", "Name,id,slug,name,category,value_type", [])
+    monkeypatch.setattr(recovery, "preflight_source_csvs", lambda source_dir=None: {
+        "status": "ok",
+        "source_dir": str(tmp_path),
+        "tables": 1,
+        "rows": 0,
+        "errors": [],
+    })
+    monkeypatch.setattr(recovery, "foreign_key_integrity_errors", lambda: [{
+        "table": "broken",
+        "rowid": 1,
+        "parent": "missing",
+        "foreign_key_index": 0,
+        "message": "broken reference",
+    }])
+    app = Flask(__name__)
+
+    @app.post("/api/db/reset")
+    def reset():
+        return {"status": "ok"}
+
+    @app.post("/api/source/import/csv/<table_name>")
+    def import_table(table_name):
+        return {"status": "success", "imported": 0, "deleted": 0}
+
+    report = recovery.import_source_csvs(app, tmp_path, reset_first=True)
+
+    assert report["status"] == "error"
+    assert report["integrity"]["status"] == "error"
+    assert report["errors"][0]["table"] == "broken"

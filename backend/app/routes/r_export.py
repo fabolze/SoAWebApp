@@ -2,6 +2,7 @@
 from flask import Blueprint, Response, abort, request, jsonify
 from backend.app.db.init_db import get_db_session
 from backend.app.models import ALL_MODELS
+from backend.app.models.m_requirements import RequirementMinFactionReputation
 from backend.app.routes.base_route import ROUTE_REGISTRY
 from backend.app.utils.csv_tools import (
     UE_ROW_KEY_HEADER,
@@ -87,6 +88,16 @@ def _public_value(value):
         return value
     except Exception:
         return str(value)
+
+
+def _faction_cascade_count(session, faction_ids):
+    if not faction_ids:
+        return 0
+    return (
+        session.query(RequirementMinFactionReputation)
+        .filter(RequirementMinFactionReputation.faction_id.in_(faction_ids))
+        .count()
+    )
 
 def _export_csv_response(table_name, mode):
     session = get_db_session()
@@ -178,6 +189,7 @@ def _preview_import_csv(table_name, strict_json=False):
                 unchanged += 1
 
         deleted_ids = sorted(set(existing_by_id.keys()) - imported_ids)
+        cascade_deleted = _faction_cascade_count(session, deleted_ids) if table_name == "factions" else 0
         for stale_id in deleted_ids[:25]:
             changes.append({"id": stale_id, "action": "deleted", "before": existing_by_id.get(stale_id, {})})
 
@@ -189,6 +201,9 @@ def _preview_import_csv(table_name, strict_json=False):
                 "updated": updated,
                 "deleted": len(deleted_ids) if not errors else 0,
                 "unchanged": unchanged,
+                "cascade_deleted": {
+                    "requirement_min_faction_reputation": cascade_deleted if not errors else 0,
+                },
             },
             "errors": errors,
             "warnings": warnings,
@@ -222,6 +237,7 @@ def _import_csv(table_name, strict_json=False):
         route = ROUTE_REGISTRY.get(table_name)
         imported_ids = set()
         existing_ids = {row[0] for row in session.query(model_class.id).all()}
+        cascade_deleted = 0
 
         try:
             for row in raw_rows or []:
@@ -252,6 +268,14 @@ def _import_csv(table_name, strict_json=False):
 
             # Replace-all semantics with ORM deletes (preserves relationship logic).
             stale_ids = existing_ids - imported_ids
+            if table_name == "factions":
+                cascade_deleted = _faction_cascade_count(session, stale_ids)
+                if stale_ids:
+                    (
+                        session.query(RequirementMinFactionReputation)
+                        .filter(RequirementMinFactionReputation.faction_id.in_(stale_ids))
+                        .delete(synchronize_session=False)
+                    )
             for stale_id in stale_ids:
                 stale_obj = session.get(model_class, stale_id)
                 if stale_obj is not None:
@@ -262,7 +286,12 @@ def _import_csv(table_name, strict_json=False):
             session.rollback()
             return jsonify({"error": f"Import failed: {str(e)}"}), 400
 
-        return jsonify({"status": "success", "imported": count, "deleted": len(existing_ids - imported_ids)})
+        return jsonify({
+            "status": "success",
+            "imported": count,
+            "deleted": len(existing_ids - imported_ids),
+            "cascade_deleted": {"requirement_min_faction_reputation": cascade_deleted},
+        })
     finally:
         session.close()
 

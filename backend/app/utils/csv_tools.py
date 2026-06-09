@@ -49,7 +49,7 @@ def load_schema(table_name: str) -> Optional[Dict[str, Any]]:
     if not os.path.exists(path):
         return None
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8-sig") as f:
             return json.load(f)
     except Exception:
         return None

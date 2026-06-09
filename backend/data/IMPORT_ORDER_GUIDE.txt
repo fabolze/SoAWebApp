@@ -11,6 +11,14 @@ Why order matters
 - CSV import is "replace-all" per table.
 - If referenced IDs are missing, import fails.
 - If a CSV is partial, rows not included in that file are deleted for that table.
+- Reset-based restore/rebuild operations preflight the complete CSV set before
+  deleting the active SQLite data.
+- A reset-based rebuild requires one source CSV for every persisted table,
+  including empty tables.
+- Factions must be imported before requirements and
+  requirement_min_faction_reputation.
+- Deleting or omitting a faction during a replace-all faction import
+  cascade-deletes linked requirement_min_faction_reputation rows.
 
 Current recommended order (for existing seed files)
 ---------------------------------------------------
@@ -62,6 +70,8 @@ General rule for new CSV files (going forward)
 3) Then import "composition/runtime" tables that reference many others.
 4) Keep each imported CSV complete for its table (to avoid accidental row deletion).
 5) Use source CSVs for SQLite regeneration. UE CSVs are generated DataTable exports.
+6) Fix every preflight error before rebuilding; failed preflight leaves the
+   active SQLite database untouched.
 
 Quick dependency examples
 -------------------------

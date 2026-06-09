@@ -8,13 +8,13 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from flask import Flask
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from backend.app.config import DATA_DIR, RECOVERY_STARTUP_IMPORT_MODE
 from backend.app.db import init_db as db_runtime
 from backend.app.models import ALL_MODELS
 from backend.app.models.base import Base
-from backend.app.utils.csv_tools import build_csv_rows
+from backend.app.utils.csv_tools import UE_ROW_KEY_HEADER, build_csv_rows, coerce_row_from_schema
 
 RECOVERY_IMPORT_ORDER = [
     "content_packs",
@@ -109,6 +109,143 @@ def collect_csv_paths(source_dir: Path | None = None) -> dict[str, Path]:
     for path in directory.glob("*.csv"):
         paths[_csv_table_name(path)] = path
     return paths
+
+
+def preflight_source_csvs(source_dir: Path | None = None) -> dict[str, Any]:
+    """Validate the complete source CSV set before a destructive rebuild."""
+    directory = source_dir or DATA_DIR
+    paths = collect_csv_paths(directory)
+    model_map = _model_by_table()
+    parsed_rows: dict[str, list[tuple[int, dict[str, Any]]]] = {}
+    final_ids: dict[str, set[str]] = {}
+    errors: list[dict[str, Any]] = []
+
+    for table_name in sorted(set(model_map) - set(paths)):
+        errors.append({"table": table_name, "row": None, "field": None, "message": "Missing source CSV for rebuild."})
+
+    for table_name, path in paths.items():
+        model = model_map.get(table_name)
+        if model is None:
+            errors.append({"table": table_name, "row": None, "field": None, "message": "No model found for source CSV."})
+            continue
+        rows: list[tuple[int, dict[str, Any]]] = []
+        ids: set[str] = set()
+        try:
+            with path.open("r", newline="", encoding="utf-8-sig") as handle:
+                for row_number, raw_row in enumerate(csv.DictReader(handle), start=2):
+                    try:
+                        row = coerce_row_from_schema(table_name, {key: value for key, value in raw_row.items() if key}, strict_json=True)
+                    except Exception as exc:
+                        errors.append({"table": table_name, "row": row_number, "field": None, "message": f"Failed to parse row: {exc}"})
+                        continue
+                    row.pop(UE_ROW_KEY_HEADER, None)
+                    item_id = str(row.get("id") or "").strip()
+                    if not item_id:
+                        errors.append({"table": table_name, "row": row_number, "field": "id", "message": "Missing required id."})
+                        continue
+                    if item_id in ids:
+                        errors.append({"table": table_name, "row": row_number, "field": "id", "referenced_id": item_id, "message": f"Duplicate id: {item_id}"})
+                        continue
+                    ids.add(item_id)
+                    rows.append((row_number, row))
+        except Exception as exc:
+            errors.append({"table": table_name, "row": None, "field": None, "message": f"Failed to read CSV: {exc}"})
+        parsed_rows[table_name] = rows
+        final_ids[table_name] = ids
+
+    for table_name, rows in parsed_rows.items():
+        model = model_map[table_name]
+        for row_number, row in rows:
+            for column in model.__table__.columns:
+                value = row.get(column.name)
+                if value in (None, ""):
+                    continue
+                for foreign_key in column.foreign_keys:
+                    target_table = foreign_key.column.table.name
+                    target_id = str(value)
+                    if target_id not in final_ids.get(target_table, set()):
+                        errors.append({
+                            "table": table_name,
+                            "row": row_number,
+                            "field": column.name,
+                            "referenced_id": target_id,
+                            "message": f"Missing referenced {target_table}.id: {target_id}",
+                        })
+
+    faction_ids = final_ids.get("factions", set())
+    nested_reputation = set()
+    for row_number, requirement in parsed_rows.get("requirements", []):
+        reputation_rows = requirement.get("min_faction_reputation") or []
+        if not isinstance(reputation_rows, list):
+            errors.append({"table": "requirements", "row": row_number, "field": "min_faction_reputation", "message": "Expected an array."})
+            continue
+        for index, reputation in enumerate(reputation_rows):
+            field = f"min_faction_reputation[{index}].faction_id"
+            if not isinstance(reputation, dict):
+                errors.append({"table": "requirements", "row": row_number, "field": field, "message": "Expected an object."})
+                continue
+            faction_id = str(reputation.get("faction_id") or "").strip()
+            minimum = reputation.get("min")
+            if faction_id and minimum is not None:
+                try:
+                    nested_reputation.add((str(requirement.get("id")), faction_id, float(minimum)))
+                except (TypeError, ValueError):
+                    errors.append({"table": "requirements", "row": row_number, "field": f"min_faction_reputation[{index}].min", "message": "Minimum reputation must be numeric."})
+            if not faction_id or faction_id not in faction_ids:
+                errors.append({
+                    "table": "requirements",
+                    "row": row_number,
+                    "field": field,
+                    "referenced_id": faction_id,
+                    "message": f"Missing referenced factions.id: {faction_id or '<empty>'}",
+                })
+
+    normalized_reputation = set()
+    for row_number, row in parsed_rows.get("requirement_min_faction_reputation", []):
+        if not row.get("requirement_id") or not row.get("faction_id") or row.get("min_value") is None:
+            continue
+        try:
+            normalized_reputation.add((str(row.get("requirement_id")), str(row.get("faction_id")), float(row.get("min_value"))))
+        except (TypeError, ValueError):
+            errors.append({"table": "requirement_min_faction_reputation", "row": row_number, "field": "min_value", "message": "Minimum reputation must be numeric."})
+    for requirement_id, faction_id, minimum in sorted(nested_reputation - normalized_reputation):
+        errors.append({
+            "table": "requirements",
+            "row": None,
+            "field": "min_faction_reputation",
+            "referenced_id": faction_id,
+            "message": f"Nested reputation entry is missing from requirement_min_faction_reputation CSV: {requirement_id}/{faction_id}/{minimum}",
+        })
+    for requirement_id, faction_id, minimum in sorted(normalized_reputation - nested_reputation):
+        errors.append({
+            "table": "requirement_min_faction_reputation",
+            "row": None,
+            "field": "faction_id",
+            "referenced_id": faction_id,
+            "message": f"Normalized reputation entry is missing from requirements CSV: {requirement_id}/{faction_id}/{minimum}",
+        })
+
+    return {
+        "status": "error" if errors else "ok",
+        "source_dir": str(directory),
+        "tables": len(parsed_rows),
+        "rows": sum(len(rows) for rows in parsed_rows.values()),
+        "errors": errors,
+    }
+
+
+def foreign_key_integrity_errors() -> list[dict[str, Any]]:
+    with db_runtime.get_engine().connect() as connection:
+        return [
+            {
+                "table": row[0],
+                "rowid": row[1],
+                "parent": row[2],
+                "foreign_key_index": row[3],
+                "message": f"{row[0]} row {row[1]} references missing {row[2]} row.",
+            }
+            for row in connection.execute(text("PRAGMA foreign_key_check")).fetchall()
+        ]
 
 
 def csv_has_data_rows(path: Path) -> bool:
@@ -280,6 +417,13 @@ def import_source_csvs(
 
     client = app.test_client()
     if reset_first:
+        preflight = preflight_source_csvs(directory)
+        report["preflight"] = preflight
+        if preflight["status"] == "error":
+            report["status"] = "error"
+            report["message"] = "Recovery preflight failed; active database was not reset."
+            report["errors"].extend(preflight["errors"])
+            return report
         reset = client.post("/api/db/reset")
         if reset.status_code >= 400:
             report["status"] = "error"
@@ -340,6 +484,13 @@ def import_source_csvs(
     if report["errors"]:
         report["status"] = "warning"
         report["message"] = "Recovery import completed with failures."
+    elif reset_first:
+        integrity_errors = foreign_key_integrity_errors()
+        report["integrity"] = {"status": "error" if integrity_errors else "ok", "errors": integrity_errors}
+        if integrity_errors:
+            report["status"] = "error"
+            report["message"] = "Recovery import completed, but database foreign-key integrity failed."
+            report["errors"].extend(integrity_errors)
     elif only_empty_tables:
         imported_tables = [table for table in report["tables"] if table.get("status") == "success" and table.get("imported", 0) > 0]
         if imported_tables:

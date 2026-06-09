@@ -1,8 +1,9 @@
 from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_factions import Faction, Alignment
+from backend.app.models.m_requirements import RequirementMinFactionReputation
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
-from flask import request, jsonify
+from flask import abort, request, jsonify
 from backend.app.db.init_db import get_db_session
 
 class FactionRoute(BaseRoute):
@@ -48,6 +49,27 @@ class FactionRoute(BaseRoute):
 
     def serialize_item(self, faction: Faction) -> Dict[str, Any]:
         return self.serialize_model(faction)
+
+    def delete(self, item_id: str):
+        db_session = get_db_session()
+        try:
+            faction = db_session.get(Faction, item_id)
+            if not faction:
+                abort(404, description=f"Item {item_id} not found")
+            cascade_deleted = (
+                db_session.query(RequirementMinFactionReputation)
+                .filter_by(faction_id=item_id)
+                .count()
+            )
+            db_session.query(RequirementMinFactionReputation).filter_by(faction_id=item_id).delete()
+            db_session.delete(faction)
+            db_session.commit()
+            return jsonify({"status": "ok", "cascade_deleted": {"requirement_min_faction_reputation": cascade_deleted}})
+        except Exception as error:
+            db_session.rollback()
+            abort(400, description=f"Error deleting item: {str(error)}")
+        finally:
+            db_session.close()
 
     def get_all(self):
         db_session = get_db_session()
