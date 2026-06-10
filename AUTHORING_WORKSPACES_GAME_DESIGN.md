@@ -39,7 +39,7 @@ Last reviewed: 2026-06-10
 | Quest Journey Board And Quest Loom | Journey Board initial MVP; full mixed-content Quest Loom is future vision |
 | Item Ecosystem And Item Forge | Implemented MVP; future work can deepen fantasy, provenance, families, and progression |
 | Creature Workshop | Planned; Character Creator already covers much of the existing character/combat/interaction bundle |
-| Ability Spellcraft Lab | Planned |
+| Ability Spellcraft Lab | Implemented MVP |
 | Adventure Dependency Map And Adventure Board | Dependency Map initial MVP; full playable-slice Adventure Board is future vision |
 
 The workspace descriptions below contain both current-model implementation contracts and future-facing design. A feature is not implemented merely because it appears in this document; the status table is authoritative.

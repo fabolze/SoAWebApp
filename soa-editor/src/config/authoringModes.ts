@@ -7,6 +7,7 @@ import {
   DocumentTextIcon,
   MapIcon,
   Squares2X2Icon,
+  SparklesIcon,
   UsersIcon,
 } from "@heroicons/react/24/outline";
 
@@ -107,6 +108,14 @@ export const AUTHORING_MODES: readonly AuthoringModeConfig[] = [
     description: "Author quests with ordered objectives, gates, rewards, arcs, and quest givers.",
     supportedEntities: ["quests", "requirements", "story_arcs", "interaction_profiles"],
     icon: DocumentTextIcon,
+  },
+  {
+    id: "ability-spellcraft",
+    route: "/author/abilities",
+    label: "Ability Spellcraft Lab",
+    description: "Compose trigger, reach, payload, scaling, cadence, effects, statuses, and test-bench feedback together.",
+    supportedEntities: ["abilities", "effects", "statuses", "stats", "requirements", "combat_profiles"],
+    icon: SparklesIcon,
   },
   {
     id: "dependency-map",

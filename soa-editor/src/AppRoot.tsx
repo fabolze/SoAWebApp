@@ -54,6 +54,7 @@ const DependencyMapPage = lazy(() => import("./pages/RoadmapAuthoringPages").the
 const LocationAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.LocationAuthoringPage })));
 const LocationMapAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.LocationMapAuthoringPage })));
 const ShopAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.ShopAuthoringPage })));
+const AbilitySpellcraftLabPage = lazy(() => import("./pages/AbilitySpellcraftLabPage"));
 
 const SIDEBAR_COLLAPSED_KEY = "soa.sidebar.collapsed";
 
@@ -121,6 +122,9 @@ export default function AppRoot() {
               <Route path="author/quests/new" element={<QuestJourneyPage />} />
               <Route path="author/quests/:id" element={<QuestJourneyPage />} />
               <Route path="author/dependencies" element={<DependencyMapPage />} />
+              <Route path="author/abilities" element={<AbilitySpellcraftLabPage />} />
+              <Route path="author/abilities/new" element={<AbilitySpellcraftLabPage />} />
+              <Route path="author/abilities/:id" element={<AbilitySpellcraftLabPage />} />
               <Route path="currencies" element={<CurrenciesEditorPage />} />
               <Route path="interaction-profiles" element={<InteractionProfilesEditorPage />} />
               <Route path="location-creative-briefs" element={<LocationCreativeBriefsEditorPage />} />

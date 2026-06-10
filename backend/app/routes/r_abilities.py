@@ -53,6 +53,7 @@ class AbilityRoute(BaseRoute):
         ability.targeting = data.get("targeting")  # Already converted to enum if present
         ability.trigger_condition = data.get("trigger_condition")  # Already converted to enum if present
         ability.requirements_id = data.get("requirements_id")
+        ability.tags = data.get("tags", [])
 
         damage_type_source = data.get("damage_type_source") or DamageTypeSource.None_
         ability.damage_type_source = damage_type_source
@@ -149,5 +150,6 @@ class AbilityRoute(BaseRoute):
             db_session.close()
 
 # Create the route instance
-bp = AbilityRoute().bp
+route = AbilityRoute()
+bp = route.bp
 

@@ -28,11 +28,12 @@ Working:
 - Generic schema editors and Advanced Form fallback for all registered datasets.
 - Item, shop, character, location, atlas, and World Builder authoring.
 - Dialogue Flow Room with graph editing, atomic bundle save, health analysis, local drafts/layout, and playthrough.
+- Encounter Stage, Item Ecosystem, Quest Journey Board, Adventure Dependency Map, and Ability Spellcraft Lab.
 - Project Health, deterministic local authoring helpers, and heuristic simulation.
 
 Planned but not implemented:
 
-- Encounter Stage, Item Ecosystem, Quest Journey Board, Adventure Dependency Map, Ability Spellcraft Lab, and focused Creature Workshop.
+- Focused Creature Workshop and deeper expansions of the implemented authoring workspaces.
 
 Important limitations:
 

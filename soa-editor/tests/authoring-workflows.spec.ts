@@ -371,3 +371,98 @@ test("encounter stage restores and resets local drafts", async ({ page }) => {
   await page.reload();
   await expect(page.getByLabel("Description")).toHaveValue("");
 });
+
+const abilityPacket = {
+  ability: {
+    id: "ability-1", slug: "flame-pulse", name: "Flame Pulse", type: "Active", targeting: "Single",
+    trigger_condition: "On Use", damage_type_source: "Fixed", damage_type: "Fire", resource_cost: 10, cooldown: 2,
+    effects: ["effect-shared"], scaling: [], tags: [],
+  },
+  linked_effects: [{
+    id: "effect-shared", slug: "shared-fire", name: "Shared Fire", type: "Damage", target: "Enemy",
+    value_type: "Flat", value: 20, duration: 0, apply_chance: 100, tags: [],
+  }],
+  linked_statuses: [],
+  requirement: null,
+  assigned_combat_profile_ids: [],
+  catalogs: {
+    abilities: [],
+    effects: [{
+      id: "effect-shared", slug: "shared-fire", name: "Shared Fire", type: "Damage", target: "Enemy",
+      value_type: "Flat", value: 20, duration: 0, apply_chance: 100, tags: [],
+    }],
+    statuses: [],
+    stats: [{ id: "stat-1", slug: "power", name: "Power" }],
+    requirements: [],
+    combat_profiles: [],
+    characterclasses: [],
+    talent_nodes: [],
+    items: [{ id: "item-1", name: "Shared Wand" }],
+  },
+  usage: {
+    abilities: { "ability-1": { combat_profiles: [], characterclasses: [], talent_nodes: [] } },
+    effects: { "effect-shared": { abilities: [{ id: "ability-1", name: "Flame Pulse" }], items: [{ id: "item-1", name: "Shared Wand" }] } },
+    statuses: {},
+  },
+  analysis: { similar_abilities: [] },
+};
+
+async function mockAbilityApi(page: Page, onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>) {
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/ui/abilities" || url.pathname === "/api/ui/abilities/ability-1") return fulfillJson(route, abilityPacket);
+    if (url.pathname === "/api/ui/abilities/bundle" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      if (onBundle) return onBundle(payload, route);
+      return fulfillJson(route, { ...abilityPacket, ability: payload.ability });
+    }
+    if (url.pathname === "/api/abilities") return fulfillJson(route, []);
+    if (url.pathname === "/api/effects") return fulfillJson(route, abilityPacket.catalogs.effects);
+    return fulfillJson(route, []);
+  });
+}
+
+test("ability spellcraft composes a status payload and saves one atomic bundle", async ({ page }) => {
+  let saved: Record<string, unknown> | null = null;
+  await mockAbilityApi(page, async (payload, route) => {
+    saved = payload;
+    await fulfillJson(route, { ...abilityPacket, ability: payload.ability, linked_effects: payload.effect_upserts, linked_statuses: payload.status_upserts });
+  });
+  await page.goto("/author/abilities/new");
+  await expect(page.getByText("Live Combat Sentence")).toBeVisible();
+  const abilityName = page.getByLabel("Name").first();
+  await abilityName.clear();
+  await abilityName.pressSequentially("Frost Mark");
+  await expect(abilityName).toHaveValue("Frost Mark");
+  await page.getByRole("button", { name: "+ Status" }).click();
+  await page.getByRole("button", { name: "Create Status For Effect" }).click();
+  await page.getByLabel("Slug").first().fill("frost-mark");
+  await page.getByRole("button", { name: "Save All" }).first().click();
+  await expect.poll(() => saved).not.toBeNull();
+  expect((saved?.effect_upserts as Array<Record<string, unknown>>).length).toBe(1);
+  expect((saved?.status_upserts as Array<Record<string, unknown>>).length).toBe(1);
+});
+
+test("ability spellcraft clones shared effects before editing", async ({ page }) => {
+  await mockAbilityApi(page);
+  await page.goto("/author/abilities/ability-1");
+  await page.locator("section").filter({ hasText: "Spellcraft Chain" }).getByRole("button", { name: /Shared Fire/ }).click();
+  await expect(page.getByText("Shared Wand")).toBeVisible();
+  await page.getByRole("button", { name: "Duplicate Into This Ability" }).click();
+  await expect(page.getByLabel("Name").last()).toHaveValue("Shared Fire Variant");
+  await expect(page.getByText(/damage Shared Fire Variant/).first()).toBeVisible();
+});
+
+test("ability spellcraft restores drafts and surfaces target conflicts", async ({ page }) => {
+  await mockAbilityApi(page);
+  await page.goto("/author/abilities/ability-1");
+  await page.getByRole("button", { name: "Self", exact: true }).click();
+  await page.waitForTimeout(450);
+  await page.reload();
+  await expect(page.getByText("Restored unsaved Ability Spellcraft draft.")).toBeVisible();
+  await page.getByRole("button", { name: "Issues" }).click();
+  await expect(page.getByText(/targets Enemy but the ability reaches Self/)).toBeVisible();
+  await page.getByRole("button", { name: "Reset" }).first().click();
+  await page.reload();
+  await expect(page.getByText("Restored unsaved Ability Spellcraft draft.")).not.toBeVisible();
+});

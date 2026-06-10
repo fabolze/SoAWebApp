@@ -93,26 +93,30 @@ class BaseRoute:
     
     def validate_enums(self, data: Dict[str, Any], enum_fields: Dict[str, Any]) -> None:
         """Validate enum fields in the data."""
-        try:
-            for field, enum_class in enum_fields.items():
-                if field in data and data[field] is not None:
-                    val = data[field]
-                    # Allow case-insensitive enum inputs
-                    if isinstance(val, str):
-                        try:
-                            data[field] = enum_class(val)
-                            continue
-                        except ValueError:
-                            for member in enum_class:
-                                if member.value.lower() == val.lower() or member.name.lower() == val.lower():
-                                    data[field] = member
-                                    break
-                            else:
-                                raise ValueError(f"{val} is not among the defined enum values")
-                    else:
+        for field, enum_class in enum_fields.items():
+            if field not in data or data[field] is None:
+                continue
+            val = data[field]
+            if isinstance(val, str) and val.strip() == "":
+                data[field] = None
+                continue
+            try:
+                # Allow case-insensitive enum inputs.
+                if isinstance(val, str):
+                    try:
                         data[field] = enum_class(val)
-        except ValueError as e:
-            abort(400, description=f"Invalid enum value: {str(e)}")
+                        continue
+                    except ValueError:
+                        for member in enum_class:
+                            if member.value.lower() == val.lower() or member.name.lower() == val.lower():
+                                data[field] = member
+                                break
+                        else:
+                            raise ValueError(f"{val} is not among the defined enum values")
+                else:
+                    data[field] = enum_class(val)
+            except ValueError as e:
+                abort(400, description=f"Invalid enum value for {field}: {str(e)}")
     
     def validate_relationships(self, db_session, data: Dict[str, Any], 
                              relationship_fields: Dict[str, Any]) -> None:

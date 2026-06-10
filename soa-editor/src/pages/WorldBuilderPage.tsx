@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 import { responseErrorMessage } from "../lib/apiErrors";
+import { CommaSeparatedInput } from "../authoringViews/controls";
 import { buildProjectHealthSummary, healthIssueTarget, type HealthIssue } from "../health/projectHealth";
 import { generateSlug, generateUlid } from "../utils/generateId";
 import {
@@ -1336,7 +1337,7 @@ function InlineWorldPacketEditor({
             <div key={entryId(table)} className="grid gap-2 rounded-md bg-slate-50 p-3 dark:bg-slate-950">
               <input className={inputClass} value={editableText(table.name)} onChange={(event) => updateRow(setTableDrafts, tableIndex, { name: event.target.value })} placeholder="Table name" />
               <textarea className={`${inputClass} min-h-20`} value={editableText(table.spawn_rules)} onChange={(event) => updateRow(setTableDrafts, tableIndex, { spawn_rules: event.target.value })} placeholder="Spawn rules" />
-              <input className={inputClass} value={arrayText(table.environmental_modifiers).join(", ")} onChange={(event) => updateRow(setTableDrafts, tableIndex, { environmental_modifiers: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="Environmental modifiers, comma separated" />
+              <CommaSeparatedInput className={inputClass} values={table.environmental_modifiers} onChange={(environmental_modifiers) => updateRow(setTableDrafts, tableIndex, { environmental_modifiers })} placeholder="Environmental modifiers, comma separated" />
               {encounterEntries(table).map((entry, entryIndex) => (
                 <div key={`${entryId(table)}-${entryIndex}`} className="grid gap-2 rounded border border-slate-200 p-2 dark:border-slate-800 sm:grid-cols-4">
                   <select
@@ -1387,7 +1388,7 @@ function InlineWorldPacketEditor({
             <div key={entryId(brief)} className="grid gap-2 rounded-md bg-slate-50 p-3 dark:bg-slate-950 sm:grid-cols-2">
               {(["mood", "music_state"] as const).map((field) => <input key={field} className={inputClass} value={editableText(brief[field])} onChange={(event) => updateRow(setBriefDrafts, index, { [field]: event.target.value })} placeholder={field.replace("_", " ")} />)}
               {(["visual_ideas", "ambience_ideas", "vfx_ideas", "asset_ideas", "story_notes"] as const).map((field) => <textarea key={field} className={`${inputClass} min-h-20`} value={editableText(brief[field])} onChange={(event) => updateRow(setBriefDrafts, index, { [field]: event.target.value })} placeholder={field.replace("_", " ")} />)}
-              {(["concept_refs", "landmarks"] as const).map((field) => <input key={field} className={inputClass} value={arrayText(brief[field]).join(", ")} onChange={(event) => updateRow(setBriefDrafts, index, { [field]: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder={`${field.replace("_", " ")}, comma separated`} />)}
+              {(["concept_refs", "landmarks"] as const).map((field) => <CommaSeparatedInput key={field} className={inputClass} values={brief[field]} onChange={(values) => updateRow(setBriefDrafts, index, { [field]: values })} placeholder={`${field.replace("_", " ")}, comma separated`} />)}
               <button type="button" className="text-left text-xs font-medium text-red-600 dark:text-red-300" onClick={() => removeOwnedRow("creative_briefs", brief, setBriefDrafts)}>Delete creative brief on save</button>
             </div>
           ))}

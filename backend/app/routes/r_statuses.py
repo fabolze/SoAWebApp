@@ -70,5 +70,6 @@ class StatusRoute(BaseRoute):
 
 
 # Create the route instance
-bp = StatusRoute().bp
+route = StatusRoute()
+bp = route.bp
 

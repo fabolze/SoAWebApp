@@ -8,7 +8,7 @@ import { DEFAULT_SIMULATION_SCENARIO_ID, getSimulationScenarioById, loadSimulati
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import type { EntryRecord } from "../types/editorQol";
 import { generateSlug, generateUlid } from "../utils/generateId";
-import { EditableTagList, displayText, isRecord, rowLabel } from "../authoringViews/controls";
+import { EditableTagList, displayText, editableText, isRecord, rowLabel } from "../authoringViews/controls";
 
 type Side = "Friendly" | "Neutral" | "Hostile";
 type CharacterPacket = { character: EntryRecord; combat_profile: EntryRecord | null; interaction_profile: EntryRecord | null };
@@ -325,7 +325,7 @@ function IdentityPanel({ packet, setPacket, updateEncounter }: { packet: Encount
       <Field label="Slug" value={encounter.slug} onChange={(slug) => updateEncounter({ slug })} />
       <label className="block"><Caption>Encounter Type</Caption><select className={inputClass} value={displayText(encounter.encounter_type)} onChange={(event) => updateEncounter({ encounter_type: event.target.value })}>{["Combat", "Dialogue", "Event"].map((value) => <option key={value}>{value}</option>)}</select></label>
       <label className="block"><Caption>Requirement Gate</Caption><select className={inputClass} value={displayText(encounter.requirements_id)} onChange={(event) => selectRequirement(event.target.value)}><option value="">Unassigned</option>{packet.requirements.map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.id))}</option>)}</select></label>
-      <label className="block md:col-span-2"><Caption>Description</Caption><textarea className={`${inputClass} min-h-24`} value={displayText(encounter.description)} onChange={(event) => updateEncounter({ description: event.target.value })} /></label>
+      <label className="block md:col-span-2"><Caption>Description</Caption><textarea className={`${inputClass} min-h-24`} value={editableText(encounter.description)} onChange={(event) => updateEncounter({ description: event.target.value })} /></label>
       <div className="md:col-span-2"><EditableTagList tags={encounter.tags} onChange={(tags) => updateEncounter({ tags })} /></div>
     </div>
     {!packet.requirement && <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm} mt-3`} onClick={createRequirement}>Create Encounter Requirement</button>}
@@ -425,7 +425,7 @@ function PlacementPanel({ packet, setPacket }: { packet: EncounterPacket; setPac
     <div className="space-y-3">{packet.placements.map((placement, index) => {
       const table = packet.encounter_tables.find((entry) => displayText(entry.id) === placement.table_id);
       const location = isRecord(table?.location) ? table.location : {};
-      return <div key={placement.table_id} className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950"><div className="mb-2 flex justify-between gap-2"><div><div className="text-sm font-semibold">{rowLabel(table || {}, placement.table_id)}</div><div className="text-xs text-slate-500">{rowLabel(location, displayText(table?.location_id))}</div></div><button className="text-xs font-semibold text-red-600" onClick={() => setPacket((current) => ({ ...current, placements: current.placements.filter((_, rowIndex) => rowIndex !== index) }))}>Remove</button></div><div className="grid gap-2 md:grid-cols-4"><NumberField label="Weight" value={placement.entry.weight} onChange={(weight) => update(index, { weight })} /><NumberField label="Min Count" value={placement.entry.min_count} onChange={(min_count) => update(index, { min_count })} /><NumberField label="Max Count" value={placement.entry.max_count} onChange={(max_count) => update(index, { max_count })} /><Field label="Spawn Group" value={placement.entry.spawn_group} onChange={(spawn_group) => update(index, { spawn_group })} /><label className="block md:col-span-4"><Caption>Spawn Notes</Caption><textarea className={`${inputClass} min-h-16`} value={displayText(placement.entry.spawn_notes)} onChange={(event) => update(index, { spawn_notes: event.target.value })} /></label></div></div>;
+      return <div key={placement.table_id} className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950"><div className="mb-2 flex justify-between gap-2"><div><div className="text-sm font-semibold">{rowLabel(table || {}, placement.table_id)}</div><div className="text-xs text-slate-500">{rowLabel(location, displayText(table?.location_id))}</div></div><button className="text-xs font-semibold text-red-600" onClick={() => setPacket((current) => ({ ...current, placements: current.placements.filter((_, rowIndex) => rowIndex !== index) }))}>Remove</button></div><div className="grid gap-2 md:grid-cols-4"><NumberField label="Weight" value={placement.entry.weight} onChange={(weight) => update(index, { weight })} /><NumberField label="Min Count" value={placement.entry.min_count} onChange={(min_count) => update(index, { min_count })} /><NumberField label="Max Count" value={placement.entry.max_count} onChange={(max_count) => update(index, { max_count })} /><Field label="Spawn Group" value={placement.entry.spawn_group} onChange={(spawn_group) => update(index, { spawn_group })} /><label className="block md:col-span-4"><Caption>Spawn Notes</Caption><textarea className={`${inputClass} min-h-16`} value={editableText(placement.entry.spawn_notes)} onChange={(event) => update(index, { spawn_notes: event.target.value })} /></label></div></div>;
     })}</div>
     <select className={`${inputClass} mt-3`} value="" onChange={(event) => event.target.value && add(event.target.value)}><option value="">Add existing encounter table...</option>{packet.encounter_tables.filter((table) => !placed.has(displayText(table.id))).map((table) => <option key={displayText(table.id)} value={displayText(table.id)}>{rowLabel(table, displayText(table.id))}</option>)}</select>
   </Panel>;
@@ -490,7 +490,7 @@ function MultiSelect({ label, values, options, onChange }: { label: string; valu
 }
 
 function Field({ label, value, onChange }: { label: string; value: unknown; onChange: (value: string) => void }) {
-  return <label className="block"><Caption>{label}</Caption><input className={inputClass} value={displayText(value)} onChange={(event) => onChange(event.target.value)} /></label>;
+  return <label className="block"><Caption>{label}</Caption><input className={inputClass} value={editableText(value)} onChange={(event) => onChange(event.target.value)} /></label>;
 }
 
 function NumberField({ label, value, onChange }: { label: string; value: unknown; onChange: (value: number) => void }) {

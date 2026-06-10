@@ -67,7 +67,7 @@ Working:
 
 Planned:
 
-- Ability Spellcraft Lab and focused Creature Workshop.
+- Focused Creature Workshop and future Ability Spellcraft Lab expansions.
 - Continued polish and broader context editing for existing specialized authoring surfaces.
 
 Known limitations:
@@ -138,6 +138,7 @@ The main editing experience is schema-driven:
 Immersive authoring views are alternate input surfaces for high-use content types, not read-only inspectors.
 
 - `/author/items/new` and `/author/items/<id>` provide RPG item-card editing for identity, rarity/type, economy, effects, requirements, and stat/attribute modifiers.
+- `/author/abilities`, `/author/abilities/new`, and `/author/abilities/<id>` provide the Ability Spellcraft Lab with atomic ability/effect/status/requirement/assignment saves, live health feedback, and draft simulation.
 - `/author/shops/new` and `/author/shops/<id>` provide merchant-counter editing for shop identity, location/shopkeeper/currency, pricing layers, and embedded inventory rows.
 - `/author/characters/new` and `/author/characters/<id>` provide dossier editing for identity, portrait, class, faction, home location, and linked combat/interaction profile context.
 - `/author/locations/new` and `/author/locations/<id>` provide location-card editing, map coordinate placement, place-kind/ecology/region/level fields, encounter hooks, and route summaries.
@@ -280,7 +281,7 @@ UE prototype restart path:
 Web app/content tool backlog:
 
 1. Continue polish for Quest Journey Board, Adventure Dependency Map, Encounter Stage, and existing authoring surfaces.
-2. Build Ability Spellcraft Lab and focused Creature Workshop.
+2. Build focused Creature Workshop and deepen the Ability Spellcraft Lab test-bench experience.
 3. Keep Advanced Form as the schema-complete fallback for rare fields, debugging, and datasets without immersive authoring surfaces.
 
 ## Fast Lookup

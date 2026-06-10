@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { apiFetch } from "../lib/api";
 import { generateSlug } from "../utils/generateId";
 import type { SchemaDefinition, SchemaFieldConfig } from "../components/schemaForm/types";
@@ -37,7 +37,7 @@ export function displayText(value: unknown, fallback = ""): string {
   return text || fallback;
 }
 
-function editableText(value: unknown): string {
+export function editableText(value: unknown): string {
   if (value === null || value === undefined) return "";
   return String(value);
 }
@@ -271,6 +271,42 @@ export function EditableTagList({
         </button>
       </div>
     </div>
+  );
+}
+
+export function CommaSeparatedInput({
+  values,
+  onChange,
+  className,
+  placeholder,
+}: {
+  values: unknown;
+  onChange: (values: string[]) => void;
+  className: string;
+  placeholder?: string;
+}) {
+  const rendered = Array.isArray(values) ? values.map(String).join(", ") : "";
+  const [draft, setDraft] = useState(rendered);
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(rendered);
+  }, [rendered]);
+
+  const commit = () => {
+    focused.current = false;
+    onChange(draft.split(",").map((value) => value.trim()).filter(Boolean));
+  };
+
+  return (
+    <input
+      className={className}
+      value={draft}
+      placeholder={placeholder}
+      onFocus={() => { focused.current = true; }}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+    />
   );
 }
 

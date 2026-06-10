@@ -73,7 +73,7 @@ class EffectRoute(BaseRoute):
             raise ValueError("status_id is only valid for Status effects")
         
         # JSON fields
-        effect.related_items = data.get("related_items", {})
+        effect.related_items = data.get("related_items", [])
         
         # Tags field
         if "tags" in data:
@@ -107,5 +107,6 @@ class EffectRoute(BaseRoute):
             db_session.close()
 
 # Create the route instance
-bp = EffectRoute().bp
+route = EffectRoute()
+bp = route.bp
 
