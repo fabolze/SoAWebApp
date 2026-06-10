@@ -186,3 +186,87 @@ test("new dialogue draft survives a full reload", async ({ page }) => {
   await expect(page.getByText("Restored unsaved dialogue flow draft.")).toBeVisible();
   await expect(page.getByLabel("Title")).toHaveValue("Reloadable New Dialogue");
 });
+
+const encounterPacket = {
+  encounter: {
+    id: "enc-1", slug: "enc-1", name: "Road Ambush", description: "", encounter_type: "Combat",
+    requirements_id: "req-1", participants: [], rewards: { xp: 0, items: [], currencies: [], reputation: [], flags_set: [] }, tags: [],
+  },
+  requirement: { id: "req-1", slug: "road-gate", required_flags: [], forbidden_flags: [], min_faction_reputation: [], tags: [] },
+  requirement_usages: [{ schema_name: "events", entry_id: "event-1", entry_label: "Road Event", path: "requirements_id" }],
+  requirement_usages_by_id: { "req-1": [{ schema_name: "events", entry_id: "event-1", entry_label: "Road Event", path: "requirements_id" }] },
+  encounters: [{ id: "enc-1", slug: "enc-1", name: "Road Ambush", encounter_type: "Combat", participants: [], rewards: {} }],
+  characters: [{
+    character: { id: "char-1", slug: "char-1", name: "Profileless", level: 3, tags: [] },
+    combat_profile: null,
+    interaction_profile: null,
+  }],
+  requirements: [{ id: "req-1", slug: "road-gate", required_flags: [], forbidden_flags: [], min_faction_reputation: [], tags: [] }],
+  items: [], currencies: [], factions: [], flags: [],
+  encounter_tables: [{
+    id: "table-1", slug: "table-1", location_id: "loc-1", name: "Road Table", encounter_entries: [], environmental_modifiers: [], tags: [],
+    location: { id: "loc-1", slug: "loc-1", name: "Old Road" },
+  }],
+  placements: [],
+  context: { pois: [], events: [] },
+};
+
+async function mockEncounterApi(page: Page, onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>) {
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/ui/encounters/enc-1") return fulfillJson(route, encounterPacket);
+    if (url.pathname === "/api/ui/encounters") return fulfillJson(route, encounterPacket);
+    if (url.pathname === "/api/ui/encounters/bundle" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      if (onBundle) return onBundle(payload, route);
+      return fulfillJson(route, encounterPacket);
+    }
+    if (url.pathname === "/api/encounters") return fulfillJson(route, encounterPacket.encounters);
+    if (url.pathname === "/api/characters") return fulfillJson(route, encounterPacket.characters.map((entry) => entry.character));
+    if (url.pathname === "/api/combat_profiles") return fulfillJson(route, []);
+    return fulfillJson(route, []);
+  });
+}
+
+test("encounter stage composes participants, rewards, and placement into one bundle", async ({ page }) => {
+  let saved: Record<string, unknown> | null = null;
+  await mockEncounterApi(page, async (payload, route) => {
+    saved = payload;
+    await fulfillJson(route, {
+      ...encounterPacket,
+      encounter: payload.encounter,
+      requirement: payload.requirement,
+      placements: payload.placements,
+    });
+  });
+  await page.goto("/author/encounters/enc-1");
+
+  await expect(page.getByText("Shared-use impact:")).toBeVisible();
+  await page.getByRole("button", { name: /Profileless/ }).click();
+  await page.getByRole("button", { name: "Combat !" }).click();
+  await expect(page.getByText("Profileless uses Combat without a combat profile.")).toBeVisible();
+  await page.getByLabel("XP").fill("40");
+  await page.locator("section").filter({ hasText: "World Placement" }).locator("select").selectOption("table-1");
+  await page.getByRole("button", { name: "Save All" }).first().click();
+
+  await expect.poll(() => saved).not.toBeNull();
+  const encounter = saved?.encounter as Record<string, unknown>;
+  const participants = encounter.participants as Array<Record<string, unknown>>;
+  expect(participants[0].character_id).toBe("char-1");
+  expect(participants[0].combat_side).toBe("Neutral");
+  expect((encounter.rewards as Record<string, unknown>).xp).toBe(40);
+  expect((saved?.placements as Array<Record<string, unknown>>)[0].table_id).toBe("table-1");
+});
+
+test("encounter stage restores and resets local drafts", async ({ page }) => {
+  await mockEncounterApi(page);
+  await page.goto("/author/encounters/enc-1");
+  await page.getByLabel("Description").fill("Unsaved encounter direction.");
+  await page.waitForTimeout(450);
+  await page.reload();
+  await expect(page.getByText("Restored unsaved Encounter Stage draft.")).toBeVisible();
+  await expect(page.getByLabel("Description")).toHaveValue("Unsaved encounter direction.");
+  await page.getByRole("button", { name: "Reset" }).first().click();
+  await page.reload();
+  await expect(page.getByLabel("Description")).toHaveValue("");
+});

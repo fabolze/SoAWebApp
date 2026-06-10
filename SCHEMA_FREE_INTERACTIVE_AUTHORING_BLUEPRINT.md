@@ -14,6 +14,26 @@ The workspace may derive temporary visual meaning from existing data. It must cl
 
 ---
 
+## Implementation Status
+
+Last reviewed: 2026-06-10
+
+| Workspace | Status |
+|---|---|
+| Dialogue Flow Room | Implemented MVP |
+| Encounter Stage | Implemented MVP |
+| Item Ecosystem | Planned; specialized item authoring and item inspection already exist |
+| Quest Journey Board | Planned |
+| Adventure Dependency Map | Planned |
+| Ability Spellcraft Lab | Planned |
+| Creature Workshop | Planned; Character Creator already covers much of the existing character/combat/interaction bundle |
+
+The implemented Dialogue Flow Room provides graph sketching and connection, node/choice/dialogue inspectors, atomic bundle saving, local layout and draft restoration, health analysis, lenses, context links, and gated playthrough. The implemented Encounter Stage provides side composition, linked profile inspection, gates, rewards, existing-table placement, health analysis, simulation comparison, local draft restoration, and atomic bundle saving.
+
+The remaining workspace descriptions are design specifications, not descriptions of currently available UI.
+
+---
+
 ## Current Authoring Audit
 
 ### World Builder
@@ -53,7 +73,7 @@ Its useful patterns are:
 
 ### Current Gap
 
-Quests, encounters, dialogues, dialogue nodes, events, and most supporting content still use generic schema editors. Items have a polished authoring card, but the author mostly edits the item itself rather than deciding where it belongs in the game.
+Quests, encounters, events, and most supporting content still use generic schema editors. Dialogues and dialogue nodes now also have the Dialogue Flow Room. Items have a polished authoring card, but the author mostly edits the item itself rather than deciding where it belongs in the game.
 
 The next step is not to make every form prettier. The next step is to give each content domain:
 
@@ -701,14 +721,13 @@ They may appear as prompts, inferred views, local planning notes, or generated s
 
 ### Phase 1: Dialogue Flow Room
 
-Why first:
+Status: implemented MVP.
 
-- Dialogue nodes already form a true directed graph.
-- The mapping from gesture to saved data is direct.
-- Reachability, broken links, loops, requirements, and flags provide immediate value.
-- It establishes reusable graph, trace, and playthrough components.
+The delivered workspace uses the existing directed node graph, requirements, flags, factions, and linked world context. Its graph, health-analysis, and playthrough patterns establish the first reusable foundation for the later phases.
 
 ### Phase 2: Encounter Stage
+
+Status: next planned workspace.
 
 Why second:
 

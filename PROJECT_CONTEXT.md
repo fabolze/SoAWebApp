@@ -1,6 +1,6 @@
 # SoAWebApp Project Context
 
-Last reviewed: 2026-05-03
+Last reviewed: 2026-06-10
 
 ## Purpose
 
@@ -15,9 +15,9 @@ The core entities cover gameplay, economy, world, narrative, encounters, and pro
 - `backend/app/models`: SQLAlchemy declarative models. Most files are named `m_<entity>.py`.
 - `backend/app/routes`: Flask blueprints. Most files are named `r_<entity>.py` and subclass `BaseRoute`.
 - `backend/app/schemas`: JSON schemas used both for backend required-field validation and frontend form generation.
-- `backend/app/data`: SQLite databases and seed CSV files. The active default DB is `backend/data/db.sqlite`.
+- `backend/data`: SQLite databases and source CSV files. The active default DB is `backend/data/db.sqlite`.
 - `backend/app/utils`: shared utilities, especially CSV/UE export helpers.
-- `backend/tests`: pytest tests, currently focused on CSV export helpers.
+- `backend/tests`: pytest contract, persistence, recovery, route, bundle, and CSV tests.
 - `soa-editor`: React 19 + TypeScript + Vite frontend.
 - `soa-editor/src/components`: reusable editor UI, schema field renderers, dirty-state handling, nested editor drawer, command/creative/simulation widgets.
 - `soa-editor/src/pages`: page wrappers for each editor route, usually just a `SchemaEditor` instance.
@@ -30,7 +30,10 @@ The core entities cover gameplay, economy, world, narrative, encounters, and pro
 
 - `README.md`: quick setup, core capabilities, authoring route overview, and validation commands.
 - `PROJECT_CONTEXT.md`: current architecture, handoff notes, system status, and next work.
-- `backend/data/IMPORT_ORDER_GUIDE.txt`: CSV import order only; keep dependency rules there instead of duplicating them in feature docs.
+- `soa-editor/README.md`: frontend systems, authoring modes, status, and validation.
+- `AUTHORING_WORKSPACES_GAME_DESIGN.md`: interactive authoring design direction and current implementation boundary.
+- `SCHEMA_FREE_INTERACTIVE_AUTHORING_BLUEPRINT.md`: schema-free workspace roadmap and delivery status.
+- `backend/data/IMPORT_ORDER_GUIDE.txt`: source CSV import order, complete-set preflight, foreign-key, and cascade rules.
 - `UE5_Integration_Plan.md`: canonical UE5 direction, currently the Real-Time Top-Down Able prototype.
 - `UE5_Integration/UE5_Prototype_Step_By_Step.md`: concrete implementation sequence for the canonical Real-Time Able prototype, including the restart checklist and detailed Blueprint tutorial steps for `BP_GameDataService`, Phase 3 combatants, and Phase 4 targeting.
 - `UE5_Integration/UE5_Blueprint_Integration_Guide.txt`: canonical UE structs, enums, and DataTable import checklist.
@@ -43,12 +46,40 @@ The core entities cover gameplay, economy, world, narrative, encounters, and pro
 
 - Web app: Flask backend plus React/Vite frontend for local data authoring.
 - Schema editor: generic, schema-complete CRUD editor for every dataset and the Advanced Form fallback for immersive views.
-- Immersive authoring: RPG-style input views for items, shops, characters, and locations. These are editing surfaces, not just inspectors.
+- Immersive authoring: RPG-style input views for items, shops, characters, locations, world building, and dialogue flow. These are editing surfaces, not just inspectors.
 - Authoring Studio: offline deterministic recipes, composer, variants, bundle drafts, and fix/enrich suggestions. It creates patches or drafts; saves still go through normal CRUD endpoints.
 - CSV import/export: backend has explicit source CSVs for DB regeneration and UE CSVs for Unreal-friendly DataTable output.
 - Location graph: `locations` are hierarchy/map nodes with place kind plus optional biome ecology; `location_routes` are explicit movement edges. World-building packets add POIs, encounter placement, route events, travel tuning, and creative briefs.
+- Dialogue graph: dialogues and their nodes are edited and saved as one validated bundle, with local graph layout, health analysis, and playthrough.
 - UE integration: CSV/DataTable mirror consumed by Blueprint systems, with Real-Time Able as the canonical gameplay prototype track.
 - UE prototype current implementation shape: `BP_GameInstance_SoA` constructs a `BP_GameDataService` Blueprint Object, `BFL_SoAHelpers` exposes stateless service access, `BP_BattleCharacter` is the shared combatant base, and `BP_TargetingComponent` on `BP_PlayerController_Prototype` owns player-facing `CurrentEnemyTarget`, `CurrentAllyTarget`, and `PartyFocusTarget`.
+
+## Current Web App Status
+
+Working:
+
+- Generic schema-driven CRUD editors and Advanced Form fallback.
+- Specialized item, shop, character, location, atlas, World Builder, and Dialogue Flow authoring.
+- Atomic World Builder, Character Creator, and Dialogue Flow bundle APIs.
+- Dialogue graph creation/editing, validation, local layout/draft restore, context review, and gated playthrough.
+- Project Health, deterministic local authoring helpers, source/UE CSV export, source import preview, and local heuristic simulation.
+- Complete-source CSV preflight before reset-based restore/rebuild, followed by `PRAGMA foreign_key_check`.
+- Faction reputation references enforced by SQLite on fresh/rebuilt databases, with cascade cleanup limited to linked minimum-reputation rows.
+
+Planned:
+
+- Encounter Stage, Item Ecosystem, Quest Journey Board, Adventure Dependency Map, Ability Spellcraft Lab, and focused Creature Workshop.
+- Continued polish and broader context editing for existing specialized authoring surfaces.
+
+Known limitations:
+
+- Reset-based restore/rebuild is preflighted but sequential; unexpected runtime failure after reset can leave a partial rebuilt database.
+- Existing SQLite files gain new physical constraints only after reset/rebuild.
+- Per-table source imports are replace-all operations.
+- Dialogue layout and selected start node are local-only.
+- Specialized authoring is not schema-complete; Advanced Form remains required for rare fields and unsupported datasets.
+- Simulation is client-side and heuristic, not a game-runtime simulation.
+- The production frontend build currently warns about a main chunk larger than 500 kB.
 
 ## Backend Architecture
 
@@ -76,7 +107,11 @@ CSV and DB admin endpoints:
 - `POST /api/source/import/csv/<table>` imports source CSV with replace-all semantics for that table.
 - `POST /api/source/import/csv/<table>/preview` previews source CSV import changes without committing.
 - `POST /api/import/csv/<table>` remains as a legacy permissive CSV import path.
+- `GET /api/recovery/status`, `POST /api/recovery/export-source`, `POST /api/recovery/restore-source`, and `POST /api/recovery/import-source` manage portable source-CSV recovery.
+- `GET /api/ui/dialogues/<dialogue_id>` loads a Dialogue Flow editing/context packet; `POST /api/ui/dialogues/bundle` validates and atomically saves the dialogue and complete node graph.
 - `POST /api/db/reset`, `/api/db/create`, `/api/db/delete`, `/api/db/select`, `GET /api/db/list`, and `GET /api/db/active` manage local SQLite database files.
+
+Reset-based source restore/rebuild preflights the complete source CSV set before resetting SQLite. It parses and coerces rows, rejects missing or duplicate IDs, validates declared foreign keys against the final CSV IDs, and verifies both faction-reputation requirement representations agree. Successful rebuilds run `PRAGMA foreign_key_check`.
 
 ## Frontend Architecture
 
@@ -108,6 +143,8 @@ Immersive authoring views are alternate input surfaces for high-use content type
 - `/author/locations/new` and `/author/locations/<id>` provide location-card editing, map coordinate placement, place-kind/ecology/region/level fields, encounter hooks, and route summaries.
 - `/author/locations/map` shows the location atlas with nodes and `location_routes` edges.
 - `/author/world` provides the engine-agnostic world-building workspace for hierarchy browsing, atlas review, POIs/interactables, encounter placement, route events, travel tuning, creative references, and world validation.
+- `/author/dialogues`, `/author/dialogues/new`, and `/author/dialogues/<id>` provide the Dialogue Flow Room for graph sketching, connection, editing, health analysis, context review, and playthrough. The workspace saves the dialogue and complete node graph atomically.
+- `/author/encounters`, `/author/encounters/new`, and `/author/encounters/<id>` provide the Encounter Stage for side composition, linked profile inspection, gates, rewards, location encounter-table placement, health analysis, simulation comparison, draft restoration, and atomic bundle saving.
 
 Use Author View for normal content creation when the entity has a specialized route. Use Advanced Form when a rare technical field is missing from the immersive surface, when debugging schema behavior, or when editing a dataset without a specialized view. New-entry authoring routes such as `/author/items/new` create local drafts first; nothing is saved until the normal save action posts through the existing CRUD endpoint.
 
@@ -146,6 +183,8 @@ UE CSV behavior:
 - Source import coercion uses the JSON schema where possible for arrays, objects, numbers, booleans, and integers, and strict source import rejects malformed JSON arrays/objects.
 
 Tests in `backend/tests/test_csv_tools.py` cover row-key ordering, slug sync, uniqueness, enum token export, slugless fallbacks, and transient reference slug aliases.
+
+Source CSVs are the portable source of truth for rebuilding SQLite. Rebuilds require one source CSV for every persisted table. `requirement_min_faction_reputation.faction_id` has an `ON DELETE CASCADE` foreign key to `factions.id` on fresh/rebuilt databases; deleting a faction removes only linked minimum-reputation rows and leaves parent requirements intact.
 
 `location_routes` and the world-building tables participate in CSV export/import like any other model table. Import order: `locations` first, then `requirements` if route gates are used, then `location_routes` and `travel_tuning`; dependency-heavy world tables such as POIs, encounter tables, route event bindings, and creative briefs import after their referenced narrative/gameplay tables.
 
@@ -190,6 +229,7 @@ pytest
 cd soa-editor
 npm run build
 npm run lint
+npm run test:e2e
 ```
 
 ## Current Observations / Hotspots
@@ -201,12 +241,13 @@ npm run lint
 - `SchemaForm` is also shared across all schema-driven editors and nested drawers. Field-renderer changes have broad impact.
 - The frontend imports backend JSON schema files directly via Vite dynamic imports, so relative path assumptions matter.
 - The root `package.json` only declares `react-window`; the real frontend package is `soa-editor/package.json`.
-- The `scripts` folder is currently empty.
+- `scripts/rebuild_source_db.py` rebuilds the active database from a complete source CSV set.
+- Source rebuild does not yet use atomic temporary-database replacement.
 - UE5 docs are design/reference material, not executable code, but they define expected data relationships and export assumptions.
 
 ## Recently Completed Work
 
-Completed through 2026-05-03:
+Completed through 2026-06-10:
 
 - Project Health scans datasets for broken references, duplicate IDs/slugs, missing required fields, empty important arrays, and suspicious reward/chance values.
 - Nested schema controls received dark-mode and usability cleanup, including array/object renderers, reference fields, tags, autocomplete, and editor-stack drawers.
@@ -218,6 +259,10 @@ Completed through 2026-05-03:
 - Shops persist embedded inventory through the canonical `shops_inventory` table and serialize price previews.
 - `location_routes` was added as the real movement graph edge table, with CRUD, CSV import/export, graph API, atlas rendering, and authoring panels.
 - UE integration docs were updated to include `location_routes` as an exported DataTable and to avoid the obsolete `connected_locations` idea.
+- Dialogue Flow Room was added with atomic bundle loading/saving, graph editing, safe deletion, health analysis, local drafts/layout, lenses, context, and gated playthrough.
+- Persisted payload validation was hardened around schema types, canonical choice requirement fields, optional references, tags, and model/schema mismatches.
+- Source restore/rebuild now preflights complete CSV sets before reset and runs a post-rebuild foreign-key check.
+- Faction reputation rows now gain a database-enforced faction foreign key with cascade deletion on fresh/rebuilt databases; route/import behavior also reports and cleans linked rows.
 
 ## Current Next Work
 
@@ -231,11 +276,11 @@ UE prototype restart path:
 
 Web app/content tool backlog:
 
-1. Finish Item Authoring 1.0 polish: make all common item fields editable without Advanced Form, tighten modifier/effect/requirement controls, and keep shop-source context read-only.
-2. Continue Shop/Merchant Authoring: improve inventory card editing, item picking, stock and price controls, and requirement/availability display.
-3. Improve Character Dossier authoring: add richer linked combat-profile and interaction-profile editing/creation without inventing character inventory.
-4. Expand Location Atlas authoring: make route creation/editing from the map and location detail screens smoother, including filters for route type, hidden, locked, and fast travel.
-5. Keep Authoring Studio and Project Health aligned with new data contracts, especially `location_routes`, shop inventory, and immersive draft workflows.
+1. Expand item authoring into an Item Ecosystem showing acquisition sources, rewards, shops, requirements, and comparisons.
+2. Build the Quest Journey Board while clearly separating saved links from inferred relationships.
+3. Build the Adventure Dependency Map for flag, requirement, and gated-content tracing.
+4. Make source rebuild atomic through temporary-database replacement.
+5. Continue polish for item, shop, character, location, World Builder, Dialogue Flow, and Encounter Stage authoring.
 6. Keep Advanced Form as the schema-complete fallback for rare fields, debugging, and datasets without immersive authoring surfaces.
 
 ## Fast Lookup

@@ -3,8 +3,6 @@ from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_encounters import Encounter, EncounterType
 from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_characters import Character
-from backend.app.models.m_combat_profiles import CombatProfile
-from backend.app.models.m_interaction_profiles import InteractionProfile
 from backend.app.models.m_flags import Flag
 from backend.app.models.m_currencies import Currency
 from backend.app.models.m_factions import Faction
@@ -62,12 +60,14 @@ class EncounterRoute(BaseRoute):
         participants = _require_list(data.get("participants", []), "participants")
         allowed_contexts = {"Combat", "Interaction"}
         allowed_sides = {"Hostile", "Friendly", "Neutral"}
+        participant_ids = []
         for entry in participants:
             if not isinstance(entry, dict):
                 raise ValueError("Participant entries must be objects")
             character_id = entry.get("character_id")
             if not character_id or not db_session.get(Character, character_id):
                 raise ValueError(f"Invalid character_id: {character_id}")
+            participant_ids.append(character_id)
             contexts = entry.get("contexts", [])
             if not isinstance(contexts, list):
                 raise ValueError("Participant contexts must be a list")
@@ -77,14 +77,8 @@ class EncounterRoute(BaseRoute):
             combat_side = entry.get("combat_side")
             if combat_side and combat_side not in allowed_sides:
                 raise ValueError(f"Invalid combat_side: {combat_side}")
-            if "Combat" in contexts:
-                profile = db_session.query(CombatProfile).filter_by(character_id=character_id).first()
-                if not profile:
-                    raise ValueError(f"Combat context requires combat profile for character_id: {character_id}")
-            if "Interaction" in contexts:
-                profile = db_session.query(InteractionProfile).filter_by(character_id=character_id).first()
-                if not profile:
-                    raise ValueError(f"Interaction context requires interaction profile for character_id: {character_id}")
+        if len(participant_ids) != len(set(participant_ids)):
+            raise ValueError("participants cannot contain duplicate character_id values")
         encounter.participants = participants
         
         # Validate rewards

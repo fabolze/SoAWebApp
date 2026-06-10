@@ -4,16 +4,39 @@ This repository contains a Flask backend and a React frontend for local game-con
 
 ## Documentation guide
 
-- `PROJECT_CONTEXT.md`: current architecture, system status, and next work for handoff.
-- `backend/data/IMPORT_ORDER_GUIDE.txt`: CSV import order and dependency rules.
-- `UE5_Integration_Plan.md`: canonical UE5 Real-Time Able prototype plan.
-- `UE5_Integration/UE5_Prototype_Step_By_Step.md`: concrete Real-Time Able build sequence, including the current restart checklist and detailed Phase 2-4 Blueprint steps.
-- `UE5_Integration/UE5_Blueprint_Integration_Guide.txt`: canonical UE structs, enums, and DataTable import checklist.
-- `UE5_Integration/UE5_Data_Relationship_Map.md`: field-level relationships and import validation reference.
-- `UE5_Integration/World_Building_Authoring_Guide.md`: engine-agnostic world-building authoring capabilities, validation, CSV handoff, and remaining limits.
-- `UE5_Integration/World_Travel_System.md`: location route graph and travel system design.
+- `PROJECT_CONTEXT.md`: current web-app architecture, implementation status, limitations, and next work.
+- `soa-editor/README.md`: frontend routes, authoring modes, and frontend validation.
+- `AUTHORING_WORKSPACES_GAME_DESIGN.md`: game-design direction for interactive authoring workspaces.
+- `SCHEMA_FREE_INTERACTIVE_AUTHORING_BLUEPRINT.md`: schema-free workspace roadmap and delivery status.
+- `backend/data/IMPORT_ORDER_GUIDE.txt`: source CSV rebuild, dependency, preflight, and cascade rules.
 
-Current UE prototype implementation path: follow `UE5_Integration/UE5_Prototype_Step_By_Step.md`, especially the "Returning After A Long Break" checklist and "What To Do First" section. The immediate Blueprint sequence is `BP_GameDataService` helper access, `BP_BattleCharacter`, manual `BP_EnemyCharacter`, arena reset, and then player/controller targeting with `CurrentEnemyTarget`, `CurrentAllyTarget`, and `PartyFocusTarget`.
+UE5-specific documentation remains under `UE5_Integration` and is maintained separately from these web-app guides.
+
+## Current web-app status
+
+Working:
+
+- Generic schema-driven CRUD editors and Advanced Form fallback for all registered datasets.
+- Specialized item, shop, character, location, atlas, world-builder, and Dialogue Flow authoring.
+- Atomic bundle APIs for the World Builder, Character Creator, and Dialogue Flow Room.
+- Dialogue graph sketching, connecting, editing, validation, local layout/draft restore, and gated playthrough.
+- Source CSV export/import, full-source preflight before destructive rebuilds, and post-rebuild foreign-key checks.
+- Database-enforced faction reputation references on fresh or rebuilt databases, with faction deletion cascading only linked minimum-reputation rows.
+- Project Health, local deterministic authoring helpers, and the local heuristic simulation sandbox.
+
+Planned:
+
+- Encounter Stage, Item Ecosystem, Quest Journey Board, Adventure Dependency Map, Ability Spellcraft Lab, and focused Creature Workshop.
+- Broader cross-domain context and impact views using existing data contracts.
+
+Known limitations:
+
+- Source rebuild is preflighted but still sequential after reset; an unexpected runtime failure can leave a partial rebuilt database.
+- Existing SQLite files receive newly added physical constraints only after reset or source rebuild.
+- Per-table source imports use replace-all semantics and can remove omitted rows.
+- Graph layout and selected Dialogue Flow start node are local-only.
+- Specialized authoring does not cover every field or dataset; Advanced Form remains necessary.
+- Simulation is a client-side heuristic tool, not runtime game simulation.
 
 ## Backend setup
 
@@ -49,10 +72,15 @@ The app will start with debug mode enabled and will initialize the SQLite databa
 
 - Notes:
   - UE CSVs are generated artifacts for Unreal DataTables. Source CSVs are the database-regeneration format.
+  - Reset-based source restore/rebuild requires a complete source CSV set and validates parsing, IDs, declared foreign keys, and normalized faction-reputation representations before resetting SQLite.
+  - Successful rebuilds run `PRAGMA foreign_key_check`. Runtime import failures after reset are not yet protected by atomic temporary-database replacement.
+  - `requirement_min_faction_reputation.faction_id` references `factions.id` with `ON DELETE CASCADE` on fresh or rebuilt databases. Faction deletion reports the linked reputation rows removed.
   - Many link tables do not have a `slug` column; import/export will therefore not include it for those tables.
   - `location_routes` is a real export/import table for graph movement edges. Import it after `locations`, and after `requirements` if routes use locks.
   - For development, you can reset the database with `POST /api/db/reset`.
   - To rebuild the active local SQLite database from tracked source CSVs, run `python scripts/rebuild_source_db.py --source-dir backend/data`.
+  - Recovery endpoints are `GET /api/recovery/status`, `POST /api/recovery/export-source`, `POST /api/recovery/restore-source`, and `POST /api/recovery/import-source`.
+  - Dialogue Flow uses `GET /api/ui/dialogues/<dialogue_id>` and atomic `POST /api/ui/dialogues/bundle`.
 
 ## Frontend setup
 
@@ -75,6 +103,8 @@ The generic schema editors remain available for every table. In addition, the fr
 - `/author/characters/new` and `/author/characters/<id>`: character dossier editing with class/faction/home context and linked combat/interaction profile summaries.
 - `/author/locations/new` and `/author/locations/<id>`: location-card and atlas placement editing, including `location_routes` summaries.
 - `/author/locations/map`: atlas view showing locations as graph nodes and `location_routes` as styled edges.
+- `/author/dialogues`, `/author/dialogues/new`, and `/author/dialogues/<id>`: Dialogue Flow Room for graph authoring, health analysis, context review, and playthrough.
+- `/author/encounters`, `/author/encounters/new`, and `/author/encounters/<id>`: Encounter Stage for side composition, profile inspection, rewards, gates, placement, health analysis, simulation comparison, and atomic bundle saving.
 
 Use these Author Views when creating normal content. They are input surfaces that save through the same CRUD endpoints as the generic editors. Use the Advanced Form inside an authoring view when you need a rare technical field, full schema coverage, or debugging access.
 
@@ -85,6 +115,9 @@ Use these Author Views when creating normal content. They are input surfaces tha
 - `/<dataset>?selected=<id>`: opens a generic editor with a specific entry selected when available.
 - `/author/items/new`, `/author/shops/new`, `/author/characters/new`, `/author/locations/new`: create local drafts in immersive authoring mode.
 - `/author/world`: world-building workspace for hierarchy, atlas, POIs/interactables, encounter placement, route events, travel tuning, creative briefs, and validation.
+- `/author/dialogues`, `/author/dialogues/new`, `/author/dialogues/:id`: Dialogue Flow graph workspace.
+- `/author/encounters`, `/author/encounters/new`, `/author/encounters/:id`: Encounter Stage workspace.
+- `/inspect/items/:id`: read-focused item context inspector.
 - `/simulation`: local heuristic simulation sandbox.
 
 ## Validation
@@ -101,5 +134,6 @@ Frontend:
 cd soa-editor
 npm run lint
 npm run build
+npm run test:e2e
 ```
 

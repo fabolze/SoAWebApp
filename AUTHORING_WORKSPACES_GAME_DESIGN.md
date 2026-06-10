@@ -8,6 +8,18 @@ This proposal extends the strongest idea in the current World Builder to the res
 
 The workspaces below are for game designers and writers. They describe content intent, relationships, pacing, and player experience. They do not attempt to become an engine editor.
 
+## Implementation Status
+
+Last reviewed: 2026-06-10
+
+- **Working now:** World Builder, Character Creator, specialized item/shop/location authoring, Location Atlas, Dialogue Flow Room MVP, and Encounter Stage MVP.
+- **Dialogue Flow Room:** authors can sketch, connect, edit, validate, save, restore, and play through dialogue graphs using the existing dialogue, node, requirement, flag, faction, and context data.
+- **Encounter Stage:** authors can compose sides and contexts, inspect linked profiles, edit requirements and rewards, place encounters in existing location tables, compare simulation results, validate health, restore drafts, and save the bundle atomically.
+- **Planned:** Item Ecosystem, Narrative Dependency Map/Quest Journey Board, Character Context Hub, Creature Workshop, Ability Spellcraft Lab, and Adventure Board.
+- **Still conceptual:** writer-room metadata such as dramatic purpose, emotional arc, motives, encounter phases, promises/payoffs, and canonical cross-domain sequence. These must remain inferred or temporary unless deliberately modeled later.
+
+The proposal sections below remain useful design direction, but only the features listed as working above describe current UI.
+
 ## Compatibility With The Current Content Model
 
 The current schemas primarily represent **structured game content and runtime relationships**:
@@ -626,19 +638,33 @@ Authors place existing content into the lanes and arrange it in approximate play
 
 ## 10. Recommended Priority For The Current Schemas
 
-### First: Dialogue Flow Room
+### Completed First: Dialogue Flow Room
 
 Dialogue nodes already form a real directed graph through choices and `next_node_id`. Requirements and flags make locked choices and consequences visible without inventing new meaning.
 
-The first version should focus on:
+The implemented MVP includes:
 
 - Sketching dialogue nodes
 - Connecting choices
 - Showing requirements and flags on branches
-- Tracing one conversation path
+- Playing through conversation paths with temporary state
 - Revealing unreachable nodes, dead ends, loops, and choices with no consequence
+- Atomic bundle saving, safe deletion, local layout, and local draft restoration
 
-### Second: Item Ecosystem
+### Next: Encounter Composer
+
+Encounter composition is the next recommended schema-free workspace because participants, sides, requirements, rewards, simulation, and world placement already map to existing data.
+
+The first version should focus on:
+
+- Participant roster and combat sides
+- Linked character combat and interaction profiles
+- Rewards and requirements
+- Location encounter-table placement
+- Comparison through the existing encounter simulation
+- Missing profiles, empty sides, and reward issues
+
+### Then: Item Ecosystem
 
 Items already participate in a rich inbound relationship network: shops, combat-profile loot, quest rewards, event rewards, encounter rewards, effects, requirements, currencies, stats, and attributes.
 
@@ -651,7 +677,7 @@ The first version should focus on:
 - Items with no source or no meaningful use
 - Side-by-side comparison of existing items
 
-### Third: Narrative Dependency Map
+### Then: Narrative Dependency Map
 
 This is a narrower, current-model version of the Quest Loom. It should visualize the relationships that truly exist: story arcs, related quests, quest-level branches, requirements, flags, event chains, dialogue links, locations, and rewards.
 
@@ -664,20 +690,7 @@ The first version should focus on:
 - Broken, circular, or unreachable dependencies
 - Inferred links clearly labeled as inferred
 
-### Fourth: Encounter Composer
-
-This is a current-model version of the Encounter Stage. It should compose participants, sides, contexts, requirements, and rewards, then show where the encounter is placed in the world.
-
-The first version should focus on:
-
-- Participant roster and combat sides
-- Linked character combat and interaction profiles
-- Rewards and requirements
-- Location encounter-table placement
-- Comparison through the existing encounter simulation
-- Missing profiles, empty sides, and reward issues
-
-### Fifth: Character Context Hub
+### Then: Character Context Hub
 
 This is a current-model version of the Character Web. It should collect a character's real inbound and outbound references without inventing social relationships.
 

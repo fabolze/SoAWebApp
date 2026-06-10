@@ -101,6 +101,7 @@ const pageGroups: PageGroup[] = [
     pages: [
       { path: '/dialogue-nodes', name: 'Dialogue Nodes', icon: ChatBubbleLeftRightIcon },
       { path: '/dialogues', name: 'Dialogues', icon: ChatBubbleLeftRightIcon },
+      { path: '/author/encounters', name: 'Encounter Stage', icon: ClipboardDocumentListIcon },
       { path: '/quests', name: 'Quests', icon: DocumentTextIcon },
       { path: '/content-packs', name: 'Content Packs', icon: ArchiveBoxIcon },
       { path: '/story-arcs', name: 'Story Arcs', icon: Squares2X2Icon },

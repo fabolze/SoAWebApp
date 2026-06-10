@@ -45,6 +45,7 @@ const ItemInspectorPage = lazy(() => import("./pages/ItemInspectorPage"));
 const SimulationSandboxPage = lazy(() => import("./pages/SimulationSandboxPage"));
 const WorldBuilderPage = lazy(() => import("./pages/WorldBuilderPage"));
 const DialogueFlowPage = lazy(() => import("./pages/DialogueFlowPage"));
+const EncounterStagePage = lazy(() => import("./pages/EncounterStagePage"));
 const CharacterAuthoringPage = lazy(() => import("./authoringViews/CharacterCreatorPage"));
 const ItemAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.ItemAuthoringPage })));
 const LocationAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.LocationAuthoringPage })));
@@ -108,6 +109,9 @@ export default function AppRoot() {
               <Route path="author/dialogues" element={<DialogueFlowPage />} />
               <Route path="author/dialogues/new" element={<DialogueFlowPage />} />
               <Route path="author/dialogues/:id" element={<DialogueFlowPage />} />
+              <Route path="author/encounters" element={<EncounterStagePage />} />
+              <Route path="author/encounters/new" element={<EncounterStagePage />} />
+              <Route path="author/encounters/:id" element={<EncounterStagePage />} />
               <Route path="currencies" element={<CurrenciesEditorPage />} />
               <Route path="interaction-profiles" element={<InteractionProfilesEditorPage />} />
               <Route path="location-creative-briefs" element={<LocationCreativeBriefsEditorPage />} />
