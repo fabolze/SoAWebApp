@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { AUTHORING_MODES } from "../src/config/authoringModes";
 
 const emptyWorld = {
   locations: [],
@@ -54,6 +55,22 @@ test("roadmap authoring routes render without replacing rich item authoring", as
   await expect(page.getByRole("heading", { name: "Quest Journey Board" })).toBeVisible();
   await page.goto("/author/dependencies");
   await expect(page.getByRole("heading", { name: "Adventure Dependency Map" })).toBeVisible();
+});
+
+test("home and sidebar expose every specialized authoring workspace", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/");
+
+  const homeGroup = page.locator("main section").filter({ hasText: "Authoring Modes" });
+  await expect(homeGroup).toBeVisible();
+  for (const mode of AUTHORING_MODES) {
+    await expect(homeGroup.getByRole("link", { name: mode.label })).toHaveAttribute("href", mode.route);
+  }
+
+  const sidebarGroup = page.locator("nav").getByText("Authoring Modes").locator("..").locator("..");
+  for (const mode of AUTHORING_MODES) {
+    await expect(sidebarGroup.getByTitle(mode.label)).toHaveAttribute("href", mode.route);
+  }
 });
 
 test("item ecosystem edits acquisition sources and saves one atomic bundle", async ({ page }) => {

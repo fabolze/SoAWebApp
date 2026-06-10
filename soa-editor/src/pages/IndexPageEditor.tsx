@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { ForwardRefExoticComponent, RefAttributes, SVGProps } from 'react';
+import type { ElementType } from 'react';
 import {
   AcademicCapIcon,
   ArchiveBoxIcon,
@@ -26,19 +26,13 @@ import {
 } from '@heroicons/react/24/outline';
 import { useDirtyState } from '../components/useDirtyState';
 import ProjectHealthPanel from '../components/health/ProjectHealthPanel';
+import { AUTHORING_MODES } from '../config/authoringModes';
 import { TEXT_CLASSES } from '../styles/uiTokens';
-
-type IconComponent = ForwardRefExoticComponent<
-  Omit<SVGProps<SVGSVGElement>, 'ref'> & {
-    title?: string;
-    titleId?: string;
-  } & RefAttributes<SVGSVGElement>
->;
 
 interface PageLink {
   path: string;
   name: string;
-  icon: IconComponent;
+  icon: ElementType;
 }
 
 interface PageGroup {
@@ -55,6 +49,11 @@ const pageGroups: PageGroup[] = [
       { path: '/simulation', name: 'Simulation Sandbox', icon: CpuChipIcon },
       { path: '/settings', name: 'Settings', icon: Cog6ToothIcon },
     ],
+  },
+  {
+    label: 'Authoring Modes',
+    description: 'Focused workspaces that edit connected content as complete, playable bundles.',
+    pages: AUTHORING_MODES.map(({ route, label, icon }) => ({ path: route, name: label, icon })),
   },
   {
     label: 'Gameplay',
@@ -80,7 +79,6 @@ const pageGroups: PageGroup[] = [
     label: 'World',
     description: 'World hierarchy, locations, travel, POIs, encounters, creative briefs, people, and factions.',
     pages: [
-      { path: '/author/world', name: 'World Builder', icon: MapIcon },
       { path: '/locations', name: 'Locations', icon: MapIcon },
       { path: '/location-routes', name: 'Location Routes', icon: MapIcon },
       { path: '/location-pois', name: 'Location POIs', icon: MapIcon },
@@ -101,9 +99,6 @@ const pageGroups: PageGroup[] = [
     pages: [
       { path: '/dialogue-nodes', name: 'Dialogue Nodes', icon: ChatBubbleLeftRightIcon },
       { path: '/dialogues', name: 'Dialogues', icon: ChatBubbleLeftRightIcon },
-      { path: '/author/encounters', name: 'Encounter Stage', icon: ClipboardDocumentListIcon },
-      { path: '/author/quests', name: 'Quest Journey Board', icon: DocumentTextIcon },
-      { path: '/author/dependencies', name: 'Dependency Map', icon: Squares2X2Icon },
       { path: '/quests', name: 'Quests', icon: DocumentTextIcon },
       { path: '/content-packs', name: 'Content Packs', icon: ArchiveBoxIcon },
       { path: '/story-arcs', name: 'Story Arcs', icon: Squares2X2Icon },

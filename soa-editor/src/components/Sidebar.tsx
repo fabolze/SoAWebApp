@@ -45,6 +45,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useDirtyState } from "./useDirtyState";
 import DarkModeToggle from "./DarkModeToggle";
+import { AUTHORING_MODES } from "../config/authoringModes";
 
 type SidebarItem = {
   to: string;
@@ -201,6 +202,10 @@ const DEFAULT_GROUPS: SidebarGroup[] = [
     ],
   },
   {
+    label: "Authoring Modes",
+    items: AUTHORING_MODES.map(({ route, label, icon }) => ({ to: route, label, icon })),
+  },
+  {
     label: "Gameplay",
     items: [
       { to: "/abilities", label: "Abilities", icon: SparklesIcon },
@@ -222,7 +227,6 @@ const DEFAULT_GROUPS: SidebarGroup[] = [
   {
     label: "World",
     items: [
-      { to: "/author/world", label: "World Builder", icon: MapIcon },
       { to: "/locations", label: "Locations", icon: MapIcon },
       { to: "/location-routes", label: "Location Routes", icon: MapIcon },
       { to: "/location-pois", label: "Location POIs", icon: MapIcon },
@@ -240,10 +244,6 @@ const DEFAULT_GROUPS: SidebarGroup[] = [
   {
     label: "Narrative",
     items: [
-      { to: "/author/dialogues", label: "Dialogue Flow", icon: ChatBubbleLeftRightIcon },
-      { to: "/author/encounters", label: "Encounter Stage", icon: ClipboardDocumentListIcon },
-      { to: "/author/quests", label: "Quest Journey Board", icon: DocumentTextIcon },
-      { to: "/author/dependencies", label: "Dependency Map", icon: Squares2X2Icon },
       { to: "/dialogue-nodes", label: "Dialogue Nodes", icon: ChatBubbleLeftRightIcon },
       { to: "/dialogues", label: "Dialogues", icon: ChatBubbleLeftRightIcon },
       { to: "/quests", label: "Quests", icon: DocumentTextIcon },
