@@ -2,725 +2,900 @@
 
 ## Purpose
 
-This proposal extends the strongest idea in the current World Builder to the rest of the game's content:
+This is the single canonical design and implementation guide for interactive authoring across the web app.
 
-> Authors should work inside a meaningful representation of the game world, not inside a collection of disconnected records.
+It preserves two equally important layers in one place:
 
-The workspaces below are for game designers and writers. They describe content intent, relationships, pacing, and player experience. They do not attempt to become an engine editor.
+- **Creative north star:** the best authoring experience, including ideas that may require future metadata, schemas, or systems.
+- **Honest implementation:** what the current app can save, infer, preview, and build safely today.
 
-## Implementation Status
+The goal is to make authors feel that they are arranging adventures, staging conflicts, building rewards, and writing conversations rather than maintaining database records. Current implementation constraints must shape delivery without shrinking or deleting the long-term vision.
+
+> Preserve the ambition. Save only what the current model can represent honestly.
+
+## Maintenance Contract
+
+Every workspace must have one row in the status index and one catalog entry containing these concerns:
+
+1. **Creative North Star:** the unrestricted authoring experience worth building toward.
+2. **Current-Model Implementation:** gestures and views that map honestly to existing data.
+3. **Future Expansion:** valuable concepts that need new canonical metadata or systems.
+4. **Health Questions:** checks that evaluate the authored player experience.
+
+The status index is the only place that records delivery status. When a new authoring mode is proposed, add it to the status index and give it a workspace entry immediately. Do not create a second roadmap, status list, or vision document. Update the status index and the matching workspace section in the same change.
+
+---
+
+## Workspace Status
 
 Last reviewed: 2026-06-10
 
-- **Working now:** World Builder, Character Creator, specialized item/shop/location authoring, Location Atlas, Dialogue Flow Room MVP, and Encounter Stage MVP.
-- **Dialogue Flow Room:** authors can sketch, connect, edit, validate, save, restore, and play through dialogue graphs using the existing dialogue, node, requirement, flag, faction, and context data.
-- **Encounter Stage:** authors can compose sides and contexts, inspect linked profiles, edit requirements and rewards, place encounters in existing location tables, compare simulation results, validate health, restore drafts, and save the bundle atomically.
-- **Implemented MVP:** Item Ecosystem.
-- **Planned or in progress:** Narrative Dependency Map/Quest Journey Board, Character Context Hub, Creature Workshop, Ability Spellcraft Lab, and Adventure Board.
-- **Still conceptual:** writer-room metadata such as dramatic purpose, emotional arc, motives, encounter phases, promises/payoffs, and canonical cross-domain sequence. These must remain inferred or temporary unless deliberately modeled later.
+| Workspace | Status |
+|---|---|
+| World Builder | Implemented; foundation for the shared authoring language |
+| Character Studio And Character Web | Character Creator implemented; broader relationship and story-presence workspace is future vision |
+| Dialogue Flow Room | Implemented MVP |
+| Encounter Stage | Implemented MVP |
+| Quest Journey Board And Quest Loom | Journey Board initial MVP; full mixed-content Quest Loom is future vision |
+| Item Ecosystem And Item Forge | Implemented MVP; future work can deepen fantasy, provenance, families, and progression |
+| Creature Workshop | Planned; Character Creator already covers much of the existing character/combat/interaction bundle |
+| Ability Spellcraft Lab | Planned |
+| Adventure Dependency Map And Adventure Board | Dependency Map initial MVP; full playable-slice Adventure Board is future vision |
 
-The proposal sections below remain useful design direction, but only the features listed as working above describe current UI.
-
-## Compatibility With The Current Content Model
-
-The current schemas primarily represent **structured game content and runtime relationships**:
-
-- What exists
-- What references what
-- What unlocks or follows what
-- Where content appears
-- Who participates
-- What gameplay payload or reward is attached
-
-They do **not** currently represent many forms of writer-room metadata such as dramatic purpose, emotional arc, character wants, encounter phases, player lessons, promises/payoffs, or authored pacing.
-
-Therefore, the workspaces in this document must be read in two categories:
-
-- **Current-model workspaces:** interactive views that can truthfully read and edit existing fields.
-- **Aspirational workspaces:** useful design directions that would require new schemas or explicit authoring metadata before they could become canonical tools.
-
-### Fit Audit
-
-| Proposed Workspace | Fit With Current Schemas | What Can Be Represented Now | What Is Not Represented Now |
-|---|---|---|---|
-| Quest Loom | Partial | Story-arc quest lists and branches, ordered quest objectives, requirements, completion flags, rewards, event chains, dialogue graphs | Mixed-content beat graph, objective-to-location/character links, failure paths, optional beats, dramatic pacing, explicit consequences |
-| Encounter Stage | Partial | Encounter type, participants, combat side, interaction/combat context, requirements, rewards, location placement through encounter tables | Stakes, participant dramatic roles, environment, phases, escalation, alternate resolutions |
-| Character Web | Partial | Faction, class, home location, combat profile, interaction role, dialogue, offered quests, shop/inventory, encounter appearances | Character-to-character relationships, motives, secrets, fears, duties, changing relationships, reactions |
-| Creature Workshop | Weak/Partial | Character plus combat profile, enemy type, aggression, stats, abilities, loot, quest links, encounter appearances | Ecology, behavior rhythm, silhouette, pack role, player lesson, readable signals |
-| Item Forge | Strong/Partial | Item identity, type, rarity, price, requirements, effects, modifiers, shops, loot tables, quest/event/encounter rewards | Item families, variants, makers, ownership history, intended progression window, obsolescence |
-| Dialogue Room | Strong/Partial | Dialogue ownership/location, node graph, speakers, text, choices, requirements, and flags | Player intention, emotional shifts, information tracking, relationship changes |
-| Adventure Board | Weak | Can infer some world, quest, event, reward, and dialogue relationships | Canonical cross-domain sequence, pacing lanes, promises/payoffs, complete player-path ordering |
-
-The safest rule is:
-
-> A workspace may visualize inferred meaning, but it should not pretend inferred meaning is authored canonical data.
-
-### Interactive Does Not Mean New Tables
-
-New tables are only required when a new concept must become canonical saved data. They are not required to make existing content easier, more visual, or more enjoyable to author.
-
-The current character workflow feels unintuitive because one authored idea is split across several technical records:
-
-- `characters`: identity, level, class, faction, and home location
-- `combat_profiles`: enemy type, aggression, stats, abilities, loot, rewards, quest links, and companion configuration
-- `interaction_profiles`: role, dialogue, offered quests, inventory, and interaction flags
-- `encounters`: where the character participates and on which side
-- `dialogues`, `shops`, and locations: additional world context
-
-A designer thinks "create a swamp enemy" or "create a village quest giver." They should not need to begin by deciding which database record to open.
-
-An interactive Character And Enemy Creator can create and edit this existing bundle as one authored subject. The workspace may present creative questions and visual controls, then translate the answers into the current records.
-
-#### Character And Enemy Creator
-
-**Start With A Role**
-
-Choose a starting card:
-
-- Civilian
-- Quest Giver
-- Merchant
-- Trainer
-- Companion
-- Friendly Combatant
-- Standard Enemy
-- Elite Enemy
-- Boss
-
-The selected role determines which existing profile sections become important. It does not require a new saved field.
-
-**Identity Card**
-
-Directly edits existing character fields:
-
-- Name, title, portrait, and description
-- Level and class
-- Faction and home location
-- Tags
-
-**Combat Loadout Board**
-
-Directly edits or creates the linked combat profile:
-
-- Enemy type and aggression as large selectable badges
-- Abilities as draggable cards
-- Custom stats as bars, a radar chart, or comparison against similar characters
-- Loot as items dropped into a reward tray
-- XP, currency, and reputation reward preview
-- Companion configuration when relevant
-
-The visual arrangement is an authoring aid. The saved result remains the existing combat-profile data.
-
-**Interaction Role Board**
-
-Directly edits or creates the linked interaction profile:
-
-- Role card
-- Dialogue assignment
-- Offered quests
-- Merchant inventory
-- Flags set on interaction
-
-**World Presence**
-
-Uses current inbound references:
-
-- Home location
-- Encounter appearances
-- Dialogue location
-- Shops owned
-- Quests offered
-
-Authors can add an existing character to an encounter or create a draft encounter around them without needing a new character relationship table.
-
-**Enemy Comparison**
-
-Compare the current enemy with existing enemies at similar levels:
-
-- Stats
-- Ability count and targeting mix
-- Reward value
-- Loot chance
-- Encounter usage
-- Simulation results
-
-This uses current data and the existing simulation system.
-
-**Contextual Health Checks**
-
-- Enemy has no combat profile
-- Combat profile has no abilities
-- Enemy never appears in an encounter
-- Character is marked as a merchant but has no inventory or shop
-- Quest giver offers no quests
-- Character has dialogue but no interaction profile
-- Loot or reward references are incomplete
-- Boss is weaker or less rewarding than nearby standard enemies
-
-#### Creative Prompts Without Persistence
-
-The creator can ask useful temporary questions such as:
-
-- What should the player do differently when this enemy appears?
-- What is this character's primary function?
-- What makes this enemy distinct from nearby enemies?
-- Where should the player first meet them?
-
-These answers can guide suggested abilities, stats, tags, encounters, descriptions, and rewards without requiring dedicated columns. They may remain temporary authoring prompts unless the project later decides they deserve canonical fields.
+The workspace descriptions below contain both current-model implementation contracts and future-facing design. A feature is not implemented merely because it appears in this document; the status table is authoritative.
 
 ---
 
-## 1. What The Current World Builder Gets Right
+## Design Foundation
 
-The World Builder is more than a location editor. It gives the author a small model of the world and lets them reason through it.
+The World Builder and Character Creator establish the reusable pattern. The central lesson is not "use a graph" or "make forms prettier." It is:
 
-Its strongest qualities are:
+> Give the author a canvas shaped like the decision they are trying to make.
 
-- **A meaningful canvas:** locations are nodes and routes are connections.
-- **Direct creative gestures:** sketch a place, connect two places, move a place, inspect a route.
-- **Multiple lenses:** danger, story, and issues reveal different truths about the same world.
-- **Context packets:** selecting a location reveals routes, POIs, encounters, story beats, creative notes, and problems together.
-- **Progressive commitment:** rough ideas can begin as sketches before becoming complete content.
-- **Relationship visibility:** the author sees where a piece of content lives and what it touches.
-- **Health feedback:** the workspace identifies empty, disconnected, or contradictory content.
+Every specialized workspace should provide:
 
-This is the reusable pattern:
-
-1. Give each content domain a canvas that resembles how players experience it.
-2. Let authors place, connect, arrange, and compare content on that canvas.
-3. Let them switch between useful creative lenses.
-4. Show the full context packet for the selected thing.
-5. Allow rough drafts before requiring complete records.
-6. Check the authored experience, not only missing fields.
-
-The current immersive item and character views provide attractive themed forms, but they do not yet offer this same degree of creative reasoning. Their next step is not simply adding more fields. Their next step is giving each domain its own interactive mental model.
-
-### Current Boundaries To Learn From
-
-- The story layer is useful, but many story relationships are inferred rather than deliberately authored as a visible player path.
-- Most lenses currently reveal or filter content; they do not yet help the author compare pacing, payoff, repetition, or player knowledge.
-- The strongest direct gestures are concentrated around locations and routes. Much of the attached content still opens in separate editors.
-- Location packets collect valuable context, but there is no full playthrough trace that follows one possible player experience across the world.
-- Sketching is powerful because it lowers the cost of invention. Other content domains need the same permission to begin with an incomplete idea.
+1. A meaningful canvas.
+2. Direct creative gestures.
+3. A context packet.
+4. Useful lenses.
+5. Contextual health questions.
+6. Progressive commitment through local drafts.
+7. Bundle editing when one authored idea spans several records.
+8. A schema-complete escape hatch for rare fields and debugging.
 
 ---
 
-## 2. Shared Authoring Language
+## Implementation Integrity Rules
 
-All specialized workspaces should feel like different rooms in the same studio.
+### Save Truth, Derive Meaning
 
-### Common Creative Actions
+The following may be displayed as temporary or inferred authoring information:
 
-- **Select:** inspect one piece of content in context.
-- **Sketch:** create an incomplete idea with only a title and creative intent.
-- **Connect:** establish a meaningful relationship.
-- **Arrange:** express sequence, hierarchy, opposition, or importance through position.
-- **Compare:** place alternatives beside each other.
-- **Trace:** follow one player-facing path from beginning to end.
-- **Play Through:** step through an authored experience as a hypothetical player.
-- **Focus Lens:** reveal one concern such as pacing, rewards, faction influence, difficulty, or unresolved issues.
+- A quest appears to follow another quest because its requirement needs a completion flag.
+- An item appears early or late because of the locations and quests that grant it.
+- A character appears important because they occur in many encounters and dialogues.
+- An encounter appears dangerous because of its participants and their combat profiles.
+- A dialogue branch appears consequential because it sets flags used elsewhere.
 
-### Common Context Packet
+These are useful readings of the existing world. They are not new saved facts.
 
-Every selected piece of content should answer:
+### Visual Position Is Not Canonical Unless A Field Exists
 
-- What is this meant to make the player feel?
-- Where and when does the player encounter it?
-- What introduces it?
-- What can the player do with it?
-- What changes because of it?
-- What other content depends on it?
-- What is missing or contradictory?
+- World Builder node position can save because locations already have coordinates.
+- POI position can save because POIs already have coordinates.
+- Dialogue, quest, encounter, item, and dependency-map node positions should remain local workspace state.
+- Rearranging a story arc quest chain can save because `story_arcs.related_quests` is already ordered.
+- Reordering quest objectives can save because `quests.objectives` is already ordered.
 
-### Common Lenses
-
-- **Player Knowledge:** what the player knows at this point.
-- **World Truth:** what is actually true, including secrets.
-- **Pacing:** calm, tension, climax, recovery, and reward.
-- **Difficulty:** expected player readiness and threat.
-- **Rewards:** material, power, knowledge, access, and relationship rewards.
-- **Faction Influence:** who benefits, loses, controls, or reacts.
-- **Issues:** dead ends, orphaned content, contradictions, and weak payoffs.
-
----
-
-## 3. Quest Loom
-
-### Core Fantasy
-
-The author weaves a player journey from hooks, objectives, choices, consequences, and payoffs.
-
-The main canvas is a flow of **quest beats**, not a form. A quest beat is a player-facing moment such as:
-
-- Hear a rumor
-- Meet the quest giver
-- Accept or refuse
-- Travel somewhere
-- Discover evidence
-- Choose a side
-- Defeat or negotiate
-- Return
-- Receive a reward
-- See a world consequence
-
-### Canvas
-
-Quest beats appear from left to right in expected player order. Branches split vertically and can later rejoin. Each beat can carry a location, character, encounter, dialogue, item, requirement, or flag.
-
-The author can:
-
-- Sketch a beat with a short sentence.
-- Drag beats to change pacing.
-- Connect beats to define possible player paths.
-- Mark a beat as optional, hidden, fail-state, or irreversible.
-- Drop an existing character, location, item, or encounter onto a beat.
-- Turn a rough beat into a formal quest objective, event, dialogue, or encounter.
-- Group several quests into a story arc lane.
-
-### Useful Lenses
-
-- **Player Path:** only shows what a player can experience in one selected route.
-- **Branch Consequences:** highlights choices and what changes afterward.
-- **Knowledge Flow:** shows clues introduced, reinforced, and resolved.
-- **Location Journey:** overlays the physical route through the world.
-- **Character Presence:** reveals who appears, disappears, or lacks follow-up.
-- **Reward Rhythm:** shows when the player receives power, treasure, access, lore, or reputation.
-- **Failure And Lockout:** highlights ways content becomes unavailable.
-
-### Quest Health Questions
-
-- Does the quest have a clear hook before asking for commitment?
-- Does every objective change the situation or reveal something?
-- Is there a meaningful escalation between beginning and climax?
-- Does every branch lead somewhere intentional?
-- Are choices acknowledged later?
-- Is the reward appropriate to the promise and effort?
-- Does the quest use the world, or could it happen anywhere?
-- Are important characters introduced before they become important?
-- Can the player understand why they are doing each step?
-
-### Example: Forest Swamp Introduction
-
-A first quest in Altrail could be authored as:
-
-`Village warning -> Forest trail opens -> Find abandoned cart -> Choose to follow tracks or return -> Enter Forest Swamp -> Face first challenge -> Recover proof -> Village reaction`
-
-The Location Journey lens would immediately reveal that the swamp currently has no authored route from the forest. The Reward Rhythm lens could reveal that the quest promises danger but has no memorable reward. The Knowledge Flow lens could show whether the abandoned cart clue actually pays off.
-
----
-
-## 4. Encounter Stage
-
-### Core Fantasy
-
-The author directs a dramatic situation: who is present, what each side wants, how pressure changes, and how the encounter can resolve.
-
-An encounter is not only a list of participants. It is a staged conflict with an opening state, escalation, turning point, and resolution.
-
-### Canvas
-
-The canvas resembles a stage or confrontation board:
-
-- Player side
-- Opposing side
-- Neutral or uncertain side
-- Environment and hazards
-- Stakes
-- Escalation beats
-- Possible resolutions
-
-Characters and monsters are placed onto the stage. Their distance from the center communicates how immediately involved they are. Neutral participants can visibly shift toward either side as conditions change.
-
-The author can:
-
-- Add participants by role: pressure, support, controller, protector, witness, objective.
-- Define what each participant wants.
-- Add environmental complications.
-- Sketch escalation beats such as reinforcements, phase changes, surrender, betrayal, or escape.
-- Create alternate non-combat resolutions.
-- Attach consequences and rewards to each resolution.
-- Compare normal, elite, and boss variants side by side.
-
-### Useful Lenses
-
-- **Threat Shape:** burst, attrition, control, numbers, environmental pressure.
-- **Attention:** what the player is expected to notice and prioritize.
-- **Role Coverage:** pressure, support, defense, disruption, and objective interaction.
-- **Resolution:** combat, dialogue, stealth, payment, retreat, or special solution.
-- **Reward Versus Risk:** compares likely effort and payoff.
-- **World Fit:** shows why this encounter belongs in its assigned location.
-- **Repetition:** highlights encounters with overly similar participants or rhythms.
-
-### Encounter Health Questions
-
-- What makes this encounter memorable beyond its enemy count?
-- What is the player trying to protect, reach, interrupt, or learn?
-- Is there a clear change during the encounter?
-- Does every participant have a distinct purpose?
-- Can the player read the threat before suffering from it?
-- Does the environment matter?
-- Is there an intentional resolution other than victory by elimination?
-- Does the reward reinforce the encounter's story?
-
-### Monster Creation Inside The Stage
-
-Monsters should often be created from a missing dramatic role:
-
-> "This swamp encounter needs a creature that forces movement and punishes standing near deep water."
-
-That prompt is more useful than beginning with an empty monster record. The resulting monster already has a habitat, encounter purpose, behavior promise, and player lesson.
-
----
-
-## 5. Character Web
-
-### Core Fantasy
-
-The author creates a person by placing them inside a network of loyalties, needs, conflicts, responsibilities, and secrets.
-
-The current Character Dossier is a good identity card. The Character Web would become the larger creative workspace around it.
-
-### Canvas
-
-The selected character sits at the center. Around them are:
-
-- Relationships to other characters
-- Faction ties
-- Home and frequented locations
-- Quests they give, affect, or react to
-- Dialogues
-- Encounters
-- Shops or services
-- Secrets and knowledge
-- Personal wants, fears, duties, and contradictions
-
-Connections should carry a short author-written meaning, such as:
-
-- Protects
-- Owes a debt to
-- Secretly fears
-- Publicly supports
-- Wants removed
-- Needs approval from
-- Knows the truth about
-
-### Useful Lenses
-
-- **Public Face / Private Truth:** separates what players first see from hidden motives.
-- **Relationship Pressure:** reveals alliances, rivalries, debts, and leverage.
-- **Story Presence:** shows where the character enters, changes, and exits the story.
-- **Player Relationship:** tracks stranger, useful contact, ally, rival, enemy, or companion.
-- **Faction Role:** shows whether the character represents, questions, exploits, or betrays a faction.
-- **World Presence:** displays where the character can be found and whether their placement makes sense.
-- **Voice:** collects dialogue examples and highlights inconsistent tone.
-
-### Character Health Questions
-
-- What does this character want right now?
-- What prevents them from getting it?
-- What can the player change for them?
-- What can they change for the player?
-- Do they have a relationship that is not purely functional?
-- Do their quests and dialogue express the same personality?
-- Do they react after important events?
-- Are they present in the world where the player expects them?
-- If removed, what part of the world becomes less interesting?
-
-### Character Constellations
-
-Authors should be able to create a group together, because characters become more useful through contrast.
+### Direct Gestures Must Have Honest Effects
 
 Examples:
 
-- Village leadership triangle: cautious elder, ambitious guard captain, trusted healer.
-- Rival adventuring party: idealist, pragmatist, glory seeker.
-- Swamp inhabitants: displaced hermit, territorial spirit, desperate poacher.
+- Connecting two dialogue nodes adds a choice with `next_node_id`.
+- Dropping an item into a quest reward tray adds an `item_rewards` row.
+- Dropping an encounter onto a location adds it to a location encounter table.
+- Placing a character on the hostile side of an encounter adds a participant row.
+- Connecting two quests inside a story arc adds a real branch entry only when a condition flag is selected.
 
-Creating a constellation produces immediate social tension and quest possibilities without requiring a full story arc first.
+If a gesture cannot map honestly to current data, it may filter, compare, preview, or suggest, but it must not save.
 
----
+### Local Sketches Are Allowed
 
-## 6. Creature Workshop
+Incomplete ideas may live as local drafts until they satisfy the existing save contract. This is already established by location drafts and immersive new-entry routes.
 
-### Core Fantasy
+Useful draft-only information may include:
 
-The author designs a creature as a promise of behavior, ecology, and player response.
-
-This is related to Character Web but uses a different creative language. A monster does not need a deep social biography, but it does need a strong gameplay identity and a believable place in the world.
-
-### Canvas
-
-The creature is assembled from five visible facets:
-
-1. **Silhouette:** what the player reads immediately.
-2. **Behavior:** what it tries to do.
-3. **Pressure:** how it challenges the player.
-4. **Ecology:** why it exists here.
-5. **Payoff:** what the player gains by understanding or defeating it.
-
-The author can arrange abilities into a simple behavioral rhythm:
-
-`Signal -> Threat -> Response Window -> Consequence -> Recovery`
-
-This is not an engine combat sequence. It is the intended player-readable pattern.
-
-### Useful Lenses
-
-- **Player Lesson:** what skill or habit this creature teaches.
-- **Readability:** signals, danger, response, and consequence.
-- **Pack Role:** solitary threat, swarm, support, hunter, guardian, scavenger.
-- **Habitat:** locations and environmental relationships.
-- **Difficulty Tier:** early, standard, elite, boss, or late-game variant.
-- **Loot Story:** what its drops say about its body, habitat, or culture.
-- **Reuse Risk:** where repeated use would make it stale.
-
-### Creature Health Questions
-
-- Can its behavior be described in one strong sentence?
-- What should the player do differently when it appears?
-- Does it have a readable warning before its strongest threat?
-- Why does it live in this location?
-- What does it eat, protect, fear, or follow?
-- Does its loot belong to it?
-- What other creature makes it more interesting?
+- Temporary node position.
+- Uncommitted links.
+- A creative prompt answer.
+- A selected starter or recipe.
+- A comparison shortlist.
+- A hypothetical reward or participant arrangement.
 
 ---
 
-## 7. Item Forge
+## World Builder
 
-### Core Fantasy
+### Creative North Star
 
-The author creates an item by defining its fantasy, use, ownership history, and place in the world's economy.
+The author shapes a living world by placing locations, connecting journeys, layering story and danger, and following possible player experiences through the world.
 
-The current item card is a good presentation surface. The Item Forge should let the author reason about why an item deserves to exist.
+The future workspace should support player-path traces, pacing and density comparison, world-state reactions, regional identity, and cross-domain context without turning into an engine-level map editor.
+
+### Current-Model Implementation
+
+- Locations are visible hierarchy and atlas nodes.
+- Routes are explicit selectable connections.
+- Existing location coordinates and POI positions can be saved.
+- Locations can be authored with POIs, encounters, route events, travel tuning, creative briefs, and validation.
+- Danger, story, and issue lenses reveal different readings of the same world.
+- Bundle saving keeps the complete location packet coherent.
+
+### Future Expansion
+
+- Trace complete player journeys across routes, quests, encounters, discoveries, and rewards.
+- Compare pacing, novelty, danger, and content density by region or route.
+- Show how locations change across world states and story progress.
+- Author regional themes, promises, and intended player knowledge when those concepts become canonical.
+
+### Health Questions
+
+- Can the player reach every important location intentionally?
+- Does each region have a distinct purpose and identity?
+- Are travel, danger, discovery, and reward distributed meaningfully?
+- Does the world react visibly to important player actions?
+- Are routes and locations supported by enough authored content?
+
+---
+
+## Character Studio And Character Web
+
+### Creative North Star
+
+The author creates one coherent person or creature by starting with an authored role rather than a technical record type. The selected character then sits inside a visible network of loyalties, needs, conflicts, responsibilities, secrets, locations, quests, dialogues, and encounters.
+
+Useful starting roles include civilian, quest giver, merchant, trainer, companion, friendly combatant, standard enemy, elite enemy, and boss.
+
+### Current-Model Implementation
+
+- Treat character identity, combat profile, interaction profile, and encounter appearances as one creative bundle.
+- Apply starters only to empty fields so existing work is preserved.
+- Edit combat loadout, interaction role, world presence, encounter placement, and linked context together.
+- Compare the character with similar existing characters and run heuristic simulations.
+- Use the Advanced Form as the schema-complete escape hatch.
+
+### Future Expansion
+
+- Author named character-to-character relationships and changing relationship states.
+- Track public face, private truth, motives, fears, duties, contradictions, and secrets.
+- Trace a character's entrances, changes, reactions, and exits across the story.
+- Create character constellations together to establish immediate social tension.
+- Compare voice, emotional arc, and player relationship over time.
+
+### Health Questions
+
+- What does this character want, and what prevents them from getting it?
+- What can the player change for them, and what can they change for the player?
+- Do combat, interaction, dialogue, quests, and world placement express one coherent identity?
+- Do they react after important events?
+- If removed, what part of the world becomes less interesting?
+
+---
+
+## Dialogue Flow Room
+
+### Creative North Star
+
+The writer stages a conversation by placing lines, connecting responses, testing branches, and seeing where player choices matter.
 
 ### Canvas
 
-The selected item sits in the center of four surrounding rings:
+A directed conversation map:
 
-- **Fantasy:** what the player imagines they can do with it.
-- **Use:** effects, abilities, requirements, and meaningful situations.
-- **Source:** who makes, sells, guards, drops, or awards it.
-- **Destination:** who wants it, what quest uses it, and when it becomes obsolete.
+- Dialogue nodes are cards.
+- Choices are labeled arrows.
+- Automatic continuation is an unlabeled or subtly styled arrow.
+- Requirements appear as locks on nodes or choices.
+- Flags appear as visible consequence tokens.
+- The current speaker gives each node a visual identity.
 
-The author can:
+### Current-Model Implementation
 
-- Place the item into shops, rewards, loot sources, and quests.
-- Compare variants in a horizontal family: common, rare, corrupted, restored.
-- Build a set as a constellation of related items.
-- Trace the item's journey from discovery to use to replacement.
-- Mark an item as iconic, practical, economic, quest-critical, or world flavor.
-- Write the item's player promise before assigning numbers.
+| Author Gesture | Existing Data Written |
+|---|---|
+| Double-click empty canvas to sketch a line | New local `dialogue_nodes` draft with `dialogue_id` |
+| Connect one node to another | Append a `choices` row with `next_node_id` |
+| Type on a connection | Set `choice_text` |
+| Drop a requirement on a node | Set node `requirements_id` |
+| Drop a requirement on a connection | Set choice `requirements_id` |
+| Drop a flag on a node | Append to node `set_flags` |
+| Drop a flag on a connection | Append to choice `set_flags` |
+| Assign the conversation to a person or place | Set dialogue `character_id` or `location_id` |
 
-### Useful Lenses
+### Lenses
 
-- **Acquisition:** every source and earliest availability.
-- **Use Cases:** combat, exploration, dialogue, crafting, quest, or collection.
-- **Economy:** price, sellers, scarcity, and competing rewards.
-- **Power Journey:** when it is exciting, normal, and obsolete.
-- **World Belonging:** faction, region, maker, material, and history.
-- **Reward Competition:** other items offered at the same point in progression.
-- **Orphans:** items with no source, no use, or no audience.
+- **Player Choices:** emphasize nodes where the player chooses.
+- **Consequences:** emphasize branches that set flags.
+- **Locks:** show requirements and the flags or reputation they depend on.
+- **Speaker Balance:** color nodes by speaker and show line counts.
+- **Reachability:** show start candidates, unreachable nodes, loops, and dead ends.
+- **World Impact:** reveal content elsewhere that reads flags set by this conversation.
 
-### Item Health Questions
+### Play Through
 
-- What fantasy does the name and description promise?
-- Does its actual use fulfill that promise?
-- Can the player obtain it?
+Start from a chosen node and step through the conversation as the player. At each choice:
+
+- Show available and locked responses.
+- Explain why a response is locked using the linked requirement.
+- Accumulate flags set along the path.
+- Allow the author to restart with a different temporary flag state.
+
+This is an authoring preview. It does not need new persistence.
+
+### Future Expansion
+
+- Add speaker lanes and rehearsal views that read like an exchange rather than a graph.
+- Author player intention, information revealed, emotional shifts, and relationship changes.
+- Compare character voice, vocabulary, rhythm, and recurring concerns.
+- Trace how knowledge and relationships evolve across multiple conversations.
+
+### Context Packet
+
+- Dialogue identity, owner, location, and requirements.
+- Selected node text, speaker, choices, requirements, and flags.
+- Inbound links from other dialogue nodes.
+- Characters whose interaction profile opens this dialogue.
+- Events that trigger this dialogue.
+
+### Health Questions
+
+- Which nodes cannot be reached?
+- Which choices point to missing nodes?
+- Where does the conversation end without an intentional ending?
+- Which choices have different words but the same consequence?
+- Which flags are set but never used?
+- Which requirement can never be satisfied by any known flag source?
+- Does one speaker dominate the conversation unintentionally?
+- Does every player choice express a distinct intention?
+- Does each response acknowledge what the player chose?
+- Does the conversation change knowledge, relationship, emotion, or action?
+- Does each speaker sound like themselves?
+
+### Strong Starter Recipes
+
+- Greeting with graceful exit.
+- Quest briefing with accept, question, and refuse branches.
+- Locked lore reveal.
+- Negotiation with three differently gated approaches.
+- Post-encounter reaction.
+
+---
+
+## Encounter Stage
+
+### Creative North Star
+
+The designer casts characters into a scene, assigns sides and functions, tests the threat, and decides where the scene belongs in the world.
+
+### Canvas
+
+A stage divided into three visible zones:
+
+- Friendly
+- Neutral
+- Hostile
+
+Characters are placed on the stage as cards. Each card shows whether it has the combat or interaction profile required by its selected contexts.
+
+The stage is not a tactical battle map. Position inside a side is visual only.
+
+### Current-Model Implementation
+
+| Author Gesture | Existing Data Written |
+|---|---|
+| Drop a character onto a side | Append or update `encounters.participants` |
+| Toggle Combat or Interaction on a character | Update participant `contexts` |
+| Move a character between sides | Update participant `combat_side` |
+| Drop a reward into the reward chest | Update encounter `rewards` |
+| Add an entry lock | Set encounter `requirements_id` |
+| Place encounter into a location deck | Add/update a `location_encounter_tables.encounter_entries` row |
+| Place encounter at a specific POI | Set `location_pois.encounter_id` |
+| Put encounter in an event chain | Set `events.encounter_id` on an Encounter event |
+
+### Lenses
+
+- **Threat:** participant level, combat profile, abilities, and simulation result.
+- **Roles:** combat-only, interaction-only, or mixed participants.
+- **Sides:** friendly, neutral, and hostile composition.
+- **Rewards:** threat-to-reward comparison.
+- **World Placement:** location tables, POIs, events, and routes that can trigger the encounter.
+- **Issues:** missing profiles, empty sides, and invalid references.
+
+### Encounter Pulse
+
+Show a compact player-facing sequence derived from existing data:
+
+1. Gate: encounter requirement.
+2. Cast: participants and contexts.
+3. Conflict: simulation and side balance.
+4. Result: rewards and flags set.
+5. Follow-up: events or world content unlocked by those flags.
+
+This does not claim to model encounter phases. It presents the real available structure as a readable dramatic pulse.
+
+### Future Expansion
+
+- Author stakes, participant wants, dramatic roles, environment, escalation, turning points, and alternate resolutions.
+- Compare normal, elite, and boss variants side by side.
+- Make threat readability, attention, and player response part of encounter evaluation.
+- Create creatures directly from a missing dramatic or tactical role in the encounter.
+
+### Context Packet
+
+- Encounter identity and description.
+- Participant dossiers and profiles.
+- Rewards and requirements.
+- Location encounter-table placements with weights and counts.
+- POIs and events that directly invoke the encounter.
+- Simulation comparison against similar encounters.
+
+### Health Questions
+
+- Does a combat encounter have both opposition and a plausible player-aligned side?
+- Does every combat participant have a combat profile?
+- Does every interaction participant have an interaction profile?
+- Is the encounter unused anywhere in the world?
+- Is its reward weak or excessive relative to nearby encounters?
+- Does it grant flags that nothing uses?
+- Is it assigned to a location whose level range strongly conflicts with its threat?
+- What makes the encounter memorable beyond its participant count?
+- What is the player trying to protect, reach, interrupt, or learn?
+- Can the player read and respond to the threat?
+- Does the environment or an alternate resolution matter?
+
+### Strong Starter Recipes
+
+- Road ambush.
+- Elite guardian.
+- Neutral faction checkpoint.
+- Dialogue that can become combat.
+- Companion introduction.
+- Boss scene with reward and completion flag.
+
+---
+
+## Quest Journey Board And Quest Loom
+
+### Creative North Star
+
+The writer lays out what the player is asked to do, what each step changes, how the quest is unlocked, and what the player receives at the end.
+
+The board must remain honest about the current model: quest objectives are an ordered list, not a fully modeled mixed-content beat graph.
+
+The future Quest Loom should let the author weave hooks, objectives, choices, consequences, optional paths, failures, revelations, and payoffs as a player-facing journey rather than a sequence of records.
+
+### Canvas
+
+The main board is a horizontal journey:
+
+- **Invitation:** quest requirement and known quest-giver links.
+- **Objectives:** ordered objective cards.
+- **Completion:** quest completion flags.
+- **Payoff:** XP, items, currency, and reputation.
+- **Aftermath:** content elsewhere unlocked by completion flags.
+
+Story-arc context appears above the journey. Real story-arc branch relationships appear between quest cards.
+
+### Current-Model Implementation
+
+| Author Gesture | Existing Data Written |
+|---|---|
+| Add or reorder an objective card | Update ordered `quests.objectives` |
+| Drop a requirement onto the invitation | Set quest `requirements_id` |
+| Drop a requirement onto an objective | Set objective `requirements_id` |
+| Drop a flag onto an objective | Append objective `flags_set` |
+| Drop a flag onto completion | Append `flags_set_on_completion` |
+| Drop an item/currency/faction into payoff | Update existing reward arrays |
+| Put quest into an arc | Set `story_arc_id`; optionally append to arc `related_quests` |
+| Reorder quests in an arc lane | Reorder `story_arcs.related_quests` |
+| Create a real branch | Add `story_arcs.branching` entry with condition flag and next quest |
+| Assign quest to a quest giver | Append to `interaction_profiles.available_quests` |
+
+### Inferred Journey Links
+
+The workspace may display inferred links when:
+
+- A quest requires a flag set by another quest.
+- A quest completion flag unlocks an event, dialogue, route, encounter, shop, or other quest.
+- A combat or interaction profile lists the quest in `related_quests` or `available_quests`.
+
+These links must be styled as inferred and must not be silently saved as story-arc ordering.
+
+### Lenses
+
+- **Unlock Logic:** requirements, flags, and branches.
+- **Objective Rhythm:** objective count, gates, and flags set along the way.
+- **Rewards:** compare payoff with other quests.
+- **World Touchpoints:** quest givers and related characters inferred from current references.
+- **Aftermath:** everything unlocked by completion flags.
+- **Issues:** broken flags, impossible requirements, empty objectives, and reward gaps.
+
+### Quest Walkthrough
+
+Step through the quest using a temporary player-state tray:
+
+- Check whether the quest can start.
+- Complete objectives in their stored order.
+- Add objective flags to temporary state.
+- Apply completion flags and rewards.
+- Reveal newly unlocked existing content.
+
+This creates a useful playable design check using only current data.
+
+### Future Expansion
+
+- Author mixed-content beats containing locations, characters, encounters, dialogue, items, and world reactions.
+- Express optional, hidden, fail-state, irreversible, split, and rejoining paths.
+- Compare knowledge flow, location journey, character presence, reward rhythm, and failure risk.
+- Track explicit consequences and whether important choices are acknowledged later.
+
+### Context Packet
+
+- Quest identity and story arc.
+- Ordered objectives and their gates/consequences.
+- Quest-giver characters.
+- Completion rewards and flags.
+- Inferred prerequisites and unlocked aftermath.
+- Related combat profiles and story-arc branch entries.
+
+### Health Questions
+
+- Does the quest have at least one meaningful objective?
+- Are objective descriptions distinguishable and player-facing?
+- Can every objective requirement become true?
+- Are completion flags used anywhere?
+- Does the quest have a quest giver or another discoverable entry point?
+- Is the reward proportionate to the quest's objective count and gates?
+- Does the story arc contain contradictory ordering and flag dependencies?
+- Does the quest establish a clear hook before asking for commitment?
+- Does each beat change the situation or reveal something?
+- Is there meaningful escalation and payoff?
+- Are choices and branches acknowledged later?
+- Does the quest use the world, or could it happen anywhere?
+
+### Strong Starter Recipes
+
+- Investigation: discover, confront, report.
+- Hunt: track, defeat, return.
+- Delivery with gated destination.
+- Faction choice with completion flag and reputation payoff.
+- Dungeon contract with elite encounter reward.
+
+---
+
+## Item Ecosystem And Item Forge
+
+### Creative North Star
+
+The designer does not merely forge an item. They decide how the player discovers it, earns it, buys it, uses it, and whether it has a meaningful place in progression.
+
+The future Item Forge should also help define what the item promises, who made or owned it, how it belongs to the world, and when it becomes obsolete or transforms.
+
+### Canvas
+
+The selected item sits in the center of an ecosystem with four surrounding regions:
+
+- **Sources:** shops, combat-profile loot, quest rewards, encounter rewards, event rewards, and POIs.
+- **Power:** effects, stat modifiers, attribute modifiers, equipment identity, and requirements.
+- **Economy:** base price, currencies, shop prices, and stock.
+- **World Role:** quest-item use, reward frequency, tags, and locations inferred through its sources.
+
+### Current-Model Implementation
+
+| Author Gesture | Existing Data Written |
+|---|---|
+| Drop item into a shop | Add shop inventory entry |
+| Drop item onto an enemy loot tray | Add combat-profile loot row |
+| Drop item into quest payoff | Add quest item reward row |
+| Drop item into encounter reward chest | Add encounter reward row |
+| Drop item into event reward | Add event item reward row |
+| Place item at a POI | Set `location_pois.item_id` |
+| Attach an effect | Append item `effects` |
+| Add a stat or attribute rune | Append existing modifier row |
+| Add a use/equip gate | Set item `requirements_id` |
+
+### Lenses
+
+- **Acquisition:** every source and its location context.
+- **Scarcity:** number of sources, shop stock, drop chances, and rarity.
+- **Power:** simulation, effects, and modifiers.
+- **Value:** price-to-power comparison and shop price previews.
+- **Progression:** inferred source location levels and requirement gates.
+- **Issues:** no sources, no use, invalid modifiers, and mismatched rarity/value.
+
+### Item Journey
+
+Show a derived player journey:
+
+1. Earliest plausible source.
+2. Gate or cost to acquire.
+3. Mechanical impact.
+4. Later alternative sources.
+5. Places where it is rewarded repeatedly.
+
+"Earliest" is inferred from location level ranges, quest/story-arc context, and gates. It must be labeled as an estimate.
+
+### Future Expansion
+
+- Author item families, variants, sets, makers, ownership history, and transformations.
+- Compare the item's fantasy with its actual use and presentation.
+- Trace an item's journey from rumor or discovery through use, replacement, restoration, or corruption.
+- Show whether important items receive meaningful world reactions.
+
+### Context Packet
+
+- Existing item authoring card.
+- All acquisition sources.
+- Shop price previews.
+- Effects and modifier details.
+- Simulation comparison against same-type and same-rarity items.
+- Locations and characters inferred through sources.
+
+### Health Questions
+
+- Can the player obtain this item anywhere?
+- Is a quest item sold or dropped unintentionally?
+- Does rarity agree with scarcity and power?
+- Is the item substantially worse than cheaper items of the same type?
+- Does it have modifiers or effects that do nothing useful?
+- Is it rewarded repeatedly enough to become noise?
+- Is a required currency or requirement missing?
+- What fantasy does the item promise, and does its actual use fulfill it?
 - Is its source memorable and believable?
 - Is it meaningfully different from nearby alternatives?
-- Does a quest reward feel connected to the quest?
-- Is a rare item rare in practice?
 - Does the world react to important items?
 
-### Item Families
+### Strong Starter Recipes
 
-Items should often be authored as families rather than isolated entries:
-
-- A regional travel kit, upgraded expedition kit, and faction-issued deluxe kit.
-- A relic in broken, restored, and corrupted forms.
-- A monster material, crafted tool, and final trophy item.
-
-Families create progression and world coherence with less invention than unrelated one-off items.
+- Common shop weapon.
+- Rare elite drop.
+- Quest reward with one memorable effect.
+- Discoverable lore-linked item at a POI.
+- Consumable sold early and dropped by matching enemies.
 
 ---
 
-## 8. Dialogue Room
+## Creature Workshop
 
-### Core Fantasy
+### Creative North Star
 
-The author rehearses a conversation and sees how player choices alter relationships, knowledge, and future possibilities.
+The designer creates an enemy as a gameplay proposition:
+
+> When this creature appears, what does the player need to notice and do?
+
+This workspace is a focused mode of the existing Character Creator, not a new creature entity.
+
+The future workshop should treat a creature as a promise of behavior, ecology, readability, and player response rather than only a combat profile.
 
 ### Canvas
 
-Dialogue nodes are displayed as conversation cards arranged by exchange, not as a generic graph alone. Speaker lanes make it clear who controls each moment. Player choices branch downward into responses and consequences.
+A creature workbench with five trays:
 
-The author can:
+- **Identity:** character fields and enemy tags.
+- **Threat Profile:** enemy type, aggression, level, class, and custom stats.
+- **Move Kit:** ordered ability cards.
+- **Spoils:** loot, currencies, reputation, and XP.
+- **Habitat:** home location, encounter appearances, and location encounter-table placements.
 
-- Write a short exchange directly in speaker lanes.
-- Add a player intention such as ask, challenge, reassure, deceive, leave, or commit.
-- Mark what information each line reveals.
-- Mark emotional shifts.
-- Attach choices to relationship, flag, quest, or world consequences.
-- Enter rehearsal mode and read one path without graph clutter.
+### Current-Model Implementation
 
-### Useful Lenses
+| Author Gesture | Existing Data Written |
+|---|---|
+| Choose Standard, Elite, or Boss starter | Apply existing character tags and combat-profile defaults |
+| Drop abilities into move kit | Update `combat_profiles.custom_abilities` |
+| Adjust threat bars | Update character level or combat-profile custom stats |
+| Drop items into spoils | Update combat-profile loot table |
+| Place creature in an encounter | Update encounter participants |
+| Place encounter in a habitat | Update location encounter table |
+| Link creature to quests | Update combat-profile `related_quests` |
 
-- **Player Intent:** what each choice is trying to accomplish.
-- **Information:** what is learned, repeated, hidden, or contradicted.
-- **Emotional Arc:** trust, fear, anger, relief, suspicion, and intimacy.
-- **Consequences:** flags, quests, rewards, and future dialogue.
-- **Voice:** vocabulary, sentence rhythm, and recurring concerns by character.
-- **Dead Ends:** choices that produce no meaningful response or consequence.
+### Lenses
 
-### Dialogue Health Questions
+- **Combat Identity:** ability targeting, effects, damage types, and control mix.
+- **Threat:** simulation and comparison with nearby creatures.
+- **Habitat:** world placement and environmental context.
+- **Reward:** threat-to-spoils relationship.
+- **Variety:** comparison with creatures of the same enemy type and level.
+- **Issues:** no abilities, no habitat, no encounters, or boss without payoff.
 
-- Does every player choice express a distinct intention?
-- Does the response acknowledge what the player chose?
-- Does the conversation change knowledge, relationship, or action?
-- Are important facts introduced naturally?
-- Does each speaker sound like themselves?
-- Can repeated conversations adapt to world changes?
+### Temporary Creative Prompts
+
+These answers guide suggestions but are not saved as new fields:
+
+- What should the player notice first?
+- What common tactic should this creature punish?
+- What creates the opening to defeat it?
+- What makes it belong in this habitat?
+- What reward makes the fight worth remembering?
+
+Prompt answers can generate suggested patches to existing descriptions, tags, abilities, stats, loot, encounters, and placement.
+
+### Future Expansion
+
+- Author ecology, silhouette, pack role, behavior rhythm, readable signals, and intended player lesson.
+- Arrange behavior as `Signal -> Threat -> Response Window -> Consequence -> Recovery`.
+- Design creature families, habitat relationships, and encounter combinations.
+- Evaluate reuse risk and whether repeated appearances remain interesting.
+
+### Health Questions
+
+- Does the creature have a distinct move kit compared with nearby enemies?
+- Does it ever appear in the world?
+- Is its home location compatible with its actual encounter placement?
+- Is an elite or boss meaningfully stronger and more rewarding?
+- Are its abilities internally redundant?
+- Does its loot reinforce the creature's identity?
+- Can its behavior be described in one strong sentence?
+- What should the player do differently when it appears?
+- Does it have a readable warning and response window?
+- Why does it live here, and what other creature makes it more interesting?
 
 ---
 
-## 9. Adventure Board
+## Ability Spellcraft Lab
 
-### Core Fantasy
+### Creative North Star
 
-The author assembles a complete playable slice of the world and checks whether its pieces support one another.
+The designer assembles an ability as a readable gameplay sentence:
 
-This is the cross-domain successor to the current World Builder. It does not replace specialized workspaces. It brings their authored content together.
+> When this triggers, it reaches these targets, applies these effects and statuses, scales from these stats, and asks this cost from the player.
+
+The full vision goes beyond payload construction: an ability is a promise of player expression with anticipation, timing, identity, counterplay, synergy, mastery, and a place inside a larger play style.
 
 ### Canvas
 
-An Adventure Board contains a chosen scope such as:
+A left-to-right spellcraft chain:
 
-- The first hour
-- A village and surrounding wilderness
-- One dungeon delve
-- One faction chapter
-- One companion recruitment arc
+1. **Trigger:** active, passive, toggle, and trigger condition.
+2. **Reach:** targeting and damage-type source.
+3. **Payload:** linked effect and status cards.
+4. **Scaling:** stat contribution cards.
+5. **Cost And Rhythm:** resource cost, cooldown, and requirements.
 
-The board has lanes:
+The ability's simulation result and player-facing description remain visible while the chain changes.
 
-- World journey
-- Main story
-- Optional discoveries
-- Characters
-- Encounters
-- Rewards
-- Knowledge and revelations
-- Recovery and downtime
+### Current-Model Implementation
 
-Authors place existing content into the lanes and arrange it in approximate player order. One item can appear first as a rumor, later as a quest target, and finally as a reward. One character can appear first as a stranger, then an ally, then a rival.
+| Author Gesture | Existing Data Written |
+|---|---|
+| Choose a trigger card | Update ability `type` and `trigger_condition` |
+| Choose a targeting shape | Update ability `targeting` |
+| Drop an effect into the payload | Append ability `effects` |
+| Create an effect from the payload tray | Create an existing `effects` record and link it |
+| Drop a stat into scaling | Append ability `scaling` row |
+| Tune cost and cooldown dials | Update `resource_cost` and `cooldown` |
+| Add an unlock gate | Set `requirements_id` |
+| Assign ability to a creature | Append to combat-profile `custom_abilities` |
 
-### Useful Lenses
+### Lenses
 
-- **First-Time Player:** only information and access available on a fresh playthrough.
-- **Completionist:** optional routes, secrets, and missable content.
-- **Critical Path:** minimum route through the slice.
-- **Pacing:** tension, relief, novelty, repetition, and climax.
-- **Content Density:** empty spaces and overloaded moments.
-- **Payoff:** promises and their eventual resolutions.
-- **Dependency Risk:** fragile chains where one missing requirement blocks too much.
+- **Combat Sentence:** trigger, target, payload, and scaling in one readable line.
+- **Effect Mix:** damage, healing, control, status, shield, and modifier balance.
+- **Efficiency:** simulated impact against cost and cooldown.
+- **Usage:** characters, combat profiles, and other content that references the ability.
+- **Damage Identity:** fixed, weapon-derived, and effect damage types.
+- **Issues:** no effects, contradictory targeting, weak scaling, or extreme efficiency.
 
-### Adventure Health Questions
+### Ability Test Bench
 
-- Is there a clear reason to begin?
+Use the existing simulation to compare:
+
+- Current draft versus similar abilities.
+- Different effect combinations.
+- Different resource budgets and encounter pressures.
+- Ability impact when assigned to a selected combat profile.
+
+### Future Expansion
+
+- Author intent, opportunity, expression, impact, response, rhythm, and growth together.
+- Evaluate player decisions, readability, counterplay, synergy, presentation, and mastery.
+- Test abilities inside small playable situations with movement, groups, allies, hazards, and encounter sequences.
+- Create related ability families: setup/payoff/recovery, basic/advanced/mastery, or player/enemy counter-versions.
+- Keep visual language, sound identity, player-facing description, and mechanical result visible together.
+
+### Health Questions
+
+- Does the ability have a clear trigger, target, and payload?
+- Does its target agree with the targets of its linked effects?
+- Is the cost/cooldown proportionate to simulated impact?
+- Is a fixed damage type missing when required?
+- Does the ability duplicate an existing ability without meaningful difference?
+- Is it unused by every character and combat profile?
+- Can its purpose be explained without listing numbers?
+- What decision, risk, timing, or setup does it ask from the player?
+- Can affected players understand and respond to it?
+- Does its presentation communicate the same promise as its mechanics?
+- What can a skilled player do with it that a new player may not discover immediately?
+
+### Strong Starter Recipes
+
+- Direct strike.
+- Area control spell.
+- Defensive self-buff.
+- Ally heal with status cleanse.
+- Passive on-hit effect.
+- Boss signature ability.
+
+---
+
+## Adventure Dependency Map And Adventure Board
+
+### Creative North Star
+
+The designer sees what changes the world: which flags are produced, which content consumes them, and where the player's journey can become blocked.
+
+This is the cross-domain workspace that current schemas support most honestly. It should not pretend to be a complete narrative timeline.
+
+The future Adventure Board should let authors assemble and evaluate a complete playable slice such as a first hour, village region, dungeon delve, faction chapter, or companion recruitment arc.
+
+### Canvas
+
+A graph with real dependency roles:
+
+- **Sources:** quests, objectives, events, encounters, dialogue nodes, dialogue choices, and interactions that set flags.
+- **State:** flags and faction reputation.
+- **Gates:** requirements.
+- **Consumers:** quests, events, dialogues, encounters, routes, shops, POIs, items, abilities, story arcs, and objectives.
+
+The author can focus on one flag, requirement, quest, or story arc and expand outward.
+
+### Current-Model Implementation
+
+| Author Gesture | Existing Data Written |
+|---|---|
+| Connect a source to a flag | Add the flag to that source's existing flag-set field |
+| Connect a requirement to a flag | Add to requirement `required_flags` |
+| Mark a flag as forbidden by a requirement | Add to requirement `forbidden_flags` |
+| Connect a requirement to gated content | Set that content's `requirements_id` |
+| Connect event to next event | Set `next_event_id` |
+| Connect a story-arc branch | Update existing branch structure |
+
+### Lenses
+
+- **Dead State:** flags that are set but never read.
+- **Impossible Gates:** required flags with no known source.
+- **Contradictions:** requirements that both require and forbid the same flag.
+- **Circularity:** event and inferred quest dependency loops.
+- **World Access:** routes, shops, POIs, and locations affected by requirements.
+- **Narrative Impact:** quests, dialogues, events, and arcs affected by state.
+
+### State Walkthrough
+
+Begin with an empty temporary state, trigger existing sources, and watch available content change. This provides a simple, playable model of narrative progression without creating any new canonical sequence.
+
+### Future Expansion
+
+- Arrange world journey, main story, optional discoveries, characters, encounters, rewards, knowledge, and recovery into one playable-slice view.
+- Compare first-time, completionist, and critical player paths.
+- Evaluate pacing, content density, novelty, repetition, promises, and payoffs.
+- Author a canonical cross-domain sequence only if the project deliberately models that concept.
+
+### Health Questions
+
+- Which flags have no source?
+- Which flags have no consumer?
+- Which requirements are impossible or contradictory?
+- Which event chains loop forever or point to missing events?
+- Which story-arc branch conditions can never occur?
+- Which major rewards or routes are gated by obscure, unreachable state?
+- Does the playable slice have a clear reason to begin and a satisfying ending?
 - Does the player alternate between action, decision, discovery, and recovery?
 - Are new concepts introduced before they are tested?
-- Does the world react to player progress?
 - Are optional discoveries worth the detour?
 - Does the climax resolve something established earlier?
-- Does the ending point toward the next adventure?
 
 ---
 
-## 10. Recommended Priority For The Current Schemas
+## Shared Interaction Language
 
-### Completed First: Dialogue Flow Room
+Every workspace should reuse the same authoring verbs:
 
-Dialogue nodes already form a real directed graph through choices and `next_node_id`. Requirements and flags make locked choices and consequences visible without inventing new meaning.
+- **Sketch:** create an incomplete local draft.
+- **Place:** add an existing entity to an existing relationship.
+- **Connect:** create a real reference or dependency.
+- **Arrange:** reorder only when order is canonical; otherwise change local visual layout.
+- **Inspect:** open a complete context packet.
+- **Compare:** place similar content side by side.
+- **Trace:** follow references and dependencies.
+- **Play Through:** step through a temporary interpretation of the existing data.
+- **Focus Lens:** reveal one design concern.
+- **Commit:** preview and atomically save the affected existing records.
 
-The implemented MVP includes:
+### Shared Visual Grammar
 
-- Sketching dialogue nodes
-- Connecting choices
-- Showing requirements and flags on branches
-- Playing through conversation paths with temporary state
-- Revealing unreachable nodes, dead ends, loops, and choices with no consequence
-- Atomic bundle saving, safe deletion, local layout, and local draft restoration
+- Solid connection: explicit saved relationship.
+- Dashed connection: inferred relationship.
+- Dotted connection: local draft or proposed change.
+- Lock badge: requirement gate.
+- Flag token: state set or consumed.
+- Chest/tray: reward payload.
+- Amber issue: incomplete or suspicious.
+- Red issue: broken or impossible.
 
-### Next: Encounter Composer
+### Shared Bundle Review
 
-Encounter composition is the next recommended schema-free workspace because participants, sides, requirements, rewards, simulation, and world placement already map to existing data.
+Before saving a multi-record gesture, show:
 
-The first version should focus on:
+- Records that will be created.
+- Records that will be changed.
+- Exact relationships that will be added or removed.
+- Validation blockers.
+- Warnings that are allowed but worth reviewing.
 
-- Participant roster and combat sides
-- Linked character combat and interaction profiles
-- Rewards and requirements
-- Location encounter-table placement
-- Comparison through the existing encounter simulation
-- Missing profiles, empty sides, and reward issues
-
-### Then: Item Ecosystem
-
-Items already participate in a rich inbound relationship network: shops, combat-profile loot, quest rewards, event rewards, encounter rewards, effects, requirements, currencies, stats, and attributes.
-
-The first version should focus on:
-
-- Acquisition sources
-- Reward and shop placement
-- Effects and modifier payload
-- Requirement gates
-- Items with no source or no meaningful use
-- Side-by-side comparison of existing items
-
-### Then: Narrative Dependency Map
-
-This is a narrower, current-model version of the Quest Loom. It should visualize the relationships that truly exist: story arcs, related quests, quest-level branches, requirements, flags, event chains, dialogue links, locations, and rewards.
-
-The first version should focus on:
-
-- Story-arc quest ordering and branches
-- Event `next_event_id` chains
-- Requirement-to-flag dependencies
-- Quest rewards and completion flags
-- Broken, circular, or unreachable dependencies
-- Inferred links clearly labeled as inferred
-
-### Then: Character Context Hub
-
-This is a current-model version of the Character Web. It should collect a character's real inbound and outbound references without inventing social relationships.
-
-The first version should focus on:
-
-- Faction, class, and home location
-- Combat and interaction profiles
-- Dialogue ownership
-- Offered quests and shop role
-- Encounter appearances
-- Loot, abilities, and companion configuration
-
-### Later, After New Authoring Metadata
-
-The full Quest Loom, dramatic Encounter Stage, Character Web, Creature Workshop, and Adventure Board remain useful directions, but they should only become canonical authoring tools after their missing concepts are deliberately modeled.
+This follows the safety model already established by character and world-builder bundle endpoints.
 
 ---
 
-## 11. Guiding Principle
+## Current-Model Boundaries
 
-The best interactive authoring gesture is not "edit this field."
+The following are creatively valuable but cannot become canonical with the current model:
 
-It is:
+- Character motives, secrets, fears, and relationships.
+- Encounter phases and alternate resolutions.
+- Quest failure paths and optional mixed-content beats.
+- Explicit dramatic pacing.
+- Creature ecology rules and behavior rhythms.
+- Item ownership history and intended progression tier.
+- A canonical full-game player path.
+- Promises, payoffs, emotional shifts, and player knowledge.
 
-- Put this place on the journey.
-- Connect this choice to its consequence.
-- Place this character inside a conflict.
-- Give this monster a purpose in an encounter.
-- Give this item a memorable source and destination.
-- Follow the player's experience and see where it becomes unclear, repetitive, empty, or unrewarding.
+They may appear as prompts, inferred views, local planning notes, or generated suggestions. They should not be written into unrelated fields or encoded through fragile tag conventions. If the project later models one of these concepts deliberately, update the relevant workspace's current-model contract and remove it from this list.
 
-That is the quality worth carrying from the World Builder into the rest of the app.
+---
+
+## Minimum Useful Current-Model Scope
+
+| Workspace | Minimum Useful Version |
+|---|---|
+| World Builder | Place and connect locations, inspect packets, apply lenses, validate world structure |
+| Character Studio | Edit the identity/combat/interaction bundle, inspect world presence, compare and validate |
+| Dialogue Flow Room | View/edit node graph, connect choices, trace a path, show broken links |
+| Encounter Stage | Place participants by side/context, edit rewards, show simulation and placements |
+| Item Ecosystem | Show all sources, add item to source/reward, compare price/power/scarcity |
+| Quest Journey Board | Reorder objectives, edit gates/flags/rewards, show quest givers and aftermath |
+| Adventure Dependency Map | Trace flags through requirements to gated content, show impossible/dead state |
+| Ability Spellcraft Lab | Compose trigger, target, effects, scaling, cost, and simulation |
+| Creature Workshop | Focused enemy creator with move kit, spoils, habitat, comparison, and health |
+
+---
+
+## Inspiration Applied
+
+The proposal borrows interaction principles, not product structure:
+
+- Articy's flow view demonstrates that branching stories, dialogues, quest lines, and game states become more understandable as connected visual objects with nesting and flow controls.
+- Twine's Story Map demonstrates the value of visible passage cards, directional links, tag colors, start markers, and unmistakable broken-link indicators.
+- Machinations demonstrates the value of playable diagrams: a designer can step through or simulate a visual model rather than only inspect static data.
+- The current app's own World Builder and Character Creator provide the most important constraint: visual authoring remains useful when it writes honest existing records and keeps incomplete ideas as drafts.
+
+Reference pages:
+
+- Articy Flow View: https://www.articy.com/help/UI_View_Flow.html
+- Twine Story Map: https://twinery.org/reference/en/editing-stories/navigating.html
+- Machinations game-economy design: https://machinations.io/game-economy-designers
+- Machinations interface and playable workspace: https://machinations.io/docs/interface-basics
+
+---
+
+## Final Design Principle
+
+The most useful authoring action should describe a decision in the game world:
+
+- Connect this response to its consequence.
+- Cast this character into this conflict.
+- Put this reward where the player will remember earning it.
+- Show how this quest changes what becomes possible.
+- Give this creature a habitat, a challenge, and a payoff.
+- Follow this state change and reveal where the adventure breaks.
+
+The records remain the same. The authoring experience becomes a game-design workspace.
