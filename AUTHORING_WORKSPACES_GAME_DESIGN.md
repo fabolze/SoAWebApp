@@ -63,6 +63,27 @@ Every specialized workspace should provide:
 7. Bundle editing when one authored idea spans several records.
 8. A schema-complete escape hatch for rare fields and debugging.
 
+### Living Canvas Pattern
+
+The World Builder is the reference implementation for a reusable living-canvas pattern. Other workspaces should adapt the pattern to their own creative decision rather than copying a geographic map literally.
+
+1. **Canvas:** arrange authored entities in the spatial form that best expresses the decision: map, journey, stage, constellation, ecosystem, chain, or dependency graph.
+2. **Navigator:** combine hierarchy, search, filtering, saved selections, and issue navigation so large projects remain usable.
+3. **Lenses:** recolor, annotate, or filter the same canvas for concerns such as story, threat, rewards, progression, usage, reachability, and issues.
+4. **Context Dock:** keep the selected entity's complete cross-domain packet visible without forcing the author to leave the canvas.
+5. **Sketch Mode:** allow hypothetical entities, links, placements, variants, and bundles to remain local until they satisfy a real save contract.
+6. **Trace Mode:** follow a player-facing route, conversation path, quest journey, acquisition path, combat proposition, or state transition through existing data.
+7. **Bundle Review:** preview every canonical record and relationship affected by a creative gesture before committing it atomically.
+8. **Creative Shortcuts:** create or place missing related content from the context where the need becomes visible, while preserving the target entity's real schema.
+
+Canvas position saves only when the underlying model already owns meaningful coordinates or order. Otherwise position, grouping, comparison ghosts, traces, and proposed links remain local workspace state.
+
+Every living-canvas application must distinguish three layers:
+
+- **Canonical Save Gestures:** direct actions that write existing fields or relationships.
+- **Local Creative Tools:** sketches, previews, traces, comparisons, overlays, and hypothetical arrangements that do not alter canonical data.
+- **Future Canonical Expansion:** valuable concepts that require deliberate new metadata or systems before they can save.
+
 ---
 
 ## Implementation Integrity Rules
@@ -131,6 +152,14 @@ The future workspace should support player-path traces, pacing and density compa
 - Danger, story, and issue lenses reveal different readings of the same world.
 - Bundle saving keeps the complete location packet coherent.
 
+### Living Canvas Application
+
+- **Canonical Save Gestures:** place locations and POIs at model-backed coordinates; connect locations with routes; edit route, encounter-table, travel-tuning, and creative-brief bundles; place existing encounters and route events through their real relationship records.
+- **Local Creative Tools:** layer overlays for story, danger, access, density, and issues; selection-centered context; route and location draft placement; comparison shortlists; player-path traces; hypothetical content-density and pacing readings.
+- **Future Canonical Expansion:** authored regional identity, world-state variants, intended player journeys, pacing targets, and explicit promises or discoveries.
+
+The World Builder should remain the reference example for selection-centered context, cross-domain creation shortcuts, draft-to-commit flow, and following a player experience across several record types.
+
 ### Future Expansion
 
 - Trace complete player journeys across routes, quests, encounters, discoveries, and rewards.
@@ -163,6 +192,14 @@ Useful starting roles include civilian, quest giver, merchant, trainer, companio
 - Edit combat loadout, interaction role, world presence, encounter placement, and linked context together.
 - Compare the character with similar existing characters and run heuristic simulations.
 - Use the Advanced Form as the schema-complete escape hatch.
+
+### Living Canvas Application
+
+- **Canonical Save Gestures:** edit the character, combat profile, interaction profile, loadout, quest links, and encounter appearances as one reviewed bundle; place the character into existing encounters and interaction roles through their real references.
+- **Local Creative Tools:** a character constellation showing locations, quests, dialogues, encounters, factions, and nearby characters inferred through shared content; role, presence, combat, and issue lenses; a presence trace following where the character appears; local relationship sketches and comparison ghosts.
+- **Future Canonical Expansion:** named character relationships, changing loyalties, motives, secrets, emotional arcs, and authored entrances or exits.
+
+The constellation must style shared-content proximity and inferred relationships as derived readings. Local relationship sketches may suggest changes to existing dialogue, quest, encounter, or placement records, but they do not create canonical relationships by themselves.
 
 ### Future Expansion
 
@@ -231,6 +268,14 @@ Start from a chosen node and step through the conversation as the player. At eac
 - Allow the author to restart with a different temporary flag state.
 
 This is an authoring preview. It does not need new persistence.
+
+### Living Canvas Application
+
+- **Canonical Save Gestures:** create and connect dialogue nodes, edit choices, requirements, flags, owner, and location through existing dialogue fields; create missing requirements or follow-up content only through their real records and reviewed references.
+- **Local Creative Tools:** consequence illumination that brightens downstream content reading a selected flag; temporary branch previews; side-by-side path comparison; speaker-presence and choice-intention overlays; rehearsal traces with temporary player state.
+- **Future Canonical Expansion:** authored intentions, revelations, emotional shifts, relationship changes, knowledge state, and cross-conversation character arcs.
+
+Preview branches and comparison paths must use dotted or translucent styling until their nodes and choices satisfy the existing save contract.
 
 ### Future Expansion
 
@@ -322,6 +367,14 @@ Show a compact player-facing sequence derived from existing data:
 5. Follow-up: events or world content unlocked by those flags.
 
 This does not claim to model encounter phases. It presents the real available structure as a readable dramatic pulse.
+
+### Living Canvas Application
+
+- **Canonical Save Gestures:** cast participants, assign sides and contexts, edit rewards and gates, and place the encounter into existing location tables, POIs, or events.
+- **Local Creative Tools:** a dramatic pulse lane derived from gate, cast, conflict, result, and follow-up; threat, reward, role, and world-placement overlays; variant comparison ghosts; hypothetical participant arrangements; missing-role slots that can start a local Creature Workshop draft.
+- **Future Canonical Expansion:** encounter phases, stakes, environment roles, escalation, turning points, alternate resolutions, and authored tactical readability.
+
+A missing-role slot expresses a design need such as "ranged pressure" or "non-combat witness." It remains local until the author creates a real character/combat bundle and places it into the encounter.
 
 ### Future Expansion
 
@@ -432,6 +485,14 @@ Step through the quest using a temporary player-state tray:
 
 This creates a useful playable design check using only current data.
 
+### Living Canvas Application
+
+- **Canonical Save Gestures:** reorder objectives, edit gates and flags, assign quest givers, place rewards, order quests inside a story arc, and create model-backed story-arc branches.
+- **Local Creative Tools:** a horizontal playable journey with an arc skyline; objective-rhythm, reward, world-touchpoint, and issue overlays; aftermath illumination; hypothetical reward placement; path comparison; temporary player-state walkthrough.
+- **Future Canonical Expansion:** mixed-content beats, optional and failure paths, explicit pacing, promises and payoffs, knowledge flow, and acknowledged consequences.
+
+The arc skyline may combine saved arc ordering with dashed inferred flag dependencies. Hypothetical rewards and mixed-content beats remain local until translated into supported quest rewards, objectives, flags, or related records.
+
 ### Future Expansion
 
 - Author mixed-content beats containing locations, characters, encounters, dialogue, items, and world reactions.
@@ -524,6 +585,14 @@ Show a derived player journey:
 5. Places where it is rewarded repeatedly.
 
 "Earliest" is inferred from location level ranges, quest/story-arc context, and gates. It must be labeled as an estimate.
+
+### Living Canvas Application
+
+- **Canonical Save Gestures:** attach effects and modifiers, edit gates and economy fields, and place the item into existing shops, loot tables, rewards, events, and POIs.
+- **Local Creative Tools:** a source constellation around the item; scarcity, power, value, progression, usage, and issue overlays; a progression horizon based on inferred source context; hypothetical acquisition sources; comparison ghosts; a player-facing item journey.
+- **Future Canonical Expansion:** item families, ownership history, intended progression tier, transformations, world reactions, and authored replacement or restoration journeys.
+
+The progression horizon and earliest-source reading are estimates, not saved tier assignments. A hypothetical acquisition source becomes canonical only by creating or editing the real shop, loot, reward, event, or POI relationship.
 
 ### Future Expansion
 
@@ -620,6 +689,14 @@ These answers guide suggestions but are not saved as new fields:
 
 Prompt answers can generate suggested patches to existing descriptions, tags, abilities, stats, loot, encounters, and placement.
 
+### Living Canvas Application
+
+- **Canonical Save Gestures:** edit the character/combat bundle, arrange the real ability list, tune supported stats, edit loot, connect quests, and place the creature into existing encounters and habitats.
+- **Local Creative Tools:** habitat overlays; an encounter-combination bench; behavior-rhythm sketches expressed as `Signal -> Threat -> Response Window -> Consequence -> Recovery`; creature-family and nearby-threat comparisons; local variants; direct placement previews from an Encounter Stage missing-role slot.
+- **Future Canonical Expansion:** ecology, silhouette, pack role, behavior rules, readable signals, intended player lessons, and creature-family relationships.
+
+Behavior-rhythm sketches guide descriptions, abilities, stats, and encounter placement but are not canonical AI behavior. A local variant must remain a comparison ghost until committed as a real character/combat bundle.
+
 ### Future Expansion
 
 - Author ecology, silhouette, pack role, behavior rhythm, readable signals, and intended player lesson.
@@ -694,6 +771,14 @@ Use the existing simulation to compare:
 - Different effect combinations.
 - Different resource budgets and encounter pressures.
 - Ability impact when assigned to a selected combat profile.
+
+### Living Canvas Application
+
+- **Canonical Save Gestures:** compose trigger, targeting, effects, scaling, cost, cooldown, gates, and combat-profile assignment through existing ability and effect records.
+- **Local Creative Tools:** an impact field showing affected targets and effect mix; a rhythm timeline for cost, cooldown, and expected use; comparison ghosts; setup/payoff/recovery family sketches; contextual test benches against selected creatures, combat profiles, or encounters.
+- **Future Canonical Expansion:** authored intent, timing windows, counterplay, presentation identity, mastery paths, hazards, movement tests, and explicit ability-family relationships.
+
+Contextual tests and rhythm timelines are interpretations of current simulation data. Related-family sketches may create suggested ability drafts, but no family relationship saves until the project models one deliberately.
 
 ### Future Expansion
 
@@ -772,6 +857,14 @@ The author can focus on one flag, requirement, quest, or story arc and expand ou
 ### State Walkthrough
 
 Begin with an empty temporary state, trigger existing sources, and watch available content change. This provides a simple, playable model of narrative progression without creating any new canonical sequence.
+
+### Living Canvas Application
+
+- **Canonical Save Gestures:** connect supported sources to flags, edit requirement flag rules, assign requirements to gated content, connect event chains, and create supported story-arc branches.
+- **Local Creative Tools:** reachable-state illumination; state flood-fill walkthroughs; dead-state, impossible-gate, world-access, narrative-impact, and issue overlays; hypothetical dependency links; path comparison; playable-slice framing around a selected region, arc, or objective.
+- **Future Canonical Expansion:** authored cross-domain sequences, explicit playable slices, knowledge state, pacing targets, promises, payoffs, and canonical player paths.
+
+Hypothetical links and playable-slice framing remain dotted local planning objects. They become canonical only when translated into supported flags, requirements, event links, story-arc branches, or other real relationships.
 
 ### Future Expansion
 
