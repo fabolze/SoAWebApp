@@ -9,6 +9,7 @@ from backend.app.models.m_encounters import Encounter
 from backend.app.models.m_currencies import Currency
 from backend.app.models.m_factions import Faction
 from backend.app.models.m_flags import Flag
+from backend.app.models.m_items import Item
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from backend.app.db.init_db import get_db_session
@@ -64,7 +65,20 @@ class EventRoute(BaseRoute):
         event.flags_set = flags_set
         
         # JSON fields
-        event.item_rewards = data.get("item_rewards", [])
+        item_rewards = data.get("item_rewards", [])
+        if not isinstance(item_rewards, list):
+            raise ValueError("item_rewards must be an array")
+        for reward in item_rewards:
+            if not isinstance(reward, dict):
+                raise ValueError("Item reward entries must be objects")
+            item_id = reward.get("item_id")
+            if not item_id or reward.get("quantity") is None:
+                raise ValueError("item_rewards entries must include item_id and quantity")
+            if isinstance(reward.get("quantity"), bool) or not isinstance(reward.get("quantity"), (int, float)):
+                raise ValueError("item_rewards.quantity must be a number")
+            if not db_session.get(Item, item_id):
+                raise ValueError(f"Invalid item_id in rewards: {item_id}")
+        event.item_rewards = item_rewards
         event.xp_reward = data.get("xp_reward")
         currency_rewards = data.get("currency_rewards", [])
         for reward in currency_rewards:

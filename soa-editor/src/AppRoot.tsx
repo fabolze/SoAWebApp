@@ -48,6 +48,9 @@ const DialogueFlowPage = lazy(() => import("./pages/DialogueFlowPage"));
 const EncounterStagePage = lazy(() => import("./pages/EncounterStagePage"));
 const CharacterAuthoringPage = lazy(() => import("./authoringViews/CharacterCreatorPage"));
 const ItemAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.ItemAuthoringPage })));
+const ItemEcosystemPage = lazy(() => import("./pages/ItemEcosystemPage"));
+const QuestJourneyPage = lazy(() => import("./pages/RoadmapAuthoringPages").then((module) => ({ default: module.QuestJourneyPage })));
+const DependencyMapPage = lazy(() => import("./pages/RoadmapAuthoringPages").then((module) => ({ default: module.DependencyMapPage })));
 const LocationAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.LocationAuthoringPage })));
 const LocationMapAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.LocationMapAuthoringPage })));
 const ShopAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.ShopAuthoringPage })));
@@ -97,6 +100,8 @@ export default function AppRoot() {
               <Route path="items" element={<ItemsEditorPage />} />
               <Route path="inspect/items/:id" element={<ItemInspectorPage />} />
               <Route path="author/items/new" element={<ItemAuthoringPage />} />
+              <Route path="author/items/new/ecosystem" element={<ItemEcosystemPage />} />
+              <Route path="author/items/:id/ecosystem" element={<ItemEcosystemPage />} />
               <Route path="author/items/:id" element={<ItemAuthoringPage />} />
               <Route path="author/shops/new" element={<ShopAuthoringPage />} />
               <Route path="author/shops/:id" element={<ShopAuthoringPage />} />
@@ -112,6 +117,10 @@ export default function AppRoot() {
               <Route path="author/encounters" element={<EncounterStagePage />} />
               <Route path="author/encounters/new" element={<EncounterStagePage />} />
               <Route path="author/encounters/:id" element={<EncounterStagePage />} />
+              <Route path="author/quests" element={<QuestJourneyPage />} />
+              <Route path="author/quests/new" element={<QuestJourneyPage />} />
+              <Route path="author/quests/:id" element={<QuestJourneyPage />} />
+              <Route path="author/dependencies" element={<DependencyMapPage />} />
               <Route path="currencies" element={<CurrenciesEditorPage />} />
               <Route path="interaction-profiles" element={<InteractionProfilesEditorPage />} />
               <Route path="location-creative-briefs" element={<LocationCreativeBriefsEditorPage />} />

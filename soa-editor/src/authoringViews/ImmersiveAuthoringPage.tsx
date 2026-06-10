@@ -595,7 +595,7 @@ function modifierValueLabel(row: EntryRecord): string {
 }
 
 function ItemAuthoringSurface(props: AuthoringSurfaceProps) {
-  const { schema, data, onChange } = props;
+  const { schema, data, onChange, persisted } = props;
   const typeOptions = getOptions(schema.properties?.type);
   const rarityOptions = getOptions(schema.properties?.rarity);
   const weaponTypeOptions = getOptions(schema.properties?.weapon_type);
@@ -609,6 +609,19 @@ function ItemAuthoringSurface(props: AuthoringSurfaceProps) {
   const attributeCount = countValues(data.attribute_modifiers);
   return (
     <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+      <div className="lg:col-span-2">
+        {persisted && <Link
+          className={`${BUTTON_CLASSES.neutral} ${BUTTON_SIZES.sm}`}
+          to={`/author/items/${encodeURIComponent(displayText(data.id))}/ecosystem`}
+        >
+          Open Acquisition Ecosystem
+        </Link>}
+        {!persisted && (
+          <Link className={`ml-2 ${BUTTON_CLASSES.neutral} ${BUTTON_SIZES.sm}`} to="/author/items/new/ecosystem">
+            Create With Ecosystem
+          </Link>
+        )}
+      </div>
       <AuthoringPanel title="Item Card" subtitle="Edit the player-facing identity exactly where it is previewed.">
         <RpgItemPreview data={data} />
         <div className="mt-3 grid gap-2 sm:grid-cols-3">

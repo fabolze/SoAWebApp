@@ -3,6 +3,7 @@ from backend.app.models.m_story_arcs import StoryArc, ArcType
 from backend.app.models.m_content_packs import ContentPack
 from backend.app.models.m_flags import Flag
 from backend.app.models.m_timelines import Timeline
+from backend.app.models.m_quests import Quest
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -51,8 +52,30 @@ class StoryArcRoute(BaseRoute):
                     raise ValueError(f"Invalid flag_id: {flag_id}")
         
         # JSON fields
-        story_arc.related_quests = data.get("related_quests", [])
-        story_arc.branching = data.get("branching", [])
+        related_quests = data.get("related_quests", [])
+        if not isinstance(related_quests, list):
+            raise ValueError("related_quests must be an array")
+        for quest_id in related_quests:
+            if not db_session.get(Quest, quest_id):
+                raise ValueError(f"Invalid quest_id in related_quests: {quest_id}")
+        branching = data.get("branching", [])
+        if not isinstance(branching, list):
+            raise ValueError("branching must be an array")
+        for branch in branching:
+            if not isinstance(branch, dict) or not branch.get("quest_id") or not isinstance(branch.get("branches", []), list):
+                raise ValueError("branching entries require quest_id and branches")
+            if not db_session.get(Quest, branch["quest_id"]):
+                raise ValueError(f"Invalid quest_id in branching: {branch['quest_id']}")
+            for target in branch.get("branches", []):
+                if not isinstance(target, dict) or not target.get("next_quest_id"):
+                    raise ValueError("branch targets require next_quest_id")
+                if not db_session.get(Quest, target["next_quest_id"]):
+                    raise ValueError(f"Invalid next_quest_id in branching: {target['next_quest_id']}")
+                condition_flag = target.get("condition_flag") or target.get("flag")
+                if condition_flag and not db_session.get(Flag, condition_flag):
+                    raise ValueError(f"Invalid condition flag in branching: {condition_flag}")
+        story_arc.related_quests = related_quests
+        story_arc.branching = branching
         story_arc.required_flags = data.get("required_flags", [])
         story_arc.tags = data.get("tags", [])
 

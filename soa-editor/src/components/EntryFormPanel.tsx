@@ -147,6 +147,7 @@ function getImmersiveAuthorPath(schemaName: string, entryId: string): string | n
   if (schemaName === "characters") return `/author/characters/${encodedId}`;
   if (schemaName === "dialogues") return `/author/dialogues/${encodedId}`;
   if (schemaName === "encounters") return `/author/encounters/${encodedId}`;
+  if (schemaName === "quests") return `/author/quests/${encodedId}`;
   if (schemaName === "locations") return `/author/locations/${encodedId}`;
   return null;
 }
@@ -157,6 +158,7 @@ function getNewImmersiveAuthorPath(schemaName: string): string | null {
   if (schemaName === "characters") return "/author/characters/new";
   if (schemaName === "dialogues") return "/author/dialogues/new";
   if (schemaName === "encounters") return "/author/encounters/new";
+  if (schemaName === "quests") return "/author/quests/new";
   if (schemaName === "locations") return "/author/locations/new";
   return null;
 }

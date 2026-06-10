@@ -44,7 +44,8 @@ Important limitations:
 
 Use immersive Author Views for normal content entry when available:
 
-- `/author/items/new` and `/author/items/<id>`
+- `/author/items/new` and `/author/items/<id>` for item mechanics
+- `/author/items/new/ecosystem` and `/author/items/<id>/ecosystem` for acquisition, placement, comparisons, issues, and atomic ecosystem saving
 - `/author/shops/new` and `/author/shops/<id>`
 - `/author/characters/new` and `/author/characters/<id>`
 - `/author/locations/new` and `/author/locations/<id>`

@@ -17,16 +17,16 @@ UE5-specific documentation remains under `UE5_Integration` and is maintained sep
 Working:
 
 - Generic schema-driven CRUD editors and Advanced Form fallback for all registered datasets.
-- Specialized item, shop, character, location, atlas, world-builder, and Dialogue Flow authoring.
-- Atomic bundle APIs for the World Builder, Character Creator, and Dialogue Flow Room.
+- Specialized Item Ecosystem, Quest Journey Board, Adventure Dependency Map, shop, character, location, atlas, world-builder, Dialogue Flow, and Encounter Stage authoring.
+- Atomic bundle APIs for cross-record authoring workspaces.
 - Dialogue graph sketching, connecting, editing, validation, local layout/draft restore, and gated playthrough.
-- Source CSV export/import, full-source preflight before destructive rebuilds, and post-rebuild foreign-key checks.
+- Source CSV export/import and staged full-source rebuilds with preflight, foreign-key checks, and atomic SQLite replacement.
 - Database-enforced faction reputation references on fresh or rebuilt databases, with faction deletion cascading only linked minimum-reputation rows.
 - Project Health, local deterministic authoring helpers, and the local heuristic simulation sandbox.
 
 Planned:
 
-- Encounter Stage, Item Ecosystem, Quest Journey Board, Adventure Dependency Map, Ability Spellcraft Lab, and focused Creature Workshop.
+- Ability Spellcraft Lab and focused Creature Workshop.
 - Broader cross-domain context and impact views using existing data contracts.
 
 Known limitations:
@@ -72,8 +72,8 @@ The app will start with debug mode enabled and will initialize the SQLite databa
 
 - Notes:
   - UE CSVs are generated artifacts for Unreal DataTables. Source CSVs are the database-regeneration format.
-  - Reset-based source restore/rebuild requires a complete source CSV set and validates parsing, IDs, declared foreign keys, and normalized faction-reputation representations before resetting SQLite.
-  - Successful rebuilds run `PRAGMA foreign_key_check`. Runtime import failures after reset are not yet protected by atomic temporary-database replacement.
+  - Full-source restore/rebuild validates the complete source set, imports into a sibling staging SQLite database, runs `PRAGMA foreign_key_check`, and atomically replaces the active database only after success.
+  - Staged rebuild is intended for the local single-user runtime. Do not serve concurrent authoring requests while a full restore/rebuild is running.
   - `requirement_min_faction_reputation.faction_id` references `factions.id` with `ON DELETE CASCADE` on fresh or rebuilt databases. Faction deletion reports the linked reputation rows removed.
   - Many link tables do not have a `slug` column; import/export will therefore not include it for those tables.
   - `location_routes` is a real export/import table for graph movement edges. Import it after `locations`, and after `requirements` if routes use locks.
@@ -105,6 +105,9 @@ The generic schema editors remain available for every table. In addition, the fr
 - `/author/locations/map`: atlas view showing locations as graph nodes and `location_routes` as styled edges.
 - `/author/dialogues`, `/author/dialogues/new`, and `/author/dialogues/<id>`: Dialogue Flow Room for graph authoring, health analysis, context review, and playthrough.
 - `/author/encounters`, `/author/encounters/new`, and `/author/encounters/<id>`: Encounter Stage for side composition, profile inspection, rewards, gates, placement, health analysis, simulation comparison, and atomic bundle saving.
+- `/author/items/new` and `/author/items/<id>`: rich item mechanics authoring; `/author/items/new/ecosystem` and `/author/items/<id>/ecosystem` compose acquisition sources, placement, comparisons, validation, and atomic bundle saving.
+- `/author/quests`, `/author/quests/new`, and `/author/quests/<id>`: Quest Journey Board for ordered objectives, requirements, arc placement, quest givers, rewards, walkthrough context, and atomic bundle saving.
+- `/author/dependencies`: Adventure Dependency Map for flag, requirement, gated-content, event-chain, and story-arc tracing.
 
 Use these Author Views when creating normal content. They are input surfaces that save through the same CRUD endpoints as the generic editors. Use the Advanced Form inside an authoring view when you need a rare technical field, full schema coverage, or debugging access.
 

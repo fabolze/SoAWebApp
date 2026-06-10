@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import csv
 import json
+import uuid
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Iterable
+from threading import RLock
 
 from flask import Flask
 from sqlalchemy import func, text
@@ -67,6 +69,7 @@ _last_export_report: dict[str, Any] | None = None
 _last_restore_report: dict[str, Any] | None = None
 RECOVERY_STATE_PATH = DATA_DIR / ".recovery_state.json"
 STARTUP_IMPORT_MODES = {"newer", "missing", "always", "off"}
+_recovery_lock = RLock()
 
 
 def _now_iso() -> str:
@@ -621,7 +624,7 @@ def reset_database() -> None:
 
 
 def rebuild_database_from_source(app: Flask, source_dir: Path | None = None) -> dict[str, Any]:
-    report = import_source_csvs(app, source_dir or DATA_DIR, reset_first=True)
+    report = staged_rebuild_database_from_source(app, source_dir or DATA_DIR)
     if report.get("status") == "success":
         _write_recovery_state("rebuild", source_dir or DATA_DIR)
     return report
@@ -629,11 +632,105 @@ def rebuild_database_from_source(app: Flask, source_dir: Path | None = None) -> 
 
 def restore_database_from_source(app: Flask, source_dir: Path | None = None) -> dict[str, Any]:
     global _last_restore_report
-    report = import_source_csvs(app, source_dir or DATA_DIR, reset_first=True)
+    report = staged_rebuild_database_from_source(app, source_dir or DATA_DIR)
     if report.get("status") == "success":
         _write_recovery_state("restore", source_dir or DATA_DIR)
     _last_restore_report = report
     return report
+
+
+def staged_rebuild_database_from_source(app: Flask, source_dir: Path | None = None) -> dict[str, Any]:
+    """Build a complete sibling SQLite database before replacing the active file."""
+    directory = source_dir or DATA_DIR
+    original_name = db_runtime.get_active_db_name()
+    staging_name = f".{original_name}.staging-{uuid.uuid4().hex}"
+    staging_path = db_runtime.get_db_path(staging_name)
+    report = _empty_report("error", "Staged recovery rebuild failed.", directory)
+    report.update({
+        "staging_path": str(staging_path),
+        "replacement_result": "not_attempted",
+        "rollback_result": "not_required",
+        "failure_phase": None,
+    })
+
+    with _recovery_lock:
+        preflight = preflight_source_csvs(directory)
+        report["preflight"] = preflight
+        if preflight["status"] == "error":
+            report["message"] = "Recovery preflight failed; active database was not reset or modified."
+            report["errors"].extend(preflight["errors"])
+            report["failure_phase"] = "preflight"
+            return report
+
+        try:
+            staging_path.parent.mkdir(parents=True, exist_ok=True)
+            staging_path.touch(exist_ok=False)
+            db_runtime.switch_active_database(staging_name)
+            db_runtime.init_db()
+            report = import_source_csvs(app, directory, reset_first=False)
+            report.update({
+                "preflight": preflight,
+                "staging_path": str(staging_path),
+                "replacement_result": "not_attempted",
+                "rollback_result": "not_required",
+                "failure_phase": None,
+            })
+            if report.get("status") != "success":
+                report["status"] = "error"
+                report["message"] = "Staging import failed; active database was not modified."
+                report["failure_phase"] = "import"
+                return report
+            integrity_errors = foreign_key_integrity_errors()
+            report["integrity"] = {"status": "error" if integrity_errors else "ok", "errors": integrity_errors}
+            if integrity_errors:
+                report["status"] = "error"
+                report["message"] = "Staging database failed foreign-key integrity; active database was not modified."
+                report["errors"].extend(integrity_errors)
+                report["failure_phase"] = "integrity"
+                return report
+        except Exception as error:
+            report["status"] = "error"
+            report["message"] = f"Staging rebuild failed: {error}"
+            report["errors"].append({"table": None, "message": str(error)})
+            report["failure_phase"] = report.get("failure_phase") or "staging"
+            return report
+        finally:
+            if db_runtime.get_active_db_name() != original_name:
+                try:
+                    db_runtime.switch_active_database(original_name)
+                    report["rollback_result"] = "runtime_restored"
+                except Exception as error:
+                    report["rollback_result"] = f"runtime_restore_failed: {error}"
+            if report.get("status") != "success" and staging_path.exists():
+                try:
+                    staging_path.unlink()
+                except Exception:
+                    pass
+
+        try:
+            db_runtime.replace_active_database_file(staging_path, original_name)
+            report["replacement_result"] = "replaced"
+            report["rollback_result"] = "not_required"
+            report["status"] = "success"
+            report["message"] = "Staging database passed validation and atomically replaced the active database."
+            return report
+        except Exception as error:
+            report["status"] = "error"
+            report["message"] = f"Atomic database replacement failed: {error}"
+            report["errors"].append({"table": None, "message": str(error)})
+            report["replacement_result"] = "failed"
+            report["failure_phase"] = "replacement"
+            try:
+                db_runtime.switch_active_database(original_name)
+                report["rollback_result"] = "runtime_restored"
+            except Exception as rollback_error:
+                report["rollback_result"] = f"runtime_restore_failed: {rollback_error}"
+            if staging_path.exists():
+                try:
+                    staging_path.unlink()
+                except Exception:
+                    pass
+            return report
 
 
 def get_recovery_status() -> dict[str, Any]:

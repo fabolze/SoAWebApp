@@ -48,6 +48,90 @@ test("character starter applies once and reset restores the unsaved bundle", asy
   await expect(page.getByRole("button", { name: "Add Combat Profile" })).toBeVisible();
 });
 
+test("roadmap authoring routes render without replacing rich item authoring", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/author/quests");
+  await expect(page.getByRole("heading", { name: "Quest Journey Board" })).toBeVisible();
+  await page.goto("/author/dependencies");
+  await expect(page.getByRole("heading", { name: "Adventure Dependency Map" })).toBeVisible();
+});
+
+test("item ecosystem edits acquisition sources and saves one atomic bundle", async ({ page }) => {
+  const packet = {
+    item: { id: "item-1", slug: "blade", name: "Blade", type: "Weapon", rarity: "Rare", base_price: 100, effects: [], stat_modifiers: [], attribute_modifiers: [], tags: [] },
+    requirement: null,
+    sources: { shop_inventory: [], combat_loot: [], quest_rewards: [], encounter_rewards: [], event_rewards: [], poi_ids: [] },
+    catalogs: {
+      items: [], currencies: [], requirements: [],
+      shops: [{ id: "shop-1", name: "Forge" }],
+      combat_profiles: [], quests: [{ id: "quest-1", title: "First Quest" }], encounters: [], events: [],
+      pois: [{ id: "poi-1", name: "Chest", location_id: "loc-1", location: { id: "loc-1", name: "Ruins" } }],
+    },
+    analysis: { total_sources: 0, median_peer_price: 120, source_counts: {}, warnings: ["Item has no acquisition sources."], peers: [] },
+  };
+  let saved: Record<string, unknown> | null = null;
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/ui/items/ecosystem/item-1") return fulfillJson(route, packet);
+    if (url.pathname === "/api/ui/items/ecosystem/bundle") {
+      saved = route.request().postDataJSON() as Record<string, unknown>;
+      return fulfillJson(route, { ...packet, ...(saved as object), analysis: { ...packet.analysis, total_sources: 2, warnings: [] } });
+    }
+    return fulfillJson(route, []);
+  });
+  await page.goto("/author/items/item-1/ecosystem");
+  await expect(page.getByRole("heading", { name: "Blade" })).toBeVisible();
+  await page.getByRole("button", { name: "Add Source" }).first().click();
+  await page.getByRole("button", { name: "Progression" }).click();
+  await page.getByText("Chest").click();
+  await page.getByRole("button", { name: "Save All" }).click();
+  await expect.poll(() => saved).not.toBeNull();
+  const sources = saved?.sources as Record<string, unknown>;
+  expect((sources.shop_inventory as unknown[]).length).toBe(1);
+  expect(sources.poi_ids).toEqual(["poi-1"]);
+});
+
+test("new item ecosystem restores, resets, and saves the complete draft", async ({ page }) => {
+  const packet = {
+    item: { id: "item-new", slug: "", name: "New Item", type: "Misc", rarity: "Common", base_price: 0, effects: [], stat_modifiers: [], attribute_modifiers: [], tags: [] },
+    requirement: null,
+    sources: { shop_inventory: [], combat_loot: [], quest_rewards: [], encounter_rewards: [], event_rewards: [], poi_ids: [] },
+    catalogs: {
+      items: [], currencies: [], requirements: [],
+      shops: [{ id: "shop-1", name: "Forge" }],
+      combat_profiles: [], quests: [], encounters: [], events: [], pois: [],
+    },
+    analysis: { total_sources: 0, median_peer_price: 0, source_counts: {}, warnings: ["Item has no acquisition sources."], peers: [] },
+  };
+  let saved: Record<string, unknown> | null = null;
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/ui/items/ecosystem-new" || url.pathname === "/api/ui/items/ecosystem/item-new") return fulfillJson(route, packet);
+    if (url.pathname === "/api/ui/items/ecosystem/bundle") {
+      saved = route.request().postDataJSON() as Record<string, unknown>;
+      return fulfillJson(route, { ...packet, ...(saved as object), analysis: { ...packet.analysis, total_sources: 1, warnings: [] } });
+    }
+    return fulfillJson(route, []);
+  });
+  await page.goto("/author/items/new/ecosystem");
+  await expect(page.getByRole("button", { name: "Save All" })).toBeDisabled();
+  await page.getByLabel("Name").fill("Draft Blade");
+  await page.getByLabel("Slug").fill("draft-blade");
+  await page.reload();
+  await expect(page.getByLabel("Name")).toHaveValue("Draft Blade");
+  await page.getByRole("button", { name: "Reset" }).click();
+  await expect(page.getByLabel("Name")).toHaveValue("New Item");
+  await page.getByLabel("Name").fill("Finished Blade");
+  await page.getByLabel("Slug").fill("finished-blade");
+  await page.getByRole("button", { name: "Acquisition" }).click();
+  await page.getByRole("button", { name: "Add Source" }).first().click();
+  await page.getByRole("button", { name: "Save All" }).click();
+  await expect.poll(() => saved).not.toBeNull();
+  await expect(page).toHaveURL(/\/author\/items\/item-new\/ecosystem$/);
+  expect((saved?.item as Record<string, unknown>).name).toBe("Finished Blade");
+  expect(((saved?.sources as Record<string, unknown>).shop_inventory as unknown[]).length).toBe(1);
+});
+
 test("world packet edits linked POIs through the atomic bundle", async ({ page }) => {
   const world = {
     ...emptyWorld,

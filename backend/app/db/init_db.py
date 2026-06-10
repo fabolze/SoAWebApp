@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 from threading import RLock
 from typing import Tuple
 
@@ -90,6 +91,26 @@ def switch_active_database(db_name: str) -> Tuple[str, str]:
         _active_db_uri = next_uri
         previous_engine.dispose()
     return get_active_db_name(), str(db_path)
+
+
+def replace_active_database_file(staging_path: Path, target_db_name: str | None = None) -> Tuple[str, str]:
+    """Atomically replace the active SQLite file and reconnect the runtime."""
+    global engine, SessionLocal, _active_db_uri
+
+    target_path = get_db_path(target_db_name or get_active_db_name())
+    staging_path = Path(staging_path)
+    if not staging_path.exists():
+        raise FileNotFoundError(f"Staging database not found: {staging_path}")
+    with _engine_lock:
+        SessionLocal.remove()
+        previous_engine = engine
+        previous_engine.dispose()
+        os.replace(staging_path, target_path)
+        next_uri = f"sqlite:///{target_path}"
+        engine = _build_engine(next_uri)
+        SessionLocal = scoped_session(sessionmaker(bind=engine, autoflush=False, autocommit=False))
+        _active_db_uri = next_uri
+    return get_active_db_name(), str(target_path)
 
 
 def init_db():

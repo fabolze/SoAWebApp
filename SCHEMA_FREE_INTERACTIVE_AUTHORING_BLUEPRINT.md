@@ -22,15 +22,15 @@ Last reviewed: 2026-06-10
 |---|---|
 | Dialogue Flow Room | Implemented MVP |
 | Encounter Stage | Implemented MVP |
-| Item Ecosystem | Planned; specialized item authoring and item inspection already exist |
-| Quest Journey Board | Planned |
-| Adventure Dependency Map | Planned |
+| Item Ecosystem | Implemented MVP |
+| Quest Journey Board | Initial MVP; richer card controls and walkthrough remain |
+| Adventure Dependency Map | Initial MVP; broader lenses and focused edit UI remain |
 | Ability Spellcraft Lab | Planned |
 | Creature Workshop | Planned; Character Creator already covers much of the existing character/combat/interaction bundle |
 
-The implemented Dialogue Flow Room provides graph sketching and connection, node/choice/dialogue inspectors, atomic bundle saving, local layout and draft restoration, health analysis, lenses, context links, and gated playthrough. The implemented Encounter Stage provides side composition, linked profile inspection, gates, rewards, existing-table placement, health analysis, simulation comparison, local draft restoration, and atomic bundle saving.
+The implemented Dialogue Flow Room provides graph sketching and connection, node/choice/dialogue inspectors, atomic bundle saving, local layout and draft restoration, health analysis, lenses, context links, and gated playthrough. The implemented Encounter Stage provides side composition, linked profile inspection, gates, rewards, existing-table placement, health analysis, simulation comparison, local draft restoration, and atomic bundle saving. The implemented Item Ecosystem provides direct acquisition-source controls, POI placement protection, economy and power comparison, progression and issue panels, local draft restoration, and atomic new/existing item bundle saving.
 
-The remaining workspace descriptions are design specifications, not descriptions of currently available UI.
+The remaining workspace descriptions include both implemented MVPs and future polish targets.
 
 ---
 

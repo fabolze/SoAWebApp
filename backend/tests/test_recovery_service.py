@@ -365,3 +365,51 @@ def test_reset_rebuild_reports_post_import_foreign_key_failures(monkeypatch, tmp
     assert report["status"] == "error"
     assert report["integrity"]["status"] == "error"
     assert report["errors"][0]["table"] == "broken"
+
+
+def test_staged_rebuild_replaces_only_after_success(monkeypatch, tmp_path: Path):
+    active = {"name": "active"}
+    original = tmp_path / "active.sqlite"
+    original.write_text("original", encoding="utf-8")
+    replaced = []
+    monkeypatch.setattr(recovery.db_runtime, "get_active_db_name", lambda: active["name"])
+    monkeypatch.setattr(recovery.db_runtime, "get_db_path", lambda name: tmp_path / f"{name}.sqlite")
+    monkeypatch.setattr(recovery.db_runtime, "switch_active_database", lambda name: active.update(name=name) or (name, str(tmp_path / f"{name}.sqlite")))
+    monkeypatch.setattr(recovery.db_runtime, "init_db", lambda: None)
+    monkeypatch.setattr(recovery, "preflight_source_csvs", lambda source_dir=None: {"status": "ok", "errors": []})
+    monkeypatch.setattr(recovery, "import_source_csvs", lambda app, source_dir=None, reset_first=False: {
+        "status": "success", "message": "ok", "tables": [], "warnings": [], "errors": [],
+    })
+    monkeypatch.setattr(recovery, "foreign_key_integrity_errors", lambda: [])
+
+    def replace(path, target_name):
+        replaced.append(path)
+        assert target_name == "active"
+        path.unlink()
+
+    monkeypatch.setattr(recovery.db_runtime, "replace_active_database_file", replace)
+    report = recovery.staged_rebuild_database_from_source(Flask(__name__), tmp_path)
+    assert report["status"] == "success"
+    assert report["replacement_result"] == "replaced"
+    assert len(replaced) == 1
+    assert original.read_text(encoding="utf-8") == "original"
+
+
+def test_staged_rebuild_failure_restores_runtime_and_cleans_staging(monkeypatch, tmp_path: Path):
+    active = {"name": "active"}
+    original = tmp_path / "active.sqlite"
+    original.write_text("original", encoding="utf-8")
+    monkeypatch.setattr(recovery.db_runtime, "get_active_db_name", lambda: active["name"])
+    monkeypatch.setattr(recovery.db_runtime, "get_db_path", lambda name: tmp_path / f"{name}.sqlite")
+    monkeypatch.setattr(recovery.db_runtime, "switch_active_database", lambda name: active.update(name=name) or (name, str(tmp_path / f"{name}.sqlite")))
+    monkeypatch.setattr(recovery.db_runtime, "init_db", lambda: None)
+    monkeypatch.setattr(recovery, "preflight_source_csvs", lambda source_dir=None: {"status": "ok", "errors": []})
+    monkeypatch.setattr(recovery, "import_source_csvs", lambda app, source_dir=None, reset_first=False: {
+        "status": "error", "message": "bad import", "tables": [], "warnings": [], "errors": [{"message": "bad"}],
+    })
+    report = recovery.staged_rebuild_database_from_source(Flask(__name__), tmp_path)
+    assert report["status"] == "error"
+    assert report["failure_phase"] == "import"
+    assert active["name"] == "active"
+    assert not Path(report["staging_path"]).exists()
+    assert original.read_text(encoding="utf-8") == "original"

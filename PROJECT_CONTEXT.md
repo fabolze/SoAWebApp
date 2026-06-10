@@ -63,12 +63,12 @@ Working:
 - Atomic World Builder, Character Creator, and Dialogue Flow bundle APIs.
 - Dialogue graph creation/editing, validation, local layout/draft restore, context review, and gated playthrough.
 - Project Health, deterministic local authoring helpers, source/UE CSV export, source import preview, and local heuristic simulation.
-- Complete-source CSV preflight before reset-based restore/rebuild, followed by `PRAGMA foreign_key_check`.
+- Staged complete-source rebuild with preflight, `PRAGMA foreign_key_check`, and atomic SQLite replacement.
 - Faction reputation references enforced by SQLite on fresh/rebuilt databases, with cascade cleanup limited to linked minimum-reputation rows.
 
 Planned:
 
-- Encounter Stage, Item Ecosystem, Quest Journey Board, Adventure Dependency Map, Ability Spellcraft Lab, and focused Creature Workshop.
+- Ability Spellcraft Lab and focused Creature Workshop.
 - Continued polish and broader context editing for existing specialized authoring surfaces.
 
 Known limitations:
@@ -111,7 +111,8 @@ CSV and DB admin endpoints:
 - `GET /api/ui/dialogues/<dialogue_id>` loads a Dialogue Flow editing/context packet; `POST /api/ui/dialogues/bundle` validates and atomically saves the dialogue and complete node graph.
 - `POST /api/db/reset`, `/api/db/create`, `/api/db/delete`, `/api/db/select`, `GET /api/db/list`, and `GET /api/db/active` manage local SQLite database files.
 
-Reset-based source restore/rebuild preflights the complete source CSV set before resetting SQLite. It parses and coerces rows, rejects missing or duplicate IDs, validates declared foreign keys against the final CSV IDs, and verifies both faction-reputation requirement representations agree. Successful rebuilds run `PRAGMA foreign_key_check`.
+Complete-source restore/rebuild preflights the source set, imports into a uniquely named sibling staging SQLite database, runs `PRAGMA foreign_key_check`, and atomically replaces the active database only after success.
+The staged rebuild currently assumes the local single-user runtime; concurrent authoring requests must not run during a full restore/rebuild because the process-wide runtime engine is temporarily directed to staging.
 
 ## Frontend Architecture
 
@@ -145,6 +146,9 @@ Immersive authoring views are alternate input surfaces for high-use content type
 - `/author/world` provides the engine-agnostic world-building workspace for hierarchy browsing, atlas review, POIs/interactables, encounter placement, route events, travel tuning, creative references, and world validation.
 - `/author/dialogues`, `/author/dialogues/new`, and `/author/dialogues/<id>` provide the Dialogue Flow Room for graph sketching, connection, editing, health analysis, context review, and playthrough. The workspace saves the dialogue and complete node graph atomically.
 - `/author/encounters`, `/author/encounters/new`, and `/author/encounters/<id>` provide the Encounter Stage for side composition, linked profile inspection, gates, rewards, location encounter-table placement, health analysis, simulation comparison, draft restoration, and atomic bundle saving.
+- `/author/items/new` and `/author/items/<id>` preserve rich item mechanics authoring; `/author/items/new/ecosystem` and `/author/items/<id>/ecosystem` provide direct acquisition-source controls, POI placement, power/economy comparisons, issue validation, local drafts, and atomic bundle saving.
+- `/author/quests`, `/author/quests/new`, and `/author/quests/<id>` provide the Quest Journey Board for objectives, gates, rewards, arc placement, quest givers, walkthrough context, and atomic bundle saving.
+- `/author/dependencies` provides the Adventure Dependency Map for state tracing, health lenses, and constrained requirement/flag corrections.
 
 Use Author View for normal content creation when the entity has a specialized route. Use Advanced Form when a rare technical field is missing from the immersive surface, when debugging schema behavior, or when editing a dataset without a specialized view. New-entry authoring routes such as `/author/items/new` create local drafts first; nothing is saved until the normal save action posts through the existing CRUD endpoint.
 
@@ -242,7 +246,7 @@ npm run test:e2e
 - The frontend imports backend JSON schema files directly via Vite dynamic imports, so relative path assumptions matter.
 - The root `package.json` only declares `react-window`; the real frontend package is `soa-editor/package.json`.
 - `scripts/rebuild_source_db.py` rebuilds the active database from a complete source CSV set.
-- Source rebuild does not yet use atomic temporary-database replacement.
+- Complete-source rebuild uses atomic temporary-database replacement; startup partial imports remain non-destructive table replacements.
 - UE5 docs are design/reference material, not executable code, but they define expected data relationships and export assumptions.
 
 ## Recently Completed Work
@@ -276,12 +280,9 @@ UE prototype restart path:
 
 Web app/content tool backlog:
 
-1. Expand item authoring into an Item Ecosystem showing acquisition sources, rewards, shops, requirements, and comparisons.
-2. Build the Quest Journey Board while clearly separating saved links from inferred relationships.
-3. Build the Adventure Dependency Map for flag, requirement, and gated-content tracing.
-4. Make source rebuild atomic through temporary-database replacement.
-5. Continue polish for item, shop, character, location, World Builder, Dialogue Flow, and Encounter Stage authoring.
-6. Keep Advanced Form as the schema-complete fallback for rare fields, debugging, and datasets without immersive authoring surfaces.
+1. Continue polish for Quest Journey Board, Adventure Dependency Map, Encounter Stage, and existing authoring surfaces.
+2. Build Ability Spellcraft Lab and focused Creature Workshop.
+3. Keep Advanced Form as the schema-complete fallback for rare fields, debugging, and datasets without immersive authoring surfaces.
 
 ## Fast Lookup
 

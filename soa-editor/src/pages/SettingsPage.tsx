@@ -29,6 +29,7 @@ export default function SettingsPage() {
   const [selecting, setSelecting] = useState<string | null>(null);
   const [endingSession, setEndingSession] = useState(false);
   const [endSessionReport, setEndSessionReport] = useState<RecoveryExportReport | null>(null);
+  const [recoveryStatus, setRecoveryStatus] = useState<Record<string, unknown>>({});
   const [showResetModal, setShowResetModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,6 +60,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     void fetchDbs().catch((e: unknown) => setError(getErrorMessage(e, "Failed to load databases")));
+    void apiFetch("/api/recovery/status").then((response) => response.json()).then((payload) => setRecoveryStatus(asRecord(payload)));
   }, [fetchDbs]);
 
   const handleReset = async () => {
@@ -162,6 +164,18 @@ export default function SettingsPage() {
         <span className="text-slate-300">Active Database:</span>{" "}
         <span className="font-semibold text-emerald-300">{activeDb || "unknown"}</span>
       </div>
+      {Object.keys(asRecord(recoveryStatus.last_restore)).length > 0 && (
+        <div className="mb-6 rounded border border-slate-700 bg-slate-800 px-4 py-3 text-sm">
+          <h2 className="font-semibold text-primary">Latest staged restore</h2>
+          <div className="mt-2 grid gap-1 text-xs text-slate-300">
+            <span>Status: {String(asRecord(recoveryStatus.last_restore).status || "unknown")}</span>
+            <span>Replacement: {String(asRecord(recoveryStatus.last_restore).replacement_result || "not attempted")}</span>
+            <span>Rollback: {String(asRecord(recoveryStatus.last_restore).rollback_result || "not required")}</span>
+            <span>Failure phase: {String(asRecord(recoveryStatus.last_restore).failure_phase || "none")}</span>
+            <span className="break-all">Staging: {String(asRecord(recoveryStatus.last_restore).staging_path || "none")}</span>
+          </div>
+        </div>
+      )}
       <div className="mb-8">
         <button
           className={`${BUTTON_CLASSES.danger} px-6 py-2 text-lg font-semibold shadow`}

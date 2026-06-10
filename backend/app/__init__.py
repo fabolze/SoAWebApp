@@ -51,6 +51,9 @@ from backend.app.routes.r_ui_location_graph import bp as ui_location_graph_bp
 from backend.app.routes.r_ui_world_builder import bp as ui_world_builder_bp
 from backend.app.routes.r_ui_dialogues import bp as ui_dialogues_bp
 from backend.app.routes.r_ui_encounters import bp as ui_encounters_bp
+from backend.app.routes.r_ui_item_ecosystem import bp as ui_item_ecosystem_bp
+from backend.app.routes.r_ui_quests import bp as ui_quests_bp
+from backend.app.routes.r_ui_dependencies import bp as ui_dependencies_bp
 from backend.app.routes.r_recovery import bp as recovery_bp
 from backend.app.services.recovery import run_startup_recovery
 
@@ -125,6 +128,9 @@ def create_app(startup_recovery: bool = True) -> Flask:
         ui_world_builder_bp,
         ui_dialogues_bp,
         ui_encounters_bp,
+        ui_item_ecosystem_bp,
+        ui_quests_bp,
+        ui_dependencies_bp,
         recovery_bp
     ]
     

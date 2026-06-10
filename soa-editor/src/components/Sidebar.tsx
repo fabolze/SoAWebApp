@@ -242,6 +242,8 @@ const DEFAULT_GROUPS: SidebarGroup[] = [
     items: [
       { to: "/author/dialogues", label: "Dialogue Flow", icon: ChatBubbleLeftRightIcon },
       { to: "/author/encounters", label: "Encounter Stage", icon: ClipboardDocumentListIcon },
+      { to: "/author/quests", label: "Quest Journey Board", icon: DocumentTextIcon },
+      { to: "/author/dependencies", label: "Dependency Map", icon: Squares2X2Icon },
       { to: "/dialogue-nodes", label: "Dialogue Nodes", icon: ChatBubbleLeftRightIcon },
       { to: "/dialogues", label: "Dialogues", icon: ChatBubbleLeftRightIcon },
       { to: "/quests", label: "Quests", icon: DocumentTextIcon },

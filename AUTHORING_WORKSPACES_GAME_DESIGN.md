@@ -15,7 +15,8 @@ Last reviewed: 2026-06-10
 - **Working now:** World Builder, Character Creator, specialized item/shop/location authoring, Location Atlas, Dialogue Flow Room MVP, and Encounter Stage MVP.
 - **Dialogue Flow Room:** authors can sketch, connect, edit, validate, save, restore, and play through dialogue graphs using the existing dialogue, node, requirement, flag, faction, and context data.
 - **Encounter Stage:** authors can compose sides and contexts, inspect linked profiles, edit requirements and rewards, place encounters in existing location tables, compare simulation results, validate health, restore drafts, and save the bundle atomically.
-- **Planned:** Item Ecosystem, Narrative Dependency Map/Quest Journey Board, Character Context Hub, Creature Workshop, Ability Spellcraft Lab, and Adventure Board.
+- **Implemented MVP:** Item Ecosystem.
+- **Planned or in progress:** Narrative Dependency Map/Quest Journey Board, Character Context Hub, Creature Workshop, Ability Spellcraft Lab, and Adventure Board.
 - **Still conceptual:** writer-room metadata such as dramatic purpose, emotional arc, motives, encounter phases, promises/payoffs, and canonical cross-domain sequence. These must remain inferred or temporary unless deliberately modeled later.
 
 The proposal sections below remain useful design direction, but only the features listed as working above describe current UI.
