@@ -1,1 +1,1 @@
-Name,id,slug,name,category,description,default_duration,stackable,max_stacks,icon_path,tags
+Name,id,slug,name,category,polarity,description,default_duration,stackable,max_stacks,reapplication_policy,stack_decay_policy,can_cleanse,can_dispel,icon_path,tags

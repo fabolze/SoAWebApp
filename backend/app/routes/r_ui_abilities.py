@@ -3,10 +3,12 @@ from werkzeug.exceptions import HTTPException
 
 from backend.app.db.init_db import get_db_session
 from backend.app.models.m_abilities import Ability, AbilityType
+from backend.app.models.m_abilities_links import AbilityRelation
 from backend.app.models.m_characterclasses import CharacterClass
 from backend.app.models.m_characters import Character
 from backend.app.models.m_combat_profiles import CombatProfile
 from backend.app.models.m_effects import Effect
+from backend.app.models.m_encounters import Encounter
 from backend.app.models.m_items import Item
 from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_stats import Stat
@@ -14,6 +16,8 @@ from backend.app.models.m_statuses import Status
 from backend.app.models.m_talent_trees import TalentNode
 from backend.app.routes.bundle_validation import bundle_error_response, wrap_bundle_error
 from backend.app.routes.r_abilities import route as ability_route
+from backend.app.routes.r_ability_links import relation_route
+from backend.app.routes.r_combat_profiles import route as combat_profile_route
 from backend.app.routes.r_effects import route as effect_route
 from backend.app.routes.r_requirements import route as requirement_route
 from backend.app.routes.r_statuses import route as status_route
@@ -178,6 +182,8 @@ def _catalogs(db_session):
             }
             for row in db_session.query(CombatProfile).all()
         ],
+        "characters": [_compact(row) for row in db_session.query(Character).all()],
+        "encounters": [_columns(row) for row in db_session.query(Encounter).all()],
         "characterclasses": [_compact(row) for row in db_session.query(CharacterClass).all()],
         "talent_nodes": [_compact(row) for row in db_session.query(TalentNode).all()],
         "items": [_compact(row) for row in db_session.query(Item).all()],
@@ -207,6 +213,12 @@ def _packet(db_session, ability):
         "analysis": {
             "similar_abilities": _similar_abilities(db_session, ability),
         },
+        "relations": [
+            relation_route.serialize_item(row)
+            for row in db_session.query(AbilityRelation).filter(
+                (AbilityRelation.from_ability_id == ability.id) | (AbilityRelation.to_ability_id == ability.id)
+            ).all()
+        ],
     }
 
 
@@ -229,6 +241,7 @@ def _new_packet(db_session):
         "catalogs": _catalogs(db_session),
         "usage": _all_usage(db_session),
         "analysis": {"similar_abilities": []},
+        "relations": [],
     }
 
 
@@ -260,6 +273,27 @@ def _reconcile_assignments(db_session, ability_id, assigned_ids):
         if next_abilities != abilities:
             profile.custom_abilities = next_abilities
             db_session.add(profile)
+
+
+def _reconcile_relations(db_session, ability_id, rows):
+    if not isinstance(rows, list):
+        abort(400, description="relations must be an array")
+    desired_ids = set()
+    for index, data in enumerate(rows):
+        if not isinstance(data, dict):
+            abort(400, description=f"relations[{index}] must be an object")
+        next_data = dict(data)
+        next_data.setdefault("from_ability_id", ability_id)
+        if ability_id not in (next_data.get("from_ability_id"), next_data.get("to_ability_id")):
+            abort(400, description=f"relations[{index}] must reference the bundle ability")
+        relation = _upsert(db_session, relation_route, AbilityRelation, next_data, f"relations[{index}]")
+        desired_ids.add(relation.id)
+    current = db_session.query(AbilityRelation).filter(
+        (AbilityRelation.from_ability_id == ability_id) | (AbilityRelation.to_ability_id == ability_id)
+    ).all()
+    for relation in current:
+        if relation.id not in desired_ids:
+            db_session.delete(relation)
 
 
 @bp.get("/api/ui/abilities")
@@ -297,6 +331,7 @@ def save_ability_bundle():
 
         _upsert_many(db_session, status_route, Status, payload.get("status_upserts", []), "status_upserts")
         _upsert_many(db_session, effect_route, Effect, payload.get("effect_upserts", []), "effect_upserts")
+        _upsert_many(db_session, combat_profile_route, CombatProfile, payload.get("combat_profile_upserts", []), "combat_profile_upserts")
 
         requirement = payload.get("requirement")
         if requirement is not None:
@@ -306,6 +341,7 @@ def save_ability_bundle():
 
         ability = _upsert(db_session, ability_route, Ability, ability_data, "ability")
         _reconcile_assignments(db_session, ability_id, payload.get("assigned_combat_profile_ids", []))
+        _reconcile_relations(db_session, ability_id, payload.get("relations", []))
         db_session.commit()
         return jsonify(_packet(db_session, ability))
     except Exception as error:

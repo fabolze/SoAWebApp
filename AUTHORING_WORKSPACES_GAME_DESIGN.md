@@ -39,7 +39,7 @@ Last reviewed: 2026-06-10
 | Quest Journey Board And Quest Loom | Journey Board initial MVP; full mixed-content Quest Loom is future vision |
 | Item Ecosystem And Item Forge | Implemented MVP; future work can deepen fantasy, provenance, families, and progression |
 | Creature Workshop | Planned; Character Creator already covers much of the existing character/combat/interaction bundle |
-| Ability Spellcraft Lab | Implemented MVP |
+| Ability Spellcraft Lab | Implemented expanded lab with trace bench, lifecycle workshop, variants, relationships, and contextual testing |
 | Adventure Dependency Map And Adventure Board | Dependency Map initial MVP; full playable-slice Adventure Board is future vision |
 
 The workspace descriptions below contain both current-model implementation contracts and future-facing design. A feature is not implemented merely because it appears in this document; the status table is authoritative.
@@ -753,6 +753,11 @@ The ability's simulation result and player-facing description remain visible whi
 | Tune cost and cooldown dials | Update `resource_cost` and `cooldown` |
 | Add an unlock gate | Set `requirements_id` |
 | Assign ability to a creature | Append to combat-profile `custom_abilities` |
+| Place an effect on the rhythm timeline | Update timed ability-effect link phase and turn offset |
+| Author intent and counterplay | Update ability design metadata |
+| Define status stacking, decay, cleanse, and dispel behavior | Update status lifecycle fields |
+| Define profile immunity or resistance | Update combat-profile `status_rules` |
+| Connect related abilities | Create an `ability_relations` row |
 
 ### Lenses
 
@@ -765,12 +770,16 @@ The ability's simulation result and player-facing description remain visible whi
 
 ### Ability Test Bench
 
-Use the existing simulation to compare:
+The implemented bench provides an explainable abstract-turn estimator with an impact field, scrubber, event timeline, per-effect contributions, status lifecycle events, local variants, and profile/encounter context. It explicitly does not claim exact runtime parity or simulate health, death, AI decisions, or victory.
+
+Use the simulation to compare:
 
 - Current draft versus similar abilities.
 - Different effect combinations.
 - Different resource budgets and encounter pressures.
 - Ability impact when assigned to a selected combat profile.
+- Defended and undefended status application.
+- Local draft variants and related persisted abilities.
 
 ### Living Canvas Application
 

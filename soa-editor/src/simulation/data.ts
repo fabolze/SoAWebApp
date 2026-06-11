@@ -17,6 +17,8 @@ const EMPTY_DATASETS: SimulationDatasets = {
   encounters: [],
   combat_profiles: [],
   characters: [],
+  statuses: [],
+  ability_relations: [],
 };
 
 let datasetsCache: SimulationDatasets | null = null;
@@ -44,6 +46,8 @@ async function fetchAllDatasets(): Promise<SimulationDatasets> {
   entries.forEach(([schemaName, dataset]) => {
     next[schemaName] = dataset;
   });
+  next.statuses = await fetchDataset("statuses");
+  next.ability_relations = await fetchDataset("ability-relations");
   return next;
 }
 

@@ -19,6 +19,7 @@ ROW_KEY_FALLBACK = "row"
 ROW_KEY_TABLE_TEMPLATES: Dict[str, Tuple[str, ...]] = {
     "ability_effect_links": ("ability_slug", "effect_slug"),
     "ability_scaling_links": ("ability_slug", "stat_slug"),
+    "ability_relations": ("from_ability_slug", "relation_type", "to_ability_slug"),
     "attribute_stat_links": ("attribute_slug", "stat_slug", "scale"),
     "combat_profiles": ("character_slug", "enemy_type", "aggression"),
     "interaction_profiles": ("character_slug", "role", "dialogue_tree_slug"),

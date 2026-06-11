@@ -37,6 +37,7 @@ class CombatProfile(Base):
 
     custom_stats = Column(JSON)
     custom_abilities = Column(JSON)
+    status_rules = Column(JSON)
     tags = Column(JSON)
 
     loot_table = Column(JSON)

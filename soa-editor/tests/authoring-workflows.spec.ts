@@ -438,6 +438,7 @@ test("ability spellcraft composes a status payload and saves one atomic bundle",
   await page.getByRole("button", { name: "Create Status For Effect" }).click();
   await page.getByLabel("Slug").first().fill("frost-mark");
   await page.getByRole("button", { name: "Save All" }).first().click();
+  await page.getByRole("button", { name: "Commit Bundle" }).click();
   await expect.poll(() => saved).not.toBeNull();
   expect((saved?.effect_upserts as Array<Record<string, unknown>>).length).toBe(1);
   expect((saved?.status_upserts as Array<Record<string, unknown>>).length).toBe(1);
@@ -465,4 +466,26 @@ test("ability spellcraft restores drafts and surfaces target conflicts", async (
   await page.getByRole("button", { name: "Reset" }).first().click();
   await page.reload();
   await expect(page.getByText("Restored unsaved Ability Spellcraft draft.")).not.toBeVisible();
+});
+
+test("ability lab bench visualizes target count, timeline, and local variants", async ({ page }) => {
+  await mockAbilityApi(page);
+  await page.goto("/author/abilities/ability-1");
+  await expect(page.getByTestId("ability-lab-bench")).toBeVisible();
+  await page.getByRole("button", { name: "Area", exact: true }).click();
+  await page.getByLabel("Target Count").fill("4");
+  await expect(page.getByTestId("impact-target-4")).toBeVisible();
+  await page.getByLabel("Trace Turn").fill("2");
+  await page.getByRole("button", { name: "Snapshot Variant" }).click();
+  await expect(page.getByText("Variant 1")).toBeVisible();
+});
+
+test("ability spellcraft creates a related local draft without changing the source", async ({ page }) => {
+  await mockAbilityApi(page);
+  await page.goto("/author/abilities/ability-1");
+  await page.getByRole("button", { name: "Create Related Draft" }).click();
+  await expect(page).toHaveURL(/\/author\/abilities\/new$/);
+  await expect(page.getByText("Restored unsaved Ability Spellcraft draft.")).toBeVisible();
+  await expect(page.getByLabel("Name").first()).toHaveValue("Flame Pulse Related");
+  await expect(page.locator("section").filter({ hasText: "Ability Family & Tactical Relationships" }).locator("select").first()).toHaveValue("Variant");
 });

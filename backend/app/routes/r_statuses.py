@@ -1,5 +1,7 @@
 from backend.app.routes.base_route import BaseRoute
-from backend.app.models.m_statuses import Status, StatusCategory
+from backend.app.models.m_statuses import (
+    Status, StatusCategory, StatusPolarity, StatusReapplicationPolicy, StatusStackDecayPolicy,
+)
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -24,6 +26,9 @@ class StatusRoute(BaseRoute):
         # Validate enums
         self.validate_enums(data, {
             "category": StatusCategory,
+            "polarity": StatusPolarity,
+            "reapplication_policy": StatusReapplicationPolicy,
+            "stack_decay_policy": StatusStackDecayPolicy,
         })
 
         # Required fields
@@ -32,10 +37,15 @@ class StatusRoute(BaseRoute):
 
         # Optional fields
         status.category = data.get("category")
+        status.polarity = data.get("polarity") or StatusPolarity.Neutral
         status.description = data.get("description")
         status.default_duration = data.get("default_duration")
         status.stackable = data.get("stackable", False)
         status.max_stacks = data.get("max_stacks")
+        status.reapplication_policy = data.get("reapplication_policy") or StatusReapplicationPolicy.RefreshDuration
+        status.stack_decay_policy = data.get("stack_decay_policy") or StatusStackDecayPolicy.AllAtOnce
+        status.can_cleanse = data.get("can_cleanse", True)
+        status.can_dispel = data.get("can_dispel", True)
         status.icon_path = data.get("icon_path")
 
         # JSON fields

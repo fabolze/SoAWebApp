@@ -96,6 +96,21 @@
       },
       "description": "Abilities available to this combat profile."
     },
+    "status_rules": {
+      "type": "array",
+      "description": "Status resistance and immunity rules. More-specific selectors override broader rules.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "status_id": { "type": "string" },
+          "category": { "type": "string", "enum": ["Buff", "Debuff", "Control", "DoT", "Other"] },
+          "polarity": { "type": "string", "enum": ["Beneficial", "Harmful", "Neutral"] },
+          "immune": { "type": "boolean" },
+          "chance_multiplier": { "type": "number" },
+          "duration_multiplier": { "type": "number" }
+        }
+      }
+    },
     "loot_table": {
       "type": "array",
       "items": {

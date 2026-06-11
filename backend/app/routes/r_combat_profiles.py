@@ -9,6 +9,7 @@ from backend.app.models.m_quests import Quest
 from backend.app.models.m_abilities import Ability
 from backend.app.models.m_characterclasses import CharacterClass
 from backend.app.models.m_stats import Stat
+from backend.app.models.m_statuses import Status, StatusCategory, StatusPolarity
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
@@ -201,10 +202,28 @@ class CombatProfileRoute(BaseRoute):
                 raise ValueError(f"Invalid quest_id: {quest_id}")
 
         tags = _require_list(data.get("tags", []), "tags")
+        status_rules = _require_list(data.get("status_rules", []), "status_rules")
+        for rule in status_rules:
+            if not isinstance(rule, dict):
+                raise ValueError("status_rules entries must be objects")
+            selectors = [key for key in ("status_id", "category", "polarity") if rule.get(key)]
+            if len(selectors) != 1:
+                raise ValueError("status_rules entries require exactly one status_id, category, or polarity selector")
+            if rule.get("status_id") and not db_session.get(Status, rule["status_id"]):
+                raise ValueError(f"Invalid status_id in status_rules: {rule['status_id']}")
+            if rule.get("category") not in (None, ""):
+                StatusCategory(rule["category"])
+            if rule.get("polarity") not in (None, ""):
+                StatusPolarity(rule["polarity"])
+            for key in ("chance_multiplier", "duration_multiplier"):
+                _validate_number(rule.get(key), f"status_rules.{key}")
+                if rule.get(key) is not None and rule[key] < 0:
+                    raise ValueError(f"status_rules.{key} must be >= 0")
 
         # JSON fields
         profile.custom_stats = _normalize_stat_entries(data.get("custom_stats", []), "custom_stats")
         profile.custom_abilities = custom_abilities
+        profile.status_rules = status_rules
         profile.tags = tags
         profile.loot_table = loot_table
         profile.currency_rewards = currency_rewards

@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Ability Relation",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "from_ability_id": { "type": "string" },
+    "to_ability_id": { "type": "string" },
+    "relation_type": { "type": "string", "enum": ["Setup", "Payoff", "Recovery", "Upgrade", "Counter", "Variant"] }
+  },
+  "required": ["id", "from_ability_id", "to_ability_id", "relation_type"]
+}

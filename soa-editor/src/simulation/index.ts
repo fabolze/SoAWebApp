@@ -19,6 +19,7 @@ export {
   isMeaningfulEntity,
   simulateEntity,
 } from "./engine";
+export { simulateAbilityTrace } from "./abilityTrace";
 export {
   SIMULATION_SCHEMA_NAMES,
   type SimulationDatasets,
@@ -27,4 +28,7 @@ export {
   type SimulationRunOptions,
   type SimulationScenario,
   type SimulationSchemaName,
+  type AbilityTrace,
+  type AbilityTraceEvent,
+  type EffectContribution,
 } from "./types";

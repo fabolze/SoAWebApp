@@ -34,6 +34,7 @@ RECOVERY_IMPORT_ORDER = [
     "abilities",
     "ability_effect_links",
     "ability_scaling_links",
+    "ability_relations",
     "attribute_stat_links",
     "characterclasses",
     "locations",

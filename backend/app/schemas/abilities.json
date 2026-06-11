@@ -76,6 +76,26 @@
         "label": "Cooldown"
       }
     },
+    "cast_time": {
+      "type": "number",
+      "description": "Abstract turns between activation and impact.",
+      "ui": { "widget": "number", "label": "Cast Time" }
+    },
+    "recovery_time": {
+      "type": "number",
+      "description": "Abstract turns before the user may act again.",
+      "ui": { "widget": "number", "label": "Recovery Time" }
+    },
+    "upkeep_cost": {
+      "type": "number",
+      "description": "Resource paid each active turn by Toggle abilities.",
+      "ui": { "widget": "number", "label": "Toggle Upkeep" }
+    },
+    "max_targets": {
+      "type": "integer",
+      "description": "Optional cap on targets affected by this ability.",
+      "ui": { "widget": "number", "label": "Max Targets" }
+    },
     "targeting": {
       "type": "string",
       "enum": [
@@ -215,6 +235,41 @@
         "reference": "requirements",
         "label": "Requirements"
       }
+    },
+    "effect_links": {
+      "type": "array",
+      "description": "Timed payload links. When omitted, effects execute at Impact with offset 0.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "effect_id": { "type": "string" },
+          "phase": { "type": "string", "enum": ["Cast", "Impact", "Aftermath", "WhileActive", "Deactivate"] },
+          "turn_offset": { "type": "number" },
+          "sort_order": { "type": "integer" }
+        },
+        "required": ["effect_id"]
+      }
+    },
+    "design_intent": {
+      "type": "string",
+      "description": "The player-facing decision or promise this ability creates.",
+      "ui": { "widget": "textarea", "label": "Design Intent" }
+    },
+    "counterplay_notes": {
+      "type": "string",
+      "description": "How affected players can understand and answer the ability.",
+      "ui": { "widget": "textarea", "label": "Counterplay" }
+    },
+    "mastery_notes": {
+      "type": "string",
+      "description": "Advanced uses and mastery opportunities.",
+      "ui": { "widget": "textarea", "label": "Mastery" }
+    },
+    "presentation_notes": {
+      "type": "string",
+      "description": "Visual, sound, and readability direction.",
+      "ui": { "widget": "textarea", "label": "Presentation" }
     },
     "tags": {
       "type": "array",

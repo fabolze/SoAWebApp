@@ -1,6 +1,6 @@
 from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_abilities import Ability, AbilityType, Targeting, TriggerCondition, DamageTypeSource
-from backend.app.models.m_abilities_links import AbilityEffectLink, AbilityScalingLink
+from backend.app.models.m_abilities_links import AbilityEffectLink, AbilityScalingLink, AbilityEffectPhase
 from backend.app.models.m_effects import Effect
 from backend.app.models.m_effects import EffectType
 from backend.app.models.m_items import DamageType
@@ -50,9 +50,17 @@ class AbilityRoute(BaseRoute):
         ability.description = data.get("description")
         ability.resource_cost = data.get("resource_cost")
         ability.cooldown = data.get("cooldown")
+        ability.cast_time = data.get("cast_time", 0)
+        ability.recovery_time = data.get("recovery_time", 0)
+        ability.upkeep_cost = data.get("upkeep_cost", 0)
+        ability.max_targets = data.get("max_targets")
         ability.targeting = data.get("targeting")  # Already converted to enum if present
         ability.trigger_condition = data.get("trigger_condition")  # Already converted to enum if present
         ability.requirements_id = data.get("requirements_id")
+        ability.design_intent = data.get("design_intent")
+        ability.counterplay_notes = data.get("counterplay_notes")
+        ability.mastery_notes = data.get("mastery_notes")
+        ability.presentation_notes = data.get("presentation_notes")
         ability.tags = data.get("tags", [])
 
         damage_type_source = data.get("damage_type_source") or DamageTypeSource.None_
@@ -66,7 +74,15 @@ class AbilityRoute(BaseRoute):
         
         # Clear and reset effect links
         ability.effects.clear()
-        for effect_id in data.get("effects", []):
+        effect_links = data.get("effect_links")
+        if effect_links is None:
+            effect_links = [{"effect_id": effect_id} for effect_id in data.get("effects", [])]
+        if not isinstance(effect_links, list):
+            raise ValueError("effect_links must be an array")
+        for index, entry in enumerate(effect_links):
+            if not isinstance(entry, dict) or not entry.get("effect_id"):
+                raise ValueError("effect_links entries must include effect_id")
+            effect_id = entry["effect_id"]
             # Validate effect exists
             effect = db_session.get(Effect, effect_id)
             if not effect:
@@ -77,7 +93,20 @@ class AbilityRoute(BaseRoute):
                 and not effect.damage_type
             ):
                 raise ValueError("Damage effects need their own damage_type or an ability damage_type_source")
-            link = AbilityEffectLink(effect_id=effect_id)
+            phase_value = entry.get("phase", "Impact")
+            try:
+                phase = AbilityEffectPhase(phase_value)
+            except ValueError as exc:
+                raise ValueError(f"Invalid effect link phase: {phase_value}") from exc
+            turn_offset = float(entry.get("turn_offset", 0) or 0)
+            if turn_offset < 0:
+                raise ValueError("effect link turn_offset must be >= 0")
+            link = AbilityEffectLink(
+                effect_id=effect_id,
+                phase=phase,
+                turn_offset=turn_offset,
+                sort_order=int(entry.get("sort_order", index) or 0),
+            )
             link.ability = ability
             db_session.add(link)
         
@@ -106,15 +135,33 @@ class AbilityRoute(BaseRoute):
             "description": ability.description,
             "resource_cost": ability.resource_cost,
             "cooldown": ability.cooldown,
+            "cast_time": ability.cast_time,
+            "recovery_time": ability.recovery_time,
+            "upkeep_cost": ability.upkeep_cost,
+            "max_targets": ability.max_targets,
             "targeting": ability.targeting.value if ability.targeting else None,
             "trigger_condition": ability.trigger_condition.value if ability.trigger_condition else None,
             "damage_type_source": ability.damage_type_source.value if ability.damage_type_source else None,
             "damage_type": ability.damage_type.value if ability.damage_type else None,
             "requirements": ability.legacy_requirements,
             "requirements_id": ability.requirements_id,
+            "design_intent": ability.design_intent,
+            "counterplay_notes": ability.counterplay_notes,
+            "mastery_notes": ability.mastery_notes,
+            "presentation_notes": ability.presentation_notes,
             "tags": ability.tags,
         }
         data["effects"] = [link.effect_id for link in (ability.effects or [])]
+        data["effect_links"] = [
+            {
+                "id": link.id,
+                "effect_id": link.effect_id,
+                "phase": link.phase.value if link.phase else "Impact",
+                "turn_offset": link.turn_offset or 0,
+                "sort_order": link.sort_order or 0,
+            }
+            for link in sorted((ability.effects or []), key=lambda row: (row.sort_order or 0, row.id or ""))
+        ]
         data["scaling"] = [
             {
                 "stat_id": link.stat_id,

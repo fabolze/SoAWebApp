@@ -7,6 +7,7 @@ from backend.app.utils.id import generate_ulid
 
 ########## Blueprints Import ##########
 from backend.app.routes.r_abilities import bp as abilities_bp
+from backend.app.routes.r_ability_links import effect_links_bp as ability_effect_links_bp, relations_bp as ability_relations_bp
 from backend.app.routes.r_effects import bp as effects_bp
 from backend.app.routes.r_attributes import bp as attributes_bp
 from backend.app.routes.r_characterclasses import bp as characterclasses_bp
@@ -85,6 +86,8 @@ def create_app(startup_recovery: bool = True) -> Flask:
     print("ðŸ“‘ Registering blueprints...")
     blueprints = [
         abilities_bp,
+        ability_effect_links_bp,
+        ability_relations_bp,
         effects_bp,
         attributes_bp,
         characterclasses_bp,

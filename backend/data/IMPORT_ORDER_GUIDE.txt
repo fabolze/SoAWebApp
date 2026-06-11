@@ -28,9 +28,11 @@ Current recommended order (for existing seed files)
 4) currencies
 5) effects
 6) abilities
-7) attribute_stat_links
-8) characterclasses
-9) items
+7) ability_effect_links and ability_scaling_links
+8) ability_relations
+9) attribute_stat_links
+10) characterclasses
+11) items
 
 The rebuild script (`scripts/rebuild_source_db.py`) follows this dependency
 order for existing files and extends it for later world, narrative, economy,
@@ -84,5 +86,7 @@ Quick dependency examples
 - travel_tuning depends on: route type, place kind, and biome enum values only
 - location_creative_briefs depends on: locations
 - combat_profiles depends on: characters, stats, abilities, items/currencies/factions/quests (optional)
+- ability_relations depends on: abilities
+- ability_effect_links depends on: abilities and effects
 - encounters depends on: characters (+ combat_profiles for Combat context)
 

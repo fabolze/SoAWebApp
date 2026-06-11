@@ -226,6 +226,17 @@
         }
       }
     },
+    "status_operation": {
+      "type": "string",
+      "enum": ["Apply", "Remove", "GrantImmunity"],
+      "description": "Operation performed by a Status effect.",
+      "ui": { "widget": "select", "label": "Status Operation" }
+    },
+    "status_filter": {
+      "type": "object",
+      "description": "Filter used by remove and immunity operations.",
+      "ui": { "widget": "object", "label": "Status Filter" }
+    },
     "attribute_id": {
       "type": "string",
       "description": "Attribute affected, if any",

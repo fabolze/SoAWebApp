@@ -1,4 +1,5 @@
 import type {
+  AbilityTrace,
   SimulationDatasets,
   SimulationMetrics,
   SimulationResult,
@@ -6,6 +7,7 @@ import type {
   SimulationScenario,
   SimulationSchemaName,
 } from "./types";
+import { simulateAbilityTrace } from "./abilityTrace";
 
 const TARGET_MULTIPLIER: Record<string, number> = {
   Single: 1,
@@ -93,6 +95,7 @@ interface InternalSimulationResult {
   metrics: SimulationMetrics;
   warnings: string[];
   notes: string[];
+  abilityTrace?: AbilityTrace;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -290,10 +293,19 @@ function evaluateAbility(
   datasets: SimulationDatasets,
   scenario: SimulationScenario,
   runs: number,
-  seed: number
+  seed: number,
+  context?: SimulationRunOptions["context"],
 ): InternalSimulationResult {
   const warnings = collectGenericWarnings("abilities", entity);
   const notes: string[] = [];
+  const abilityTrace = simulateAbilityTrace({
+    ability: entity,
+    datasets,
+    scenario,
+    seed,
+    casterProfile: context?.casterProfile,
+    targetProfile: context?.targetProfile,
+  });
   const effectLookup = lookupById(datasets.effects);
   const scalingStrength = asObjectArray(entity.scaling).reduce(
     (acc, row) => acc + Math.max(0, num(row.multiplier, 0)),
@@ -386,6 +398,7 @@ function evaluateAbility(
     },
     warnings,
     notes,
+    abilityTrace,
   };
 }
 
@@ -797,7 +810,7 @@ function evaluateEntityInternal(
 
   switch (options.schemaName) {
     case "abilities":
-      return evaluateAbility(options.entity, options.datasets, options.scenario, boundedRuns, boundedSeed);
+      return evaluateAbility(options.entity, options.datasets, options.scenario, boundedRuns, boundedSeed, options.context);
     case "items":
       return evaluateItem(options.entity, options.datasets, options.scenario, boundedRuns, boundedSeed);
     case "effects":
@@ -817,7 +830,7 @@ function evaluateEntityInternal(
 
 export function simulateEntity(options: SimulationRunOptions): SimulationResult {
   const boundedRuns = clamp(Math.round(options.runs), 50, 2000);
-  const { metrics, warnings, notes } = evaluateEntityInternal({
+  const { metrics, warnings, notes, abilityTrace } = evaluateEntityInternal({
     ...options,
     runs: boundedRuns,
   });
@@ -831,6 +844,7 @@ export function simulateEntity(options: SimulationRunOptions): SimulationResult 
     metrics,
     warnings,
     notes,
+    abilityTrace,
   };
 }
 

@@ -137,6 +137,22 @@ def _upgrade_sqlite_schema(active_engine) -> None:
                 ability_columns = {column["name"] for column in inspector.get_columns("abilities")}
                 if "requirements_id" not in ability_columns:
                     connection.execute(text("ALTER TABLE abilities ADD COLUMN requirements_id VARCHAR"))
+                additive_ability_columns = {
+                    "cast_time": "FLOAT",
+                    "recovery_time": "FLOAT",
+                    "upkeep_cost": "FLOAT",
+                    "max_targets": "INTEGER",
+                    "design_intent": "TEXT",
+                    "counterplay_notes": "TEXT",
+                    "mastery_notes": "TEXT",
+                    "presentation_notes": "TEXT",
+                }
+                for column_name, column_type in additive_ability_columns.items():
+                    if column_name not in ability_columns:
+                        connection.execute(text(f"ALTER TABLE abilities ADD COLUMN {column_name} {column_type}"))
+                connection.execute(text("UPDATE abilities SET cast_time = 0 WHERE cast_time IS NULL"))
+                connection.execute(text("UPDATE abilities SET recovery_time = 0 WHERE recovery_time IS NULL"))
+                connection.execute(text("UPDATE abilities SET upkeep_cost = 0 WHERE upkeep_cost IS NULL"))
 
             if "effects" in table_names:
                 effect_columns = {column["name"] for column in inspector.get_columns("effects")}
@@ -145,10 +161,50 @@ def _upgrade_sqlite_schema(active_engine) -> None:
                     "scaling_multiplier": "FLOAT",
                     "damage_type": "VARCHAR",
                     "tick_interval": "FLOAT",
+                    "status_operation": "VARCHAR",
+                    "status_filter": "JSON",
                 }
                 for column_name, column_type in additive_effect_columns.items():
                     if column_name not in effect_columns:
                         connection.execute(text(f"ALTER TABLE effects ADD COLUMN {column_name} {column_type}"))
+                connection.execute(text("UPDATE effects SET status_operation = 'Apply' WHERE status_operation IS NULL"))
+
+            if "statuses" in table_names:
+                status_columns = {column["name"] for column in inspector.get_columns("statuses")}
+                additive_status_columns = {
+                    "polarity": "VARCHAR",
+                    "reapplication_policy": "VARCHAR",
+                    "stack_decay_policy": "VARCHAR",
+                    "can_cleanse": "BOOLEAN",
+                    "can_dispel": "BOOLEAN",
+                }
+                for column_name, column_type in additive_status_columns.items():
+                    if column_name not in status_columns:
+                        connection.execute(text(f"ALTER TABLE statuses ADD COLUMN {column_name} {column_type}"))
+                connection.execute(text("UPDATE statuses SET polarity = 'Neutral' WHERE polarity IS NULL"))
+                connection.execute(text("UPDATE statuses SET reapplication_policy = 'RefreshDuration' WHERE reapplication_policy IS NULL"))
+                connection.execute(text("UPDATE statuses SET stack_decay_policy = 'AllAtOnce' WHERE stack_decay_policy IS NULL"))
+                connection.execute(text("UPDATE statuses SET can_cleanse = 1 WHERE can_cleanse IS NULL"))
+                connection.execute(text("UPDATE statuses SET can_dispel = 1 WHERE can_dispel IS NULL"))
+
+            if "combat_profiles" in table_names:
+                profile_columns = {column["name"] for column in inspector.get_columns("combat_profiles")}
+                if "status_rules" not in profile_columns:
+                    connection.execute(text("ALTER TABLE combat_profiles ADD COLUMN status_rules JSON"))
+
+            if "ability_effect_links" in table_names:
+                link_columns = {column["name"] for column in inspector.get_columns("ability_effect_links")}
+                additive_link_columns = {
+                    "phase": "VARCHAR",
+                    "turn_offset": "FLOAT",
+                    "sort_order": "INTEGER",
+                }
+                for column_name, column_type in additive_link_columns.items():
+                    if column_name not in link_columns:
+                        connection.execute(text(f"ALTER TABLE ability_effect_links ADD COLUMN {column_name} {column_type}"))
+                connection.execute(text("UPDATE ability_effect_links SET phase = 'Impact' WHERE phase IS NULL"))
+                connection.execute(text("UPDATE ability_effect_links SET turn_offset = 0 WHERE turn_offset IS NULL"))
+                connection.execute(text("UPDATE ability_effect_links SET sort_order = 0 WHERE sort_order IS NULL"))
 
             if "locations" in table_names:
                 location_columns = {column["name"] for column in inspector.get_columns("locations")}

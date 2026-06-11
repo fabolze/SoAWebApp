@@ -1,6 +1,6 @@
 # backend/app/models/m_abilities.py
 
-from sqlalchemy import Column, String, Float, Enum, Text, JSON, ForeignKey
+from sqlalchemy import Column, String, Float, Integer, Enum, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
 from backend.app.utils.id import generate_ulid
@@ -47,6 +47,10 @@ class Ability(Base):
 
     resource_cost = Column(Float)
     cooldown = Column(Float)
+    cast_time = Column(Float, default=0)
+    recovery_time = Column(Float, default=0)
+    upkeep_cost = Column(Float, default=0)
+    max_targets = Column(Integer)
     targeting = Column(Enum(Targeting))
     trigger_condition = Column(Enum(TriggerCondition))
     damage_type_source = Column(Enum(DamageTypeSource), default=DamageTypeSource.None_)
@@ -54,9 +58,19 @@ class Ability(Base):
 
     legacy_requirements = Column("requirements", JSON)  # Legacy JSON payload kept for existing data.
     requirements_id = Column(String, ForeignKey('requirements.id'))
+    design_intent = Column(Text)
+    counterplay_notes = Column(Text)
+    mastery_notes = Column(Text)
+    presentation_notes = Column(Text)
     tags = Column(JSON)  # List of string tags
 
     # Relationships
     requirements = relationship("Requirement")
     effects = relationship("AbilityEffectLink", back_populates="ability", cascade="all, delete-orphan")
     scaling = relationship("AbilityScalingLink", back_populates="ability", cascade="all, delete-orphan")
+    outgoing_relations = relationship(
+        "AbilityRelation",
+        foreign_keys="AbilityRelation.from_ability_id",
+        back_populates="from_ability",
+        cascade="all, delete-orphan",
+    )

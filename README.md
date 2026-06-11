@@ -98,7 +98,7 @@ This starts the Vite dev server with hot reload enabled.
 The generic schema editors remain available for every table. In addition, the frontend has immersive authoring routes for common input workflows:
 
 - `/author/items/new` and `/author/items/<id>`: RPG item-card editing for identity, economy, effects, requirements, and modifiers.
-- `/author/abilities`, `/author/abilities/new`, and `/author/abilities/<id>`: interactive Ability Spellcraft Lab for trigger, reach, payload, scaling, cadence, effects/statuses, assignments, health, and simulation.
+- `/author/abilities`, `/author/abilities/new`, and `/author/abilities/<id>`: interactive Ability Spellcraft Lab for timed payload composition, advanced status lifecycles, impact-field and rhythm traces, local variants, saved ability relationships, contextual profile/encounter contribution, bundle review, and atomic saves.
 - `/author/shops/new` and `/author/shops/<id>`: merchant-counter editing for shop context, pricing, and embedded inventory.
 - `/author/characters/new` and `/author/characters/<id>`: character dossier editing with class/faction/home context and linked combat/interaction profile summaries.
 - `/author/locations/new` and `/author/locations/<id>`: location-card and atlas placement editing, including `location_routes` summaries.

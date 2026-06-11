@@ -17,7 +17,7 @@ from backend.app.routes.r_shop_inventory import ShopInventoryRoute
 
 SCHEMAS_DIR = Path(__file__).parents[1] / "app" / "schemas"
 VIRTUAL_SCHEMA_FIELDS = {
-    "abilities": {"effects", "scaling"},
+    "abilities": {"effects", "effect_links", "scaling"},
     "attributes": {"results_in"},
     "items": {"stat_modifiers", "attribute_modifiers"},
     "requirements": {"required_flags", "forbidden_flags", "min_faction_reputation"},

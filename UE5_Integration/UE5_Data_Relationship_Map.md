@@ -41,10 +41,15 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 - **Blueprint owners:** Damage or heal formulas in `BP_CombatFormulaLibrary`.
 
 ### Effects (`m_effects.py`)
-- **Key fields:** `type`, `target`, `value_type`, `value`, `calculation_basis`, `scaling_stat_id`, `scaling_multiplier`, `damage_type`, `tick_interval`, `attribute_id`, `duration`, `stackable`, `status_id`, `apply_chance`.
+- **Key fields:** `type`, `target`, `value_type`, `value`, `calculation_basis`, `scaling_stat_id`, `scaling_multiplier`, `damage_type`, `tick_interval`, `attribute_id`, `duration`, `stackable`, `status_id`, `apply_chance`, `status_operation`, `status_filter`.
 - **Blueprint owners:** `BP_EffectResolver`, `BP_StatusComponent`, requirement or dialogue side-effects. Default combat filtering is faction-safe: offensive effects affect enemies, healing/support effects affect allies, and mixed behavior must be explicit on the ability/effect.
 
 ### Statuses (`m_statuses.py`)
+- **Key lifecycle fields:** `polarity`, `reapplication_policy`, `stack_decay_policy`, `can_cleanse`, `can_dispel`, `max_stacks`, and `default_duration`.
+
+### Timed Ability Payload And Relationships (`m_abilities_links.py`)
+- `ability_effect_links` owns canonical payload phase, turn offset, and stable display order.
+- `ability_relations` stores directed Setup, Payoff, Recovery, Upgrade, Counter, and Variant relationships.
 - **Key fields:** `category`, `default_duration`, `stackable`, `max_stacks`.
 - **Blueprint owners:** `BP_StatusComponent`, `BP_EffectResolver`, combat UI overlays.
 

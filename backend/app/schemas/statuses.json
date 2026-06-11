@@ -48,6 +48,12 @@
       },
       "description": "Status grouping used for stacking, filtering, and UI presentation."
     },
+    "polarity": {
+      "type": "string",
+      "enum": ["Beneficial", "Harmful", "Neutral"],
+      "description": "Whether the status helps, harms, or is context-neutral.",
+      "ui": { "widget": "select", "label": "Polarity" }
+    },
     "description": {
       "type": "string",
       "ui": {
@@ -79,6 +85,28 @@
         "widget": "number",
         "label": "Max Stacks"
       }
+    },
+    "reapplication_policy": {
+      "type": "string",
+      "enum": ["RefreshDuration", "Replace", "Ignore", "AddStackRefresh", "AddIndependentStack"],
+      "description": "How reapplying an active status changes it.",
+      "ui": { "widget": "select", "label": "Reapplication" }
+    },
+    "stack_decay_policy": {
+      "type": "string",
+      "enum": ["AllAtOnce", "OnePerDuration", "Independent"],
+      "description": "How stacked instances expire.",
+      "ui": { "widget": "select", "label": "Stack Decay" }
+    },
+    "can_cleanse": {
+      "type": "boolean",
+      "description": "Whether allied removal operations may remove this status.",
+      "ui": { "widget": "checkbox", "label": "Can Cleanse" }
+    },
+    "can_dispel": {
+      "type": "boolean",
+      "description": "Whether hostile removal operations may remove this status.",
+      "ui": { "widget": "checkbox", "label": "Can Dispel" }
     },
     "icon_path": {
       "type": "string",

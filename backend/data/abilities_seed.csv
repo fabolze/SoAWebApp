@@ -1,1 +1,1 @@
-Name,id,slug,name,type,icon_path,description,resource_cost,cooldown,targeting,trigger_condition,damage_type_source,damage_type,effects,scaling,requirements_id
+Name,id,slug,name,type,icon_path,description,resource_cost,cooldown,cast_time,recovery_time,upkeep_cost,max_targets,targeting,trigger_condition,damage_type_source,damage_type,effects,effect_links,scaling,requirements_id,design_intent,counterplay_notes,mastery_notes,presentation_notes,tags

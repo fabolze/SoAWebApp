@@ -1,8 +1,8 @@
 from backend.app.routes.base_route import BaseRoute
-from backend.app.models.m_effects import Effect, EffectType, EffectTarget, ValueInterpretation, TriggerCondition, CalculationBasis
+from backend.app.models.m_effects import Effect, EffectType, EffectTarget, ValueInterpretation, TriggerCondition, CalculationBasis, StatusOperation
 from backend.app.models.m_attributes import Attribute
 from backend.app.models.m_stats import Stat
-from backend.app.models.m_statuses import Status
+from backend.app.models.m_statuses import Status, StatusCategory, StatusPolarity
 from backend.app.models.m_items import DamageType
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
@@ -32,6 +32,7 @@ class EffectRoute(BaseRoute):
             "trigger_condition": TriggerCondition,
             "calculation_basis": CalculationBasis,
             "damage_type": DamageType,
+            "status_operation": StatusOperation,
         })
         
         # Validate relationships
@@ -66,9 +67,23 @@ class EffectRoute(BaseRoute):
         effect.scaling_stat_id = data.get("scaling_stat_id")
         effect.status_id = data.get("status_id")
         effect.apply_chance = data.get("apply_chance", 100.0)
+        effect.status_operation = data.get("status_operation") or StatusOperation.Apply
+        status_filter = data.get("status_filter", {})
+        if status_filter is not None and not isinstance(status_filter, dict):
+            raise ValueError("status_filter must be an object")
+        for status_id in status_filter.get("status_ids", []) if isinstance(status_filter, dict) else []:
+            if not db_session.get(Status, status_id):
+                raise ValueError(f"Invalid status_id in status_filter: {status_id}")
+        for category in status_filter.get("categories", []) if isinstance(status_filter, dict) else []:
+            StatusCategory(category)
+        for polarity in status_filter.get("polarities", []) if isinstance(status_filter, dict) else []:
+            StatusPolarity(polarity)
+        if isinstance(status_filter, dict) and status_filter.get("max_count") is not None and int(status_filter["max_count"]) < 1:
+            raise ValueError("status_filter.max_count must be >= 1")
+        effect.status_filter = status_filter or {}
 
-        if effect.type == EffectType.Status and not effect.status_id:
-            raise ValueError("status_id is required for Status effects")
+        if effect.type == EffectType.Status and effect.status_operation == StatusOperation.Apply and not effect.status_id:
+            raise ValueError("status_id is required for Apply Status effects")
         if effect.type != EffectType.Status and effect.status_id:
             raise ValueError("status_id is only valid for Status effects")
         

@@ -236,3 +236,33 @@ def test_bundle_accepts_blank_optional_damage_type_as_unset(monkeypatch):
     session = Session()
     assert session.get(Ability, "ability-new").damage_type is None
     session.close()
+
+
+def test_bundle_saves_timed_links_advanced_status_and_relation(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    ability = _ability(effects=["effect-new"])
+    ability["effect_links"] = [{"effect_id": "effect-new", "phase": "Aftermath", "turn_offset": 1.5, "sort_order": 2}]
+    ability["design_intent"] = "Create a setup window."
+    response = client.post("/api/ui/abilities/bundle", json={
+        "ability": ability,
+        "effect_upserts": [{
+            "id": "effect-new", "slug": "burning", "name": "Burning", "type": "Status", "target": "Enemy",
+            "status_id": "status-new", "status_operation": "Apply", "tags": [],
+        }],
+        "status_upserts": [{
+            "id": "status-new", "slug": "burning", "name": "Burning", "category": "DoT", "polarity": "Harmful",
+            "reapplication_policy": "AddIndependentStack", "stack_decay_policy": "Independent",
+            "can_cleanse": True, "can_dispel": True, "tags": [],
+        }],
+        "relations": [{
+            "id": "relation-1", "from_ability_id": "ability-new", "to_ability_id": "ability-old", "relation_type": "Setup",
+        }],
+        "assigned_combat_profile_ids": [],
+    })
+    assert response.status_code == 200, response.get_json()
+    payload = response.get_json()
+    assert payload["ability"]["effect_links"][0]["phase"] == "Aftermath"
+    assert payload["ability"]["effect_links"][0]["turn_offset"] == 1.5
+    assert payload["relations"][0]["relation_type"] == "Setup"
+    assert payload["linked_statuses"][0]["reapplication_policy"] == "AddIndependentStack"

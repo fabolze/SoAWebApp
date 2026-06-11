@@ -1,1 +1,1 @@
-Name,id,ability_id,effect_id
+Name,id,ability_id,effect_id,phase,turn_offset,sort_order

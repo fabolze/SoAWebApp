@@ -38,6 +38,12 @@ class TriggerCondition(enum.Enum):
     OnCast = "On Cast"
     Passive = "Passive"
 
+
+class StatusOperation(enum.Enum):
+    Apply = "Apply"
+    Remove = "Remove"
+    GrantImmunity = "GrantImmunity"
+
 class CalculationBasis(enum.Enum):
     FixedValue = "Fixed Value"
     SourceStat = "Source Stat"
@@ -74,6 +80,8 @@ class Effect(Base):
     status_id = Column(String, ForeignKey('statuses.id'))
     status = relationship("Status")
     apply_chance = Column(Float, default=100.0)
+    status_operation = Column(Enum(StatusOperation), default=StatusOperation.Apply)
+    status_filter = Column(JSON)
 
     trigger_condition = Column(Enum(TriggerCondition))
 
