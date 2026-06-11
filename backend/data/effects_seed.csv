@@ -1,1 +1,2 @@
 Name,id,slug,name,type,description,target,duration,value_type,value,calculation_basis,scaling_multiplier,damage_type,tick_interval,status_id,apply_chance,status_operation,status_filter,attribute_id,scaling_stat_id,trigger_condition,stackable,set_bonus_group,icon_path,related_items,tags
+auto-attack-single-target-slashing-direct-damage,01KTW7D3P26EEPP2H35S5MQ7TF,auto-attack-single-target-slashing-direct-damage,Auto Attack Single Target Slashing Direct Damage,Damage,,Enemy,0.0,Flat,1.0,Weapon Damage,1.0,Slashing,,,100.0,Apply,{},,,On Hit,False,,,[],"[""damage"", ""direct""]"

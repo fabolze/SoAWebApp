@@ -1,6 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { findDatasetBySchema } from "../config/editorDatasets";
+import { useEditorStack } from "../components/EditorStackContext";
 import { apiFetch } from "../lib/api";
 import { generateSlug } from "../utils/generateId";
 import type { SchemaDefinition, SchemaFieldConfig } from "../components/schemaForm/types";
@@ -325,21 +327,25 @@ export function ReferenceChipPicker({
 }) {
   const [options, setOptions] = useState<EntryRecord[]>([]);
   const current = displayText(value);
-
-  useEffect(() => {
-    let cancelled = false;
+  const loadOptions = useMemo(() => () => {
     apiFetch(`/api/${reference}`)
       .then((res) => res.json())
       .then((payload) => {
-        if (!cancelled && Array.isArray(payload)) setOptions(payload.filter(isRecord));
+        if (Array.isArray(payload)) setOptions(payload.filter(isRecord));
       })
-      .catch(() => {
-        if (!cancelled) setOptions([]);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => setOptions([]));
   }, [reference]);
+
+  useEffect(() => {
+    loadOptions();
+    const refresh = (event: Event) => {
+      if ((event as CustomEvent<{ reference?: string }>).detail?.reference === reference) loadOptions();
+    };
+    window.addEventListener("soa:reference-created", refresh as EventListener);
+    return () => {
+      window.removeEventListener("soa:reference-created", refresh as EventListener);
+    };
+  }, [loadOptions, reference]);
 
   return (
     <label className="block">
@@ -356,8 +362,27 @@ export function ReferenceChipPicker({
           return <option key={id} value={id}>{name}</option>;
         })}
       </select>
+      <ReferenceManageLink reference={reference} onCreated={(id) => onChange(id)} />
     </label>
   );
+}
+
+export function ReferenceManageLink({ reference, label, onCreated }: { reference: string; label?: string; onCreated?: (id: string, data: EntryRecord) => void }) {
+  const dataset = findDatasetBySchema(reference);
+  const editorStack = useEditorStack();
+  if (!dataset || !editorStack?.openEditor) return null;
+  const create = async () => {
+    const result = await editorStack.openEditor({
+      schemaName: dataset.schemaName,
+      apiPath: dataset.apiPath,
+      parentSummary: { title: `Referenced by current authoring workspace`, data: {} },
+    });
+    if (!result?.id) return;
+    const data = result.data as EntryRecord;
+    window.dispatchEvent(new CustomEvent("soa:reference-created", { detail: { reference, id: result.id, data } }));
+    onCreated?.(result.id, data);
+  };
+  return <button type="button" className="mt-1 inline-block text-left text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300" onClick={() => void create()}>{label || `Create new ${dataset.label.toLowerCase()} entry`}</button>;
 }
 
 export function EditableRequirementBlock({
@@ -407,17 +432,29 @@ export function rowLabel(row: EntryRecord, fallback: string): string {
 export function useReferenceOptions(reference: string): EntryRecord[] {
   const [options, setOptions] = useState<EntryRecord[]>([]);
   useEffect(() => {
+    if (!reference) {
+      setOptions([]);
+      return;
+    }
     let cancelled = false;
-    apiFetch(`/api/${reference}`)
-      .then((res) => res.json())
-      .then((payload) => {
-        if (!cancelled && Array.isArray(payload)) setOptions(payload.filter(isRecord));
-      })
-      .catch(() => {
-        if (!cancelled) setOptions([]);
-      });
+    const load = () => {
+      apiFetch(`/api/${reference}`)
+        .then((res) => res.json())
+        .then((payload) => {
+          if (!cancelled && Array.isArray(payload)) setOptions(payload.filter(isRecord));
+        })
+        .catch(() => {
+          if (!cancelled) setOptions([]);
+        });
+    };
+    load();
+    const refresh = (event: Event) => {
+      if ((event as CustomEvent<{ reference?: string }>).detail?.reference === reference) load();
+    };
+    window.addEventListener("soa:reference-created", refresh as EventListener);
     return () => {
       cancelled = true;
+      window.removeEventListener("soa:reference-created", refresh as EventListener);
     };
   }, [reference]);
   return options;

@@ -18,6 +18,7 @@ import {
   InlineField,
   InlineFieldGrid,
   ReferenceChipPicker,
+  ReferenceManageLink,
   SelectBadgeGroup,
   getOptions,
   isRecord as controlIsRecord,
@@ -1032,6 +1033,7 @@ function ReferenceArrayPicker({
           return <option key={id} value={id}>{rowLabel(option, id)}</option>;
         })}
       </select>
+      <ReferenceManageLink reference={reference} onCreated={(id) => onChange(selected.includes(id) ? selected : [...selected, id])} />
     </div>
   );
 }
