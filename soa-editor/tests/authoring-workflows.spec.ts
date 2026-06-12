@@ -54,10 +54,18 @@ test("character studio exposes an understandable creation path and editable stor
   await page.goto("/author/characters/new");
 
   await expect(page.getByText("Create This Character")).toBeVisible();
+  await page.getByLabel("Name").fill("New");
+  await page.getByLabel("Name").press("Space");
+  await expect(page.getByLabel("Name")).toHaveValue("New ");
+  await page.getByLabel("Name").pressSequentially("Character");
+  await expect(page.getByLabel("Name")).toHaveValue("New Character");
   await page.getByRole("button", { name: /Story Core/ }).click();
   await expect(page.getByLabel("want")).toBeVisible();
   await page.getByRole("button", { name: "Add Story Beat" }).click();
-  await page.getByLabel("Beat Title").fill("First Appearance");
+  await page.getByLabel("Beat Title").fill("First");
+  await page.getByLabel("Beat Title").press("Space");
+  await expect(page.getByLabel("Beat Title")).toHaveValue("First ");
+  await page.getByLabel("Beat Title").pressSequentially("Appearance");
   await page.getByLabel("Beat Type").selectOption("Entrance");
   await expect(page.getByText("First Appearance")).toBeVisible();
   await expect(page.getByText("Required Before")).toBeVisible();
