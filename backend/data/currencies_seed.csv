@@ -1,1 +1,2 @@
 Name,id,slug,name,type,description,code,symbol,decimal_precision,is_premium,icon_path,tags
+gold,01KTW9XYF9N760Q1NV2JVBTHAD,gold,Gold,Soft,Main currency,g,,2,False,,"[""basic"", ""money"", ""currency""]"

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { EditableTagList, ReferenceChipPicker, rowLabel, useReferenceOptions } from "../authoringViews/controls";
+import { EditableTagList, ReferenceChipPicker, ReferenceManageLink, rowLabel, useReferenceOptions } from "../authoringViews/controls";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
 import type { EntryRecord } from "../types/editorQol";
@@ -56,8 +56,9 @@ function Shell({ title, subtitle, dirty, onSave, onReset, children }: { title: s
 function MultiReferencePicker({ label, values, options, onChange, emptyText = "None selected." }: { label: string; values: unknown; options: EntryRecord[]; onChange: (values: string[]) => void; emptyText?: string }) {
   const selected = strings(values);
   const available = options.filter((option) => !selected.includes(text(option.id)));
+  const reference = label.includes("Flag") ? "flags" : label.includes("Quest Giver") ? "interaction_profiles" : "";
   return <div>
-    <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">{label}</div>
+    <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">{label}</div>{reference && <ReferenceManageLink reference={reference} onCreated={(id) => onChange(selected.includes(id) ? selected : [...selected, id])} />}
     <div className="flex flex-wrap gap-1">
       {selected.map((id) => {
         const option = options.find((entry) => text(entry.id) === id);
@@ -108,7 +109,7 @@ function RewardRows({ label, rowsValue, reference, idKey, amountKey, onChange }:
   const rewardRows = rows(rowsValue);
   const update = (index: number, patch: EntryRecord) => onChange(rewardRows.map((reward, rowIndex) => rowIndex === index ? { ...reward, ...patch } : reward));
   return <div>
-    <div className="mb-2 text-[11px] font-semibold uppercase text-slate-500">{label}</div>
+    <div className="mb-2"><div className="text-[11px] font-semibold uppercase text-slate-500">{label}</div><ReferenceManageLink reference={reference} onCreated={(id) => onChange([...rewardRows, { [idKey]: id, [amountKey]: amountKey === "quantity" ? 1 : 0 }])} /></div>
     <div className="space-y-2">{rewardRows.map((reward, index) => <div key={`${text(reward[idKey])}-${index}`} className="grid grid-cols-[1fr_7rem_auto] gap-2">
       <select className={inputClass} value={text(reward[idKey])} onChange={(event) => update(index, { [idKey]: event.target.value })}><option value="">Choose...</option>{options.map((option) => <option key={text(option.id)} value={text(option.id)}>{rowLabel(option, text(option.id))}</option>)}</select>
       <input className={inputClass} type="number" value={text(reward[amountKey])} onChange={(event) => update(index, { [amountKey]: Number(event.target.value) })} />

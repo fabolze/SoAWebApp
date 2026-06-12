@@ -5,7 +5,7 @@ import SchemaForm from "../components/SchemaForm";
 import SimulationWorkbench from "../components/simulation/SimulationWorkbench";
 import AbilityLabBench from "../components/abilityLab/AbilityLabBench";
 import { useDirtyState } from "../components/useDirtyState";
-import { EditableTagList, displayText, editableText, isRecord, rowLabel } from "../authoringViews/controls";
+import { EditableTagList, ReferenceManageLink, displayText, editableText, isRecord, rowLabel } from "../authoringViews/controls";
 import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
@@ -331,6 +331,30 @@ export default function AbilitySpellcraftLabPage() {
     });
     setSelectedEffectId(effectId);
   };
+  const removeEffectFromPayload = (effectId: string) => {
+    const persisted = packet.catalogs.effects.some((effect) => displayText(effect.id) === effectId);
+    const removedDraft = effectUpserts.find((effect) => displayText(effect.id) === effectId);
+    const removedStatusId = displayText(removedDraft?.status_id);
+    updateAbility({
+      effects: strings(packet.ability.effects).filter((id) => id !== effectId),
+      effect_links: abilityEffectLinks(packet.ability).filter((link) => displayText(link.effect_id) !== effectId),
+    });
+    if (!persisted) {
+      const remainingEffects = effectUpserts.filter((effect) => displayText(effect.id) !== effectId);
+      setEffectUpserts(remainingEffects);
+      setPacket((current) => current ? ({
+        ...current,
+        linked_effects: current.linked_effects.filter((effect) => displayText(effect.id) !== effectId),
+        linked_statuses: removedStatusId && !remainingEffects.some((effect) => displayText(effect.status_id) === removedStatusId)
+          ? current.linked_statuses.filter((status) => displayText(status.id) !== removedStatusId)
+          : current.linked_statuses,
+      }) : current);
+      if (removedStatusId && !remainingEffects.some((effect) => displayText(effect.status_id) === removedStatusId)) {
+        setStatusUpserts((current) => current.filter((status) => displayText(status.id) !== removedStatusId));
+      }
+    }
+    if (selectedEffectId === effectId) setSelectedEffectId("");
+  };
   const linkStat = (statId: string) => {
     if (rows(packet.ability.scaling).some((row) => displayText(row.stat_id) === statId)) return;
     updateAbility({ scaling: [...rows(packet.ability.scaling), { stat_id: statId, multiplier: 1 }] });
@@ -359,7 +383,7 @@ export default function AbilitySpellcraftLabPage() {
               <CombatSentence sentence={combatSentence(packet)} />
               <div className="grid gap-4 2xl:grid-cols-[1fr_390px]">
                 <div className="space-y-4">
-                  <SpellcraftChain packet={packet} updateAbility={updateAbility} allEffects={allDraftEffects} onSelectEffect={setSelectedEffectId} onRemoveEffect={(effectId) => updateAbility({ effects: strings(packet.ability.effects).filter((id) => id !== effectId), effect_links: abilityEffectLinks(packet.ability).filter((link) => displayText(link.effect_id) !== effectId) })} />
+                  <SpellcraftChain packet={packet} updateAbility={updateAbility} allEffects={allDraftEffects} onSelectEffect={setSelectedEffectId} onRemoveEffect={removeEffectFromPayload} />
                   <EffectLibrary effects={allDraftEffects} linkedIds={strings(packet.ability.effects)} onLink={linkEffect} onCreate={(recipe) => createEffect(recipe, packet, setPacket, setEffectUpserts, setSelectedEffectId)} />
                   <StatLibrary stats={packet.catalogs.stats} linkedRows={rows(packet.ability.scaling)} onLink={linkStat} />
                   <AbilityLabBench ability={packet.ability} effects={allDraftEffects} statuses={allDraftStatuses} profiles={packet.catalogs.combat_profiles || []} encounters={packet.catalogs.encounters || []} onSelectEffect={setSelectedEffectId} onUseVariant={(variant) => { setPacket((current) => current ? ({ ...current, ability: variant.ability, linked_effects: variant.effects, linked_statuses: variant.statuses }) : current); setEffectUpserts(variant.effects); setStatusUpserts(variant.statuses); }} />
@@ -451,7 +475,7 @@ function EffectLibrary({ effects, linkedIds, onLink, onCreate }: { effects: Entr
 }
 
 function StatLibrary({ stats, linkedRows, onLink }: { stats: EntryRecord[]; linkedRows: EntryRecord[]; onLink: (id: string) => void }) {
-  return <Panel title="Scaling Stat Tray" subtitle="Drag stats into Scaling, then tune their contribution."><div className="flex flex-wrap gap-2">{stats.map((stat) => <DraggableCard key={displayText(stat.id)} id={`stat:${displayText(stat.id)}`} compact><button className="text-left" disabled={linkedRows.some((row) => displayText(row.stat_id) === displayText(stat.id))} onClick={() => onLink(displayText(stat.id))}><div className="text-sm font-semibold">{rowLabel(stat, displayText(stat.id))}</div><div className="text-[10px] text-slate-500">{linkedRows.some((row) => displayText(row.stat_id) === displayText(stat.id)) ? "Already scaling" : "Add scaling"}</div></button></DraggableCard>)}</div></Panel>;
+  return <Panel title="Scaling Stat Tray" subtitle="Drag stats into Scaling, then tune their contribution."><ReferenceManageLink reference="stats" onCreated={onLink} /><div className="mt-2 flex flex-wrap gap-2">{stats.map((stat) => <DraggableCard key={displayText(stat.id)} id={`stat:${displayText(stat.id)}`} compact><button className="text-left" disabled={linkedRows.some((row) => displayText(row.stat_id) === displayText(stat.id))} onClick={() => onLink(displayText(stat.id))}><div className="text-sm font-semibold">{rowLabel(stat, displayText(stat.id))}</div><div className="text-[10px] text-slate-500">{linkedRows.some((row) => displayText(row.stat_id) === displayText(stat.id)) ? "Already scaling" : "Add scaling"}</div></button></DraggableCard>)}</div></Panel>;
 }
 
 function LensPanel({ packet, lens, setLens, issues }: { packet: AbilityPacket; lens: Lens; setLens: (lens: Lens) => void; issues: { blockers: string[]; warnings: string[] } }) {
@@ -497,7 +521,7 @@ function StatusEditor({ status, editable, onChange }: { status: EntryRecord; edi
 }
 
 function AssignmentPanel({ packet, setPacket }: { packet: AbilityPacket; setPacket: React.Dispatch<React.SetStateAction<AbilityPacket | null>> }) {
-  return <Panel title="Combat Profile Assignment" subtitle="Preview and save this ability inside selected creature move kits."><div className="space-y-2">{packet.catalogs.combat_profiles.length === 0 ? <Empty>No combat profiles.</Empty> : packet.catalogs.combat_profiles.map((profile) => { const id = displayText(profile.id); const character = isRecord(profile.character) ? profile.character : {}; const checked = packet.assigned_combat_profile_ids.includes(id); return <label key={id} className="flex items-center justify-between gap-3 rounded border border-slate-200 p-2 text-sm dark:border-slate-800"><span><span className="font-semibold">{rowLabel(character, id)}</span><span className="ml-2 text-xs text-slate-500">{displayText(profile.enemy_type)} / {displayText(profile.aggression)}</span></span><input type="checkbox" checked={checked} onChange={(event) => setPacket((current) => current ? ({ ...current, assigned_combat_profile_ids: event.target.checked ? [...current.assigned_combat_profile_ids, id] : current.assigned_combat_profile_ids.filter((entry) => entry !== id) }) : current)} /></label>; })}</div></Panel>;
+  return <Panel title="Combat Profile Assignment" subtitle="Preview and save this ability inside selected creature move kits."><ReferenceManageLink reference="combat_profiles" onCreated={(id) => setPacket((current) => current ? ({ ...current, assigned_combat_profile_ids: current.assigned_combat_profile_ids.includes(id) ? current.assigned_combat_profile_ids : [...current.assigned_combat_profile_ids, id] }) : current)} /><div className="mt-2 space-y-2">{packet.catalogs.combat_profiles.length === 0 ? <Empty>No combat profiles.</Empty> : packet.catalogs.combat_profiles.map((profile) => { const id = displayText(profile.id); const character = isRecord(profile.character) ? profile.character : {}; const checked = packet.assigned_combat_profile_ids.includes(id); return <label key={id} className="flex items-center justify-between gap-3 rounded border border-slate-200 p-2 text-sm dark:border-slate-800"><span><span className="font-semibold">{rowLabel(character, id)}</span><span className="ml-2 text-xs text-slate-500">{displayText(profile.enemy_type)} / {displayText(profile.aggression)}</span></span><input type="checkbox" checked={checked} onChange={(event) => setPacket((current) => current ? ({ ...current, assigned_combat_profile_ids: event.target.checked ? [...current.assigned_combat_profile_ids, id] : current.assigned_combat_profile_ids.filter((entry) => entry !== id) }) : current)} /></label>; })}</div></Panel>;
 }
 
 function StatusDefensePanel({ packet, setPacket }: { packet: AbilityPacket; setPacket: React.Dispatch<React.SetStateAction<AbilityPacket | null>> }) {
