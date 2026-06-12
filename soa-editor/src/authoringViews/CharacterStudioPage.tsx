@@ -1,0 +1,361 @@
+import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import SchemaForm from "../components/SchemaForm";
+import SimulationWorkbench from "../components/simulation/SimulationWorkbench";
+import { useDirtyState } from "../components/useDirtyState";
+import { apiFetch } from "../lib/api";
+import type { SchemaDefinition } from "../components/schemaForm/types";
+import type { EntryRecord } from "../types/editorQol";
+import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
+import { generateSlug, generateUlid } from "../utils/generateId";
+import { EditableTagList, ReferenceChipPicker, displayText, isRecord, rowLabel } from "./controls";
+
+type StudioMode = "individual" | "ensemble";
+type CanvasMode = "select" | "place" | "connect" | "sketch" | "move";
+type Lens = "presence" | "story" | "social" | "combat" | "issues";
+type DockTab = "dossier" | "combat" | "interaction" | "story" | "relationships" | "health" | "pending" | "advanced";
+
+interface GraphNode { id: string; kind: string; entry_id: string; label: string; data: EntryRecord; metadata: EntryRecord }
+interface GraphEdge { id: string; source: string; target: string; relation: string; explicit: boolean; editable: boolean; path: string; metadata: EntryRecord }
+interface StudioPacket {
+  navigator: EntryRecord[];
+  character: EntryRecord;
+  combat_profile: EntryRecord | null;
+  interaction_profile: EntryRecord | null;
+  story_profile: EntryRecord | null;
+  relationships: EntryRecord[];
+  story_beats: EntryRecord[];
+  world_presence: Record<string, EntryRecord[]>;
+  graph: { nodes: GraphNode[]; edges: GraphEdge[] };
+  catalogs: Record<string, EntryRecord[]>;
+  health: { blockers: string[]; warnings: string[] };
+  unplaced_presence: { kind: string; entry: EntryRecord }[];
+}
+interface Review {
+  review: { created: EntryRecord[]; changed: EntryRecord[]; deleted: EntryRecord[] };
+  warnings: { id: string; message: string }[];
+  blockers: string[];
+}
+
+const RELATION_PRESETS = ["Ally", "Rival", "Mentor", "Family", "Debt", "Enemy", "Friend", "Love", "Fear", "Duty"];
+const STORY_FIELDS = ["public_face", "private_truth", "want", "need", "fear", "duty", "contradiction", "secret", "voice_notes", "arc_summary", "author_notes"];
+const STARTERS = [
+  { label: "Standard Enemy", aggression: "Hostile", tags: ["enemy"] },
+  { label: "Quest Giver", role: "Questgiver", tags: ["questgiver"] },
+  { label: "Merchant", role: "Merchant", tags: ["merchant"] },
+];
+const draftKey = (ids: string[], mode: StudioMode) => `soa.draft.character_studio.${mode}.${[...ids].sort().join(".") || "new"}`;
+const layoutKey = (id: string) => `soa.character-studio.layout.${id}`;
+const stable = (value: unknown) => JSON.stringify(value ?? null);
+const rows = (value: unknown): EntryRecord[] => Array.isArray(value) ? value.filter(isRecord) : [];
+const strings = (value: unknown): string[] => Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+const inputClass = "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950";
+const active = `${BUTTON_CLASSES.primary} ${BUTTON_SIZES.xs}`;
+const inactive = `${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`;
+
+function newProfile(characterId: string): EntryRecord {
+  return { id: generateUlid(), character_id: characterId, public_face: "", private_truth: "", want: "", need: "", fear: "", duty: "", contradiction: "", secret: "", voice_notes: "", arc_summary: "", author_notes: "", tags: [] };
+}
+function newCombat(characterId: string): EntryRecord {
+  return { id: generateUlid(), character_id: characterId, enemy_type: "humanoid", aggression: "Neutral", custom_stats: [], custom_abilities: [], loot_table: [], currency_rewards: [], reputation_rewards: [], related_quests: [], companion_config: {}, tags: [] };
+}
+function newInteraction(characterId: string): EntryRecord {
+  return { id: generateUlid(), character_id: characterId, role: "Story", dialogue_tree_id: "", available_quests: [], inventory: [], flags_set_on_interaction: [], tags: [] };
+}
+function sourceField(kind: string): string {
+  return `${kind === "story_arc" ? "story_arc" : kind}_id`;
+}
+function makeBeat(characterId: string, kind?: string, entry?: EntryRecord, order = 0): EntryRecord {
+  const name = entry ? rowLabel(entry, displayText(entry.id)) : "New Story Beat";
+  return { id: generateUlid(), character_id: characterId, title: name, beat_type: "Other", sort_order: order, ...(kind && entry ? { [sourceField(kind)]: entry.id } : {}), summary: "", state_before: "", state_after: "", player_impact: "", world_impact: "", relationship_changes: [], tags: [] };
+}
+function emptyPacket(): StudioPacket {
+  const id=generateUlid();const character={id,slug:`new-character-${id.slice(-6).toLowerCase()}`,name:"New Character",title:"",description:"",level:1,tags:[]};
+  return {navigator:[],character,combat_profile:null,interaction_profile:null,story_profile:null,relationships:[],story_beats:[],world_presence:{encounters:[],dialogues:[],dialogue_nodes:[],shops:[],quests:[],locations:[]},graph:{nodes:[],edges:[]},catalogs:{characters:[],abilities:[],quests:[],dialogues:[],dialogue_nodes:[],encounters:[],shops:[],locations:[],factions:[],characterclasses:[],events:[],story_arcs:[]},health:{blockers:[],warnings:[]},unplaced_presence:[]};
+}
+
+export default function CharacterStudioPage() {
+  const { id = "new" } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isNew = id === "new";
+  const [schema, setSchema] = useState<SchemaDefinition | null>(null);
+  const [profileSchemas, setProfileSchemas] = useState<Record<string,SchemaDefinition>>({});
+  const [packet, setPacket] = useState<StudioPacket | null>(null);
+  const [original, setOriginal] = useState<StudioPacket | null>(null);
+  const [studioMode, setStudioMode] = useState<StudioMode>("individual");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [canvasMode, setCanvasMode] = useState<CanvasMode>("select");
+  const [lens, setLens] = useState<Lens>("presence");
+  const [tab, setTab] = useState<DockTab>("dossier");
+  const [selectedNode, setSelectedNode] = useState("");
+  const [connectSource, setConnectSource] = useState("");
+  const [deletions, setDeletions] = useState<Record<string, string[]>>({});
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [review, setReview] = useState<Review | null>(null);
+  const [acceptedWarnings, setAcceptedWarnings] = useState<string[]>([]);
+  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [search, setSearch] = useState("");
+  const [libraryKind, setLibraryKind] = useState("characters");
+  const [pendingStarter, setPendingStarter] = useState<(typeof STARTERS)[number] | null>(null);
+  const dirtySource = useRef(`character-studio-${id}`);
+  const { setDirty } = useDirtyState();
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  const dirty = Boolean(packet && original && stable({ packet, deletions }) !== stable({ packet: original, deletions: {} }));
+  useEffect(() => { const source=dirtySource.current;setDirty(source,dirty);return()=>setDirty(source,false); }, [dirty, setDirty]);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      import("../../../backend/app/schemas/characters.json"),
+      import("../../../backend/app/schemas/combat_profiles.json"),
+      import("../../../backend/app/schemas/interaction_profiles.json"),
+      import("../../../backend/app/schemas/character_story_profiles.json"),
+      apiFetch(`/api/ui/character-studio/${isNew ? "new" : encodeURIComponent(id)}`).then((response) => response.json()),
+    ]).then(([loadedSchema,combatSchema,interactionSchema,storySchema,loaded]) => {
+      if (cancelled) return;
+      const base = isRecord(loaded) ? loaded as unknown as StudioPacket : emptyPacket();
+      const stored = localStorage.getItem(draftKey([displayText(base.character.id)], "individual"));
+      let restored = base;
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed.packet) {
+            restored = parsed.packet;
+            setDeletions(parsed.deletions || {});
+            setNotice("Restored unsaved Character Studio draft.");
+          }
+        } catch { /* ignore malformed drafts */ }
+      }
+      setSchema((loadedSchema.default || loadedSchema) as SchemaDefinition);
+      setProfileSchemas({combat_profiles:(combatSchema.default||combatSchema) as SchemaDefinition,interaction_profiles:(interactionSchema.default||interactionSchema) as SchemaDefinition,character_story_profiles:(storySchema.default||storySchema) as SchemaDefinition});
+      setPacket(restored);
+      setOriginal(base);
+      setSelectedIds([displayText(base.character.id)]);
+      try { setPositions(JSON.parse(localStorage.getItem(layoutKey(displayText(base.character.id))) || "{}")); } catch { setPositions({}); }
+    }).catch((error) => setNotice(error instanceof Error ? error.message : "Character Studio failed to load."))
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [id, isNew]);
+
+  useEffect(() => {
+    if (!packet || !original || !dirty) return;
+    const timer = window.setTimeout(() => localStorage.setItem(draftKey(selectedIds, studioMode), JSON.stringify({ packet, deletions, ts: Date.now() })), 300);
+    return () => window.clearTimeout(timer);
+  }, [deletions, dirty, original, packet, selectedIds, studioMode]);
+
+  useEffect(() => {
+    const handoff = new URLSearchParams(location.search).get("handoff");
+    if (!handoff || !packet) return;
+    try {
+      const value = JSON.parse(localStorage.getItem(`soa.character-studio.handoff.${handoff}`) || "null");
+      if (value?.kind && value?.entry) addBeat(value.kind, value.entry);
+      localStorage.removeItem(`soa.character-studio.handoff.${handoff}`);
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search, packet?.character.id]);
+
+  const update = <K extends keyof StudioPacket>(key: K, value: StudioPacket[K]) => setPacket((current) => current ? { ...current, [key]: value } : current);
+  const updateCharacter = (patch: EntryRecord) => packet && update("character", { ...packet.character, ...patch });
+  const addBeat = (kind?: string, entry?: EntryRecord) => packet && update("story_beats", [...packet.story_beats, makeBeat(displayText(packet.character.id), kind, entry, packet.story_beats.length)]);
+  const deleteOwned = (key: "relationships" | "story_beats" | "combat_profile" | "interaction_profile" | "story_profile", row: EntryRecord) => {
+    const mapKey = key;
+    if (original && (key === "relationships" ? original.relationships : key === "story_beats" ? original.story_beats : [original[key]]).filter(Boolean).some((item) => displayText((item as EntryRecord).id) === displayText(row.id))) {
+      setDeletions((current) => ({ ...current, [mapKey]: [...(current[mapKey] || []), displayText(row.id)] }));
+    }
+    if (key === "relationships") update("relationships", packet!.relationships.filter((item) => item.id !== row.id));
+    else if (key === "story_beats") update("story_beats", packet!.story_beats.filter((item) => item.id !== row.id));
+    else update(key, null as StudioPacket[typeof key]);
+  };
+
+  const mutation = (): EntryRecord => {
+    if (!packet || !original) return {};
+    const originalBy = (key: string) => new Map((original.catalogs[key] || []).map((row) => [displayText(row.id), row]));
+    const changedRows = (current: EntryRecord[], before: EntryRecord[]) => {
+      const beforeById = new Map(before.map((row) => [displayText(row.id), row]));
+      return current.filter((row) => stable(row) !== stable(beforeById.get(displayText(row.id))))
+        .map((row)=>{const previous=beforeById.get(displayText(row.id));return previous?{...row,expected_previous:previous}:row;});
+    };
+    const presence: Record<string, EntryRecord[]> = {};
+    for (const [key, field] of [["dialogues", "character_id"], ["shops", "character_id"], ["dialogue_nodes", "speaker_character_id"]] as const) {
+      const before = originalBy(key);
+      presence[key] = (packet.catalogs[key] || []).filter((row) => displayText(row[field]) !== displayText(before.get(displayText(row.id))?.[field]))
+        .map((row) => ({ id: row.id, expected_previous: before.get(displayText(row.id))?.[field] || null, value: row[field] || null }));
+    }
+    const encounterBefore = originalBy("encounters");
+    presence.encounters = (packet.catalogs.encounters || []).filter((row) => stable(row.participants) !== stable(encounterBefore.get(displayText(row.id))?.participants))
+      .map((row) => ({ id: row.id, expected_previous: encounterBefore.get(displayText(row.id))?.participants || [], participants: row.participants || [] }));
+    const questLinks: EntryRecord[] = [];
+    if (packet.interaction_profile && original.interaction_profile && stable(packet.interaction_profile.available_quests) !== stable(original.interaction_profile.available_quests)) {
+      questLinks.push({ character_id: packet.character.id, link_type: "offered", expected_previous: original.interaction_profile.available_quests || [], value: packet.interaction_profile.available_quests || [] });
+    }
+    if (packet.combat_profile && original.combat_profile && stable(packet.combat_profile.related_quests) !== stable(original.combat_profile.related_quests)) {
+      questLinks.push({ character_id: packet.character.id, link_type: "combat", expected_previous: original.combat_profile.related_quests || [], value: packet.combat_profile.related_quests || [] });
+    }
+    return {
+      mode: studioMode, selected_character_ids: selectedIds, character: studioMode === "individual" ? packet.character : undefined,
+      combat_profile: studioMode === "individual" ? packet.combat_profile : undefined,
+      interaction_profile: studioMode === "individual" ? packet.interaction_profile : undefined,
+      story_profile: studioMode === "individual" ? packet.story_profile : undefined,
+      relationships: changedRows(packet.relationships, original.relationships),
+      story_beats: changedRows(packet.story_beats, original.story_beats),
+      deletions, presence, quest_links: questLinks,
+      accepted_warning_ids: acceptedWarnings,
+    };
+  };
+
+  const preview = async () => {
+    setSaving(true); setNotice("");
+    try {
+      const response = await apiFetch("/api/ui/character-studio/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(mutation()) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message || "Preview failed.");
+      setReview(payload as Review);
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Preview failed."); }
+    finally { setSaving(false); }
+  };
+  const commit = async () => {
+    setSaving(true); setNotice("");
+    try {
+      const response = await apiFetch("/api/ui/character-studio/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(mutation()) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message || "Commit failed.");
+      const next = payload.packet || payload.packets?.[0];
+      if (next) { setPacket(next); setOriginal(next); setSelectedIds(payload.result.selected_character_ids); }
+      setDeletions({}); setReview(null); setAcceptedWarnings([]);
+      localStorage.removeItem(draftKey(selectedIds, studioMode));
+      setNotice("Character Studio bundle committed.");
+      if (isNew && next?.character?.id) navigate(`/author/characters/${encodeURIComponent(next.character.id)}`, { replace: true });
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Commit failed."); }
+    finally { setSaving(false); }
+  };
+
+  const reset = () => {
+    if (!original) return;
+    setPacket(original); setDeletions({}); setReview(null); setAcceptedWarnings([]);setPendingStarter(null);setTab("combat");
+    localStorage.removeItem(draftKey(selectedIds, studioMode));
+    setNotice("Draft reset.");
+  };
+
+  const setCatalogEntry = (kind: string, idValue: string, patch: EntryRecord) => packet && update("catalogs", { ...packet.catalogs, [kind]: (packet.catalogs[kind] || []).map((row) => displayText(row.id) === idValue ? { ...row, ...patch } : row) });
+  const applyStarter=()=>{if(!packet||!pendingStarter)return;update("character",{...packet.character,tags:Array.from(new Set([...strings(packet.character.tags),...pendingStarter.tags]))});if(pendingStarter.aggression)update("combat_profile",{...(packet.combat_profile||newCombat(displayText(packet.character.id))),aggression:pendingStarter.aggression});if(pendingStarter.role)update("interaction_profile",{...(packet.interaction_profile||newInteraction(displayText(packet.character.id))),role:pendingStarter.role});setNotice(pendingStarter.aggression&&!packet.character.class_id?"Combat characters need a class before saving.":`${pendingStarter.label} defaults staged.`);setPendingStarter(null);};
+  const applyDrop = (kind: string, entry: EntryRecord, target: "character" | "trace") => {
+    if (!packet) return;
+    if (target === "trace") { addBeat(kind.replace(/s$/, ""), entry); return; }
+    if (kind === "abilities") {
+      const combat = packet.combat_profile || newCombat(displayText(packet.character.id));
+      update("combat_profile", { ...combat, custom_abilities: Array.from(new Set([...strings(combat.custom_abilities), displayText(entry.id)])) });
+    } else if (kind === "quests") {
+      const interaction = packet.interaction_profile || newInteraction(displayText(packet.character.id));
+      update("interaction_profile", { ...interaction, available_quests: Array.from(new Set([...strings(interaction.available_quests), displayText(entry.id)])) });
+    } else if (kind === "dialogues") setCatalogEntry("dialogues", displayText(entry.id), { character_id: packet.character.id });
+    else if (kind === "shops") setCatalogEntry("shops", displayText(entry.id), { character_id: packet.character.id });
+    else if (kind === "encounters") {
+      const participants = rows(entry.participants).filter((row) => displayText(row.character_id) !== displayText(packet.character.id));
+      setCatalogEntry("encounters", displayText(entry.id), { participants: [...participants, { character_id: packet.character.id, contexts: [packet.combat_profile ? "Combat" : "Interaction"], combat_side: "Neutral" }] });
+    } else if (kind === "factions") updateCharacter({ faction_id: entry.id });
+    else if (kind === "characterclasses") updateCharacter({ class_id: entry.id });
+    else if (kind === "locations") updateCharacter({ home_location_id: entry.id });
+    setTab(kind === "abilities" ? "combat" : kind === "quests" ? "interaction" : "pending");
+  };
+  const onDragEnd = (event: DragEndEvent) => {
+    if (!event.over) return;
+    const data = event.active.data.current;
+    if (data?.kind && data?.entry && ["character-drop", "trace-drop"].includes(String(event.over.id))) applyDrop(data.kind, data.entry, event.over.id === "trace-drop" ? "trace" : "character");
+  };
+
+  const connectCharacter = (targetId: string) => {
+    if (!packet || targetId === packet.character.id) return;
+    if (!connectSource) { setConnectSource(targetId); return; }
+    if (connectSource === targetId) return;
+    update("relationships", [...packet.relationships, { id: generateUlid(), from_character_id: connectSource, to_character_id: targetId, relationship_type: "Ally", summary: "", public_stance: "", private_stance: "", trust: 0, tension: 0, influence: 0, is_secret: false, tags: [] }]);
+    setConnectSource(""); setTab("relationships");
+  };
+  const createFocusedDraft = (kind: string) => {
+    if (!packet) return;
+    const token = generateUlid();
+    const returnTo = `/author/characters/${encodeURIComponent(displayText(packet.character.id))}?handoff=${encodeURIComponent(token)}`;
+    const routes: Record<string, string> = { dialogues: "/author/dialogues/new", quests: "/author/quests/new", encounters: "/author/encounters/new", abilities: "/author/abilities/new", shops: "/author/shops/new", locations: "/author/locations/new", characters: "/author/characters/new" };
+    localStorage.setItem(`soa.character-studio.handoff.${token}`, JSON.stringify({ focus_character_ids: selectedIds, intended_connection: kind }));
+    navigate(`${routes[kind] || `/${kind}`}?returnTo=${encodeURIComponent(returnTo)}`);
+  };
+
+  if (loading || !packet || !schema || !original) return <div className="p-6 text-sm">Loading Character Studio...</div>;
+  const filteredCast = packet.navigator.filter((entry) => `${entry.name || ""} ${entry.title || ""} ${entry.interaction_role || ""}`.toLowerCase().includes(search.toLowerCase()));
+  const library = packet.catalogs[libraryKind] || [];
+
+  return <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+    <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
+      <div className="mx-auto max-w-[1800px] space-y-4">
+        <header className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-xs font-semibold uppercase text-violet-600">Character Studio</div><h1 className="text-2xl font-semibold">{displayText(packet.character.name, "New Character")}</h1><p className="text-xs text-slate-500">{dirty ? "Unsaved staged bundle" : "Bundle saved"} / {packet.graph.nodes.length} web nodes / {packet.story_beats.length} beats</p></div><div className="flex flex-wrap gap-2"><button className={studioMode === "individual" ? active : inactive} onClick={() => { setStudioMode("individual"); setSelectedIds([displayText(packet.character.id)]); }}>Individual</button><button className={studioMode === "ensemble" ? active : inactive} onClick={() => setStudioMode("ensemble")}>Ensemble</button><button className={inactive} disabled={!dirty || saving} onClick={reset}>Reset</button><button className={active} disabled={!dirty || saving || Boolean(packet.combat_profile&&!packet.character.class_id)} onClick={() => void preview()}>Save All</button></div></div>
+          {notice && <div className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950">{notice}</div>}
+        </header>
+        <div className="grid gap-4 xl:grid-cols-[280px_minmax(680px,1fr)_390px]">
+          <aside className="space-y-4"><Panel title="Cast Navigator"><input className={inputClass} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search cast" /><div className="mt-2 max-h-72 space-y-1 overflow-auto">{filteredCast.map((entry) => { const idValue = displayText(entry.id); const chosen = selectedIds.includes(idValue); return <button key={idValue} className={`flex w-full items-center justify-between rounded border px-2 py-2 text-left text-xs ${chosen ? "border-violet-500 bg-violet-50 dark:bg-violet-950" : "border-slate-200 dark:border-slate-800"}`} onClick={() => { if (studioMode === "ensemble") setSelectedIds((current) => chosen ? current.filter((value) => value !== idValue) : current.length < 8 ? [...current, idValue] : current); else if (idValue !== packet.character.id) navigate(`/author/characters/${encodeURIComponent(idValue)}`); }}><span>{rowLabel(entry, idValue)}</span><span>{displayText(entry.encounter_count, "0")}E/{displayText(entry.dialogue_count, "0")}D</span></button>; })}</div></Panel><Panel title="Starters"><div className="flex flex-wrap gap-1">{STARTERS.map((starter)=><button key={starter.label} className={inactive} onClick={()=>setPendingStarter(starter)}>{starter.label}</button>)}</div>{pendingStarter&&<div className="mt-2 rounded border border-blue-200 p-2 text-xs"><div>Apply <strong>{pendingStarter.label}</strong> defaults?</div><div className="mt-2 flex gap-2"><button className={inactive} onClick={()=>setPendingStarter(null)}>Cancel</button><button className={active} onClick={applyStarter}>Apply Defaults</button></div></div>}</Panel>
+          <Panel title="Content Library"><select className={inputClass} value={libraryKind} onChange={(event) => setLibraryKind(event.target.value)}>{["characters","abilities","quests","dialogues","encounters","shops","factions","characterclasses","locations","events","story_arcs"].map((kind) => <option key={kind}>{kind}</option>)}</select><div className="mt-2 max-h-80 space-y-1 overflow-auto">{library.map((entry) => <DraggableCard key={displayText(entry.id)} kind={libraryKind} entry={entry} />)}</div><button className={`${inactive} mt-2 w-full`} onClick={() => createFocusedDraft(libraryKind)}>Create Focused Draft</button></Panel></aside>
+          <main className="space-y-4">
+            <section className="overflow-hidden rounded-md border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"><div className="border-b border-slate-200 p-3 dark:border-slate-800"><div className="flex flex-wrap justify-between gap-2"><div className="flex flex-wrap gap-1">{(["select","place","connect","sketch","move"] as CanvasMode[]).map((value) => <button key={value} className={canvasMode === value ? active : inactive} onClick={() => { setCanvasMode(value); setConnectSource(""); }}>{value[0].toUpperCase()+value.slice(1)}</button>)}</div><div className="flex flex-wrap gap-1">{(["presence","story","social","combat","issues"] as Lens[]).map((value) => <button key={value} className={lens === value ? active : inactive} onClick={() => setLens(value)}>{value[0].toUpperCase()+value.slice(1)}</button>)}</div></div><p className="mt-2 text-xs text-slate-500">{canvasMode === "connect" ? "Select two character nodes to stage a directed relationship." : canvasMode === "sketch" ? "Use Story Profile cards in the dock to sketch the character's creative core." : "Drag library content onto the center character or Presence Trace."}</p></div>
+              <CharacterWeb packet={packet} lens={lens} mode={canvasMode} positions={positions} setPositions={(next) => { setPositions(next); localStorage.setItem(layoutKey(displayText(packet.character.id)), JSON.stringify(next)); }} selectedNode={selectedNode} setSelectedNode={setSelectedNode} connectSource={connectSource} onConnect={connectCharacter} />
+            </section>
+            <PresenceTrace packet={packet} onChange={(story_beats) => update("story_beats", story_beats)} onDelete={(beat) => deleteOwned("story_beats", beat)} />
+          </main>
+          <aside><Panel title="Context Dock"><div className="mb-3 flex flex-wrap gap-1">{(["dossier","combat","interaction","story","relationships","health","pending","advanced"] as DockTab[]).map((value) => <button key={value} className={tab === value ? active : inactive} onClick={() => setTab(value)}>{value === "story" ? "Story Profile" : value[0].toUpperCase()+value.slice(1)}</button>)}</div>
+            {tab === "dossier" && <Dossier packet={packet} updateCharacter={updateCharacter} />}
+            {tab === "combat" && <CombatDock packet={packet} onChange={(value) => update("combat_profile", value)} onDelete={() => packet.combat_profile && deleteOwned("combat_profile", packet.combat_profile)} />}
+            {tab === "interaction" && <InteractionDock packet={packet} onChange={(value) => update("interaction_profile", value)} onDelete={() => packet.interaction_profile && deleteOwned("interaction_profile", packet.interaction_profile)} />}
+            {tab === "story" && <StoryDock packet={packet} onChange={(value) => update("story_profile", value)} onDelete={() => packet.story_profile && deleteOwned("story_profile", packet.story_profile)} />}
+            {tab === "relationships" && <RelationshipsDock packet={packet} selectedIds={selectedIds} onChange={(value) => update("relationships", value)} onDelete={(row) => deleteOwned("relationships", row)} />}
+            {tab === "health" && <HealthDock packet={packet} />}
+            {tab === "pending" && <PendingDock mutation={mutation()} deletions={deletions} />}
+            {tab === "advanced" && <div className="space-y-5"><div><Caption>Character</Caption><SchemaForm schema={schema} schemaName="characters" data={packet.character} onChange={(next) => update("character", next)} /></div>{packet.combat_profile&&profileSchemas.combat_profiles&&<div><Caption>Combat Profile</Caption><SchemaForm schema={profileSchemas.combat_profiles} schemaName="combat_profiles" data={packet.combat_profile} onChange={(next)=>update("combat_profile",next)}/></div>}{packet.interaction_profile&&profileSchemas.interaction_profiles&&<div><Caption>Interaction Profile</Caption><SchemaForm schema={profileSchemas.interaction_profiles} schemaName="interaction_profiles" data={packet.interaction_profile} onChange={(next)=>update("interaction_profile",next)}/></div>}{packet.story_profile&&profileSchemas.character_story_profiles&&<div><Caption>Story Profile</Caption><SchemaForm schema={profileSchemas.character_story_profiles} schemaName="character_story_profiles" data={packet.story_profile} onChange={(next)=>update("story_profile",next)}/></div>}</div>}
+          </Panel></aside>
+        </div>
+      </div>
+      {review && <BundleReview review={review} accepted={acceptedWarnings} setAccepted={setAcceptedWarnings} onCancel={() => setReview(null)} onCommit={() => void commit()} saving={saving} />}
+    </div>
+  </DndContext>;
+}
+
+function CharacterWeb({ packet, lens, mode, positions, setPositions, selectedNode, setSelectedNode, connectSource, onConnect }: { packet: StudioPacket; lens: Lens; mode: CanvasMode; positions: Record<string,{x:number;y:number}>; setPositions: (next: Record<string,{x:number;y:number}>) => void; selectedNode: string; setSelectedNode: (id:string)=>void; connectSource:string; onConnect:(id:string)=>void }) {
+  const drop = useDroppable({ id: "character-drop" });
+  const visible = packet.graph.nodes.filter((node) => lens === "presence" ? ["character","encounter","dialogue","shop","quest","location"].includes(node.kind) : lens === "story" ? ["character","story_beat","quest","dialogue","event","story_arc","location"].includes(node.kind) : lens === "social" ? ["character","faction","location"].includes(node.kind) : lens === "combat" ? ["character","class","ability","encounter","quest"].includes(node.kind) : true);
+  const byId = new Map(visible.map((node) => [node.id,node]));
+  const arranged = Object.fromEntries(visible.map((node,index) => [node.id, positions[node.id] || (node.kind === "character" && node.entry_id === packet.character.id ? {x:50,y:50} : {x:50+38*Math.cos(index/Math.max(1,visible.length-1)*Math.PI*2),y:50+38*Math.sin(index/Math.max(1,visible.length-1)*Math.PI*2)})]));
+  const move = (id:string) => { if (mode !== "move") return; const current=arranged[id]; setPositions({...positions,[id]:{x:Math.max(8,Math.min(92,current.x+7)),y:Math.max(8,Math.min(92,current.y+5))}}); };
+  return <div ref={drop.setNodeRef} data-testid="character-web" className={`relative h-[680px] overflow-hidden bg-slate-50 dark:bg-slate-950 ${drop.isOver ? "ring-4 ring-violet-300" : ""}`}><div className="absolute inset-0 bg-[radial-gradient(circle,rgba(139,92,246,.12)_1px,transparent_1px)] bg-[size:32px_32px]" /><svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">{packet.graph.edges.filter((edge)=>byId.has(edge.source)&&byId.has(edge.target)).map((edge)=><line key={edge.id} x1={arranged[edge.source].x} y1={arranged[edge.source].y} x2={arranged[edge.target].x} y2={arranged[edge.target].y} vectorEffect="non-scaling-stroke" strokeWidth={edge.explicit?2:1} strokeDasharray={edge.explicit?undefined:"5 4"} className={edge.explicit?"stroke-violet-500":"stroke-slate-400"} />)}</svg>{visible.map((node)=>{const p=arranged[node.id];const center=node.kind==="character"&&node.entry_id===packet.character.id;return <button key={node.id} type="button" data-testid={`character-web-node-${node.id}`} className={`absolute max-w-[150px] -translate-x-1/2 -translate-y-1/2 rounded-full border px-3 py-2 text-xs font-semibold shadow ${center?"border-violet-700 bg-violet-700 text-white":selectedNode===node.id||connectSource===node.entry_id?"border-blue-600 bg-blue-50 dark:bg-blue-950":"border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900"}`} style={{left:`${p.x}%`,top:`${p.y}%`}} onClick={()=>{if(mode==="connect"&&node.kind==="character")onConnect(node.entry_id);else if(mode==="move")move(node.id);else setSelectedNode(node.id)}}><span className="block text-[9px] uppercase opacity-70">{node.kind}</span>{node.label}</button>})}</div>;
+}
+function DraggableCard({ kind, entry }: { kind:string; entry:EntryRecord }) { const drag=useDraggable({id:`library:${kind}:${entry.id}`,data:{kind,entry}}); return <button ref={drag.setNodeRef} {...drag.attributes} {...drag.listeners} className="block w-full cursor-grab rounded border border-slate-200 px-2 py-2 text-left text-xs dark:border-slate-800">{rowLabel(entry,displayText(entry.id))}</button>; }
+function PresenceTrace({ packet, onChange, onDelete }: {packet:StudioPacket;onChange:(rows:EntryRecord[])=>void;onDelete:(row:EntryRecord)=>void}) {
+  const drop=useDroppable({id:"trace-drop"});const sensors=useSensors(useSensor(PointerSensor));const ordered=[...packet.story_beats].sort((a,b)=>Number(a.sort_order)-Number(b.sort_order));const [cursor,setCursor]=useState(-1);
+  const relationshipState=new Map(packet.relationships.map((row)=>[displayText(row.id),{...row}]));
+  ordered.slice(0,cursor+1).forEach((beat)=>rows(beat.relationship_changes).forEach((change)=>{const current=relationshipState.get(displayText(change.relationship_id));if(current)relationshipState.set(displayText(change.relationship_id),{...current,...change});}));
+  return <Panel title="Presence Trace"><div ref={drop.setNodeRef} data-testid="presence-trace" className={`rounded border border-dashed p-3 ${drop.isOver?"border-violet-500 bg-violet-50 dark:bg-violet-950":"border-slate-300 dark:border-slate-700"}`}><DndContext sensors={sensors} onDragEnd={(event)=>{if(!event.over)return;const old=ordered.findIndex((r)=>r.id===event.active.id);const next=ordered.findIndex((r)=>r.id===event.over?.id);if(old<0||next<0)return;onChange(arrayMove(ordered,old,next).map((row,index)=>({...row,sort_order:index})));}}><SortableContext items={ordered.map((row)=>displayText(row.id))} strategy={horizontalListSortingStrategy}><div className="flex min-h-24 gap-2 overflow-x-auto">{ordered.map((beat,index)=><SortableBeat key={displayText(beat.id)} beat={beat} active={cursor===index} onPlay={()=>setCursor(index)} onDelete={()=>onDelete(beat)} />)}{ordered.length===0&&<div className="text-sm text-slate-500">Drop connected content here to author the character's first milestone.</div>}</div></SortableContext></DndContext><div className="mt-3 flex gap-2 overflow-x-auto">{packet.unplaced_presence.map(({kind,entry})=><DraggableCard key={`${kind}:${entry.id}`} kind={`${kind}s`} entry={entry} />)}</div>{cursor>=0&&<div className="mt-3 rounded border border-blue-200 bg-blue-50 p-2 text-xs dark:border-blue-900 dark:bg-blue-950"><div className="font-semibold">Authoring preview after: {displayText(ordered[cursor]?.title)}</div>{[...relationshipState.values()].map((row)=><div key={displayText(row.id)} className="mt-1">{displayText(row.relationship_type)}: trust {displayText(row.trust,"0")}, tension {displayText(row.tension,"0")}, influence {displayText(row.influence,"0")}</div>)}{relationshipState.size===0&&<div className="mt-1 text-slate-500">No relationship state to preview.</div>}</div>}</div></Panel>;
+}
+function SortableBeat({beat,active,onPlay,onDelete}:{beat:EntryRecord;active:boolean;onPlay:()=>void;onDelete:()=>void}){const s=useSortable({id:displayText(beat.id)});return <div ref={s.setNodeRef} style={{transform:CSS.Transform.toString(s.transform),transition:s.transition}} className={`min-w-44 rounded border bg-white p-2 text-xs dark:bg-slate-900 ${active?"border-blue-600 ring-2 ring-blue-200":"border-violet-300"}`}><button className="w-full cursor-grab text-left font-semibold" {...s.attributes} {...s.listeners}>{displayText(beat.title)}</button><div className="mt-1 text-slate-500">{displayText(beat.beat_type)}</div><div className="mt-2 flex justify-between"><button className="text-blue-700" onClick={onPlay}>Preview Here</button><button className="text-red-600" onClick={onDelete}>Remove</button></div></div>}
+
+function Dossier({packet,updateCharacter}:{packet:StudioPacket;updateCharacter:(patch:EntryRecord)=>void}){return <div className="space-y-3"><Field label="Name" value={packet.character.name} onChange={(name)=>updateCharacter({name,slug:displayText(packet.character.slug)||generateSlug(name)})}/><Field label="Title" value={packet.character.title} onChange={(title)=>updateCharacter({title})}/><Field label="Slug" value={packet.character.slug} onChange={(slug)=>updateCharacter({slug})}/><NumberField label="Level" value={packet.character.level} onChange={(level)=>updateCharacter({level})}/><TextArea label="Bio / Notes" value={packet.character.description} onChange={(description)=>updateCharacter({description})}/><ReferenceChipPicker label="Class" reference="characterclasses" value={packet.character.class_id} onChange={(class_id)=>updateCharacter({class_id})}/><ReferenceChipPicker label="Faction" reference="factions" value={packet.character.faction_id} onChange={(faction_id)=>updateCharacter({faction_id})}/><ReferenceChipPicker label="Home" reference="locations" value={packet.character.home_location_id} onChange={(home_location_id)=>updateCharacter({home_location_id})}/><EditableTagList tags={packet.character.tags} onChange={(tags)=>updateCharacter({tags})}/></div>}
+function CombatDock({packet,onChange,onDelete}:{packet:StudioPacket;onChange:(value:EntryRecord|null)=>void;onDelete:()=>void}){const profile=packet.combat_profile;if(!profile)return <button className={active} onClick={()=>onChange(newCombat(displayText(packet.character.id)))}>Add Combat Profile</button>;return <div className="space-y-3"><SelectField label="Aggression" value={profile.aggression} values={["Hostile","Neutral","Friendly"]} onChange={(aggression)=>onChange({...profile,aggression})}/><SelectField label="Enemy Type" value={profile.enemy_type} values={["humanoid","beast","undead","elemental","machine","boss","other"]} onChange={(enemy_type)=>onChange({...profile,enemy_type})}/><ChipPicker label="Abilities" values={strings(profile.custom_abilities)} options={packet.catalogs.abilities} onChange={(custom_abilities)=>onChange({...profile,custom_abilities})}/><ChipPicker label="Combat-Related Quests" values={strings(profile.related_quests)} options={packet.catalogs.quests} onChange={(related_quests)=>onChange({...profile,related_quests})}/><button className="text-xs text-red-600" onClick={onDelete}>Delete Combat Profile On Save</button><details><summary className="cursor-pointer text-xs font-semibold">Simulation</summary><SimulationWorkbench fixedSchemaName="characters" draftEntity={packet.character} datasetOverlays={{combat_profiles:[profile]}} title="Character Simulation"/></details></div>}
+function InteractionDock({packet,onChange,onDelete}:{packet:StudioPacket;onChange:(value:EntryRecord|null)=>void;onDelete:()=>void}){const profile=packet.interaction_profile;if(!profile)return <button className={active} onClick={()=>onChange(newInteraction(displayText(packet.character.id)))}>Add Interaction Profile</button>;return <div className="space-y-3"><SelectField label="Role" value={profile.role} values={["Questgiver","Merchant","Trainer","Companion","Story","Background"]} onChange={(role)=>onChange({...profile,role})}/><ChipPicker label="Offered Quests" values={strings(profile.available_quests)} options={packet.catalogs.quests} onChange={(available_quests)=>onChange({...profile,available_quests})}/><ReferenceChipPicker label="Primary Dialogue" reference="dialogues" value={profile.dialogue_tree_id} onChange={(dialogue_tree_id)=>onChange({...profile,dialogue_tree_id})}/><button className="text-xs text-red-600" onClick={onDelete}>Delete Interaction Profile On Save</button></div>}
+function StoryDock({packet,onChange,onDelete}:{packet:StudioPacket;onChange:(value:EntryRecord|null)=>void;onDelete:()=>void}){const profile=packet.story_profile;if(!profile)return <button className={active} onClick={()=>onChange(newProfile(displayText(packet.character.id)))}>Add Story Profile</button>;return <div className="space-y-3">{STORY_FIELDS.map((key)=><TextArea key={key} label={key.replace(/_/g," ")} value={profile[key]} onChange={(value)=>onChange({...profile,[key]:value})}/>) }<EditableTagList tags={profile.tags} onChange={(tags)=>onChange({...profile,tags})}/><button className="text-xs text-red-600" onClick={onDelete}>Delete Story Profile On Save</button></div>}
+function RelationshipsDock({packet,selectedIds,onChange,onDelete}:{packet:StudioPacket;selectedIds:string[];onChange:(rows:EntryRecord[])=>void;onDelete:(row:EntryRecord)=>void}){const add=()=>{const from=selectedIds[0]||displayText(packet.character.id);const toId=selectedIds.find((id)=>id!==from)||displayText(packet.catalogs.characters.find((c)=>displayText(c.id)!==from)?.id);if(toId)onChange([...packet.relationships,{id:generateUlid(),from_character_id:from,to_character_id:toId,relationship_type:"Ally",summary:"",public_stance:"",private_stance:"",trust:0,tension:0,influence:0,is_secret:false,tags:[]}]);};return <div><button className={active} onClick={add}>Add Directed Relationship</button><div className="mt-3 space-y-3">{packet.relationships.filter((r)=>selectedIds.includes(displayText(r.from_character_id))||selectedIds.includes(displayText(r.to_character_id))).map((row,index)=><div key={displayText(row.id)} className="rounded border border-slate-200 p-2 dark:border-slate-800"><SelectReference label="From" value={row.from_character_id} options={packet.catalogs.characters} onChange={(from_character_id)=>onChange(packet.relationships.map((r,i)=>i===index?{...r,from_character_id}:r))}/><SelectReference label="To" value={row.to_character_id} options={packet.catalogs.characters} onChange={(to_character_id)=>onChange(packet.relationships.map((r,i)=>i===index?{...r,to_character_id}:r))}/><label className="block text-xs"><Caption>Relationship Type</Caption><input className={inputClass} list="relationship-presets" value={displayText(row.relationship_type)} onChange={(e)=>onChange(packet.relationships.map((r,i)=>i===index?{...r,relationship_type:e.target.value}:r))}/><datalist id="relationship-presets">{RELATION_PRESETS.map((v)=><option key={v}>{v}</option>)}</datalist></label><TextArea label="Summary" value={row.summary} onChange={(summary)=>onChange(packet.relationships.map((r,i)=>i===index?{...r,summary}:r))}/><div className="grid grid-cols-3 gap-2"><NumberField label="Trust" value={row.trust} onChange={(trust)=>onChange(packet.relationships.map((r,i)=>i===index?{...r,trust}:r))}/><NumberField label="Tension" value={row.tension} onChange={(tension)=>onChange(packet.relationships.map((r,i)=>i===index?{...r,tension}:r))}/><NumberField label="Influence" value={row.influence} onChange={(influence)=>onChange(packet.relationships.map((r,i)=>i===index?{...r,influence}:r))}/></div><button className="mt-2 text-xs text-red-600" onClick={()=>onDelete(row)}>Remove Relationship</button></div>)}</div></div>}
+function HealthDock({packet}:{packet:StudioPacket}){return <div className="space-y-2">{packet.health.blockers.map((v)=><Issue key={v} tone="red">{v}</Issue>)}{packet.health.warnings.map((v)=><Issue key={v} tone="amber">{v}</Issue>)}{!packet.health.blockers.length&&!packet.health.warnings.length&&<Issue tone="green">No issues found.</Issue>}</div>}
+function PendingDock({mutation,deletions}:{mutation:EntryRecord;deletions:Record<string,string[]>}){return <div className="space-y-2 text-xs"><Fact label="Relationships" value={String(rows(mutation.relationships).length)}/><Fact label="Story Beats" value={String(rows(mutation.story_beats).length)}/><Fact label="Presence Changes" value={String(Object.values((mutation.presence as Record<string,unknown[]>)||{}).reduce((sum,value)=>sum+value.length,0))}/><Fact label="Deletions" value={String(Object.values(deletions).reduce((sum,value)=>sum+value.length,0))}/></div>}
+function BundleReview({review,accepted,setAccepted,onCancel,onCommit,saving}:{review:Review;accepted:string[];setAccepted:(v:string[])=>void;onCancel:()=>void;onCommit:()=>void;saving:boolean}){const allAccepted=review.warnings.every((w)=>accepted.includes(w.id));return <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-4"><section className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-lg bg-white p-5 dark:bg-slate-900"><h2 className="text-xl font-semibold">Bundle Review</h2><div className="mt-4 grid grid-cols-3 gap-2"><Fact label="Created" value={String(review.review.created.length)}/><Fact label="Changed" value={String(review.review.changed.length)}/><Fact label="Deleted" value={String(review.review.deleted.length)}/></div>{(["created","changed","deleted"] as const).map((key)=><details key={key} className="mt-3 rounded border p-2"><summary className="cursor-pointer font-semibold">{key} ({review.review[key].length})</summary><pre className="mt-2 overflow-auto text-xs">{JSON.stringify(review.review[key],null,2)}</pre></details>)}<div className="mt-3 space-y-2">{review.warnings.map((warning)=><label key={warning.id} className="flex gap-2 rounded border border-amber-300 p-2 text-sm"><input type="checkbox" checked={accepted.includes(warning.id)} onChange={(e)=>setAccepted(e.target.checked?[...accepted,warning.id]:accepted.filter((id)=>id!==warning.id))}/>{warning.message}</label>)}</div><div className="mt-4 flex justify-end gap-2"><button className={inactive} onClick={onCancel}>Continue Editing</button><button className={active} disabled={saving||review.blockers.length>0||!allAccepted} onClick={onCommit}>{saving?"Committing...":"Commit Bundle"}</button></div></section></div>}
+
+function Panel({title,children}:{title:string;children:ReactNode}){return <section className="rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"><h2 className="text-sm font-semibold">{title}</h2><div className="mt-3">{children}</div></section>}
+function Caption({children}:{children:ReactNode}){return <div className="mb-1 text-[10px] font-semibold uppercase text-slate-500">{children}</div>}
+function Field({label,value,onChange}:{label:string;value:unknown;onChange:(v:string)=>void}){return <label className="block"><Caption>{label}</Caption><input aria-label={label} className={inputClass} value={displayText(value)} onChange={(e)=>onChange(e.target.value)}/></label>}
+function TextArea({label,value,onChange}:{label:string;value:unknown;onChange:(v:string)=>void}){return <label className="block"><Caption>{label}</Caption><textarea aria-label={label} className={`${inputClass} min-h-20`} value={displayText(value)} onChange={(e)=>onChange(e.target.value)}/></label>}
+function NumberField({label,value,onChange}:{label:string;value:unknown;onChange:(v:number)=>void}){return <label className="block"><Caption>{label}</Caption><input aria-label={label} type="number" className={inputClass} value={Number(value||0)} onChange={(e)=>onChange(Number(e.target.value))}/></label>}
+function SelectField({label,value,values,onChange}:{label:string;value:unknown;values:string[];onChange:(v:string)=>void}){return <label className="block"><Caption>{label}</Caption><select aria-label={label} className={inputClass} value={displayText(value)} onChange={(e)=>onChange(e.target.value)}>{values.map((v)=><option key={v}>{v}</option>)}</select></label>}
+function SelectReference({label,value,options,onChange}:{label:string;value:unknown;options:EntryRecord[];onChange:(v:string)=>void}){return <label className="block"><Caption>{label}</Caption><select aria-label={label} className={inputClass} value={displayText(value)} onChange={(e)=>onChange(e.target.value)}>{options.map((v)=><option key={displayText(v.id)} value={displayText(v.id)}>{rowLabel(v,displayText(v.id))}</option>)}</select></label>}
+function ChipPicker({label,values,options,onChange}:{label:string;values:string[];options:EntryRecord[];onChange:(v:string[])=>void}){return <div><Caption>{label}</Caption><div className="flex flex-wrap gap-1">{options.map((option)=>{const id=displayText(option.id);const chosen=values.includes(id);return <button key={id} className={chosen?active:inactive} onClick={()=>onChange(chosen?values.filter((v)=>v!==id):[...values,id])}>{rowLabel(option,id)}</button>})}</div></div>}
+function Issue({tone,children}:{tone:"red"|"amber"|"green";children:ReactNode}){const color=tone==="red"?"border-red-300 bg-red-50 text-red-800":tone==="amber"?"border-amber-300 bg-amber-50 text-amber-800":"border-emerald-300 bg-emerald-50 text-emerald-800";return <div className={`rounded border p-2 text-xs ${color}`}>{children}</div>}
+function Fact({label,value}:{label:string;value:string}){return <div className="rounded border border-slate-200 p-2 dark:border-slate-800"><Caption>{label}</Caption><strong>{value}</strong></div>}

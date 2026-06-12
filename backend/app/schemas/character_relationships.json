@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Character Relationship",
+  "type": "object",
+  "properties": {
+    "id": {"type": "string", "ui": {"widget": "hidden"}},
+    "from_character_id": {"type": "string", "ui": {"widget": "reference", "reference": "characters", "label": "From Character"}},
+    "to_character_id": {"type": "string", "ui": {"widget": "reference", "reference": "characters", "label": "To Character"}},
+    "relationship_type": {"type": "string", "ui": {"widget": "text", "label": "Relationship Type"}},
+    "summary": {"type": "string", "ui": {"widget": "textarea"}},
+    "public_stance": {"type": "string", "ui": {"widget": "textarea", "label": "Public Stance"}},
+    "private_stance": {"type": "string", "ui": {"widget": "textarea", "label": "Private Stance"}},
+    "trust": {"type": "integer", "minimum": -100, "maximum": 100},
+    "tension": {"type": "integer", "minimum": 0, "maximum": 100},
+    "influence": {"type": "integer", "minimum": 0, "maximum": 100},
+    "is_secret": {"type": "boolean", "ui": {"widget": "checkbox", "label": "Secret Relationship"}},
+    "tags": {"type": "array", "items": {"type": "string"}, "ui": {"widget": "tags", "label": "Tags"}}
+  },
+  "required": ["id", "from_character_id", "to_character_id", "relationship_type"]
+}

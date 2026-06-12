@@ -26,7 +26,7 @@ The frontend expects the Flask backend at `http://localhost:5000` by default. Ov
 Working:
 
 - Generic schema editors and Advanced Form fallback for all registered datasets.
-- Item, shop, character, location, atlas, and World Builder authoring.
+- Item, shop, Character Studio, location, atlas, and World Builder authoring.
 - Dialogue Flow Room with graph editing, atomic bundle save, health analysis, local drafts/layout, and playthrough.
 - Encounter Stage, Item Ecosystem, Quest Journey Board, Adventure Dependency Map, and Ability Spellcraft Lab.
 - Project Health, deterministic local authoring helpers, and heuristic simulation.
@@ -48,7 +48,7 @@ Use immersive Author Views for normal content entry when available:
 - `/author/items/new` and `/author/items/<id>` for item mechanics
 - `/author/items/new/ecosystem` and `/author/items/<id>/ecosystem` for acquisition, placement, comparisons, issues, and atomic ecosystem saving
 - `/author/shops/new` and `/author/shops/<id>`
-- `/author/characters/new` and `/author/characters/<id>`
+- `/author/characters/new` and `/author/characters/<id>` for Character Studio constellation, dossier, directed relationships, Presence Trace, staged bundle review, and ensemble editing
 - `/author/locations/new` and `/author/locations/<id>`
 - `/author/locations/map`
 - `/author/world`
@@ -58,6 +58,8 @@ Use immersive Author Views for normal content entry when available:
 The Dialogue Flow Room supports Select, Sketch, Connect, and Move modes. It edits dialogues and their node graph together, reports broken or ambiguous paths, restores local unsaved drafts, and can play through requirements, flags, and temporary faction-reputation overrides.
 
 The Encounter Stage composes participants by side and context, inspects linked profiles, edits gates and rewards, places encounters into existing location tables, restores local drafts, compares simulation results, and saves the bundle atomically.
+
+Character Studio stages all edits locally until preview and atomic commit. Canvas arrangement remains browser-local; character story profiles, directed relationships, and story beats are canonical source data. Dialogue nodes may link a speaker character while retaining fallback speaker text.
 
 Use the generic schema editor routes for full schema coverage, rare fields, debugging, and datasets without a specialized authoring surface. Query selection works through `?selected=<id>`.
 

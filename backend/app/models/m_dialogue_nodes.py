@@ -14,6 +14,7 @@ class DialogueNode(Base):
     slug = Column(String, unique=True, nullable=False)
     dialogue_id = Column(String, ForeignKey('dialogues.id'), nullable=False)  # FK to dialogue group/flow
     speaker = Column(String, nullable=False)
+    speaker_character_id = Column(String, ForeignKey('characters.id'))
     text = Column(Text, nullable=False)
 
     requirements_id = Column(String, ForeignKey('requirements.id'))
@@ -24,4 +25,5 @@ class DialogueNode(Base):
 
     # Relationships
     requirements = relationship("Requirement")
+    speaker_character = relationship("Character")
     # Optional: add relationship("Dialogue") if you create a dialogues table

@@ -1,6 +1,6 @@
 # SoAWebApp Project Context
 
-Last reviewed: 2026-06-10
+Last reviewed: 2026-06-12
 
 ## Purpose
 
@@ -58,8 +58,9 @@ The core entities cover gameplay, economy, world, narrative, encounters, and pro
 Working:
 
 - Generic schema-driven CRUD editors and Advanced Form fallback.
-- Specialized item, shop, character, location, atlas, World Builder, and Dialogue Flow authoring.
-- Atomic World Builder, Character Creator, and Dialogue Flow bundle APIs.
+- Specialized item, shop, Character Studio, location, atlas, World Builder, and Dialogue Flow authoring.
+- Atomic World Builder, Character Studio, Character Creator compatibility, and Dialogue Flow bundle APIs.
+- Canonical authoring-only character story profiles, directed relationships, and ordered story beats; dialogue nodes also support linked speaker characters.
 - Dialogue graph creation/editing, validation, local layout/draft restore, context review, and gated playthrough.
 - Project Health, deterministic local authoring helpers, source/UE CSV export, source import preview, and local heuristic simulation.
 - Staged complete-source rebuild with preflight, `PRAGMA foreign_key_check`, and atomic SQLite replacement.

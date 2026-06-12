@@ -3,6 +3,7 @@ from backend.app.models.m_dialogue_nodes import DialogueNode
 from backend.app.models.m_dialogues import Dialogue
 from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_flags import Flag
+from backend.app.models.m_characters import Character
 from backend.app.db.init_db import get_db_session
 from flask import jsonify, abort, request
 from typing import Any, Dict, List
@@ -30,13 +31,15 @@ class DialogueNodeRoute(BaseRoute):
         # Validate relationships
         self.validate_relationships(db_session, data, {
             "dialogue_id": Dialogue,
-            "requirements_id": Requirement
+            "requirements_id": Requirement,
+            "speaker_character_id": Character,
         })
         
         # Required fields
         node.slug = data["slug"]
         node.dialogue_id = data["dialogue_id"]
         node.speaker = data["speaker"]
+        node.speaker_character_id = data.get("speaker_character_id") or None
         node.text = data["text"]
         
         # Optional relationship

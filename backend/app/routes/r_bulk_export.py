@@ -2,7 +2,7 @@
 from flask import Blueprint, Response, abort, send_file
 from backend.app.db.init_db import get_db_session
 from backend.app.models import ALL_MODELS
-from backend.app.utils.csv_tools import build_csv_rows
+from backend.app.utils.csv_tools import AUTHORING_ONLY_TABLES, build_csv_rows
 import csv
 import zipfile
 import tempfile
@@ -20,6 +20,8 @@ def _export_all_csv_zip(mode: str, download_name: str):
         for model_class in ALL_MODELS:
             table_name = getattr(model_class, "__tablename__", None)
             if not table_name:
+                continue
+            if mode == "ue" and table_name in AUTHORING_ONLY_TABLES:
                 continue
             rows = session.query(model_class).all()
             csv_path = os.path.join(temp_dir, f"{table_name}.csv")

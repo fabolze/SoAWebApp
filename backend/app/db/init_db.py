@@ -192,6 +192,11 @@ def _upgrade_sqlite_schema(active_engine) -> None:
                 if "status_rules" not in profile_columns:
                     connection.execute(text("ALTER TABLE combat_profiles ADD COLUMN status_rules JSON"))
 
+            if "dialogue_nodes" in table_names:
+                dialogue_node_columns = {column["name"] for column in inspector.get_columns("dialogue_nodes")}
+                if "speaker_character_id" not in dialogue_node_columns:
+                    connection.execute(text("ALTER TABLE dialogue_nodes ADD COLUMN speaker_character_id VARCHAR"))
+
             if "ability_effect_links" in table_names:
                 link_columns = {column["name"] for column in inspector.get_columns("ability_effect_links")}
                 additive_link_columns = {

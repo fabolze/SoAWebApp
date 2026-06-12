@@ -40,6 +40,12 @@ UE_EXPORT_EXCLUDED_COLUMNS: Dict[str, Tuple[str, ...]] = {
     "items": ("stat_modifiers", "attribute_modifiers"),
 }
 
+AUTHORING_ONLY_TABLES = {
+    "character_story_profiles",
+    "character_relationships",
+    "character_story_beats",
+}
+
 
 def _schema_path(table_name: str) -> str:
     return os.path.join(os.path.dirname(__file__), "..", "schemas", f"{table_name}.json")

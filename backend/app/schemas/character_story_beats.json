@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Character Story Beat",
+  "type": "object",
+  "properties": {
+    "id": {"type": "string", "ui": {"widget": "hidden"}},
+    "character_id": {"type": "string", "ui": {"widget": "reference", "reference": "characters", "label": "Character"}},
+    "title": {"type": "string"},
+    "beat_type": {"type": "string", "enum": ["Entrance", "Decision", "Revelation", "Conflict", "Change", "Reaction", "Exit", "Other"]},
+    "sort_order": {"type": "integer"},
+    "quest_id": {"type": "string", "ui": {"widget": "reference", "reference": "quests", "label": "Quest"}},
+    "dialogue_id": {"type": "string", "ui": {"widget": "reference", "reference": "dialogues", "label": "Dialogue"}},
+    "encounter_id": {"type": "string", "ui": {"widget": "reference", "reference": "encounters", "label": "Encounter"}},
+    "event_id": {"type": "string", "ui": {"widget": "reference", "reference": "events", "label": "Event"}},
+    "location_id": {"type": "string", "ui": {"widget": "reference", "reference": "locations", "label": "Location"}},
+    "story_arc_id": {"type": "string", "ui": {"widget": "reference", "reference": "story_arcs", "label": "Story Arc"}},
+    "summary": {"type": "string", "ui": {"widget": "textarea"}},
+    "state_before": {"type": "string", "ui": {"widget": "textarea", "label": "State Before"}},
+    "state_after": {"type": "string", "ui": {"widget": "textarea", "label": "State After"}},
+    "player_impact": {"type": "string", "ui": {"widget": "textarea", "label": "Player Impact"}},
+    "world_impact": {"type": "string", "ui": {"widget": "textarea", "label": "World Impact"}},
+    "relationship_changes": {"type": "array", "items": {"type": "object"}},
+    "tags": {"type": "array", "items": {"type": "string"}, "ui": {"widget": "tags", "label": "Tags"}}
+  },
+  "required": ["id", "character_id", "title", "beat_type", "sort_order"]
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Character Story Profile",
+  "type": "object",
+  "properties": {
+    "id": {"type": "string", "ui": {"widget": "hidden"}},
+    "character_id": {"type": "string", "ui": {"widget": "reference", "reference": "characters", "label": "Character"}},
+    "public_face": {"type": "string", "ui": {"widget": "textarea", "label": "Public Face"}},
+    "private_truth": {"type": "string", "ui": {"widget": "textarea", "label": "Private Truth"}},
+    "want": {"type": "string", "ui": {"widget": "textarea", "label": "Want"}},
+    "need": {"type": "string", "ui": {"widget": "textarea", "label": "Need"}},
+    "fear": {"type": "string", "ui": {"widget": "textarea", "label": "Fear"}},
+    "duty": {"type": "string", "ui": {"widget": "textarea", "label": "Duty"}},
+    "contradiction": {"type": "string", "ui": {"widget": "textarea", "label": "Contradiction"}},
+    "secret": {"type": "string", "ui": {"widget": "textarea", "label": "Secret"}},
+    "voice_notes": {"type": "string", "ui": {"widget": "textarea", "label": "Voice Notes"}},
+    "arc_summary": {"type": "string", "ui": {"widget": "textarea", "label": "Arc Summary"}},
+    "author_notes": {"type": "string", "ui": {"widget": "textarea", "label": "Author Notes"}},
+    "tags": {"type": "array", "items": {"type": "string"}, "ui": {"widget": "tags", "label": "Tags"}}
+  },
+  "required": ["id", "character_id"]
+}

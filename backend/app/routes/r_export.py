@@ -5,6 +5,7 @@ from backend.app.models import ALL_MODELS
 from backend.app.models.m_requirements import RequirementMinFactionReputation
 from backend.app.routes.base_route import ROUTE_REGISTRY
 from backend.app.utils.csv_tools import (
+    AUTHORING_ONLY_TABLES,
     UE_ROW_KEY_HEADER,
     build_csv_rows,
     write_csv_string,
@@ -119,6 +120,8 @@ def _export_csv_response(table_name, mode):
 @bp.route("/api/export/csv/<table_name>", methods=["GET"])
 @bp.route("/api/export/ue/csv/<table_name>", methods=["GET"])
 def export_ue_csv(table_name):
+    if table_name in AUTHORING_ONLY_TABLES:
+        abort(400, description=f"{table_name} is authoring-only and is not available in UE exports")
     return _export_csv_response(table_name, mode="ue")
 
 

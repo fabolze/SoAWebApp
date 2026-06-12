@@ -33,7 +33,7 @@ Last reviewed: 2026-06-10
 | Workspace | Status |
 |---|---|
 | World Builder | Implemented; foundation for the shared authoring language |
-| Character Studio And Character Web | Character Creator implemented; broader relationship and story-presence workspace is future vision |
+| Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, staged preview/commit, and ensemble editing |
 | Dialogue Flow Room | Implemented MVP |
 | Encounter Stage | Implemented MVP |
 | Quest Journey Board And Quest Loom | Journey Board initial MVP; full mixed-content Quest Loom is future vision |
@@ -48,7 +48,7 @@ The workspace descriptions below contain both current-model implementation contr
 
 ## Design Foundation
 
-The World Builder and Character Creator establish the reusable pattern. The central lesson is not "use a graph" or "make forms prettier." It is:
+The World Builder and Character Studio establish the reusable pattern. The central lesson is not "use a graph" or "make forms prettier." It is:
 
 > Give the author a canvas shaped like the decision they are trying to make.
 
@@ -197,7 +197,7 @@ Useful starting roles include civilian, quest giver, merchant, trainer, companio
 
 - **Canonical Save Gestures:** edit the character, combat profile, interaction profile, loadout, quest links, and encounter appearances as one reviewed bundle; place the character into existing encounters and interaction roles through their real references.
 - **Local Creative Tools:** a character constellation showing locations, quests, dialogues, encounters, factions, and nearby characters inferred through shared content; role, presence, combat, and issue lenses; a presence trace following where the character appears; local relationship sketches and comparison ghosts.
-- **Future Canonical Expansion:** named character relationships, changing loyalties, motives, secrets, emotional arcs, and authored entrances or exits.
+- **Canonical Narrative Expansion:** directed character relationships, structured story profiles, and ordered story beats with relationship-state changes.
 
 The constellation must style shared-content proximity and inferred relationships as derived readings. Local relationship sketches may suggest changes to existing dialogue, quest, encounter, or placement records, but they do not create canonical relationships by themselves.
 

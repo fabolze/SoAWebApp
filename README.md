@@ -16,7 +16,7 @@ UE5-specific documentation remains under `UE5_Integration` and is maintained sep
 Working:
 
 - Generic schema-driven CRUD editors and Advanced Form fallback for all registered datasets.
-- Specialized Item Ecosystem, Quest Journey Board, Adventure Dependency Map, shop, character, location, atlas, world-builder, Dialogue Flow, and Encounter Stage authoring.
+- Specialized Item Ecosystem, Quest Journey Board, Adventure Dependency Map, shop, Character Studio, location, atlas, world-builder, Dialogue Flow, and Encounter Stage authoring.
 - Atomic bundle APIs for cross-record authoring workspaces.
 - Dialogue graph sketching, connecting, editing, validation, local layout/draft restore, and gated playthrough.
 - Source CSV export/import and staged full-source rebuilds with preflight, foreign-key checks, and atomic SQLite replacement.
@@ -80,6 +80,8 @@ The app will start with debug mode enabled and will initialize the SQLite databa
   - To rebuild the active local SQLite database from tracked source CSVs, run `python scripts/rebuild_source_db.py --source-dir backend/data`.
   - Recovery endpoints are `GET /api/recovery/status`, `POST /api/recovery/export-source`, `POST /api/recovery/restore-source`, and `POST /api/recovery/import-source`.
   - Dialogue Flow uses `GET /api/ui/dialogues/<dialogue_id>` and atomic `POST /api/ui/dialogues/bundle`.
+  - Character Studio uses `GET /api/ui/character-studio/<character_id>`, rollback-only `POST /api/ui/character-studio/preview`, and atomic `POST /api/ui/character-studio/bundle`.
+  - Character story profiles, directed relationships, and story beats are included in source recovery exports and intentionally excluded from UE exports.
 
 ## Frontend setup
 

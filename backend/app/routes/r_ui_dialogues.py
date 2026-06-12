@@ -4,6 +4,7 @@ from werkzeug.exceptions import HTTPException
 from backend.app.db.init_db import get_db_session
 from backend.app.models.m_dialogue_nodes import DialogueNode
 from backend.app.models.m_dialogues import Dialogue
+from backend.app.models.m_characters import Character
 from backend.app.models.m_events import Event
 from backend.app.models.m_factions import Faction
 from backend.app.models.m_flags import Flag
@@ -56,6 +57,7 @@ def _dialogue_packet(db_session, dialogue):
         "requirements": [requirement_route.serialize_item(item) for item in requirements],
         "flags": [_columns(item) for item in flags],
         "factions": [_columns(item) for item in factions],
+        "characters": [_compact(item) for item in db_session.query(Character).all()],
         "context": {
             "interaction_profiles": [_compact(item) for item in interaction_profiles],
             "events": [_compact(item) for item in events],

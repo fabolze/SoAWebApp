@@ -7,6 +7,9 @@ import AbilitiesEditorPage from "./pages/AbilitiesEditor";
 import AttributesEditorPage from "./pages/AttributesEditor";
 import CharacterClassesEditorPage from "./pages/CharacterClassesEditor";
 import CharactersEditorPage from "./pages/CharactersEditor";
+import CharacterRelationshipsEditorPage from "./pages/CharacterRelationshipsEditor";
+import CharacterStoryBeatsEditorPage from "./pages/CharacterStoryBeatsEditor";
+import CharacterStoryProfilesEditorPage from "./pages/CharacterStoryProfilesEditor";
 import CombatProfilesEditorPage from "./pages/CombatProfilesEditor";
 import ContentPacksEditorPage from "./pages/ContentPacksEditor";
 import CurrenciesEditorPage from "./pages/CurrenciesEditor";
@@ -46,7 +49,7 @@ const SimulationSandboxPage = lazy(() => import("./pages/SimulationSandboxPage")
 const WorldBuilderPage = lazy(() => import("./pages/WorldBuilderPage"));
 const DialogueFlowPage = lazy(() => import("./pages/DialogueFlowPage"));
 const EncounterStagePage = lazy(() => import("./pages/EncounterStagePage"));
-const CharacterAuthoringPage = lazy(() => import("./authoringViews/CharacterCreatorPage"));
+const CharacterAuthoringPage = lazy(() => import("./authoringViews/CharacterStudioPage"));
 const ItemAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.ItemAuthoringPage })));
 const ItemEcosystemPage = lazy(() => import("./pages/ItemEcosystemPage"));
 const QuestJourneyPage = lazy(() => import("./pages/RoadmapAuthoringPages").then((module) => ({ default: module.QuestJourneyPage })));
@@ -90,6 +93,9 @@ export default function AppRoot() {
               <Route path="effects" element={<EffectsEditorPage />} />
               <Route path="characterclasses" element={<CharacterClassesEditorPage />} />
               <Route path="characters" element={<CharactersEditorPage />} />
+              <Route path="character-relationships" element={<CharacterRelationshipsEditorPage />} />
+              <Route path="character-story-beats" element={<CharacterStoryBeatsEditorPage />} />
+              <Route path="character-story-profiles" element={<CharacterStoryProfilesEditorPage />} />
               <Route path="combat-profiles" element={<CombatProfilesEditorPage />} />
               <Route path="dialogue-nodes" element={<DialogueNodesEditorPage />} />
               <Route path="dialogues" element={<DialoguesEditorPage />} />

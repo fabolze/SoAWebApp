@@ -35,6 +35,15 @@
         "label": "Speaker"
       }
     },
+    "speaker_character_id": {
+      "type": "string",
+      "description": "Optional canonical character identity for this speaker.",
+      "ui": {
+        "widget": "reference",
+        "reference": "characters",
+        "label": "Speaker Character"
+      }
+    },
     "text": {
       "type": "string",
       "description": "The dialogue text",

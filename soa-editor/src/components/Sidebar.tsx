@@ -239,6 +239,9 @@ const DEFAULT_GROUPS: SidebarGroup[] = [
       { to: "/characters", label: "Characters", icon: UsersIcon },
       { to: "/combat-profiles", label: "Combat Profiles", icon: FlagIcon },
       { to: "/interaction-profiles", label: "Interaction Profiles", icon: ChatBubbleLeftRightIcon },
+      { to: "/character-story-profiles", label: "Character Story Profiles", icon: BookOpenIcon },
+      { to: "/character-relationships", label: "Character Relationships", icon: UserGroupIcon },
+      { to: "/character-story-beats", label: "Character Story Beats", icon: ClockIcon },
     ],
   },
   {
