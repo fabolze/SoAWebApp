@@ -81,6 +81,9 @@ class CharacterStoryBeat(Base):
     state_after = Column(Text)
     player_impact = Column(Text)
     world_impact = Column(Text)
+    required_flags = Column(JSON)
+    forbidden_flags = Column(JSON)
+    expected_output_flags = Column(JSON)
     relationship_changes = Column(JSON)
     tags = Column(JSON)
 

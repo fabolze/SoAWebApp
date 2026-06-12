@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from backend.app.models import ALL_MODELS
 from backend.app.models.m_dialogue_nodes import DialogueNode
+from backend.app.models.m_character_narrative import CharacterStoryBeat
 from backend.app.models.m_encounters import Encounter
 from backend.app.models.m_events import Event
 from backend.app.models.m_flags import Flag
@@ -39,6 +40,14 @@ def build_dependency_index(db_session):
 
     for flag in db_session.query(Flag).all():
         node("flag", flag)
+    for beat in db_session.query(CharacterStoryBeat).all():
+        beat_id = node("character_story_beats", beat)
+        for flag_id in beat.required_flags or []:
+            edge(_node_id("flag", flag_id), beat_id, "required_by_beat", True, "required_flags")
+        for flag_id in beat.forbidden_flags or []:
+            edge(_node_id("flag", flag_id), beat_id, "forbidden_by_beat", True, "forbidden_flags")
+        for flag_id in beat.expected_output_flags or []:
+            edge(beat_id, _node_id("flag", flag_id), "expects_to_set", True, "expected_output_flags")
     requirements = db_session.query(Requirement).all()
     for requirement in requirements:
         req_id = node("requirement", requirement)
@@ -145,7 +154,7 @@ def build_dependency_index(db_session):
         visit(start, [start], set())
 
     producers = {entry["target"] for entry in edges if entry["relation"] == "sets"}
-    consumers = {entry["source"] for entry in edges if entry["relation"] in {"required_by", "forbidden_by"}}
+    consumers = {entry["source"] for entry in edges if entry["relation"] in {"required_by", "forbidden_by", "required_by_beat", "forbidden_by_beat"}}
     required_by_req = defaultdict(set)
     forbidden_by_req = defaultdict(set)
     for entry in edges:

@@ -19,6 +19,9 @@
     "state_after": {"type": "string", "ui": {"widget": "textarea", "label": "State After"}},
     "player_impact": {"type": "string", "ui": {"widget": "textarea", "label": "Player Impact"}},
     "world_impact": {"type": "string", "ui": {"widget": "textarea", "label": "World Impact"}},
+    "required_flags": {"type": "array", "items": {"type": "string"}, "ui": {"widget": "multiselect", "reference": "flags", "label": "Required Before"}},
+    "forbidden_flags": {"type": "array", "items": {"type": "string"}, "ui": {"widget": "multiselect", "reference": "flags", "label": "Must Not Be True"}},
+    "expected_output_flags": {"type": "array", "items": {"type": "string"}, "ui": {"widget": "multiselect", "reference": "flags", "label": "Expected After"}},
     "relationship_changes": {"type": "array", "items": {"type": "object"}},
     "tags": {"type": "array", "items": {"type": "string"}, "ui": {"widget": "tags", "label": "Tags"}}
   },

@@ -1,5 +1,5 @@
 from flask import Flask, jsonify
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -8,7 +8,11 @@ from backend.app.models.m_character_narrative import CharacterRelationship, Char
 from backend.app.models.m_characters import Character
 from backend.app.models.m_dialogue_nodes import DialogueNode
 from backend.app.models.m_dialogues import Dialogue
+from backend.app.models.m_flags import Flag, FlagType
+from backend.app.models.m_requirements import Requirement, RequirementForbiddenFlag, RequirementRequiredFlag
 from backend.app.routes import r_export, r_ui_character_studio
+from backend.app.db.init_db import _upgrade_sqlite_schema
+from backend.app.services.dependency_index import build_dependency_index
 
 
 def _client(monkeypatch):
@@ -58,6 +62,9 @@ def _beat():
         "beat_type": "Conflict",
         "sort_order": 0,
         "summary": "The rivalry becomes public.",
+        "required_flags": [],
+        "forbidden_flags": [],
+        "expected_output_flags": [],
         "relationship_changes": [{"relationship_id": "relation-1", "tension": 90, "summary": "Lines are drawn."}],
         "tags": [],
     }
@@ -218,3 +225,89 @@ def test_narrative_tables_export_to_source_but_not_ue(monkeypatch):
     assert "character_id" in source.get_data(as_text=True)
     ue = client.get("/api/export/ue/csv/character_story_profiles")
     assert ue.status_code == 400
+    beat_source = client.get("/api/source/export/csv/character_story_beats")
+    assert "required_flags" in beat_source.get_data(as_text=True)
+    assert "expected_output_flags" in beat_source.get_data(as_text=True)
+    assert client.get("/api/export/ue/csv/character_story_beats").status_code == 400
+
+
+def test_story_beat_flag_validation_normalizes_duplicates_and_rejects_conflicts(monkeypatch):
+    client, Session = _client(monkeypatch)
+    session = Session()
+    session.add(Flag(id="flag-1", slug="flag-1", name="Flag", description="Flag", flag_type=FlagType.StoryProgress))
+    session.commit()
+    session.close()
+    beat = _beat()
+    beat["relationship_changes"] = []
+    beat["required_flags"] = ["flag-1", "flag-1"]
+    payload = {"mode": "individual", "character": _character("char-1", "Primary"), "story_beats": [beat], "deletions": {}}
+
+    response = client.post("/api/ui/character-studio/bundle", json=payload)
+    assert response.status_code == 200
+    assert response.get_json()["packet"]["story_beats"][0]["required_flags"] == ["flag-1"]
+
+    beat["expected_previous"] = response.get_json()["packet"]["story_beats"][0]
+    beat["forbidden_flags"] = ["flag-1"]
+    assert client.post("/api/ui/character-studio/preview", json=payload).status_code == 400
+
+
+def test_story_beat_flag_coverage_scans_nested_runtime_sources_without_mutating_them(monkeypatch):
+    client, Session = _client(monkeypatch)
+    session = Session()
+    session.add_all([
+        Character(**_character("char-1", "Primary")),
+        Flag(id="input", slug="input", name="Input", description="Input", flag_type=FlagType.StoryProgress),
+        Flag(id="forbidden", slug="forbidden", name="Forbidden", description="Forbidden", flag_type=FlagType.StoryProgress),
+        Flag(id="output", slug="output", name="Output", description="Output", flag_type=FlagType.StoryProgress),
+        Flag(id="missing", slug="missing", name="Missing", description="Missing", flag_type=FlagType.StoryProgress),
+        Requirement(id="req-1", slug="req-1", tags=[]),
+        Dialogue(id="dialogue-1", slug="dialogue-1", title="Reveal", requirements_id="req-1", tags=[]),
+    ])
+    session.flush()
+    session.add_all([
+        RequirementRequiredFlag(id="req-required", requirement_id="req-1", flag_id="input"),
+        RequirementForbiddenFlag(id="req-forbidden", requirement_id="req-1", flag_id="forbidden"),
+        DialogueNode(id="node-1", slug="node-1", dialogue_id="dialogue-1", speaker="Boss", text="Truth.", set_flags=[], choices=[{"choice_text": "Listen", "set_flags": ["output"]}], tags=[]),
+        CharacterStoryBeat(
+            id="beat-coverage", character_id="char-1", title="The Reveal", beat_type="Revelation", sort_order=0,
+            dialogue_id="dialogue-1", required_flags=["input"], forbidden_flags=["forbidden"],
+            expected_output_flags=["output", "missing"], relationship_changes=[], tags=[],
+        ),
+    ])
+    session.commit()
+    session.close()
+
+    packet = client.get("/api/ui/character-studio/char-1").get_json()
+    coverage = packet["flag_coverage"]["beat-coverage"]
+    assert coverage["required"]["matched"][0]["flag_id"] == "input"
+    assert coverage["forbidden"]["matched"][0]["flag_id"] == "forbidden"
+    assert coverage["outputs"]["matched"][0]["paths"] == ["nodes[node-1].choices[0].set_flags"]
+    assert coverage["outputs"]["missing"] == ["missing"]
+    assert any("does not implement expected output flag 'missing'" in warning for warning in packet["health"]["warnings"])
+    assert any(edge["relation"] == "expected_after" and edge["metadata"]["implemented"] for edge in packet["graph"]["edges"])
+
+    changed_beat = {**packet["story_beats"][0], "summary": "Authoring annotation only.", "expected_previous": packet["story_beats"][0]}
+    payload = {"mode": "individual", "character": packet["character"], "story_beats": [changed_beat], "deletions": {}}
+    preview = client.post("/api/ui/character-studio/preview", json=payload)
+    assert preview.status_code == 200
+    assert any("does not implement expected output flag 'missing'" in warning for warning in preview.get_json()["health_warnings"])
+    assert preview.get_json()["blockers"] == []
+    assert client.post("/api/ui/character-studio/bundle", json=payload).status_code == 200
+
+    session = Session()
+    assert session.get(DialogueNode, "node-1").choices == [{"choice_text": "Listen", "set_flags": ["output"]}]
+    index = build_dependency_index(session)
+    session.close()
+    assert any(edge["relation"] == "required_by_beat" for edge in index["edges"])
+    assert any(edge["relation"] == "expects_to_set" for edge in index["edges"])
+
+
+def test_sqlite_upgrade_adds_story_beat_flag_columns():
+    engine = create_engine("sqlite://", future=True)
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE character_story_beats (id VARCHAR PRIMARY KEY)"))
+
+    _upgrade_sqlite_schema(engine)
+
+    columns = {column["name"] for column in inspect(engine).get_columns("character_story_beats")}
+    assert {"required_flags", "forbidden_flags", "expected_output_flags"} <= columns

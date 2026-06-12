@@ -12,6 +12,7 @@ from backend.app.models.m_characters import Character
 from backend.app.models.m_dialogues import Dialogue
 from backend.app.models.m_encounters import Encounter
 from backend.app.models.m_events import Event
+from backend.app.models.m_flags import Flag
 from backend.app.models.m_locations import Location
 from backend.app.models.m_quests import Quest
 from backend.app.models.m_story_arcs import StoryArc
@@ -23,6 +24,17 @@ def _require_tags(data):
     if not isinstance(tags, list) or any(not isinstance(tag, str) for tag in tags):
         raise ValueError("tags must be an array of strings")
     return tags
+
+
+def _require_flags(db_session: Session, data: Dict[str, Any], key: str) -> List[str]:
+    values = data.get(key, [])
+    if not isinstance(values, list) or any(not isinstance(value, str) or not value.strip() for value in values):
+        raise ValueError(f"{key} must be an array of flag IDs")
+    normalized = list(dict.fromkeys(value.strip() for value in values))
+    missing = [flag_id for flag_id in normalized if not db_session.get(Flag, flag_id)]
+    if missing:
+        raise ValueError(f"{key} references missing flags: {', '.join(missing)}")
+    return normalized
 
 
 class CharacterStoryProfileRoute(BaseRoute):
@@ -137,6 +149,12 @@ class CharacterStoryBeatRoute(BaseRoute):
             setattr(item, key, data.get(key) or None)
         for key in ["summary", "state_before", "state_after", "player_impact", "world_impact"]:
             setattr(item, key, data.get(key))
+        item.required_flags = _require_flags(db_session, data, "required_flags")
+        item.forbidden_flags = _require_flags(db_session, data, "forbidden_flags")
+        item.expected_output_flags = _require_flags(db_session, data, "expected_output_flags")
+        overlap = set(item.required_flags) & set(item.forbidden_flags)
+        if overlap:
+            raise ValueError(f"flags cannot be both required and forbidden: {', '.join(sorted(overlap))}")
         item.relationship_changes = changes
         item.tags = _require_tags(data)
 

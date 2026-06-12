@@ -49,6 +49,24 @@ test("character starter applies once and reset restores the unsaved bundle", asy
   await expect(page.getByRole("button", { name: "Add Combat Profile" })).toBeVisible();
 });
 
+test("character studio exposes an understandable creation path and editable story beats", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/author/characters/new");
+
+  await expect(page.getByText("Create This Character")).toBeVisible();
+  await page.getByRole("button", { name: /Story Core/ }).click();
+  await expect(page.getByLabel("want")).toBeVisible();
+  await page.getByRole("button", { name: "Add Story Beat" }).click();
+  await page.getByLabel("Beat Title").fill("First Appearance");
+  await page.getByLabel("Beat Type").selectOption("Entrance");
+  await expect(page.getByText("First Appearance")).toBeVisible();
+  await expect(page.getByText("Required Before")).toBeVisible();
+  await expect(page.getByText("Must Not Be True")).toBeVisible();
+  await expect(page.getByText("Expected After")).toBeVisible();
+  await expect(page.getByText(/Link a quest, dialogue, encounter/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save All" })).toBeEnabled();
+});
+
 test("roadmap authoring routes render without replacing rich item authoring", async ({ page }) => {
   await mockApi(page);
   await page.goto("/author/quests");

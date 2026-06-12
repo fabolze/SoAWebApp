@@ -15,9 +15,11 @@ from backend.app.models.m_dialogues import Dialogue
 from backend.app.models.m_encounters import Encounter
 from backend.app.models.m_events import Event
 from backend.app.models.m_factions import Faction
+from backend.app.models.m_flags import Flag
 from backend.app.models.m_interaction_profiles import InteractionProfile
 from backend.app.models.m_locations import Location
 from backend.app.models.m_quests import Quest
+from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_shops import Shop
 from backend.app.models.m_story_arcs import StoryArc
 from backend.app.routes.bundle_validation import bundle_error_response, wrap_bundle_error
@@ -134,7 +136,106 @@ def _presence(db_session, character_id):
     }
 
 
-def _graph(db_session, character, combat, interaction, profile, relationships, beats, presence):
+def _source_for_beat(db_session, beat):
+    for field, kind, model, route in [
+        ("quest_id", "quest", Quest, lambda source_id: f"/author/quests/{source_id}"),
+        ("dialogue_id", "dialogue", Dialogue, lambda source_id: f"/author/dialogues/{source_id}"),
+        ("encounter_id", "encounter", Encounter, lambda source_id: f"/author/encounters/{source_id}"),
+        ("event_id", "event", Event, lambda source_id: f"/events?selected={source_id}"),
+        ("location_id", "location", Location, lambda source_id: f"/author/locations/{source_id}"),
+        ("story_arc_id", "story_arc", StoryArc, lambda source_id: f"/story-arcs?selected={source_id}"),
+    ]:
+        if beat.get(field):
+            return kind, db_session.get(model, beat[field]), route(beat[field])
+    return None, None, None
+
+
+def _flag_paths_for_source(db_session, kind, source):
+    inputs = {"required": defaultdict(list), "forbidden": defaultdict(list)}
+    outputs = defaultdict(list)
+    if not source:
+        return inputs, outputs
+    if kind in {"event", "encounter", "quest", "dialogue"} and getattr(source, "requirements_id", None):
+        requirement = db_session.get(Requirement, source.requirements_id)
+        if requirement:
+            for row in requirement.required_flags:
+                inputs["required"][row.flag_id].append("requirements_id.required_flags")
+            for row in requirement.forbidden_flags:
+                inputs["forbidden"][row.flag_id].append("requirements_id.forbidden_flags")
+    elif kind == "story_arc":
+        for flag_id in source.required_flags or []:
+            inputs["required"][flag_id].append("required_flags")
+    if kind == "event":
+        for flag_id in source.flags_set or []:
+            outputs[flag_id].append("flags_set")
+    elif kind == "encounter":
+        for flag_id in (source.rewards or {}).get("flags_set", []) if isinstance(source.rewards, dict) else []:
+            outputs[flag_id].append("rewards.flags_set")
+    elif kind == "quest":
+        for flag_id in source.flags_set_on_completion or []:
+            outputs[flag_id].append("flags_set_on_completion")
+        for index, objective in enumerate(source.objectives or []):
+            if isinstance(objective, dict):
+                for flag_id in objective.get("flags_set", []) or []:
+                    outputs[flag_id].append(f"objectives[{index}].flags_set")
+    elif kind == "dialogue":
+        for node in db_session.query(DialogueNode).filter_by(dialogue_id=source.id).all():
+            for flag_id in node.set_flags or []:
+                outputs[flag_id].append(f"nodes[{node.id}].set_flags")
+            for index, choice in enumerate(node.choices or []):
+                if isinstance(choice, dict):
+                    for flag_id in choice.get("set_flags", []) or []:
+                        outputs[flag_id].append(f"nodes[{node.id}].choices[{index}].set_flags")
+    return inputs, outputs
+
+
+def _coverage_group(flag_ids, paths):
+    return {
+        "matched": [{"flag_id": flag_id, "paths": paths[flag_id]} for flag_id in flag_ids if paths.get(flag_id)],
+        "missing": [flag_id for flag_id in flag_ids if not paths.get(flag_id)],
+    }
+
+
+def _flag_coverage(db_session, beats):
+    coverage = {}
+    for beat in beats:
+        required = beat.get("required_flags") or []
+        forbidden = beat.get("forbidden_flags") or []
+        outputs = beat.get("expected_output_flags") or []
+        kind, source, route = _source_for_beat(db_session, beat)
+        input_paths, output_paths = _flag_paths_for_source(db_session, kind, source)
+        groups = {
+            "required": _coverage_group(required, input_paths["required"]),
+            "forbidden": _coverage_group(forbidden, input_paths["forbidden"]),
+            "outputs": _coverage_group(outputs, output_paths),
+        }
+        warnings = []
+        if (required or forbidden or outputs) and not source:
+            warnings.append(f"Story beat '{beat.get('title')}' has flag expectations but no source.")
+        if kind == "location" and (required or forbidden):
+            warnings.append(f"Story beat '{beat.get('title')}' uses a location source, which cannot implement input flags.")
+        if kind == "story_arc" and forbidden:
+            warnings.append(f"Story beat '{beat.get('title')}' uses a story arc source, which cannot implement forbidden flags.")
+        if kind in {"location", "story_arc"} and outputs:
+            warnings.append(f"Story beat '{beat.get('title')}' uses a {kind.replace('_', ' ')} source, which cannot implement output flags.")
+        for key, label in [("required", "required"), ("forbidden", "forbidden"), ("outputs", "expected output")]:
+            for flag_id in groups[key]["missing"]:
+                warnings.append(f"Story beat '{beat.get('title')}' source does not implement {label} flag '{flag_id}'.")
+        coverage[beat["id"]] = {
+            "beat_id": beat["id"],
+            "source": {"kind": kind, "id": source.id, "route": route} if source else None,
+            **groups,
+            "implementation_paths": {
+                flag_id: paths
+                for paths_by_category in [input_paths["required"], input_paths["forbidden"], output_paths]
+                for flag_id, paths in paths_by_category.items()
+            },
+            "warnings": warnings,
+        }
+    return coverage
+
+
+def _graph(db_session, character, combat, interaction, profile, relationships, beats, presence, flag_coverage):
     nodes = {}
     edges = []
 
@@ -188,6 +289,20 @@ def _graph(db_session, character, combat, interaction, profile, relationships, b
             if source_id:
                 model = {"quest": Quest, "dialogue": Dialogue, "encounter": Encounter, "event": Event, "location": Location, "story_arc": StoryArc}[kind]
                 edge(beat_node, add_node(kind, db_session.get(model, source_id)), "references", True, True, field)
+        coverage = flag_coverage.get(beat["id"], {})
+        for field, relation, direction, group in [
+            ("required_flags", "required_before", "input", "required"),
+            ("forbidden_flags", "forbidden_before", "input", "forbidden"),
+            ("expected_output_flags", "expected_after", "output", "outputs"),
+        ]:
+            matched = {row["flag_id"]: row["paths"] for row in coverage.get(group, {}).get("matched", [])}
+            for flag_id in beat.get(field) or []:
+                flag_node = add_node("flag", db_session.get(Flag, flag_id))
+                metadata = {"direction": direction, "implemented": flag_id in matched, "implementation_paths": matched.get(flag_id, [])}
+                if direction == "output":
+                    edge(beat_node, flag_node, relation, True, True, field, metadata)
+                else:
+                    edge(flag_node, beat_node, relation, True, True, field, metadata)
     # Shared encounter proximity is useful but not a canonical social relationship.
     for encounter in presence["encounters"]:
         for participant in encounter.get("participants", []) or []:
@@ -197,7 +312,7 @@ def _graph(db_session, character, combat, interaction, profile, relationships, b
     return {"nodes": list(nodes.values()), "edges": edges}
 
 
-def _health(character, combat, interaction, profile, relationships, beats, presence):
+def _health(character, combat, interaction, profile, relationships, beats, presence, flag_coverage):
     blockers = []
     warnings = []
     if not character.get("name"):
@@ -219,6 +334,7 @@ def _health(character, combat, interaction, profile, relationships, beats, prese
     for beat in beats:
         if not any(beat.get(key) for key in ["quest_id", "dialogue_id", "encounter_id", "event_id", "location_id", "story_arc_id"]):
             warnings.append(f"Story beat '{beat.get('title')}' has no source content.")
+        warnings.extend(flag_coverage.get(beat["id"], {}).get("warnings", []))
     if interaction and _enum_value(interaction.get("role")) == "Questgiver" and not interaction.get("available_quests"):
         warnings.append("Quest giver offers no quests.")
     if combat and not presence["encounters"]:
@@ -255,6 +371,7 @@ def _catalogs(db_session):
         "characterclasses": [_compact(row) for row in db_session.query(CharacterClass).all()],
         "events": [_compact(row) for row in db_session.query(Event).all()],
         "story_arcs": [_compact(row) for row in db_session.query(StoryArc).all()],
+        "flags": [_compact(row) for row in db_session.query(Flag).all()],
     }
 
 
@@ -275,6 +392,7 @@ def _packet(db_session, character):
     interaction = _columns(interaction_model)
     profile = _columns(profile_model)
     presence = _presence(db_session, character.id)
+    flag_coverage = _flag_coverage(db_session, beats)
     return {
         "navigator": _navigator(db_session),
         "character": character_data,
@@ -284,9 +402,10 @@ def _packet(db_session, character):
         "relationships": relationships,
         "story_beats": beats,
         "world_presence": presence,
-        "graph": _graph(db_session, character_data, combat, interaction, profile, relationships, beats, presence),
+        "graph": _graph(db_session, character_data, combat, interaction, profile, relationships, beats, presence, flag_coverage),
         "catalogs": _catalogs(db_session),
-        "health": _health(character_data, combat, interaction, profile, relationships, beats, presence),
+        "health": _health(character_data, combat, interaction, profile, relationships, beats, presence, flag_coverage),
+        "flag_coverage": flag_coverage,
         "unplaced_presence": _unplaced(presence, beats),
     }
 
@@ -497,7 +616,22 @@ def _reconcile(db_session, payload, commit):
     if commit and blockers:
         abort(400, description=blockers[0])
     db_session.flush()
-    return {"review": review, "warnings": warnings, "blockers": blockers, "selected_character_ids": list(allowed_ids)}
+    selected_beats = [
+        _columns(beat) for beat in db_session.query(CharacterStoryBeat).all()
+        if beat.character_id in allowed_ids
+    ]
+    health_warnings = [
+        warning
+        for coverage in _flag_coverage(db_session, selected_beats).values()
+        for warning in coverage["warnings"]
+    ]
+    return {
+        "review": review,
+        "warnings": warnings,
+        "health_warnings": health_warnings,
+        "blockers": blockers,
+        "selected_character_ids": list(allowed_ids),
+    }
 
 
 @bp.post("/api/ui/character-studio/preview")

@@ -197,6 +197,12 @@ def _upgrade_sqlite_schema(active_engine) -> None:
                 if "speaker_character_id" not in dialogue_node_columns:
                     connection.execute(text("ALTER TABLE dialogue_nodes ADD COLUMN speaker_character_id VARCHAR"))
 
+            if "character_story_beats" in table_names:
+                beat_columns = {column["name"] for column in inspector.get_columns("character_story_beats")}
+                for column in ("required_flags", "forbidden_flags", "expected_output_flags"):
+                    if column not in beat_columns:
+                        connection.execute(text(f"ALTER TABLE character_story_beats ADD COLUMN {column} JSON"))
+
             if "ability_effect_links" in table_names:
                 link_columns = {column["name"] for column in inspector.get_columns("ability_effect_links")}
                 additive_link_columns = {
