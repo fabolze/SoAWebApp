@@ -7,6 +7,8 @@ export interface EditorDatasetConfig {
 
 export const EDITOR_DATASETS: EditorDatasetConfig[] = [
   { schemaName: "abilities", apiPath: "abilities", routePath: "abilities", label: "Abilities" },
+  { schemaName: "adventure_beats", apiPath: "adventure-beats", routePath: "adventure-beats", label: "Adventure Beats" },
+  { schemaName: "adventure_beat_links", apiPath: "adventure-beat-links", routePath: "adventure-beat-links", label: "Adventure Beat Links" },
   { schemaName: "attributes", apiPath: "attributes", routePath: "attributes", label: "Attributes" },
   { schemaName: "effects", apiPath: "effects", routePath: "effects", label: "Effects" },
   { schemaName: "characterclasses", apiPath: "characterclasses", routePath: "characterclasses", label: "Character Classes" },

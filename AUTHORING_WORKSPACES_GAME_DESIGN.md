@@ -28,7 +28,7 @@ The status index is the only place that records delivery status. When a new auth
 
 ## Workspace Status
 
-Last reviewed: 2026-06-10
+Last reviewed: 2026-06-15
 
 | Workspace | Status |
 |---|---|
@@ -40,7 +40,8 @@ Last reviewed: 2026-06-10
 | Item Ecosystem And Item Forge | Implemented MVP; future work can deepen fantasy, provenance, families, and progression |
 | Creature Workshop | Planned; Character Creator already covers much of the existing character/combat/interaction bundle |
 | Ability Spellcraft Lab | Implemented expanded lab with trace bench, lifecycle workshop, variants, relationships, and contextual testing |
-| Adventure Dependency Map And Adventure Board | Dependency Map initial MVP; full playable-slice Adventure Board is future vision |
+| Story Timeline And Adventure Board | Interactive MVP implemented with scoped lanes, lenses, drag/drop local planning, canonical adventure beats/typed links, and preview/commit |
+| Adventure Dependency Map | Dependency Map initial MVP |
 
 The workspace descriptions below contain both current-model implementation contracts and future-facing design. A feature is not implemented merely because it appears in this document; the status table is authoritative.
 
@@ -828,7 +829,96 @@ Contextual tests and rhythm timelines are interpretations of current simulation 
 
 ---
 
-## Adventure Dependency Map And Adventure Board
+## Story Timeline And Adventure Board
+
+### Creative North Star
+
+The writer arranges the playable story as a clear horizontal journey, places major story beats inside arcs, and attaches the locations, cast, quests, dialogue, encounters, events, state changes, and rewards that implement each beat.
+
+The Story Timeline answers **when does this matter?** The Adventure Dependency Map answers **what makes this possible and what changes afterward?** These are connected views of the same authored game, but they must not collapse into one unreadable graph.
+
+The future Adventure Board should let authors assemble and evaluate a complete playable slice such as a first hour, village region, dungeon delve, faction chapter, companion recruitment arc, or full main-story spine.
+
+### Canvas
+
+The main canvas is a horizontally ordered story spine:
+
+- **Timeline Bands:** world-history eras or playable-story timelines.
+- **Arc Bands:** intro, main-story chapters, side arcs, faction arcs, and other authored groupings.
+- **Story Beats:** placement anchors representing introductions, discoveries, decisions, conflicts, reversals, climaxes, recovery, and payoff.
+- **Typed Beat Trays:** setting, cast, player journey, runtime moments, state, rewards, and references.
+- **Unplaced Library:** relevant existing content that has not yet been attached to a story beat.
+
+Semantic zoom keeps the board readable. Overview shows timelines, arcs, and major beats. Board view shows beat cards and important attachments. Detail view opens the selected beat's complete context packet.
+
+### Current-Model Implementation
+
+The current model now owns deliberate cross-domain `adventure_beats` and typed `adventure_beat_links`. The interactive workspace is available at `/author/story-timeline`; `/api/ui/adventure-timeline` remains the read aggregation contract, while rollback-only `/api/ui/adventure-timeline/preview` and atomic `/api/ui/adventure-timeline/bundle` promote reviewed local plans into canonical records.
+
+It exposes current ordering and relationships without inventing a global sequence:
+
+| Current Data | Timeline Reading |
+|---|---|
+| `timelines` and `story_arcs.timeline_id` | Timeline and arc bands |
+| Ordered `story_arcs.related_quests` | Canonical quest placements inside an arc lane |
+| `character_story_beats.sort_order` | Canonical ordering inside a character-presence lane |
+| Character story-beat source references | Existing content attached to a character beat |
+| `events.next_event_id` and event content references | Runtime event chains and implementation attachments |
+| Dependency index edges | Explicit and inferred prerequisite, state, branch, and unlock context |
+| `adventure_beats.sort_order` | Canonical beat order inside an arc, timeline, or unassigned planning scope |
+| Typed `adventure_beat_links` | Canonical setting, cast, player-journey, runtime, state, reward, and reference attachments |
+
+The aggregator explicitly separates canonical placements, runtime event chains, unplaced content, and inferred dependency relationships. It does not save visual positions or claim that current records form one canonical player path.
+
+### Lenses
+
+- **Story:** arcs, major beats, introductions, escalations, and payoffs.
+- **Cast:** character entrances, presence, decisions, reactions, and exits.
+- **Locations:** where beats happen and when important places first become relevant.
+- **Quests:** ordered arc quests, objectives, entry points, and aftermath.
+- **Runtime:** events, dialogue, encounters, and implementation coverage.
+- **State:** requirements, flags, branches, and unlocks.
+- **Issues:** contradictory placement, missing implementation, broken references, and unplaced important content.
+
+### Living Canvas Application
+
+- **Canonical Save Gestures:** review and commit local planning beats as one atomic `adventure_beats` and `adventure_beat_links` bundle. Existing arc quest order and character story-beat order remain editable through their owning workspaces.
+- **Local Creative Tools:** drag existing content into proposed beat trays; move hypothetical story beats; focus by arc, location, character, quest, or issue; preview dependency context; frame a playable slice.
+- **Future Canonical Expansion:** direct canonical beat reordering/editing, playable-story timeline kinds, optional and failure paths, pacing targets, promises, payoffs, and knowledge state.
+
+Story Timeline arrangements remain local planning state until the author reviews and commits them. Commit creates canonical adventure beats and typed links without rewriting the linked records.
+
+### Future Expansion
+
+- Add direct editing and reordering of already-canonical `adventure_beats` and `adventure_beat_links` on the canvas.
+- Drag locations, characters, quests, events, dialogue, encounters, lore, and rewards onto typed beat trays.
+- Compare critical, optional, completionist, and failure-aware story paths.
+- Evaluate pacing, content density, novelty, recovery, promises, payoffs, and implementation coverage.
+- Step through a playable slice while watching state, character presence, world access, and available content change.
+
+### Context Packet
+
+- Selected timeline, arc, and neighboring placements.
+- Beat intent, summary, and current implementation source.
+- Attached or nearby locations, characters, quests, events, dialogue, encounters, lore, and rewards.
+- Required, forbidden, expected, and actually implemented state changes.
+- Explicit and inferred dependency relationships.
+- Unplaced related content and coherence warnings.
+
+### Health Questions
+
+- Does every major beat have a clear dramatic or player-facing purpose?
+- Are important locations and characters introduced before they become essential?
+- Are arc quests ordered coherently relative to their gates and consequences?
+- Do authored character beats agree with the wider story context?
+- Are important runtime events attached to an understandable story moment?
+- Does each arc establish, escalate, and resolve something?
+- Are important promises paid off later?
+- Is relevant content unplaced, duplicated, contradictory, or missing implementation?
+
+---
+
+## Adventure Dependency Map
 
 ### Creative North Star
 
@@ -836,7 +926,7 @@ The designer sees what changes the world: which flags are produced, which conten
 
 This is the cross-domain workspace that current schemas support most honestly. It should not pretend to be a complete narrative timeline.
 
-The future Adventure Board should let authors assemble and evaluate a complete playable slice such as a first hour, village region, dungeon delve, faction chapter, or companion recruitment arc.
+The Story Timeline and Adventure Board provide the ordered playable-slice view. This workspace remains the causal and state-focused companion.
 
 ### Canvas
 
@@ -971,6 +1061,7 @@ They may appear as prompts, inferred views, local planning notes, or generated s
 | Encounter Stage | Place participants by side/context, edit rewards, show simulation and placements |
 | Item Ecosystem | Show all sources, add item to source/reward, compare price/power/scarcity |
 | Quest Journey Board | Reorder objectives, edit gates/flags/rewards, show quest givers and aftermath |
+| Story Timeline And Adventure Board | Arrange scoped story lanes, attach cross-domain content, review local plans, and commit canonical adventure beats without inventing a global sequence |
 | Adventure Dependency Map | Trace flags through requirements to gated content, show impossible/dead state |
 | Ability Spellcraft Lab | Compose trigger, target, effects, scaling, cost, and simulation |
 | Creature Workshop | Focused enemy creator with move kit, spoils, habitat, comparison, and health |

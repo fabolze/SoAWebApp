@@ -29,11 +29,12 @@ Working:
 - Item, shop, Character Studio, location, atlas, and World Builder authoring.
 - Dialogue Flow Room with graph editing, atomic bundle save, health analysis, local drafts/layout, and playthrough.
 - Encounter Stage, Item Ecosystem, Quest Journey Board, Adventure Dependency Map, and Ability Spellcraft Lab.
+- Interactive Story Timeline and Adventure Board with scoped canonical lanes, focused lenses, drag/drop local planning, typed attachments, preview, and atomic commit to canonical adventure beats.
 - Project Health, deterministic local authoring helpers, and heuristic simulation.
 
 Planned but not implemented:
 
-- Focused Creature Workshop and deeper expansions of the implemented authoring workspaces.
+- Direct editing/reordering of already-canonical adventure beats on the Story Timeline canvas, focused Creature Workshop, and deeper expansions of the implemented authoring workspaces.
 
 Important limitations:
 
@@ -54,6 +55,7 @@ Use immersive Author Views for normal content entry when available:
 - `/author/world`
 - `/author/dialogues`, `/author/dialogues/new`, and `/author/dialogues/<id>`
 - `/author/encounters`, `/author/encounters/new`, and `/author/encounters/<id>`
+- `/author/story-timeline` for scoped story lanes, drag/drop planning, typed links, and canonical bundle review
 
 The Dialogue Flow Room supports Select, Sketch, Connect, and Move modes. It edits dialogues and their node graph together, reports broken or ambiguous paths, restores local unsaved drafts, and can play through requirements, flags, and temporary faction-reputation overrides.
 

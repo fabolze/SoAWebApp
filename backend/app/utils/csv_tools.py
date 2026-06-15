@@ -44,6 +44,8 @@ AUTHORING_ONLY_TABLES = {
     "character_story_profiles",
     "character_relationships",
     "character_story_beats",
+    "adventure_beats",
+    "adventure_beat_links",
 }
 
 

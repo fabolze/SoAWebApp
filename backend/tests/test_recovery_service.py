@@ -43,6 +43,26 @@ def test_world_building_recovery_tables_follow_dependencies():
     assert position["location_creative_briefs"] > position["locations"]
 
 
+def test_adventure_narrative_recovery_tables_follow_dependencies():
+    ordered, _unordered = recovery.ordered_tables({
+        "flags",
+        "timelines",
+        "story_arcs",
+        "locations",
+        "events",
+        "adventure_beats",
+        "adventure_beat_links",
+    })
+    position = {table: index for index, table in enumerate(ordered)}
+
+    assert position["adventure_beats"] > position["flags"]
+    assert position["adventure_beats"] > position["timelines"]
+    assert position["adventure_beats"] > position["story_arcs"]
+    assert position["adventure_beat_links"] > position["adventure_beats"]
+    assert position["adventure_beat_links"] > position["locations"]
+    assert position["adventure_beat_links"] > position["events"]
+
+
 def test_collect_csv_paths_normalizes_seed_and_source_suffixes(tmp_path: Path):
     (tmp_path / "items_seed.csv").write_text("id\n", encoding="utf-8")
     (tmp_path / "stats.source.csv").write_text("id\n", encoding="utf-8")

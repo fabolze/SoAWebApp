@@ -54,16 +54,19 @@ If/when you add NPC/enemy gameplay CSVs:
 22) shops_inventory
 23) timelines
 24) story_arcs
-25) lore_entries
-26) quests
-27) dialogues
-28) dialogue_nodes
-29) encounters
-30) events
-31) location_pois (after locations, requirements, events, dialogues, encounters, items)
-32) location_encounter_tables (after locations, requirements, encounters)
-33) route_event_bindings (after location_routes, events, requirements)
-34) location_creative_briefs (after locations)
+25) adventure_beats
+26) lore_entries
+27) quests
+28) dialogues
+29) dialogue_nodes
+30) encounters
+31) events
+32) character_story_beats
+33) adventure_beat_links (after adventure_beats and every linked target table)
+34) location_pois (after locations, requirements, events, dialogues, encounters, items)
+35) location_encounter_tables (after locations, requirements, encounters)
+36) route_event_bindings (after location_routes, events, requirements)
+37) location_creative_briefs (after locations)
 
 General rule for new CSV files (going forward)
 ----------------------------------------------
@@ -89,4 +92,6 @@ Quick dependency examples
 - ability_relations depends on: abilities
 - ability_effect_links depends on: abilities and effects
 - encounters depends on: characters (+ combat_profiles for Combat context)
+- adventure_beats depends on: timelines/story_arcs and flags (optional)
+- adventure_beat_links depends on: adventure_beats and the target selected by target_type
 

@@ -247,6 +247,8 @@ const DEFAULT_GROUPS: SidebarGroup[] = [
   {
     label: "Narrative",
     items: [
+      { to: "/adventure-beats", label: "Adventure Beats", icon: ClockIcon },
+      { to: "/adventure-beat-links", label: "Adventure Beat Links", icon: ClipboardDocumentListIcon },
       { to: "/dialogue-nodes", label: "Dialogue Nodes", icon: ChatBubbleLeftRightIcon },
       { to: "/dialogues", label: "Dialogues", icon: ChatBubbleLeftRightIcon },
       { to: "/quests", label: "Quests", icon: DocumentTextIcon },

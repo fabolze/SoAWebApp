@@ -3,6 +3,7 @@ import {
   BuildingStorefrontIcon,
   ChatBubbleLeftRightIcon,
   ClipboardDocumentListIcon,
+  ClockIcon,
   CubeIcon,
   DocumentTextIcon,
   MapIcon,
@@ -116,6 +117,14 @@ export const AUTHORING_MODES: readonly AuthoringModeConfig[] = [
     description: "Compose trigger, reach, payload, scaling, cadence, effects, statuses, and test-bench feedback together.",
     supportedEntities: ["abilities", "effects", "statuses", "stats", "requirements", "combat_profiles"],
     icon: SparklesIcon,
+  },
+  {
+    id: "story-timeline",
+    route: "/author/story-timeline",
+    label: "Story Timeline",
+    description: "Arrange scoped story order, attach cross-domain content, and deliberately promote reviewed plans without inventing a global sequence.",
+    supportedEntities: ["adventure_beats", "adventure_beat_links", "timelines", "story_arcs", "quests", "character_story_beats", "events", "locations", "characters", "dialogues", "encounters", "lore_entries", "items", "factions", "flags"],
+    icon: ClockIcon,
   },
   {
     id: "dependency-map",

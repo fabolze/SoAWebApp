@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Adventure Beat Link",
+  "type": "object",
+  "properties": {
+    "id": {"type": "string", "ui": {"widget": "hidden"}},
+    "adventure_beat_id": {"type": "string", "ui": {"widget": "reference", "reference": "adventure-beats", "label": "Adventure Beat"}},
+    "target_type": {
+      "type": "string",
+      "enum": ["location", "character", "quest", "event", "dialogue", "encounter", "lore_entry", "item", "faction", "story_arc"]
+    },
+    "target_id": {"type": "string", "description": "ID from the table selected by Target Type."},
+    "role": {
+      "type": "string",
+      "enum": ["setting", "cast", "player_journey", "runtime", "state", "reward", "reference"]
+    },
+    "sort_order": {"type": "integer"},
+    "notes": {"type": "string", "ui": {"widget": "textarea"}},
+    "tags": {"type": "array", "items": {"type": "string"}, "ui": {"widget": "tags", "label": "Tags"}}
+  },
+  "required": ["id", "adventure_beat_id", "target_type", "target_id", "role", "sort_order"]
+}

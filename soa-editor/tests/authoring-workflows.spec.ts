@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 import { AUTHORING_MODES } from "../src/config/authoringModes";
 
 const emptyWorld = {
@@ -81,6 +81,57 @@ test("roadmap authoring routes render without replacing rich item authoring", as
   await expect(page.getByRole("heading", { name: "Quest Journey Board" })).toBeVisible();
   await page.goto("/author/dependencies");
   await expect(page.getByRole("heading", { name: "Adventure Dependency Map" })).toBeVisible();
+  await page.goto("/author/story-timeline");
+  await expect(page.getByRole("heading", { name: "Story Timeline & Adventure Board" })).toBeVisible();
+});
+
+test("story timeline sketches and restores local planning beats through drag and drop", async ({ page }) => {
+  await mockStoryTimelineApi(page);
+  await page.goto("/author/story-timeline");
+
+  await expect(page.getByTestId("timeline-band-timeline-1")).toBeVisible();
+  await expect(page.getByTestId("canonical-placement-arc-quest:arc-1:quest-1")).toContainText("Arrival");
+  await expect(page.getByTestId("canonical-placement-character-story-beat:beat-1")).toContainText("Guide Welcomes The Player");
+  await expect(page.getByTestId("canonical-placement-adventure-beat:adventure-beat-1")).toContainText("Enter The First City");
+
+  await dragWithPointer(page, page.getByRole("button", { name: "Drag to timeline" }).first(), page.getByTestId("story-arc-lane-arc-1"));
+  const localBeat = page.locator('[data-testid^="local-planning-beat-"]').first();
+  await expect(localBeat).toContainText("First City");
+  await expect(page.getByTestId("story-timeline-context-dock").getByLabel("Title")).toHaveValue("First City");
+
+  await page.locator("select").filter({ has: page.locator('option[value="events"]') }).selectOption("events");
+  await page.getByRole("button", { name: "Attach to Selected Beat" }).click();
+  await expect(page.getByTestId("story-timeline-context-dock")).toContainText("runtime / event");
+  await expect(page.getByTestId("story-timeline-context-dock")).toContainText("Welcome Event");
+
+  await page.reload();
+  await expect(page.locator('[data-testid^="local-planning-beat-"]').first()).toContainText("First City");
+  await page.getByRole("button", { name: "Clear Local Plan" }).click();
+  await expect(page.locator('[data-testid^="local-planning-beat-"]')).toHaveCount(0);
+});
+
+test("story timeline previews and commits local beats as one canonical bundle", async ({ page }) => {
+  let saved: Record<string, unknown> | null = null;
+  await mockStoryTimelineApi(page, async (payload, route) => {
+    saved = payload;
+    await fulfillJson(route, { result: { review: { created: [], changed: [], deleted: [] }, warnings: [], blockers: [] }, packet: storyTimelinePacket });
+  });
+  await page.goto("/author/story-timeline");
+
+  await dragWithPointer(page, page.getByRole("button", { name: "Drag to timeline" }).first(), page.getByTestId("story-arc-lane-arc-1"));
+  await page.getByLabel("Beat Type").selectOption("Introduction");
+  await page.getByRole("button", { name: "Review & Commit Plan" }).click();
+  await expect(page.getByTestId("story-timeline-plan-review")).toContainText("2 created");
+  await page.getByTestId("story-timeline-plan-review").getByRole("button", { name: "Commit Plan", exact: true }).click();
+
+  await expect.poll(() => saved).not.toBeNull();
+  const beats = saved?.adventure_beats as Array<Record<string, unknown>>;
+  const links = saved?.adventure_beat_links as Array<Record<string, unknown>>;
+  expect(beats[0].beat_type).toBe("Introduction");
+  expect(beats[0].story_arc_id).toBe("arc-1");
+  expect(links[0].target_type).toBe("location");
+  expect(links[0].role).toBe("setting");
+  await expect(page.locator('[data-testid^="local-planning-beat-"]')).toHaveCount(0);
 });
 
 test("home and sidebar expose every specialized authoring workspace", async ({ page }) => {
@@ -262,6 +313,94 @@ async function mockDialogueApi(page: Page, onBundle?: (payload: Record<string, u
     if (url.pathname === "/api/characters") return fulfillJson(route, dialoguePacket.characters);
     return fulfillJson(route, []);
   });
+}
+
+const storyTimelinePacket = {
+  meta: { read_only: true, canonical_global_sequence: false },
+  timelines: [{ id: "timeline-1", slug: "main-story", name: "Main Story", description: "The playable story.", story_arc_ids: ["arc-1"], tags: [] }],
+  story_arcs: [{
+    id: "arc-1", slug: "city-arc", title: "The First City", summary: "Reach and defend the city.", type: "Main Story",
+    timeline_id: "timeline-1", ordered_quest_ids: ["quest-1"], character_story_beat_ids: ["beat-1"], adventure_beat_ids: ["adventure-beat-1"], related_quests: ["quest-1"], tags: [],
+  }],
+  placements: [
+    {
+      id: "arc-quest:arc-1:quest-1", kind: "quest", entry_id: "quest-1", label: "Arrival", timeline_id: "timeline-1",
+      story_arc_id: "arc-1", lane_id: "story_arc:arc-1", order: 0, ordering_source: "story_arcs.related_quests",
+      placement_basis: "explicit", canonical_order: true,
+    },
+    {
+      id: "character-story-beat:beat-1", kind: "character_story_beat", entry_id: "beat-1", label: "Guide Welcomes The Player",
+      timeline_id: "timeline-1", story_arc_id: "arc-1", lane_id: "character:char-1", order: 0,
+      ordering_source: "character_story_beats.sort_order", placement_basis: "story_arc_id", canonical_order: true,
+      character: { kind: "character", entry_id: "char-1", label: "Guide" },
+      source: { kind: "event", entry_id: "event-1", label: "Welcome Event" },
+    },
+    {
+      id: "adventure-beat:adventure-beat-1", kind: "adventure_beat", entry_id: "adventure-beat-1", label: "Enter The First City",
+      timeline_id: "timeline-1", story_arc_id: "arc-1", lane_id: "story_arc:arc-1", order: 0,
+      ordering_source: "adventure_beats.sort_order", placement_basis: "explicit", canonical_order: true, beat_type: "Introduction",
+      attachments: [{ id: "adventure-link-1", target_type: "location", target_id: "location-1", role: "setting", label: "First City" }],
+    },
+  ],
+  event_chains: [{
+    event_id: "event-1", label: "Welcome Event", previous_event_ids: [], next_event_id: "",
+    referenced_by_story_beat_ids: ["beat-1"], attachments: { location_id: "location-1", dialogue_id: "dialogue-1" },
+  }],
+  relationships: [
+    { id: "event:event-1>occurs_at>location:location-1", source: "event:event-1", target: "location:location-1", relation: "occurs_at", explicit: true },
+  ],
+  unplaced: { story_arc_ids: [], quest_ids: [], event_ids: [], character_story_beat_ids: [], adventure_beat_ids: [] },
+  catalogs: {
+    quests: [{ id: "quest-1", title: "Arrival", description: "Reach the city." }],
+    events: [{ id: "event-1", title: "Welcome Event", location_id: "location-1", dialogue_id: "dialogue-1" }],
+    character_story_beats: [{ id: "beat-1", title: "Guide Welcomes The Player", character_id: "char-1", event_id: "event-1" }],
+    adventure_beats: [{ id: "adventure-beat-1", title: "Enter The First City", story_arc_id: "arc-1", beat_type: "Introduction" }],
+    adventure_beat_links: [{ id: "adventure-link-1", adventure_beat_id: "adventure-beat-1", target_type: "location", target_id: "location-1", role: "setting" }],
+    characters: [{ id: "char-1", name: "Guide" }],
+    locations: [{ id: "location-1", name: "First City" }],
+    dialogues: [{ id: "dialogue-1", title: "Welcome" }],
+    encounters: [],
+    lore_entries: [],
+  },
+  dependency_index: { nodes: [], edges: [{ id: "quest:quest-1>unlocks>event:event-1", source: "quest:quest-1", target: "event:event-1", relation: "unlocks", explicit: false }], health: {} },
+  health: { warnings: [], dependency: {} },
+};
+
+async function mockStoryTimelineApi(page: Page, onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>) {
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimelinePacket);
+    if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      const beats = payload.adventure_beats as Array<Record<string, unknown>>;
+      const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, {
+        review: {
+          created: [...beats.map((beat) => ({ table: "adventure_beats", id: beat.id })), ...links.map((link) => ({ table: "adventure_beat_links", id: link.id }))],
+          changed: [],
+          deleted: [],
+        },
+        warnings: [],
+        blockers: [],
+      });
+    }
+    if (url.pathname === "/api/ui/adventure-timeline/bundle" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      if (onBundle) return onBundle(payload, route);
+      return fulfillJson(route, { result: { review: { created: [], changed: [], deleted: [] }, warnings: [], blockers: [] }, packet: storyTimelinePacket });
+    }
+    return fulfillJson(route, []);
+  });
+}
+
+async function dragWithPointer(page: Page, source: Locator, target: Locator) {
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  if (!sourceBox || !targetBox) throw new Error("Drag source or target is not visible.");
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 12 });
+  await page.mouse.up();
 }
 
 test("dialogue flow sketches, connects, and saves a complete bundle", async ({ page }) => {

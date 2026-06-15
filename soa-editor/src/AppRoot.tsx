@@ -4,6 +4,8 @@ import Layout from "./components/Layout";
 import { DirtyStateProvider } from "./components/DirtyStateContext";
 import { EditorStackProvider } from "./components/EditorStack";
 import AbilitiesEditorPage from "./pages/AbilitiesEditor";
+import AdventureBeatLinksEditorPage from "./pages/AdventureBeatLinksEditor";
+import AdventureBeatsEditorPage from "./pages/AdventureBeatsEditor";
 import AttributesEditorPage from "./pages/AttributesEditor";
 import CharacterClassesEditorPage from "./pages/CharacterClassesEditor";
 import CharactersEditorPage from "./pages/CharactersEditor";
@@ -58,6 +60,7 @@ const LocationAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAutho
 const LocationMapAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.LocationMapAuthoringPage })));
 const ShopAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.ShopAuthoringPage })));
 const AbilitySpellcraftLabPage = lazy(() => import("./pages/AbilitySpellcraftLabPage"));
+const StoryTimelinePage = lazy(() => import("./pages/StoryTimelinePage"));
 
 const SIDEBAR_COLLAPSED_KEY = "soa.sidebar.collapsed";
 
@@ -89,6 +92,8 @@ export default function AppRoot() {
             >
               <Route index element={<IndexPageEditorPage />} />
               <Route path="abilities" element={<AbilitiesEditorPage />} />
+              <Route path="adventure-beats" element={<AdventureBeatsEditorPage />} />
+              <Route path="adventure-beat-links" element={<AdventureBeatLinksEditorPage />} />
               <Route path="attributes" element={<AttributesEditorPage />} />
               <Route path="effects" element={<EffectsEditorPage />} />
               <Route path="characterclasses" element={<CharacterClassesEditorPage />} />
@@ -128,6 +133,7 @@ export default function AppRoot() {
               <Route path="author/quests/new" element={<QuestJourneyPage />} />
               <Route path="author/quests/:id" element={<QuestJourneyPage />} />
               <Route path="author/dependencies" element={<DependencyMapPage />} />
+              <Route path="author/story-timeline" element={<StoryTimelinePage />} />
               <Route path="author/abilities" element={<AbilitySpellcraftLabPage />} />
               <Route path="author/abilities/new" element={<AbilitySpellcraftLabPage />} />
               <Route path="author/abilities/:id" element={<AbilitySpellcraftLabPage />} />

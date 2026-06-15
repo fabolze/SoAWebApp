@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Adventure Beat",
+  "type": "object",
+  "properties": {
+    "id": {"type": "string", "ui": {"widget": "hidden"}},
+    "slug": {"type": "string", "description": "Stable authored identifier."},
+    "title": {"type": "string"},
+    "summary": {"type": "string", "ui": {"widget": "textarea"}},
+    "beat_type": {
+      "type": "string",
+      "enum": ["Hook", "Introduction", "Discovery", "Decision", "Conflict", "Revelation", "Reversal", "Climax", "Recovery", "Payoff", "Other"]
+    },
+    "timeline_id": {"type": "string", "ui": {"widget": "reference", "reference": "timelines", "label": "Timeline"}},
+    "story_arc_id": {"type": "string", "ui": {"widget": "reference", "reference": "story-arcs", "label": "Story Arc"}},
+    "sort_order": {"type": "integer", "description": "Order within the selected story arc or timeline."},
+    "intent": {"type": "string", "ui": {"widget": "textarea"}, "description": "What this beat must accomplish for the player or story."},
+    "required_flags": {"type": "array", "items": {"type": "string"}, "ui": {"widget": "multiselect", "reference": "flags", "label": "Required Before"}},
+    "forbidden_flags": {"type": "array", "items": {"type": "string"}, "ui": {"widget": "multiselect", "reference": "flags", "label": "Must Not Be True"}},
+    "expected_output_flags": {"type": "array", "items": {"type": "string"}, "ui": {"widget": "multiselect", "reference": "flags", "label": "Expected After"}},
+    "tags": {"type": "array", "items": {"type": "string"}, "ui": {"widget": "tags", "label": "Tags"}}
+  },
+  "required": ["id", "slug", "title", "beat_type", "sort_order"]
+}

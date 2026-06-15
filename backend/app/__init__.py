@@ -18,6 +18,10 @@ from backend.app.routes.r_character_narrative import (
     story_beats_bp as character_story_beats_bp,
     story_profiles_bp as character_story_profiles_bp,
 )
+from backend.app.routes.r_adventure_narrative import (
+    adventure_beat_links_bp,
+    adventure_beats_bp,
+)
 from backend.app.routes.r_combat_profiles import bp as combat_profiles_bp
 from backend.app.routes.r_dialogues import bp as dialogues_bp
 from backend.app.routes.r_encounters import bp as encounters_bp
@@ -62,6 +66,7 @@ from backend.app.routes.r_ui_item_ecosystem import bp as ui_item_ecosystem_bp
 from backend.app.routes.r_ui_quests import bp as ui_quests_bp
 from backend.app.routes.r_ui_dependencies import bp as ui_dependencies_bp
 from backend.app.routes.r_ui_abilities import bp as ui_abilities_bp
+from backend.app.routes.r_ui_adventure_timeline import bp as ui_adventure_timeline_bp
 from backend.app.routes.r_recovery import bp as recovery_bp
 from backend.app.services.recovery import run_startup_recovery
 
@@ -105,6 +110,8 @@ def create_app(startup_recovery: bool = True) -> Flask:
         character_story_profiles_bp,
         character_relationships_bp,
         character_story_beats_bp,
+        adventure_beats_bp,
+        adventure_beat_links_bp,
         combat_profiles_bp,
         interaction_profiles_bp,
         content_packs_bp,
@@ -146,6 +153,7 @@ def create_app(startup_recovery: bool = True) -> Flask:
         ui_quests_bp,
         ui_dependencies_bp,
         ui_abilities_bp,
+        ui_adventure_timeline_bp,
         recovery_bp
     ]
     

@@ -81,7 +81,7 @@ The app will start with debug mode enabled and will initialize the SQLite databa
   - Recovery endpoints are `GET /api/recovery/status`, `POST /api/recovery/export-source`, `POST /api/recovery/restore-source`, and `POST /api/recovery/import-source`.
   - Dialogue Scene uses `GET /api/ui/dialogues/<dialogue_id>`, rollback-only `POST /api/ui/dialogues/preview`, and atomic `POST /api/ui/dialogues/bundle`.
   - Character Studio uses `GET /api/ui/character-studio/<character_id>`, rollback-only `POST /api/ui/character-studio/preview`, and atomic `POST /api/ui/character-studio/bundle`.
-  - Character story profiles, directed relationships, and story beats are included in source recovery exports and intentionally excluded from UE exports.
+  - Character narrative records plus canonical adventure beats and typed beat links are included in source recovery exports and intentionally excluded from UE exports.
 
 ## Frontend setup
 
@@ -109,7 +109,10 @@ The generic schema editors remain available for every table. In addition, the fr
 - `/author/encounters`, `/author/encounters/new`, and `/author/encounters/<id>`: Encounter Stage for side composition, profile inspection, rewards, gates, placement, health analysis, simulation comparison, and atomic bundle saving.
 - `/author/items/new` and `/author/items/<id>`: rich item mechanics authoring; `/author/items/new/ecosystem` and `/author/items/<id>/ecosystem` compose acquisition sources, placement, comparisons, validation, and atomic bundle saving.
 - `/author/quests`, `/author/quests/new`, and `/author/quests/<id>`: Quest Journey Board for ordered objectives, requirements, arc placement, quest givers, rewards, walkthrough context, and atomic bundle saving.
+- `/author/story-timeline`: Story Timeline and Adventure Board for scoped story lanes, focused lenses, drag/drop planning, typed cross-domain attachments, and reviewed atomic promotion into canonical adventure beats.
 - `/author/dependencies`: Adventure Dependency Map for flag, requirement, gated-content, event-chain, and story-arc tracing.
+
+The backend exposes `/api/ui/adventure-timeline` as the read aggregation contract, plus rollback-only `/api/ui/adventure-timeline/preview` and atomic `/api/ui/adventure-timeline/bundle`. Canonical `adventure_beats` and typed `adventure_beat_links` preserve cross-domain story intent without claiming one global player path or rewriting linked quests, events, locations, characters, dialogue, or encounters.
 
 Use these Author Views when creating normal content. They are input surfaces that save through the same CRUD endpoints as the generic editors. Use the Advanced Form inside an authoring view when you need a rare technical field, full schema coverage, or debugging access.
 
