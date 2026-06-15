@@ -12,6 +12,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import "./DialogueFlowPage.css";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { EditableTagList, ReferenceChipPicker, displayText, isRecord } from "../authoringViews/controls";
@@ -581,7 +582,7 @@ export default function DialogueFlowPage() {
             </div>
             {view === "flow" && <div className="mt-2 flex flex-wrap gap-1">{(["choices", "consequences", "locks", "speakers", "reachability", "world"] as Lens[]).map((item) => <button key={item} className={lens === item ? active : inactive} onClick={() => setLens(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>}
           </div>
-          {view === "flow" && <div data-testid="dialogue-canvas" className="h-[760px]">
+          {view === "flow" && <div data-testid="dialogue-canvas" className="dialogue-flow-canvas h-[760px]">
             <ReactFlow
               nodes={flowNodes} edges={flowEdges} nodeTypes={nodeTypes} fitView minZoom={0.2} maxZoom={1.8}
               onConnect={connect}
@@ -638,11 +639,11 @@ function DialogueEditor({ dialogue, onChange }: { dialogue: EntryRecord; onChang
 }
 
 function NodeEditor({ node, packet, groupedBeatId, selectedBeatId, onChange, onGroup, onDelete }: { node: EntryRecord; packet: DialoguePacket; groupedBeatId: string; selectedBeatId: string; onChange: (patch: EntryRecord) => void; onGroup: (id: string) => void; onDelete: () => void }) {
-  return <div className="space-y-3"><label className="block text-xs font-semibold uppercase text-slate-500">Linked Speaker<select className={`${inputClass} mt-1 normal-case`} value={text(node.speaker_character_id)} onChange={(event) => { const character = packet.characters.find((entry) => text(entry.id) === event.target.value); onChange({ speaker_character_id: event.target.value || null, speaker: character ? label(character) : node.speaker }); }}><option value="">Fallback speaker only</option>{packet.characters.map((character) => <option key={text(character.id)} value={text(character.id)}>{label(character)}</option>)}</select></label><Field label="Fallback Speaker" value={node.speaker} onChange={(speaker) => onChange({ speaker })} /><Field label="Slug" value={node.slug} onChange={(slug) => onChange({ slug })} /><Field label="Dialogue Text" value={node.text} textarea onChange={(value) => onChange({ text: value })} /><ReferenceChipPicker label="Requirement" value={node.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} /><FlagPicker value={node.set_flags} options={packet.flags} onChange={(set_flags) => onChange({ set_flags })} /><label className="block text-xs font-semibold uppercase text-slate-500">Local Story Beat Group<select aria-label="Local Story Beat Group" className={`${inputClass} mt-1 normal-case`} value={groupedBeatId} onChange={(event) => onGroup(event.target.value)}><option value="">No local grouping</option>{packet.story_beats.map((beat) => <option key={text(beat.id)} value={text(beat.id)}>{label(beat)}</option>)}</select></label>{selectedBeatId && groupedBeatId !== selectedBeatId && <button className={inactive} onClick={() => onGroup(selectedBeatId)}>Group With Selected Beat</button>}<button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={onDelete}>{node.__new ? "Discard Line" : "Delete Line On Save"}</button></div>;
+  return <div className="space-y-3"><label className="block text-xs font-semibold uppercase text-slate-500">Linked Speaker<select className={`${inputClass} mt-1 normal-case`} value={text(node.speaker_character_id)} onChange={(event) => { const character = packet.characters.find((entry) => text(entry.id) === event.target.value); onChange({ speaker_character_id: event.target.value || null, speaker: character ? label(character) : node.speaker }); }}><option value="">Fallback speaker only</option>{packet.characters.map((character) => <option key={text(character.id)} value={text(character.id)}>{label(character)}</option>)}</select></label><Field label="Fallback Speaker" value={node.speaker} onChange={(speaker) => onChange({ speaker })} /><Field label="Slug" value={node.slug} onChange={(slug) => onChange({ slug })} /><Field label="Dialogue Text" value={node.text} textarea onChange={(value) => onChange({ text: value })} /><ReferenceChipPicker label="Requirement" value={node.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} /><FlagPicker label="Flags Produced By Line" value={node.set_flags} options={packet.flags} onChange={(set_flags) => onChange({ set_flags })} /><label className="block text-xs font-semibold uppercase text-slate-500">Local Story Beat Group<select aria-label="Local Story Beat Group" className={`${inputClass} mt-1 normal-case`} value={groupedBeatId} onChange={(event) => onGroup(event.target.value)}><option value="">No local grouping</option>{packet.story_beats.map((beat) => <option key={text(beat.id)} value={text(beat.id)}>{label(beat)}</option>)}</select></label>{selectedBeatId && groupedBeatId !== selectedBeatId && <button className={inactive} onClick={() => onGroup(selectedBeatId)}>Group With Selected Beat</button>}<button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={onDelete}>{node.__new ? "Discard Line" : "Delete Line On Save"}</button></div>;
 }
 
 function ChoiceEditor({ choice, nodes, deletions, onChange, onRemove }: { choice: EntryRecord; nodes: EntryRecord[]; deletions: string[]; onChange: (patch: EntryRecord) => void; onRemove: () => void }) {
-  return <div className="space-y-3"><Field label="Player Choice (blank = continue)" value={choice.choice_text} onChange={(choice_text) => onChange({ choice_text })} /><label className="block text-xs font-semibold uppercase text-slate-500">Target<select className={`${inputClass} mt-1 normal-case`} value={text(choice.next_node_id)} onChange={(event) => onChange({ next_node_id: event.target.value })}>{nodes.map((node) => <option key={text(node.id)} value={text(node.id)} disabled={deletions.includes(text(node.id))}>{label(node, text(node.text, "Empty line"))}</option>)}</select></label><ReferenceChipPicker label="Requirement" value={choice.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} /><FlagPicker value={choice.set_flags} options={[]} onChange={(set_flags) => onChange({ set_flags })} /><button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={onRemove}>Remove Choice</button></div>;
+  return <div className="space-y-3"><Field label="Player Choice (blank = continue)" value={choice.choice_text} onChange={(choice_text) => onChange({ choice_text })} /><label className="block text-xs font-semibold uppercase text-slate-500">Target<select className={`${inputClass} mt-1 normal-case`} value={text(choice.next_node_id)} onChange={(event) => onChange({ next_node_id: event.target.value })}>{nodes.map((node) => <option key={text(node.id)} value={text(node.id)} disabled={deletions.includes(text(node.id))}>{label(node, text(node.text, "Empty line"))}</option>)}</select></label><ReferenceChipPicker label="Requirement" value={choice.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} /><FlagPicker label="Flags Produced By Choice" value={choice.set_flags} options={[]} onChange={(set_flags) => onChange({ set_flags })} /><button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={onRemove}>Remove Choice</button></div>;
 }
 
 function BeatEditor({ beat, packet, coverage, onChange, onUnlink }: { beat: EntryRecord; packet: DialoguePacket; coverage?: BeatCoverage; onChange: (patch: EntryRecord) => void; onUnlink: () => void }) {
@@ -705,7 +706,21 @@ function FlagPicker({ value, options, label: pickerLabel = "Flags Set", onChange
     if (options.length) { setLoaded(options); return; }
     void apiFetch("/api/flags").then((response) => response.json()).then((body) => setLoaded(rows(body))).catch(() => setLoaded([]));
   }, [options]);
-  return <label className="block text-xs font-semibold uppercase text-slate-500">{pickerLabel}<select aria-label={pickerLabel} multiple className={`${inputClass} mt-1 min-h-24 normal-case`} value={strings(value)} onChange={(event) => onChange([...event.currentTarget.selectedOptions].map((option) => option.value))}>{loaded.map((flag) => <option key={text(flag.id)} value={text(flag.id)}>{label(flag)}</option>)}</select></label>;
+  const selected = strings(value);
+  const selectedFlags = selected.map((id) => loaded.find((flag) => text(flag.id) === id) || { id, name: id });
+  const available = loaded.filter((flag) => !selected.includes(text(flag.id)));
+  return <div>
+    <div className="flex items-center justify-between gap-2"><Caption>{pickerLabel}</Caption><Link className="text-[10px] font-semibold text-blue-700 dark:text-blue-400" to="/flags">Manage global flags</Link></div>
+    <div className="mb-2 flex min-h-7 flex-wrap gap-1 rounded border border-slate-200 p-1.5 dark:border-slate-800">
+      {selectedFlags.map((flag) => <span key={text(flag.id)} className="inline-flex items-center gap-1 rounded-full bg-fuchsia-100 px-2 py-1 text-[10px] font-semibold text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-200">{label(flag)}<button type="button" aria-label={`Remove ${label(flag)}`} className="rounded-full px-1 hover:bg-fuchsia-200 dark:hover:bg-fuchsia-800" onClick={() => onChange(selected.filter((id) => id !== text(flag.id)))}>x</button></span>)}
+      {!selected.length && <span className="text-xs text-slate-500">No flags selected.</span>}
+    </div>
+    <select aria-label={pickerLabel} className={`${inputClass} normal-case`} value="" onChange={(event) => { if (event.target.value) onChange([...selected, event.target.value]); }}>
+      <option value="">{available.length ? "Add existing flag..." : "No more flags available"}</option>
+      {available.map((flag) => <option key={text(flag.id)} value={text(flag.id)}>{label(flag)}</option>)}
+    </select>
+    <p className="mt-1 text-[10px] text-slate-500">This links existing world-state flags. Global flag creation and deletion happen in Flags.</p>
+  </div>;
 }
 
 function Field({ label: fieldLabel, value, textarea, onChange }: { label: string; value: unknown; textarea?: boolean; onChange: (value: string) => void }) {

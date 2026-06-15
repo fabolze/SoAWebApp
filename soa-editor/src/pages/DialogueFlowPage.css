@@ -1,0 +1,56 @@
+.dialogue-flow-canvas .react-flow {
+  --xy-edge-label-background-color: #f8fafc;
+  --xy-edge-label-color: #0f172a;
+  --xy-controls-button-background-color: #f8fafc;
+  --xy-controls-button-background-color-hover: #e2e8f0;
+  --xy-controls-button-color: #334155;
+  --xy-controls-button-color-hover: #0f172a;
+  --xy-controls-button-border-color: #cbd5e1;
+  --xy-controls-box-shadow: 0 8px 24px rgb(15 23 42 / 12%);
+  --xy-minimap-background-color: #f8fafc;
+  --xy-minimap-mask-background-color: rgb(226 232 240 / 65%);
+  --xy-minimap-node-background-color: #94a3b8;
+  --xy-minimap-node-stroke-color: #64748b;
+  --xy-attribution-background-color: rgb(248 250 252 / 80%);
+}
+
+.dialogue-flow-canvas .react-flow__edge-textbg {
+  rx: 4px;
+  ry: 4px;
+}
+
+.dialogue-flow-canvas .react-flow__minimap,
+.dialogue-flow-canvas .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+}
+
+.dialogue-flow-canvas .react-flow__attribution {
+  color: #64748b;
+}
+
+.dark .dialogue-flow-canvas .react-flow {
+  --xy-edge-label-background-color: #1e293b;
+  --xy-edge-label-color: #e2e8f0;
+  --xy-controls-button-background-color: #0f172a;
+  --xy-controls-button-background-color-hover: #1e293b;
+  --xy-controls-button-color: #cbd5e1;
+  --xy-controls-button-color-hover: #f8fafc;
+  --xy-controls-button-border-color: #334155;
+  --xy-controls-box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  --xy-minimap-background-color: #0f172a;
+  --xy-minimap-mask-background-color: rgb(30 41 59 / 72%);
+  --xy-minimap-node-background-color: #334155;
+  --xy-minimap-node-stroke-color: #64748b;
+  --xy-attribution-background-color: rgb(15 23 42 / 82%);
+}
+
+.dark .dialogue-flow-canvas .react-flow__minimap,
+.dark .dialogue-flow-canvas .react-flow__controls {
+  border-color: #334155;
+}
+
+.dark .dialogue-flow-canvas .react-flow__attribution {
+  color: #64748b;
+}
