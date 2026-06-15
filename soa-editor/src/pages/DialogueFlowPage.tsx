@@ -1,20 +1,46 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import {
+  Background,
+  Controls,
+  Handle,
+  MarkerType,
+  MiniMap,
+  Position as FlowPosition,
+  ReactFlow,
+  type Connection,
+  type Edge,
+  type Node,
+  type NodeProps,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { EditableTagList, ReferenceChipPicker, displayText, isRecord } from "../authoringViews/controls";
+import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
-import { useDirtyState } from "../components/useDirtyState";
-import { EditableTagList, ReferenceChipPicker, displayText, isRecord } from "../authoringViews/controls";
-import { generateSlug, generateUlid } from "../utils/generateId";
+import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import type { EntryRecord } from "../types/editorQol";
+import { generateSlug, generateUlid } from "../utils/generateId";
 
-type CanvasMode = "select" | "sketch" | "connect" | "move";
-type Lens = "choices" | "consequences" | "locks" | "speakers" | "reachability";
-type InspectorTab = "edit" | "health" | "play" | "context";
-type Position = { x: number; y: number };
+type CenterView = "flow" | "rehearsal" | "impact";
+type Lens = "choices" | "consequences" | "locks" | "speakers" | "reachability" | "world";
+type InspectorTab = "edit" | "beat" | "health" | "context";
+type Point = { x: number; y: number };
+type ChoiceSelection = { nodeId: string; index: number } | null;
 
+interface CoverageGroup { matched: EntryRecord[]; missing: string[] }
+interface BeatCoverage {
+  required: CoverageGroup;
+  forbidden: CoverageGroup;
+  outputs: CoverageGroup;
+  implementation_paths: Record<string, string[]>;
+  warnings: string[];
+}
 interface DialoguePacket {
   dialogue: EntryRecord;
   nodes: EntryRecord[];
+  story_beats: EntryRecord[];
+  beat_coverage: Record<string, BeatCoverage>;
   requirements: EntryRecord[];
   flags: EntryRecord[];
   factions: EntryRecord[];
@@ -25,41 +51,73 @@ interface DialoguePacket {
     pois: EntryRecord[];
     character: EntryRecord | null;
     location: EntryRecord | null;
+    participants: EntryRecord[];
+    story_profiles: EntryRecord[];
+    relationships: EntryRecord[];
+    participant_next_sort_order: Record<string, number>;
   };
+  world_echo: { dialogue_id: string; produced_flags: EntryRecord[]; consumers: EntryRecord[] };
 }
-
-interface HealthResult {
-  issues: string[];
+interface Review {
+  review: Record<"created" | "changed" | "deleted" | "unlinked", EntryRecord[]>;
+  warnings: { id: string; message: string }[];
+  health_warnings: string[];
+  blockers: string[];
+}
+interface Health {
+  blockers: string[];
+  warnings: string[];
   roots: string[];
   unreachable: Set<string>;
   cycles: Set<string>;
 }
+interface CardData extends Record<string, unknown> {
+  entry: EntryRecord;
+  speaker: string;
+  selectedChoice: ChoiceSelection;
+  lens: Lens;
+  health: Health;
+  grouped: boolean;
+  queued: boolean;
+  speakerHue: number;
+  onSelect: () => void;
+  onText: (value: string) => void;
+  onAdd: (automatic: boolean) => void;
+}
 
-const EMPTY_CONTEXT = { interaction_profiles: [], events: [], pois: [], character: null, location: null };
-const NEW_DRAFT_POINTER = "soa.draft.dialogue_flow.new";
 const inputClass = "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
-const activeButton = "rounded-md border border-blue-700 bg-blue-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50";
-const inactiveButton = "rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-blue-300 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200";
+const active = `${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`;
+const inactive = `${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`;
+const EMPTY_CONTEXT = {
+  interaction_profiles: [], events: [], pois: [], character: null, location: null, participants: [],
+  story_profiles: [], relationships: [], participant_next_sort_order: {},
+};
+const EMPTY_ECHO = { dialogue_id: "", produced_flags: [], consumers: [] };
+const NEW_DRAFT_POINTER = "soa.draft.dialogue_flow.new";
+const BEAT_TYPES = ["Entrance", "Decision", "Revelation", "Conflict", "Change", "Reaction", "Exit", "Other"];
 
-function text(value: unknown, fallback = ""): string {
-  return displayText(value, fallback);
+const rows = (value: unknown): EntryRecord[] => Array.isArray(value) ? value.filter(isRecord) : [];
+const strings = (value: unknown): string[] => Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+const text = (value: unknown, fallback = "") => displayText(value, fallback);
+const stable = (value: unknown) => JSON.stringify(value ?? null);
+const label = (entry: EntryRecord | null | undefined, fallback = "Untitled") => entry ? text(entry.name, text(entry.title, text(entry.slug, text(entry.id, fallback)))) : fallback;
+const layoutKey = (id: string) => `soa.dialogue-flow.layout.${id}`;
+const startKey = (id: string) => `soa.dialogue-flow.start.${id}`;
+const draftKey = (id: string) => `soa.draft.dialogue_flow.${id}`;
+const groupKey = (id: string) => `soa.dialogue-flow.beat-groups.${id}`;
+
+function readRecord(key: string): Record<string, Point> {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "{}");
+    return isRecord(value) ? value as Record<string, Point> : {};
+  } catch { return {}; }
 }
 
-function rows(value: unknown): EntryRecord[] {
-  return Array.isArray(value) ? value.filter(isRecord) : [];
-}
-
-function strings(value: unknown): string[] {
-  return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
-}
-
-function label(entry: EntryRecord | null | undefined, fallback = "Untitled"): string {
-  return entry ? text(entry.name, text(entry.title, text(entry.slug, text(entry.id, fallback)))) : fallback;
-}
-
-function speakerLabel(node: EntryRecord, characters: EntryRecord[] = []): string {
-  const character = characters.find((entry) => text(entry.id) === text(node.speaker_character_id));
-  return character ? label(character, text(node.speaker, "No speaker")) : text(node.speaker, "No speaker");
+function readGroups(id: string): Record<string, string> {
+  try {
+    const value = JSON.parse(localStorage.getItem(groupKey(id)) || "{}");
+    return isRecord(value) ? Object.fromEntries(Object.entries(value).map(([key, row]) => [key, String(row)])) : {};
+  } catch { return {}; }
 }
 
 function emptyDialogue(): EntryRecord {
@@ -67,90 +125,103 @@ function emptyDialogue(): EntryRecord {
   return { id, slug: `new-dialogue-${id.slice(-6).toLowerCase()}`, title: "New Dialogue", description: "", tags: [] };
 }
 
-function emptyNode(dialogueId: string, index: number): EntryRecord {
+function emptyNode(dialogueId: string, index: number, speaker = "NPC"): EntryRecord {
   const id = generateUlid();
-  const name = `New Line ${index}`;
-  return { id, slug: generateSlug(`${name}-${id.slice(-5)}`), dialogue_id: dialogueId, speaker: "NPC", text: "", choices: [], set_flags: [], tags: [], __new: true };
+  return {
+    id, slug: generateSlug(`new-line-${index}-${id.slice(-5)}`), dialogue_id: dialogueId, speaker,
+    text: "", choices: [], set_flags: [], tags: [], __new: true,
+  };
 }
 
-function stable(value: unknown): string {
-  return JSON.stringify(value ?? null);
+function normalizePacket(value: EntryRecord, fallback: DialoguePacket): DialoguePacket {
+  const context = isRecord(value.context) ? value.context : {};
+  const echo = isRecord(value.world_echo) ? value.world_echo : {};
+  return {
+    ...fallback,
+    ...value,
+    dialogue: isRecord(value.dialogue) ? value.dialogue : fallback.dialogue,
+    nodes: rows(value.nodes),
+    story_beats: rows(value.story_beats),
+    beat_coverage: isRecord(value.beat_coverage) ? value.beat_coverage as Record<string, BeatCoverage> : {},
+    requirements: rows(value.requirements),
+    flags: rows(value.flags),
+    factions: rows(value.factions),
+    characters: rows(value.characters),
+    context: {
+      ...EMPTY_CONTEXT, ...context,
+      interaction_profiles: rows(context.interaction_profiles), events: rows(context.events), pois: rows(context.pois),
+      participants: rows(context.participants), story_profiles: rows(context.story_profiles), relationships: rows(context.relationships),
+      character: isRecord(context.character) ? context.character : null, location: isRecord(context.location) ? context.location : null,
+      participant_next_sort_order: isRecord(context.participant_next_sort_order) ? context.participant_next_sort_order as Record<string, number> : {},
+    },
+    world_echo: {
+      ...EMPTY_ECHO, ...echo, produced_flags: rows(echo.produced_flags), consumers: rows(echo.consumers),
+    },
+  };
 }
 
-function layoutKey(dialogueId: string): string {
-  return `soa.dialogue-flow.layout.${dialogueId}`;
+function speakerLabel(node: EntryRecord, characters: EntryRecord[]) {
+  const character = characters.find((entry) => text(entry.id) === text(node.speaker_character_id));
+  return character ? label(character, text(node.speaker, "No speaker")) : text(node.speaker, "No speaker");
 }
 
-function startKey(dialogueId: string): string {
-  return `soa.dialogue-flow.start.${dialogueId}`;
+function sceneParticipants(packet: DialoguePacket): EntryRecord[] {
+  const ids = new Set([
+    text(packet.dialogue.character_id),
+    ...packet.nodes.map((node) => text(node.speaker_character_id)),
+    ...packet.context.participants.map((participant) => text(participant.id)),
+  ].filter(Boolean));
+  const participants = new Map<string, EntryRecord>();
+  packet.context.participants.forEach((entry) => participants.set(text(entry.id), entry));
+  packet.characters.filter((entry) => ids.has(text(entry.id))).forEach((entry) => participants.set(text(entry.id), entry));
+  return [...participants.values()].filter((entry) => ids.has(text(entry.id)));
 }
 
-function draftKey(dialogueId: string): string {
-  return `soa.draft.dialogue_flow.${dialogueId}`;
-}
-
-function readPositions(dialogueId: string): Record<string, Position> {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(layoutKey(dialogueId)) || "{}");
-    return isRecord(parsed) ? parsed as Record<string, Position> : {};
-  } catch {
-    return {};
-  }
-}
-
-function autoLayout(nodes: EntryRecord[]): Record<string, Position> {
-  const byId = new Map(nodes.map((node) => [text(node.id), node]));
+function autoLayout(nodes: EntryRecord[]): Record<string, Point> {
   const inbound = new Map(nodes.map((node) => [text(node.id), 0]));
   nodes.forEach((node) => rows(node.choices).forEach((choice) => {
     const target = text(choice.next_node_id);
     if (inbound.has(target)) inbound.set(target, (inbound.get(target) || 0) + 1);
   }));
-  const roots = nodes.filter((node) => (inbound.get(text(node.id)) || 0) === 0);
-  const queue = roots.map((node) => ({ id: text(node.id), depth: 0 }));
   const depth = new Map<string, number>();
+  const queue = nodes.filter((node) => inbound.get(text(node.id)) === 0).map((node) => ({ id: text(node.id), depth: 0 }));
   while (queue.length) {
     const item = queue.shift()!;
     if (depth.has(item.id)) continue;
     depth.set(item.id, item.depth);
-    rows(byId.get(item.id)?.choices).forEach((choice) => {
-      const target = text(choice.next_node_id);
-      if (byId.has(target) && !depth.has(target)) queue.push({ id: target, depth: item.depth + 1 });
-    });
+    const node = nodes.find((row) => text(row.id) === item.id);
+    rows(node?.choices).forEach((choice) => queue.push({ id: text(choice.next_node_id), depth: item.depth + 1 }));
   }
-  nodes.forEach((node) => { if (!depth.has(text(node.id))) depth.set(text(node.id), Math.max(1, ...depth.values()) + 1); });
-  const groups = new Map<number, string[]>();
-  depth.forEach((value, id) => groups.set(value, [...(groups.get(value) || []), id]));
-  const positions: Record<string, Position> = {};
-  groups.forEach((ids, column) => ids.forEach((id, index) => {
-    positions[id] = { x: 70 + column * 270, y: 60 + index * 170 };
-  }));
+  nodes.forEach((node) => { if (!depth.has(text(node.id))) depth.set(text(node.id), Math.max(0, ...depth.values()) + 1); });
+  const lanes = new Map<number, string[]>();
+  depth.forEach((value, id) => lanes.set(value, [...(lanes.get(value) || []), id]));
+  const positions: Record<string, Point> = {};
+  lanes.forEach((ids, column) => ids.forEach((id, index) => { positions[id] = { x: 50 + column * 330, y: 70 + index * 250 }; }));
   return positions;
 }
 
-function analyze(nodes: EntryRecord[]): HealthResult {
-  const issues: string[] = [];
+function analyze(nodes: EntryRecord[], packet: DialoguePacket, groups: Record<string, string>): Health {
+  const blockers: string[] = [];
+  const warnings: string[] = [];
   const ids = new Set(nodes.map((node) => text(node.id)).filter(Boolean));
   const inbound = new Map([...ids].map((id) => [id, 0]));
   const adjacency = new Map([...ids].map((id) => [id, [] as string[]]));
   nodes.forEach((node) => {
     const nodeId = text(node.id);
-    if (!nodeId || !text(node.slug) || !text(node.speaker) || !text(node.text)) issues.push(`${label(node)} is missing id, slug, speaker, or text.`);
-    const signatures = new Set<string>();
+    if (!nodeId || !text(node.slug) || !text(node.speaker) || !text(node.text)) blockers.push(`${label(node)} is missing id, slug, speaker, or text.`);
+    const consequences = new Set<string>();
     rows(node.choices).forEach((choice, index) => {
       const target = text(choice.next_node_id);
-      if (!target || !ids.has(target)) issues.push(`${label(node)} choice ${index + 1} targets a missing node.`);
-      else {
-        inbound.set(target, (inbound.get(target) || 0) + 1);
-        adjacency.get(nodeId)?.push(target);
-      }
-      const signature = `${text(choice.choice_text)}|${target}|${text(choice.requirements_id)}|${strings(choice.set_flags).join(",")}`;
-      if (signatures.has(signature)) issues.push(`${label(node)} has duplicate outgoing choices.`);
-      signatures.add(signature);
+      if (!target || !ids.has(target)) blockers.push(`${label(node)} choice ${index + 1} targets a missing node.`);
+      else { inbound.set(target, (inbound.get(target) || 0) + 1); adjacency.get(nodeId)?.push(target); }
+      const signature = `${target}|${text(choice.requirements_id)}|${strings(choice.set_flags).sort().join(",")}`;
+      if (consequences.has(signature)) warnings.push(`${label(node)} has choices with identical consequences.`);
+      consequences.add(signature);
     });
-    if (rows(node.choices).length === 0) issues.push(`${label(node)} is a dead end.`);
+    if (rows(node.choices).length === 0) warnings.push(`${label(node)} is a dead end.`);
   });
   const roots = [...inbound.entries()].filter(([, count]) => count === 0).map(([id]) => id);
-  if (nodes.length > 0 && roots.length !== 1) issues.push(roots.length === 0 ? "No inferred start node; the graph may be fully cyclic." : "Multiple inferred start nodes make playthrough ambiguous.");
+  if (nodes.length && roots.length !== 1) warnings.push(roots.length ? "Multiple inferred start nodes make rehearsal ambiguous." : "No inferred start node; the graph may be fully cyclic.");
   const reachable = new Set<string>();
   const queue = roots.length === 1 ? [...roots] : [];
   while (queue.length) {
@@ -160,90 +231,129 @@ function analyze(nodes: EntryRecord[]): HealthResult {
     adjacency.get(id)?.forEach((target) => queue.push(target));
   }
   const unreachable = new Set([...ids].filter((id) => !reachable.has(id)));
-  if (unreachable.size) issues.push(`${unreachable.size} node(s) are unreachable from the inferred start.`);
+  if (unreachable.size) warnings.push(`${unreachable.size} node(s) are unreachable from the inferred start.`);
   const cycles = new Set<string>();
   const visiting = new Set<string>();
   const visited = new Set<string>();
   const visit = (id: string) => {
     if (visiting.has(id)) { cycles.add(id); return; }
     if (visited.has(id)) return;
-    visiting.add(id);
-    adjacency.get(id)?.forEach(visit);
-    visiting.delete(id);
-    visited.add(id);
+    visiting.add(id); adjacency.get(id)?.forEach(visit); visiting.delete(id); visited.add(id);
   };
   ids.forEach(visit);
-  if (cycles.size) issues.push("The dialogue contains one or more loops.");
-  return { issues, roots, unreachable, cycles };
+  if (cycles.size) warnings.push("The dialogue contains one or more loops.");
+  const participants = new Set(sceneParticipants(packet).map((entry) => text(entry.id)));
+  packet.story_beats.forEach((beat) => {
+    if (!participants.has(text(beat.character_id))) warnings.push(`Story beat '${label(beat)}' is owned by a former participant.`);
+    const groupedNodes = nodes.filter((node) => groups[text(node.id)] === text(beat.id));
+    if (groupedNodes.length) {
+      const outputs = new Set(groupedNodes.flatMap((node) => [...strings(node.set_flags), ...rows(node.choices).flatMap((choice) => strings(choice.set_flags))]));
+      strings(beat.expected_output_flags).filter((flag) => !outputs.has(flag)).forEach((flag) => warnings.push(`Grouped nodes for '${label(beat)}' do not produce expected flag '${flag}'.`));
+    } else {
+      (packet.beat_coverage[text(beat.id)]?.warnings || []).forEach((warning) => warnings.push(warning));
+    }
+  });
+  return { blockers: [...new Set(blockers)], warnings: [...new Set(warnings)], roots, unreachable, cycles };
 }
 
-function requirementState(requirementId: unknown, requirements: EntryRecord[], flags: Set<string>, reputation: Record<string, number>): { available: boolean; reason: string } {
+function requirementState(requirementId: unknown, requirements: EntryRecord[], flags: Set<string>, reputation: Record<string, number>) {
   const id = text(requirementId);
   if (!id) return { available: true, reason: "" };
   const requirement = requirements.find((entry) => text(entry.id) === id);
   if (!requirement) return { available: false, reason: `Missing requirement ${id}` };
   const missing = strings(requirement.required_flags).filter((flag) => !flags.has(flag));
   const forbidden = strings(requirement.forbidden_flags).filter((flag) => flags.has(flag));
-  const reps = rows(requirement.min_faction_reputation).filter((row) => Number(reputation[text(row.faction_id)] || 0) < Number(row.min || 0));
+  const reps = rows(requirement.min_faction_reputation).filter((row) => Number(reputation[text(row.faction_id)] || 0) < Number(row.min_value ?? row.min ?? 0));
   const reasons = [
     missing.length ? `Missing flags: ${missing.join(", ")}` : "",
     forbidden.length ? `Forbidden flags set: ${forbidden.join(", ")}` : "",
-    reps.length ? `Low reputation: ${reps.map((row) => `${text(row.faction_id)} < ${Number(row.min || 0)}`).join(", ")}` : "",
+    reps.length ? `Low reputation: ${reps.map((row) => text(row.faction_id)).join(", ")}` : "",
   ].filter(Boolean);
   return { available: reasons.length === 0, reason: reasons.join(". ") };
 }
+
+function DialogueCard({ data, selected }: NodeProps<Node<CardData>>) {
+  const node = data.entry;
+  const id = text(node.id);
+  const consequential = strings(node.set_flags).length > 0 || rows(node.choices).some((choice) => strings(choice.set_flags).length > 0);
+  const locked = Boolean(text(node.requirements_id));
+  const issue = data.lens === "reachability" && data.health.unreachable.has(id);
+  const tone = data.queued ? "border-red-500 bg-red-50 opacity-60 dark:bg-red-950"
+    : selected ? "border-blue-600 ring-2 ring-blue-300"
+      : issue ? "border-red-500 bg-red-50 dark:bg-red-950"
+        : data.grouped ? "border-violet-500 bg-violet-50 dark:bg-violet-950"
+          : locked && data.lens === "locks" ? "border-amber-500 bg-amber-50 dark:bg-amber-950"
+            : consequential && (data.lens === "consequences" || data.lens === "world") ? "border-fuchsia-500 bg-fuchsia-50 dark:bg-fuchsia-950"
+              : "border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900";
+  return <div data-testid={`dialogue-node-${id}`} className={`w-[275px] rounded-lg border p-3 shadow-md ${tone}`} style={data.lens === "speakers" ? { borderLeftColor: `hsl(${data.speakerHue} 70% 50%)`, borderLeftWidth: 7 } : undefined} onClick={data.onSelect}>
+    <Handle type="target" position={FlowPosition.Left} />
+    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{data.speaker}</div>
+    <textarea
+      aria-label={`Dialogue text ${id}`}
+      className="nodrag mt-1 min-h-20 w-full resize-none rounded border border-transparent bg-transparent p-1 text-sm focus:border-blue-400 focus:outline-none"
+      value={text(node.text)}
+      placeholder="Write the line..."
+      onClick={(event) => { data.onSelect(); event.stopPropagation(); }}
+      onFocus={data.onSelect}
+      onChange={(event) => data.onText(event.target.value)}
+    />
+    <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-slate-500">
+      <span>{rows(node.choices).length} choices</span>{locked && <span>Locked</span>}{strings(node.set_flags).length > 0 && <span>{strings(node.set_flags).length} flags</span>}
+    </div>
+    <div className="nodrag mt-2 flex gap-1">
+      <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={(event) => { event.stopPropagation(); data.onAdd(false); }}>+ Choice</button>
+      <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={(event) => { event.stopPropagation(); data.onAdd(true); }}>+ Continue</button>
+    </div>
+    <Handle type="source" position={FlowPosition.Right} />
+  </div>;
+}
+
+const nodeTypes = { dialogueCard: DialogueCard };
 
 export default function DialogueFlowPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const isNew = id === "new" || !id;
   const initialDialogue = useMemo(() => emptyDialogue(), []);
+  const emptyPacket = useMemo<DialoguePacket>(() => ({
+    dialogue: initialDialogue, nodes: [], story_beats: [], beat_coverage: {}, requirements: [], flags: [], factions: [],
+    characters: [], context: EMPTY_CONTEXT, world_echo: EMPTY_ECHO,
+  }), [initialDialogue]);
   const [dialogues, setDialogues] = useState<EntryRecord[]>([]);
-  const [packet, setPacket] = useState<DialoguePacket>({ dialogue: initialDialogue, nodes: [], requirements: [], flags: [], factions: [], characters: [], context: EMPTY_CONTEXT });
+  const [packet, setPacket] = useState<DialoguePacket>(emptyPacket);
   const [original, setOriginal] = useState<DialoguePacket | null>(null);
-  const [positions, setPositions] = useState<Record<string, Position>>({});
+  const [positions, setPositions] = useState<Record<string, Point>>({});
+  const [groups, setGroups] = useState<Record<string, string>>({});
   const [selectedNodeId, setSelectedNodeId] = useState("");
-  const [selectedChoice, setSelectedChoice] = useState<{ nodeId: string; index: number } | null>(null);
-  const [mode, setMode] = useState<CanvasMode>("select");
+  const [selectedChoice, setSelectedChoice] = useState<ChoiceSelection>(null);
+  const [selectedBeatId, setSelectedBeatId] = useState("");
+  const [beatUnlinks, setBeatUnlinks] = useState<EntryRecord[]>([]);
+  const [deletions, setDeletions] = useState<string[]>([]);
+  const [view, setView] = useState<CenterView>("flow");
   const [lens, setLens] = useState<Lens>("choices");
   const [tab, setTab] = useState<InspectorTab>("edit");
-  const [pendingSource, setPendingSource] = useState("");
-  const [deletions, setDeletions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
-  const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
-  const boardRef = useRef<HTMLDivElement>(null);
+  const [review, setReview] = useState<Review | null>(null);
+  const [acceptedWarnings, setAcceptedWarnings] = useState<string[]>([]);
   const dirtySource = useRef(`dialogue-flow-${id || "index"}`);
   const { setDirty } = useDirtyState();
 
   const currentId = text(packet.dialogue.id);
-  const nodes = packet.nodes;
-  const activeNodes = useMemo(() => nodes.filter((node) => !deletions.includes(text(node.id))), [deletions, nodes]);
-  const selectedNode = nodes.find((node) => text(node.id) === selectedNodeId);
-  const selectedChoiceRow = selectedChoice ? rows(nodes.find((node) => text(node.id) === selectedChoice.nodeId)?.choices)[selectedChoice.index] : undefined;
-  const health = useMemo(() => analyze(activeNodes), [activeNodes]);
-  const brokenDeletionLinks = nodes.some((node) => !deletions.includes(text(node.id)) && rows(node.choices).some((choice) => deletions.includes(text(choice.next_node_id))));
-  const invalidNodes = activeNodes.some((node) => !text(node.id) || !text(node.slug) || !text(node.dialogue_id) || !text(node.speaker) || !text(node.text));
-  const invalidChoices = activeNodes.some((node) => rows(node.choices).some((choice) => !text(choice.next_node_id) || !activeNodes.some((target) => text(target.id) === text(choice.next_node_id))));
-  const saveBlocked = brokenDeletionLinks || invalidNodes || invalidChoices || !text(packet.dialogue.title) || !text(packet.dialogue.slug);
-  const serialized = stable({ dialogue: packet.dialogue, nodes, deletions });
-  const originalSerialized = stable(original ? { dialogue: original.dialogue, nodes: original.nodes, deletions: [] } : null);
-  const dirty = Boolean(original) && serialized !== originalSerialized;
+  const activeNodes = useMemo(() => packet.nodes.filter((node) => !deletions.includes(text(node.id))), [deletions, packet.nodes]);
+  const selectedNode = packet.nodes.find((node) => text(node.id) === selectedNodeId);
+  const selectedChoiceRow = selectedChoice ? rows(packet.nodes.find((node) => text(node.id) === selectedChoice.nodeId)?.choices)[selectedChoice.index] : undefined;
+  const selectedBeat = packet.story_beats.find((beat) => text(beat.id) === selectedBeatId);
+  const health = useMemo(() => analyze(activeNodes, packet, groups), [activeNodes, groups, packet]);
+  const dirty = Boolean(original) && stable({ dialogue: packet.dialogue, nodes: packet.nodes, story_beats: packet.story_beats, deletions, beatUnlinks }) !== stable({ dialogue: original?.dialogue, nodes: original?.nodes, story_beats: original?.story_beats, deletions: [], beatUnlinks: [] });
+  const saveBlocked = health.blockers.length > 0 || !text(packet.dialogue.title) || !text(packet.dialogue.slug);
 
-  useEffect(() => {
-    const source = dirtySource.current;
-    setDirty(source, dirty);
-    return () => setDirty(source, false);
-  }, [dirty, setDirty]);
+  useEffect(() => { const source = dirtySource.current; setDirty(source, dirty); return () => setDirty(source, false); }, [dirty, setDirty]);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setDeletions([]);
-    setNotice("");
-    setSelectedChoice(null);
-    setPendingSource("");
+    setLoading(true); setNotice(""); setDeletions([]); setBeatUnlinks([]); setReview(null);
     Promise.all([
       apiFetch("/api/dialogues").then((response) => response.json()),
       isNew ? Promise.resolve(null) : apiFetch(`/api/ui/dialogues/${encodeURIComponent(id)}`).then(async (response) => {
@@ -258,263 +368,353 @@ export default function DialogueFlowPage() {
     ]).then(([allDialogues, loaded, requirements, flags, factions, characters]) => {
       if (cancelled) return;
       setDialogues(Array.isArray(allDialogues) ? allDialogues.filter(isRecord) : []);
-      let base: DialoguePacket = loaded && isRecord(loaded)
-        ? loaded as unknown as DialoguePacket
-        : { dialogue: initialDialogue, nodes: [], requirements: Array.isArray(requirements) ? requirements.filter(isRecord) : [], flags: Array.isArray(flags) ? flags.filter(isRecord) : [], factions: Array.isArray(factions) ? factions.filter(isRecord) : [], characters: Array.isArray(characters) ? characters.filter(isRecord) : [], context: EMPTY_CONTEXT };
+      const fallback = { ...emptyPacket, requirements: rows(requirements), flags: rows(flags), factions: rows(factions), characters: rows(characters) };
+      let base = loaded && isRecord(loaded) ? normalizePacket(loaded, fallback) : fallback;
       if (isNew) {
         const draftId = localStorage.getItem(NEW_DRAFT_POINTER);
         if (draftId) base = { ...base, dialogue: { ...base.dialogue, id: draftId } };
       }
-      const savedDraft = localStorage.getItem(draftKey(text(base.dialogue.id)));
+      const storedDraft = localStorage.getItem(draftKey(text(base.dialogue.id)));
       let restored = base;
-      if (savedDraft) {
+      if (storedDraft) {
         try {
-          const parsed = JSON.parse(savedDraft);
+          const parsed = JSON.parse(storedDraft);
           if (isRecord(parsed) && isRecord(parsed.dialogue) && Array.isArray(parsed.nodes)) {
-            restored = { ...base, dialogue: parsed.dialogue, nodes: parsed.nodes.filter(isRecord) };
-            setDeletions(Array.isArray(parsed.deletions) ? parsed.deletions.map(String) : []);
+            restored = { ...base, dialogue: parsed.dialogue, nodes: rows(parsed.nodes), story_beats: rows(parsed.story_beats) };
+            setDeletions(strings(parsed.deletions)); setBeatUnlinks(rows(parsed.beatUnlinks));
             setNotice("Restored unsaved dialogue flow draft.");
           }
-        } catch { /* Ignore malformed local draft. */ }
+        } catch { /* ignore malformed local draft */ }
       }
-      setPacket(restored);
-      setOriginal(base);
-      const stored = readPositions(text(base.dialogue.id));
-      setPositions({ ...autoLayout(restored.nodes), ...stored });
+      setPacket(restored); setOriginal(base);
+      const storedPositions = readRecord(layoutKey(text(base.dialogue.id)));
+      setPositions({ ...autoLayout(restored.nodes), ...storedPositions });
+      setGroups(readGroups(text(base.dialogue.id)));
       setSelectedNodeId(text(restored.nodes[0]?.id));
-    }).catch((error) => setNotice(error instanceof Error ? error.message : "Dialogue Flow failed to load."))
+    }).catch((error) => setNotice(error instanceof Error ? error.message : "Dialogue Scene Room failed to load."))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [id, initialDialogue, isNew]);
+  }, [emptyPacket, id, isNew]);
 
   useEffect(() => {
     if (!original || !currentId || !dirty) return;
     const timer = window.setTimeout(() => {
-      localStorage.setItem(draftKey(currentId), JSON.stringify({ dialogue: packet.dialogue, nodes, deletions, ts: Date.now() }));
+      localStorage.setItem(draftKey(currentId), JSON.stringify({ dialogue: packet.dialogue, nodes: packet.nodes, story_beats: packet.story_beats, deletions, beatUnlinks, ts: Date.now() }));
       if (isNew) localStorage.setItem(NEW_DRAFT_POINTER, currentId);
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [currentId, deletions, dirty, isNew, nodes, original, packet.dialogue]);
+  }, [beatUnlinks, currentId, deletions, dirty, isNew, original, packet.dialogue, packet.nodes, packet.story_beats]);
 
   const updateDialogue = (patch: EntryRecord) => setPacket((current) => ({ ...current, dialogue: { ...current.dialogue, ...patch } }));
-  const updateNode = (nodeId: string, patch: EntryRecord) => setPacket((current) => ({ ...current, nodes: current.nodes.map((node) => text(node.id) === nodeId ? { ...node, ...patch } : node) }));
+  const updateNode = useCallback((nodeId: string, patch: EntryRecord) => setPacket((current) => ({ ...current, nodes: current.nodes.map((node) => text(node.id) === nodeId ? { ...node, ...patch } : node) })), []);
   const updateChoice = (nodeId: string, index: number, patch: EntryRecord) => {
-    const node = nodes.find((entry) => text(entry.id) === nodeId);
-    const next = rows(node?.choices).map((choice, choiceIndex) => choiceIndex === index ? { ...choice, ...patch } : choice);
-    updateNode(nodeId, { choices: next });
+    const node = packet.nodes.find((entry) => text(entry.id) === nodeId);
+    updateNode(nodeId, { choices: rows(node?.choices).map((choice, choiceIndex) => choiceIndex === index ? { ...choice, ...patch } : choice) });
   };
-  const removeChoice = (nodeId: string, index: number) => {
-    const node = nodes.find((entry) => text(entry.id) === nodeId);
-    updateNode(nodeId, { choices: rows(node?.choices).filter((_, choiceIndex) => choiceIndex !== index) });
-    setSelectedChoice(null);
+  const addLinkedNode = useCallback((sourceId: string, automatic: boolean) => {
+    const source = packet.nodes.find((node) => text(node.id) === sourceId);
+    const node = emptyNode(currentId, packet.nodes.length + 1, text(source?.speaker, "NPC"));
+    node.speaker_character_id = source?.speaker_character_id || null;
+    setPacket((current) => ({
+      ...current,
+      nodes: [...current.nodes.map((entry) => text(entry.id) === sourceId ? { ...entry, choices: [...rows(entry.choices), { choice_text: automatic ? "" : "New response", next_node_id: node.id, set_flags: [] }] } : entry), node],
+    }));
+    const sourcePosition = positions[sourceId] || { x: 50, y: 50 };
+    setPositions((current) => ({ ...current, [text(node.id)]: { x: sourcePosition.x + 330, y: sourcePosition.y + rows(source?.choices).length * 190 } }));
+    setSelectedNodeId(text(node.id)); setSelectedChoice(null);
+  }, [currentId, packet.nodes, positions]);
+  const connect = useCallback((connection: Connection) => {
+    if (!connection.source || !connection.target || connection.source === connection.target) return;
+    const source = packet.nodes.find((node) => text(node.id) === connection.source);
+    updateNode(connection.source, { choices: [...rows(source?.choices), { choice_text: "New response", next_node_id: connection.target, set_flags: [] }] });
+  }, [packet.nodes, updateNode]);
+
+  const flowNodes = useMemo<Node<CardData>[]>(() => activeNodes.map((node) => ({
+    id: text(node.id), type: "dialogueCard", position: positions[text(node.id)] || { x: 50, y: 50 },
+    selected: selectedNodeId === text(node.id),
+    data: {
+      entry: node, speaker: speakerLabel(node, packet.characters), selectedChoice, lens, health,
+      grouped: Boolean(selectedBeatId && groups[text(node.id)] === selectedBeatId), queued: deletions.includes(text(node.id)),
+      speakerHue: [...speakerLabel(node, packet.characters)].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 360,
+      onSelect: () => { setSelectedNodeId(text(node.id)); setSelectedChoice(null); setTab("edit"); },
+      onText: (value: string) => updateNode(text(node.id), { text: value }),
+      onAdd: (automatic: boolean) => addLinkedNode(text(node.id), automatic),
+    },
+  })), [activeNodes, addLinkedNode, deletions, groups, health, lens, packet.characters, positions, selectedBeatId, selectedChoice, selectedNodeId, updateNode]);
+
+  const flowEdges = useMemo<Edge[]>(() => activeNodes.flatMap((node) => rows(node.choices).map((choice, index) => {
+    const selected = selectedChoice?.nodeId === text(node.id) && selectedChoice.index === index;
+    const consequential = strings(choice.set_flags).length > 0;
+    return {
+      id: `${text(node.id)}:${index}`, source: text(node.id), target: text(choice.next_node_id), label: text(choice.choice_text, "Continue"),
+      type: "smoothstep", markerEnd: { type: MarkerType.ArrowClosed },
+      animated: selected,
+      style: { strokeWidth: selected ? 4 : 2, stroke: text(choice.requirements_id) ? "#d97706" : consequential ? "#a21caf" : "#64748b" },
+      labelStyle: { fontSize: 11, fontWeight: selected ? 700 : 500 },
+    };
+  })), [activeNodes, selectedChoice]);
+
+  const cleanBeat = (beat: EntryRecord) => Object.fromEntries(Object.entries(beat).filter(([key]) => !key.startsWith("__") && key !== "expected_previous"));
+  const mutation = (accepted: string[] = []) => {
+    const originalBeats = new Map((original?.story_beats || []).map((beat) => [text(beat.id), beat]));
+    const story_beats = packet.story_beats.filter((beat) => stable(cleanBeat(beat)) !== stable(cleanBeat(originalBeats.get(text(beat.id)) || {}))).map((beat) => {
+      const previous = originalBeats.get(text(beat.id));
+      return previous ? { ...cleanBeat(beat), expected_previous: previous } : cleanBeat(beat);
+    });
+    return {
+      dialogue: packet.dialogue,
+      nodes: packet.nodes.filter((node) => !deletions.includes(text(node.id))).map((node) => Object.fromEntries(Object.entries(node).filter(([key]) => !key.startsWith("__")))),
+      story_beats,
+      beat_unlinks: beatUnlinks,
+      deletions: { nodes: deletions },
+      accepted_warning_ids: accepted,
+    };
   };
 
-  const addNodeAt = (position: Position) => {
-    const node = emptyNode(currentId, nodes.length + 1);
-    setPacket((current) => ({ ...current, nodes: [...current.nodes, node] }));
-    setPositions((current) => ({ ...current, [text(node.id)]: position }));
-    setSelectedNodeId(text(node.id));
-    setMode("select");
-  };
-
-  const connectTo = (targetId: string) => {
-    if (!pendingSource) { setPendingSource(targetId); return; }
-    if (pendingSource === targetId) return;
-    const source = nodes.find((node) => text(node.id) === pendingSource);
-    updateNode(pendingSource, { choices: [...rows(source?.choices), { choice_text: "", next_node_id: targetId, set_flags: [] }] });
-    setSelectedChoice({ nodeId: pendingSource, index: rows(source?.choices).length });
-    setPendingSource("");
-    setMode("select");
-  };
-
-  const deleteNode = (node: EntryRecord) => {
-    const nodeId = text(node.id);
-    if (node.__new) {
-      setPacket((current) => ({ ...current, nodes: current.nodes.filter((entry) => text(entry.id) !== nodeId) }));
-      setSelectedNodeId("");
-      setSelectedChoice(null);
-    } else {
-      setDeletions((current) => [...new Set([...current, nodeId])]);
-    }
-  };
-
-  const save = async () => {
-    setSaving(true);
-    setNotice("");
+  const preview = async () => {
+    setSaving(true); setNotice("");
     try {
-      const cleanNodes = nodes.filter((node) => !deletions.includes(text(node.id))).map((node) => Object.fromEntries(Object.entries(node).filter(([key]) => key !== "__new")));
-      const response = await apiFetch("/api/ui/dialogues/bundle", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dialogue: packet.dialogue, nodes: cleanNodes, deletions: { nodes: deletions } }),
-      });
-      const body = await response.json().catch(() => null);
-      if (!response.ok || !isRecord(body)) throw new Error(formatApiError(body, "Dialogue bundle failed to save."));
-      const saved = body as unknown as DialoguePacket;
-      setPacket(saved);
-      setOriginal(saved);
-      setDeletions([]);
-      localStorage.removeItem(draftKey(currentId));
-      localStorage.removeItem(NEW_DRAFT_POINTER);
-      localStorage.setItem(layoutKey(currentId), JSON.stringify(positions));
-      setNotice("Dialogue flow saved.");
-      if (isNew) navigate(`/author/dialogues/${encodeURIComponent(text(saved.dialogue.id))}`, { replace: true });
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Dialogue save failed.");
-    } finally {
-      setSaving(false);
-    }
+      const response = await apiFetch("/api/ui/dialogues/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(mutation()) });
+      const body = await response.json();
+      if (!response.ok || !isRecord(body)) throw new Error(formatApiError(body, "Dialogue preview failed."));
+      setReview(body as unknown as Review); setAcceptedWarnings([]);
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Dialogue preview failed."); }
+    finally { setSaving(false); }
   };
 
-  const boardPosition = (clientX: number, clientY: number): Position => {
-    const rect = boardRef.current?.getBoundingClientRect();
-    return { x: Math.max(20, clientX - (rect?.left || 0) + (boardRef.current?.scrollLeft || 0)), y: Math.max(20, clientY - (rect?.top || 0) + (boardRef.current?.scrollTop || 0)) };
+  const commit = async () => {
+    setSaving(true); setNotice("");
+    try {
+      const response = await apiFetch("/api/ui/dialogues/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(mutation(acceptedWarnings)) });
+      const body = await response.json();
+      if (!response.ok || !isRecord(body)) throw new Error(formatApiError(body, "Dialogue bundle failed to save."));
+      const saved = normalizePacket(body, emptyPacket);
+      setPacket(saved); setOriginal(saved); setDeletions([]); setBeatUnlinks([]); setReview(null);
+      localStorage.removeItem(draftKey(currentId)); localStorage.removeItem(NEW_DRAFT_POINTER);
+      localStorage.setItem(layoutKey(currentId), JSON.stringify(positions)); localStorage.setItem(groupKey(currentId), JSON.stringify(groups));
+      setNotice("Dialogue Scene bundle committed.");
+      if (isNew) navigate(`/author/dialogues/${encodeURIComponent(text(saved.dialogue.id))}`, { replace: true });
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Dialogue commit failed."); }
+    finally { setSaving(false); }
   };
-  const boardDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (mode !== "sketch") return;
-    addNodeAt(boardPosition(event.clientX, event.clientY));
-  };
-  const pointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    if (!drag) return;
-    const point = boardPosition(event.clientX, event.clientY);
-    setPositions((current) => ({ ...current, [drag.id]: { x: point.x - drag.dx, y: point.y - drag.dy } }));
-  };
-  const finishDrag = () => {
-    if (drag) localStorage.setItem(layoutKey(currentId), JSON.stringify(positions));
-    setDrag(null);
-  };
+
   const reset = () => {
     if (!original) return;
-    setPacket(original);
-    setDeletions([]);
-    setSelectedChoice(null);
-    setSelectedNodeId(text(original.nodes[0]?.id));
-    localStorage.removeItem(draftKey(currentId));
-    if (isNew) localStorage.removeItem(NEW_DRAFT_POINTER);
-    setNotice("Unsaved dialogue flow changes discarded.");
+    setPacket(original); setDeletions([]); setBeatUnlinks([]); setSelectedChoice(null); setSelectedBeatId("");
+    localStorage.removeItem(draftKey(currentId)); if (isNew) localStorage.removeItem(NEW_DRAFT_POINTER);
+    setNotice("Unsaved Dialogue Scene changes discarded.");
   };
 
-  if (loading) return <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading Dialogue Flow Room...</div>;
+  const applyRecipe = (recipe: string) => {
+    if (packet.nodes.length > 0) { setNotice("Starter recipes can only be applied to an empty dialogue."); return; }
+    const owner = packet.characters.find((entry) => text(entry.id) === text(packet.dialogue.character_id));
+    const speaker = label(owner, "NPC");
+    const make = (line: string, speakerText = speaker): EntryRecord => ({ ...emptyNode(currentId, 1, speakerText), text: line, speaker_character_id: owner?.id || null });
+    let created: EntryRecord[] = [];
+    if (recipe === "Greeting") {
+      const a = make("Welcome. What can I do for you?"); const b = make("Tell me about this place."); const c = make("Safe travels.");
+      a.choices = [{ choice_text: "Ask about the area", next_node_id: b.id, set_flags: [] }, { choice_text: "Leave", next_node_id: c.id, set_flags: [] }]; b.choices = [{ choice_text: "Thanks", next_node_id: c.id, set_flags: [] }]; created = [a, b, c];
+    } else if (recipe === "Quest Briefing") {
+      const a = make("I need your help."); const b = make("Will you take the task?"); const c = make("Then we have an agreement."); const d = make("I understand.");
+      a.choices = [{ choice_text: "What happened?", next_node_id: b.id, set_flags: [] }]; b.choices = [{ choice_text: "Accept", next_node_id: c.id, set_flags: [] }, { choice_text: "Refuse", next_node_id: d.id, set_flags: [] }]; created = [a, b, c, d];
+    } else if (recipe === "Negotiation") {
+      const a = make("Give me one reason to agree."); const b = make("That is convincing."); const c = make("That changes nothing."); const d = make("We are done.");
+      a.choices = [{ choice_text: "Appeal", next_node_id: b.id, set_flags: [] }, { choice_text: "Offer proof", next_node_id: b.id, set_flags: [] }, { choice_text: "Threaten", next_node_id: c.id, set_flags: [] }]; c.choices = [{ choice_text: "Leave", next_node_id: d.id, set_flags: [] }]; created = [a, b, c, d];
+    } else {
+      const a = make("It is over. Are you hurt?"); const b = make("Then let us decide what comes next."); const c = make("We should move.");
+      a.choices = [{ choice_text: "Discuss what happened", next_node_id: b.id, set_flags: [] }, { choice_text: "Move on", next_node_id: c.id, set_flags: [] }]; b.choices = [{ choice_text: "Continue", next_node_id: c.id, set_flags: [] }]; created = [a, b, c];
+    }
+    setPacket((current) => ({ ...current, nodes: created }));
+    setPositions(autoLayout(created)); setSelectedNodeId(text(created[0]?.id)); setNotice(`${recipe} starter staged.`);
+  };
 
-  return (
-    <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="mx-auto max-w-[1800px] space-y-4">
-        <header className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><div className="text-xs font-semibold uppercase text-slate-500">Dialogue Flow Room</div><h1 className="text-2xl font-semibold">{label(packet.dialogue)}</h1><div className="mt-1 text-xs text-slate-500">{nodes.length} nodes / {health.issues.length} health notices / {dirty ? "Unsaved" : "Saved"}</div></div>
-            <div className="flex flex-wrap gap-2"><Link className={inactiveButton} to="/dialogues">Generic Dialogues</Link><Link className={inactiveButton} to="/dialogue-nodes">Generic Nodes</Link><button className={inactiveButton} disabled={!dirty || saving} onClick={reset}>Reset</button><button className={activeButton} disabled={saving || saveBlocked} onClick={() => void save()}>{saving ? "Saving..." : "Save Flow"}</button></div>
-          </div>
-          {notice && <div className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950">{notice}</div>}
-          {brokenDeletionLinks && <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950">Remove incoming choices targeting deleted nodes before saving.</div>}
-          {!brokenDeletionLinks && (invalidNodes || invalidChoices) && <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950">Complete required node fields and repair missing choice targets before saving.</div>}
-        </header>
+  const createBeat = (characterId: string) => {
+    if (!characterId) return;
+    const character = packet.characters.find((entry) => text(entry.id) === characterId);
+    const next = Number(packet.context.participant_next_sort_order[characterId] || 0) + packet.story_beats.filter((beat) => beat.__new && text(beat.character_id) === characterId).length;
+    const beat: EntryRecord = {
+      id: generateUlid(), character_id: characterId, dialogue_id: currentId, title: `${label(character)} Dialogue Beat`,
+      beat_type: "Other", sort_order: next, summary: "", state_before: "", state_after: "", player_impact: "", world_impact: "",
+      required_flags: [], forbidden_flags: [], expected_output_flags: [], relationship_changes: [], tags: [], __new: true,
+    };
+    setPacket((current) => ({ ...current, story_beats: [...current.story_beats, beat] })); setSelectedBeatId(text(beat.id)); setTab("beat");
+  };
 
-        <div className="grid gap-4 xl:grid-cols-[250px_minmax(650px,1fr)_390px]">
-          <Panel title="Dialogues">
-            <Link className={`${activeButton} mb-3 block text-center`} to="/author/dialogues/new">New Dialogue</Link>
-            <div className="max-h-[760px] space-y-1 overflow-y-auto">{dialogues.map((dialogue) => <Link key={text(dialogue.id)} to={`/author/dialogues/${encodeURIComponent(text(dialogue.id))}`} className={`block rounded border px-3 py-2 text-sm ${text(dialogue.id) === currentId ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-slate-200 dark:border-slate-800"}`}>{label(dialogue)}</Link>)}</div>
-          </Panel>
+  const updateBeat = (beatId: string, patch: EntryRecord) => setPacket((current) => ({ ...current, story_beats: current.story_beats.map((beat) => text(beat.id) === beatId ? { ...beat, ...patch } : beat) }));
+  const unlinkBeat = (beat: EntryRecord) => {
+    if (!beat.__new) {
+      const originalBeat = original?.story_beats.find((entry) => text(entry.id) === text(beat.id));
+      if (originalBeat) setBeatUnlinks((current) => [...current, { id: beat.id, expected_previous: originalBeat }]);
+    }
+    setPacket((current) => ({ ...current, story_beats: current.story_beats.filter((entry) => text(entry.id) !== text(beat.id)) }));
+    setGroups((current) => Object.fromEntries(Object.entries(current).filter(([, beatId]) => beatId !== text(beat.id))));
+    setSelectedBeatId("");
+  };
 
-          <section className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-            <div className="border-b border-slate-200 p-3 dark:border-slate-800">
-              <div className="flex flex-wrap justify-between gap-2"><div className="flex gap-2">{(["select", "sketch", "connect", "move"] as CanvasMode[]).map((item) => <button key={item} className={mode === item ? activeButton : inactiveButton} onClick={() => { setMode(item); setPendingSource(""); }}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div><button className={inactiveButton} onClick={() => { const next = autoLayout(nodes); setPositions(next); localStorage.setItem(layoutKey(currentId), JSON.stringify(next)); }}>Auto Layout</button></div>
-              <div className="mt-2 flex flex-wrap gap-2">{(["choices", "consequences", "locks", "speakers", "reachability"] as Lens[]).map((item) => <button key={item} className={lens === item ? activeButton : inactiveButton} onClick={() => setLens(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>
-              <div className="mt-2 text-xs text-slate-500">{mode === "sketch" ? "Double-click empty canvas space." : mode === "connect" ? pendingSource ? "Select a target node." : "Select a source node." : mode === "move" ? "Drag nodes to arrange the conversation." : "Select a node or connection."}</div>
-            </div>
-            <div ref={boardRef} data-testid="dialogue-canvas" className="relative h-[760px] overflow-auto bg-slate-50 dark:bg-slate-950" onDoubleClick={boardDoubleClick} onPointerMove={pointerMove} onPointerUp={finishDrag} onPointerCancel={finishDrag}>
-              <div className="absolute left-0 top-0 h-[1600px] w-[2400px] bg-[linear-gradient(90deg,rgba(148,163,184,.16)_1px,transparent_1px),linear-gradient(rgba(148,163,184,.16)_1px,transparent_1px)] bg-[size:40px_40px]" />
-              <svg className="pointer-events-none absolute left-0 top-0 h-[1600px] w-[2400px]">
-                <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" className="fill-slate-500" /></marker></defs>
-                {nodes.flatMap((node) => rows(node.choices).map((choice, index) => {
-                  const from = positions[text(node.id)] || { x: 50, y: 50 };
-                  const to = positions[text(choice.next_node_id)];
-                  if (!to) return null;
-                  const selected = selectedChoice?.nodeId === text(node.id) && selectedChoice.index === index;
-                  return <g key={`${text(node.id)}-${index}`} className="pointer-events-auto cursor-pointer" onClick={() => { setSelectedChoice({ nodeId: text(node.id), index }); setSelectedNodeId(""); setTab("edit"); }}><line x1={from.x + 210} y1={from.y + 55} x2={to.x} y2={to.y + 55} strokeWidth={selected ? 4 : 2} className={text(choice.requirements_id) ? "stroke-amber-500" : strings(choice.set_flags).length ? "stroke-violet-500" : "stroke-slate-500"} strokeDasharray={!text(choice.choice_text) ? "6 4" : undefined} markerEnd="url(#arrow)" /><text x={(from.x + 210 + to.x) / 2} y={(from.y + to.y) / 2 + 45} className="fill-slate-600 text-[11px] dark:fill-slate-300">{text(choice.choice_text, "continue")}</text></g>;
-                }))}
-              </svg>
-              {nodes.map((node) => {
-                const nodeId = text(node.id);
-                const position = positions[nodeId] || { x: 50, y: 50 };
-                const issue = lens === "reachability" && health.unreachable.has(nodeId);
-                const locked = Boolean(text(node.requirements_id));
-                const consequential = strings(node.set_flags).length > 0 || rows(node.choices).some((choice) => strings(choice.set_flags).length > 0);
-                const displayedSpeaker = speakerLabel(node, packet.characters);
-                const speakerHue = [...displayedSpeaker].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 360;
-                const queued = deletions.includes(nodeId);
-                return <button key={nodeId} data-testid={`dialogue-node-${nodeId}`} type="button" className={`absolute w-[210px] rounded-md border p-3 text-left shadow ${queued ? "border-red-500 bg-red-50 opacity-60 line-through dark:bg-red-950" : selectedNodeId === nodeId || pendingSource === nodeId ? "border-blue-600 ring-2 ring-blue-300" : issue ? "border-red-500 bg-red-50 dark:bg-red-950" : locked && lens === "locks" ? "border-amber-500 bg-amber-50 dark:bg-amber-950" : consequential && lens === "consequences" ? "border-violet-500 bg-violet-50 dark:bg-violet-950" : "border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900"}`} style={{ left: position.x, top: position.y, borderLeftColor: lens === "speakers" ? `hsl(${speakerHue} 70% 50%)` : undefined, borderLeftWidth: lens === "speakers" ? 6 : undefined }} onClick={() => { if (mode === "connect") connectTo(nodeId); else { setSelectedNodeId(nodeId); setSelectedChoice(null); setTab("edit"); } }} onPointerDown={(event) => { if (mode !== "move") return; const point = boardPosition(event.clientX, event.clientY); setDrag({ id: nodeId, dx: point.x - position.x, dy: point.y - position.y }); event.currentTarget.setPointerCapture(event.pointerId); }}><div className="text-[10px] font-semibold uppercase text-slate-500">{displayedSpeaker}</div><div className="mt-1 line-clamp-3 text-sm">{text(node.text, "Empty line")}</div><div className="mt-2 flex gap-1 text-[10px] text-slate-500"><span>{rows(node.choices).length} choices</span>{queued && <span>Delete on save</span>}{locked && <span>Locked</span>}{strings(node.set_flags).length > 0 && <span>{strings(node.set_flags).length} flags</span>}</div></button>;
-              })}
-            </div>
-          </section>
+  if (loading) return <div className="p-6 text-sm text-slate-600">Loading Dialogue Scene Room...</div>;
 
-          <Panel title="Inspector">
-            <div className="mb-3 flex flex-wrap gap-1">{(["edit", "health", "play", "context"] as InspectorTab[]).map((item) => <button key={item} className={tab === item ? activeButton : inactiveButton} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>
-            {tab === "edit" && selectedChoice && selectedChoiceRow ? <ChoiceEditor choice={selectedChoiceRow} nodes={nodes} deletions={deletions} canMoveUp={selectedChoice.index > 0} canMoveDown={selectedChoice.index < rows(nodes.find((node) => text(node.id) === selectedChoice.nodeId)?.choices).length - 1} onChange={(patch) => updateChoice(selectedChoice.nodeId, selectedChoice.index, patch)} onMove={(direction) => { const node = nodes.find((entry) => text(entry.id) === selectedChoice.nodeId); const choices = rows(node?.choices); const target = selectedChoice.index + direction; const next = [...choices]; [next[selectedChoice.index], next[target]] = [next[target], next[selectedChoice.index]]; updateNode(selectedChoice.nodeId, { choices: next }); setSelectedChoice({ nodeId: selectedChoice.nodeId, index: target }); }} onRemove={() => removeChoice(selectedChoice.nodeId, selectedChoice.index)} />
-              : tab === "edit" && selectedNode ? <NodeEditor node={selectedNode} characters={packet.characters || []} queuedForDeletion={deletions.includes(text(selectedNode.id))} onChange={(patch) => updateNode(text(selectedNode.id), patch)} onDelete={() => deleteNode(selectedNode)} onUndoDelete={() => setDeletions((current) => current.filter((nodeId) => nodeId !== text(selectedNode.id)))} onSetStart={() => { localStorage.setItem(startKey(currentId), text(selectedNode.id)); setNotice("Local playthrough start updated."); }} />
-                : tab === "edit" ? <DialogueEditor dialogue={packet.dialogue} onChange={updateDialogue} /> : null}
-            {tab === "health" && <HealthPanel health={health} nodes={activeNodes} onSelect={setSelectedNodeId} />}
-            {tab === "play" && <PlayThrough key={currentId} packet={{ ...packet, nodes: activeNodes }} health={health} />}
-            {tab === "context" && <ContextPanel packet={packet} />}
-          </Panel>
+  return <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
+    <div className="mx-auto max-w-[1900px] space-y-4">
+      <header className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><div className="text-xs font-semibold uppercase text-violet-600">Dialogue Scene Room</div><h1 className="text-2xl font-semibold">{label(packet.dialogue)}</h1><div className="mt-1 text-xs text-slate-500">{activeNodes.length} lines / {packet.story_beats.length} beats / {health.blockers.length} blockers / {health.warnings.length} warnings / {dirty ? "Unsaved" : "Saved"}</div></div>
+          <div className="flex flex-wrap gap-2"><Link className={inactive} to="/dialogues">Advanced Dialogues</Link><button className={inactive} disabled={!dirty || saving} onClick={reset}>Reset</button><button className={active} disabled={saving || saveBlocked || !dirty} onClick={() => void preview()}>{saving ? "Reviewing..." : "Save Flow"}</button></div>
         </div>
+        {notice && <Notice>{notice}</Notice>}
+        {deletions.length > 0 && <div className="mt-3 flex items-center justify-between rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950"><span>{deletions.length} line(s) queued for deletion.</span><button className={inactive} onClick={() => setDeletions([])}>Undo Line Deletions</button></div>}
+      </header>
+
+      <SceneBrief packet={packet} onChange={updateDialogue} onRecipe={applyRecipe} />
+      <BeatTrack packet={packet} selectedBeatId={selectedBeatId} setSelectedBeatId={(beatId) => { setSelectedBeatId(beatId); setTab("beat"); }} onCreate={createBeat} />
+
+      <div className="grid gap-4 xl:grid-cols-[235px_minmax(760px,1fr)_390px]">
+        <Panel title="Dialogue Library">
+          <Link className={`${active} mb-3 block text-center`} to="/author/dialogues/new">New Dialogue</Link>
+          <div className="max-h-[760px] space-y-1 overflow-y-auto">{dialogues.map((dialogue) => <Link key={text(dialogue.id)} to={`/author/dialogues/${encodeURIComponent(text(dialogue.id))}`} className={`block rounded border px-3 py-2 text-sm ${text(dialogue.id) === currentId ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-slate-200 dark:border-slate-800"}`}>{label(dialogue)}</Link>)}</div>
+        </Panel>
+
+        <section className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <div className="border-b border-slate-200 p-3 dark:border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex gap-1">{(["flow", "rehearsal", "impact"] as CenterView[]).map((item) => <button key={item} className={view === item ? active : inactive} onClick={() => setView(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>
+              {view === "flow" && <button className={inactive} onClick={() => { const next = autoLayout(activeNodes); setPositions(next); localStorage.setItem(layoutKey(currentId), JSON.stringify(next)); }}>Auto Layout</button>}
+            </div>
+            {view === "flow" && <div className="mt-2 flex flex-wrap gap-1">{(["choices", "consequences", "locks", "speakers", "reachability", "world"] as Lens[]).map((item) => <button key={item} className={lens === item ? active : inactive} onClick={() => setLens(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>}
+          </div>
+          {view === "flow" && <div data-testid="dialogue-canvas" className="h-[760px]">
+            <ReactFlow
+              nodes={flowNodes} edges={flowEdges} nodeTypes={nodeTypes} fitView minZoom={0.2} maxZoom={1.8}
+              onConnect={connect}
+              onNodeClick={(_event, node) => { setSelectedNodeId(node.id); setSelectedChoice(null); setTab("edit"); }}
+              onNodeDragStop={(_event, node) => { const next = { ...positions, [node.id]: node.position }; setPositions(next); localStorage.setItem(layoutKey(currentId), JSON.stringify(next)); }}
+              onEdgeClick={(_event, edge) => { const [nodeId, index] = edge.id.split(":"); setSelectedChoice({ nodeId, index: Number(index) }); setSelectedNodeId(""); setTab("edit"); }}
+            >
+              <Background gap={28} /><MiniMap pannable zoomable /><Controls />
+            </ReactFlow>
+          </div>}
+          {view === "rehearsal" && <Rehearsal packet={{ ...packet, nodes: activeNodes }} health={health} groups={groups} selectedBeatId={selectedBeatId} onBeat={setSelectedBeatId} />}
+          {view === "impact" && <ImpactView packet={packet} selectedNodeId={selectedNodeId || selectedChoice?.nodeId || ""} />}
+        </section>
+
+        <Panel title="Context Dock">
+          <div className="mb-3 flex flex-wrap gap-1">{(["edit", "beat", "health", "context"] as InspectorTab[]).map((item) => <button key={item} className={tab === item ? active : inactive} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>
+          {tab === "edit" && selectedChoice && selectedChoiceRow ? <ChoiceEditor choice={selectedChoiceRow} nodes={packet.nodes} deletions={deletions} onChange={(patch) => updateChoice(selectedChoice.nodeId, selectedChoice.index, patch)} onRemove={() => { const node = packet.nodes.find((entry) => text(entry.id) === selectedChoice.nodeId); updateNode(selectedChoice.nodeId, { choices: rows(node?.choices).filter((_, index) => index !== selectedChoice.index) }); setSelectedChoice(null); }} />
+            : tab === "edit" && selectedNode ? <NodeEditor node={selectedNode} packet={packet} groupedBeatId={groups[text(selectedNode.id)] || ""} selectedBeatId={selectedBeatId} onChange={(patch) => updateNode(text(selectedNode.id), patch)} onGroup={(beatId) => { const next = { ...groups, [text(selectedNode.id)]: beatId }; if (!beatId) delete next[text(selectedNode.id)]; setGroups(next); localStorage.setItem(groupKey(currentId), JSON.stringify(next)); }} onDelete={() => selectedNode.__new ? setPacket((current) => ({ ...current, nodes: current.nodes.filter((entry) => text(entry.id) !== text(selectedNode.id)) })) : setDeletions((current) => [...new Set([...current, text(selectedNode.id)])])} />
+              : tab === "edit" ? <DialogueEditor dialogue={packet.dialogue} onChange={updateDialogue} /> : null}
+          {tab === "beat" && selectedBeat ? <BeatEditor beat={selectedBeat} packet={packet} coverage={packet.beat_coverage[text(selectedBeat.id)]} onChange={(patch) => updateBeat(text(selectedBeat.id), patch)} onUnlink={() => unlinkBeat(selectedBeat)} /> : tab === "beat" ? <Empty>Select or create a story beat.</Empty> : null}
+          {tab === "health" && <HealthPanel health={health} onSelect={(nodeId) => { setSelectedNodeId(nodeId); setView("flow"); }} />}
+          {tab === "context" && <ContextPanel packet={packet} />}
+        </Panel>
       </div>
     </div>
-  );
+    {review && <BundleReview review={review} accepted={acceptedWarnings} setAccepted={setAcceptedWarnings} saving={saving} onCancel={() => setReview(null)} onCommit={() => void commit()} />}
+  </div>;
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"><h2 className="mb-3 text-sm font-semibold">{title}</h2>{children}</section>;
+function SceneBrief({ packet, onChange, onRecipe }: { packet: DialoguePacket; onChange: (patch: EntryRecord) => void; onRecipe: (recipe: string) => void }) {
+  const participants = sceneParticipants(packet);
+  const owner = packet.characters.find((entry) => text(entry.id) === text(packet.dialogue.character_id)) || packet.context.character;
+  return <Panel title="Scene Brief" subtitle="Why this conversation happens, who is present, and where it sits in the world.">
+    <div className="grid gap-3 lg:grid-cols-[1.3fr_1fr_1fr]">
+      <div><Field label="Scene Title" value={packet.dialogue.title} onChange={(title) => onChange({ title, slug: text(packet.dialogue.slug) || generateSlug(title) })} /><div className="mt-2"><Field label="Scene Direction" value={packet.dialogue.description} textarea onChange={(description) => onChange({ description })} /></div></div>
+      <div className="rounded border border-slate-200 p-3 text-sm dark:border-slate-800"><Caption>Scene Anchors</Caption><div>Owner: {owner ? label(owner) : "Unassigned"}</div><div>Location: {packet.context.location ? label(packet.context.location) : "Unassigned"}</div><div>Entry gate: {text(packet.dialogue.requirements_id, "None")}</div><div className="mt-2 flex flex-wrap gap-1">{participants.map((entry) => <Chip key={text(entry.id)}>{label(entry)}</Chip>)}</div></div>
+      <div><Caption>Starter Recipes</Caption><div className="flex flex-wrap gap-1">{["Greeting", "Quest Briefing", "Negotiation", "Post-Encounter Reaction"].map((recipe) => <button key={recipe} className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => onRecipe(recipe)}>{recipe}</button>)}</div><p className="mt-2 text-xs text-slate-500">Recipes stage a complete local graph and never save automatically.</p></div>
+    </div>
+  </Panel>;
+}
+
+function BeatTrack({ packet, selectedBeatId, setSelectedBeatId, onCreate }: { packet: DialoguePacket; selectedBeatId: string; setSelectedBeatId: (id: string) => void; onCreate: (characterId: string) => void }) {
+  const [owner, setOwner] = useState("");
+  const participants = sceneParticipants(packet);
+  const lanes = participants.map((participant) => ({ participant, beats: packet.story_beats.filter((beat) => text(beat.character_id) === text(participant.id)).sort((a, b) => Number(a.sort_order) - Number(b.sort_order)) }));
+  return <Panel title="Story Beat Track" subtitle="Canonical character milestones linked to this dialogue. Node grouping is local to this room.">
+    <div className="mb-3 flex flex-wrap items-end gap-2"><label className="text-xs font-semibold uppercase text-slate-500">Beat Owner<select aria-label="Beat Owner" className={`${inputClass} mt-1 normal-case`} value={owner} onChange={(event) => setOwner(event.target.value)}><option value="">Choose participant</option>{participants.map((entry) => <option key={text(entry.id)} value={text(entry.id)}>{label(entry)}</option>)}</select></label><button className={active} disabled={!owner} onClick={() => onCreate(owner)}>Add Story Beat</button></div>
+    <div className="space-y-2">{lanes.map(({ participant, beats }) => <div key={text(participant.id)} className="grid gap-2 rounded border border-slate-200 p-2 dark:border-slate-800 md:grid-cols-[150px_1fr]"><div className="text-xs font-semibold">{label(participant)}<div className="font-normal text-slate-500">{beats.length} dialogue beats</div></div><div className="flex gap-2 overflow-x-auto">{beats.map((beat) => <button key={text(beat.id)} className={`min-w-48 rounded border p-2 text-left text-xs ${selectedBeatId === text(beat.id) ? "border-violet-600 bg-violet-50 ring-2 ring-violet-200 dark:bg-violet-950" : "border-slate-300 dark:border-slate-700"}`} onClick={() => setSelectedBeatId(text(beat.id))}><div className="text-[10px] uppercase text-violet-600">{text(beat.beat_type)} / Arc #{Number(beat.sort_order) + 1}</div><div className="mt-1 font-semibold">{label(beat)}</div><div className="mt-1 text-slate-500">{strings(beat.required_flags).length + strings(beat.forbidden_flags).length} inputs → {strings(beat.expected_output_flags).length} outputs</div></button>)}{beats.length === 0 && <Empty>No linked beats.</Empty>}</div></div>)}</div>
+  </Panel>;
 }
 
 function DialogueEditor({ dialogue, onChange }: { dialogue: EntryRecord; onChange: (patch: EntryRecord) => void }) {
-  return <div className="space-y-3"><Field label="Title" value={dialogue.title} onChange={(title) => onChange({ title, slug: text(dialogue.slug) ? dialogue.slug : generateSlug(title) })} /><Field label="Slug" value={dialogue.slug} onChange={(slug) => onChange({ slug })} /><Field label="Description" value={dialogue.description} textarea onChange={(description) => onChange({ description })} /><ReferenceChipPicker label="Character" value={dialogue.character_id} reference="characters" onChange={(character_id) => onChange({ character_id })} /><ReferenceChipPicker label="Location" value={dialogue.location_id} reference="locations" onChange={(location_id) => onChange({ location_id })} /><ReferenceChipPicker label="Requirement" value={dialogue.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} /><EditableTagList tags={dialogue.tags} onChange={(tags) => onChange({ tags })} /></div>;
+  return <div className="space-y-3"><Field label="Title" value={dialogue.title} onChange={(title) => onChange({ title, slug: text(dialogue.slug) || generateSlug(title) })} /><Field label="Slug" value={dialogue.slug} onChange={(slug) => onChange({ slug })} /><Field label="Writing Direction" value={dialogue.description} textarea onChange={(description) => onChange({ description })} /><ReferenceChipPicker label="Owner Character" value={dialogue.character_id} reference="characters" onChange={(character_id) => onChange({ character_id })} /><ReferenceChipPicker label="Location" value={dialogue.location_id} reference="locations" onChange={(location_id) => onChange({ location_id })} /><ReferenceChipPicker label="Entry Requirement" value={dialogue.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} /><EditableTagList tags={dialogue.tags} onChange={(tags) => onChange({ tags })} /></div>;
 }
 
-function NodeEditor({ node, characters, queuedForDeletion, onChange, onDelete, onUndoDelete, onSetStart }: { node: EntryRecord; characters: EntryRecord[]; queuedForDeletion: boolean; onChange: (patch: EntryRecord) => void; onDelete: () => void; onUndoDelete: () => void; onSetStart: () => void }) {
-  return <div className="space-y-3"><Field label="Fallback Speaker Text" value={node.speaker} onChange={(speaker) => onChange({ speaker })} /><label className="block text-xs font-semibold uppercase text-slate-500">Linked Character<select className={`${inputClass} mt-1 normal-case`} value={text(node.speaker_character_id)} onChange={(event) => onChange({ speaker_character_id: event.target.value || null })}><option value="">Use fallback speaker text</option>{characters.map((character) => <option key={text(character.id)} value={text(character.id)}>{label(character)}</option>)}</select></label><Field label="Slug" value={node.slug} onChange={(slug) => onChange({ slug })} /><Field label="Dialogue Text" value={node.text} textarea onChange={(value) => onChange({ text: value })} /><ReferenceChipPicker label="Requirement" value={node.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} /><FlagPicker value={node.set_flags} onChange={(set_flags) => onChange({ set_flags })} /><EditableTagList tags={node.tags} onChange={(tags) => onChange({ tags })} /><button className={inactiveButton} onClick={onSetStart}>Use As Local Start</button>{queuedForDeletion ? <button className={inactiveButton} onClick={onUndoDelete}>Undo Node Deletion</button> : <button className="rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-700" onClick={onDelete}>{node.__new ? "Discard Node" : "Delete Node On Save"}</button>}</div>;
+function NodeEditor({ node, packet, groupedBeatId, selectedBeatId, onChange, onGroup, onDelete }: { node: EntryRecord; packet: DialoguePacket; groupedBeatId: string; selectedBeatId: string; onChange: (patch: EntryRecord) => void; onGroup: (id: string) => void; onDelete: () => void }) {
+  return <div className="space-y-3"><label className="block text-xs font-semibold uppercase text-slate-500">Linked Speaker<select className={`${inputClass} mt-1 normal-case`} value={text(node.speaker_character_id)} onChange={(event) => { const character = packet.characters.find((entry) => text(entry.id) === event.target.value); onChange({ speaker_character_id: event.target.value || null, speaker: character ? label(character) : node.speaker }); }}><option value="">Fallback speaker only</option>{packet.characters.map((character) => <option key={text(character.id)} value={text(character.id)}>{label(character)}</option>)}</select></label><Field label="Fallback Speaker" value={node.speaker} onChange={(speaker) => onChange({ speaker })} /><Field label="Slug" value={node.slug} onChange={(slug) => onChange({ slug })} /><Field label="Dialogue Text" value={node.text} textarea onChange={(value) => onChange({ text: value })} /><ReferenceChipPicker label="Requirement" value={node.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} /><FlagPicker value={node.set_flags} options={packet.flags} onChange={(set_flags) => onChange({ set_flags })} /><label className="block text-xs font-semibold uppercase text-slate-500">Local Story Beat Group<select aria-label="Local Story Beat Group" className={`${inputClass} mt-1 normal-case`} value={groupedBeatId} onChange={(event) => onGroup(event.target.value)}><option value="">No local grouping</option>{packet.story_beats.map((beat) => <option key={text(beat.id)} value={text(beat.id)}>{label(beat)}</option>)}</select></label>{selectedBeatId && groupedBeatId !== selectedBeatId && <button className={inactive} onClick={() => onGroup(selectedBeatId)}>Group With Selected Beat</button>}<button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={onDelete}>{node.__new ? "Discard Line" : "Delete Line On Save"}</button></div>;
 }
 
-function ChoiceEditor({ choice, nodes, deletions, canMoveUp, canMoveDown, onChange, onMove, onRemove }: { choice: EntryRecord; nodes: EntryRecord[]; deletions: string[]; canMoveUp: boolean; canMoveDown: boolean; onChange: (patch: EntryRecord) => void; onMove: (direction: -1 | 1) => void; onRemove: () => void }) {
-  return <div className="space-y-3"><Field label="Choice Text (blank = auto continue)" value={choice.choice_text} onChange={(choice_text) => onChange({ choice_text })} /><label className="block text-xs font-semibold uppercase text-slate-500">Target<select className={`${inputClass} mt-1`} value={text(choice.next_node_id)} onChange={(event) => onChange({ next_node_id: event.target.value })}>{nodes.map((node) => <option key={text(node.id)} value={text(node.id)} disabled={deletions.includes(text(node.id))}>{label(node)}{deletions.includes(text(node.id)) ? " (delete on save)" : ""}</option>)}</select></label><ReferenceChipPicker label="Requirement" value={choice.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} /><FlagPicker value={choice.set_flags} onChange={(set_flags) => onChange({ set_flags })} /><div className="flex gap-2"><button className={inactiveButton} disabled={!canMoveUp} onClick={() => onMove(-1)}>Move Up</button><button className={inactiveButton} disabled={!canMoveDown} onClick={() => onMove(1)}>Move Down</button></div><button className="rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-700" onClick={onRemove}>Remove Choice</button></div>;
+function ChoiceEditor({ choice, nodes, deletions, onChange, onRemove }: { choice: EntryRecord; nodes: EntryRecord[]; deletions: string[]; onChange: (patch: EntryRecord) => void; onRemove: () => void }) {
+  return <div className="space-y-3"><Field label="Player Choice (blank = continue)" value={choice.choice_text} onChange={(choice_text) => onChange({ choice_text })} /><label className="block text-xs font-semibold uppercase text-slate-500">Target<select className={`${inputClass} mt-1 normal-case`} value={text(choice.next_node_id)} onChange={(event) => onChange({ next_node_id: event.target.value })}>{nodes.map((node) => <option key={text(node.id)} value={text(node.id)} disabled={deletions.includes(text(node.id))}>{label(node, text(node.text, "Empty line"))}</option>)}</select></label><ReferenceChipPicker label="Requirement" value={choice.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} /><FlagPicker value={choice.set_flags} options={[]} onChange={(set_flags) => onChange({ set_flags })} /><button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={onRemove}>Remove Choice</button></div>;
 }
 
-function FlagPicker({ value, onChange }: { value: unknown; onChange: (flags: string[]) => void }) {
-  const [options, setOptions] = useState<EntryRecord[]>([]);
-  useEffect(() => { void apiFetch("/api/flags").then((response) => response.json()).then((body) => setOptions(Array.isArray(body) ? body.filter(isRecord) : [])).catch(() => setOptions([])); }, []);
-  const current = strings(value);
-  return <label className="block text-xs font-semibold uppercase text-slate-500">Flags Set<select multiple className={`${inputClass} mt-1 min-h-28`} value={current} onChange={(event) => onChange([...event.currentTarget.selectedOptions].map((option) => option.value))}>{options.map((flag) => <option key={text(flag.id)} value={text(flag.id)}>{label(flag)}</option>)}</select></label>;
+function BeatEditor({ beat, packet, coverage, onChange, onUnlink }: { beat: EntryRecord; packet: DialoguePacket; coverage?: BeatCoverage; onChange: (patch: EntryRecord) => void; onUnlink: () => void }) {
+  return <div className="space-y-3"><Field label="Beat Title" value={beat.title} onChange={(title) => onChange({ title })} /><label className="block text-xs font-semibold uppercase text-slate-500">Beat Type<select className={`${inputClass} mt-1 normal-case`} value={text(beat.beat_type)} onChange={(event) => onChange({ beat_type: event.target.value })}>{BEAT_TYPES.map((value) => <option key={value}>{value}</option>)}</select></label><Field label="Summary" value={beat.summary} textarea onChange={(summary) => onChange({ summary })} /><Field label="State Before" value={beat.state_before} textarea onChange={(state_before) => onChange({ state_before })} /><Field label="State After" value={beat.state_after} textarea onChange={(state_after) => onChange({ state_after })} /><Field label="Player Impact" value={beat.player_impact} textarea onChange={(player_impact) => onChange({ player_impact })} /><Field label="World Impact" value={beat.world_impact} textarea onChange={(world_impact) => onChange({ world_impact })} /><FlagPicker label="Required Before" value={beat.required_flags} options={packet.flags} onChange={(required_flags) => onChange({ required_flags })} /><FlagPicker label="Must Not Be True" value={beat.forbidden_flags} options={packet.flags} onChange={(forbidden_flags) => onChange({ forbidden_flags })} /><FlagPicker label="Expected After" value={beat.expected_output_flags} options={packet.flags} onChange={(expected_output_flags) => onChange({ expected_output_flags })} />{coverage?.warnings.map((warning) => <Issue key={warning} tone="amber">{warning}</Issue>)}<button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={onUnlink}>{beat.__new ? "Discard Beat" : "Unlink Beat From Dialogue"}</button></div>;
 }
 
-function Field({ label: fieldLabel, value, textarea, onChange }: { label: string; value: unknown; textarea?: boolean; onChange: (value: string) => void }) {
-  return <label className="block text-xs font-semibold uppercase text-slate-500">{fieldLabel}{textarea ? <textarea className={`${inputClass} mt-1 min-h-28 normal-case`} value={value == null ? "" : String(value)} onChange={(event) => onChange(event.target.value)} /> : <input className={`${inputClass} mt-1 normal-case`} value={value == null ? "" : String(value)} onChange={(event) => onChange(event.target.value)} />}</label>;
-}
-
-function HealthPanel({ health, nodes, onSelect }: { health: HealthResult; nodes: EntryRecord[]; onSelect: (id: string) => void }) {
-  return <div className="space-y-2">{health.issues.length === 0 ? <div className="rounded border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">No dialogue graph issues found.</div> : health.issues.map((issue) => <div key={issue} className="rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950">{issue}</div>)}<div className="pt-3 text-xs font-semibold uppercase text-slate-500">Nodes</div>{nodes.map((node) => <button key={text(node.id)} className="block w-full rounded border border-slate-200 p-2 text-left text-sm dark:border-slate-800" onClick={() => onSelect(text(node.id))}>{label(node)}</button>)}</div>;
-}
-
-function PlayThrough({ packet, health }: { packet: DialoguePacket; health: HealthResult }) {
+function Rehearsal({ packet, health, groups, selectedBeatId, onBeat }: { packet: DialoguePacket; health: Health; groups: Record<string, string>; selectedBeatId: string; onBeat: (id: string) => void }) {
   const localStart = localStorage.getItem(startKey(text(packet.dialogue.id))) || "";
-  const start = packet.nodes.some((node) => text(node.id) === localStart) ? localStart : health.roots.length === 1 ? health.roots[0] : "";
-  const defaultFlags = packet.flags.filter((flag) => Boolean(flag.default_value)).map((flag) => text(flag.id));
+  const start = packet.nodes.some((node) => text(node.id) === localStart) ? localStart : health.roots.length === 1 ? health.roots[0] : text(packet.nodes[0]?.id);
+  const defaults = packet.flags.filter((flag) => Boolean(flag.default_value)).map((flag) => text(flag.id));
   const [currentId, setCurrentId] = useState(start);
-  const [activeFlags, setActiveFlags] = useState<Set<string>>(new Set(defaultFlags));
+  const [flags, setFlags] = useState<Set<string>>(new Set(defaults));
   const [reputation, setReputation] = useState<Record<string, number>>({});
+  const [transcript, setTranscript] = useState<EntryRecord[]>([]);
+  const [snapshots, setSnapshots] = useState<EntryRecord[][]>([]);
   const current = packet.nodes.find((node) => text(node.id) === currentId);
-  const dialogueGate = requirementState(packet.dialogue.requirements_id, packet.requirements, activeFlags, reputation);
-  const nodeGate = requirementState(current?.requirements_id, packet.requirements, activeFlags, reputation);
-  const restart = () => { setCurrentId(start); setActiveFlags(new Set(defaultFlags)); setReputation({}); };
+  const dialogueGate = requirementState(packet.dialogue.requirements_id, packet.requirements, flags, reputation);
+  const nodeGate = requirementState(current?.requirements_id, packet.requirements, flags, reputation);
+  const restart = () => { setCurrentId(start); setFlags(new Set(defaults)); setReputation({}); setTranscript([]); onBeat(""); };
   useEffect(() => {
     if (!current || !dialogueGate.available || !nodeGate.available) return;
-    setActiveFlags((flags) => {
-      const next = new Set([...flags, ...strings(current.set_flags)]);
-      return next.size === flags.size ? flags : next;
-    });
-  }, [current, dialogueGate.available, nodeGate.available]);
-  if (!start) return <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">Choose a local start node or create one unique root before playthrough.</div>;
-  return <div className="space-y-3"><div className="flex gap-2"><button className={inactiveButton} onClick={restart}>Restart</button></div><details className="rounded border border-slate-200 p-2 dark:border-slate-800"><summary className="cursor-pointer text-sm font-semibold">Temporary Player State</summary><div className="mt-2 space-y-2"><FlagPicker value={[...activeFlags]} onChange={(flags) => setActiveFlags(new Set(flags))} />{packet.factions.map((faction) => <label key={text(faction.id)} className="block text-xs">{label(faction)}<input className={inputClass} type="number" value={reputation[text(faction.id)] || 0} onChange={(event) => setReputation((currentRep) => ({ ...currentRep, [text(faction.id)]: Number(event.target.value) }))} /></label>)}</div></details>{!dialogueGate.available && <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">Dialogue locked: {dialogueGate.reason}</div>}{current && dialogueGate.available && <div className="rounded border border-slate-300 p-3 dark:border-slate-700"><div className="text-xs font-semibold uppercase text-slate-500">{speakerLabel(current, packet.characters)}</div>{!nodeGate.available ? <div className="mt-2 text-sm text-amber-700">Node locked: {nodeGate.reason}</div> : <><div className="mt-2 whitespace-pre-wrap text-sm">{text(current.text)}</div><div className="mt-4 space-y-2">{rows(current.choices).map((choice, index) => { const state = requirementState(choice.requirements_id, packet.requirements, activeFlags, reputation); return <button key={index} disabled={!state.available} title={state.reason} className={`block w-full rounded border p-2 text-left text-sm ${state.available ? "border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950" : "border-slate-200 opacity-50 dark:border-slate-800"}`} onClick={() => { setActiveFlags((flags) => new Set([...flags, ...strings(choice.set_flags)])); setCurrentId(text(choice.next_node_id)); }}>{text(choice.choice_text, "Continue")}{!state.available && <span className="block text-xs">{state.reason}</span>}</button>; })}{rows(current.choices).length === 0 && <div className="text-sm text-slate-500">End of conversation.</div>}</div></>}</div>}</div>;
+    setFlags((value) => new Set([...value, ...strings(current.set_flags)]));
+    const beatId = groups[text(current.id)] || "";
+    if (beatId && beatId !== selectedBeatId) onBeat(beatId);
+  }, [current, dialogueGate.available, groups, nodeGate.available, onBeat, selectedBeatId]);
+  if (!current) return <div className="p-6"><Empty>Create a line before rehearsing.</Empty></div>;
+  return <div className="grid min-h-[760px] gap-4 bg-slate-50 p-4 dark:bg-slate-950 lg:grid-cols-[1fr_330px]">
+    <div className="flex flex-col justify-center"><div className="mx-auto w-full max-w-3xl rounded-xl border border-slate-300 bg-white p-6 shadow-lg dark:border-slate-700 dark:bg-slate-900"><div className="text-xs font-semibold uppercase text-violet-600">{speakerLabel(current, packet.characters)}</div>{!dialogueGate.available ? <Issue tone="amber">Dialogue locked: {dialogueGate.reason}</Issue> : !nodeGate.available ? <Issue tone="amber">Line locked: {nodeGate.reason}</Issue> : <><div className="mt-3 whitespace-pre-wrap text-lg">{text(current.text)}</div><div className="mt-6 grid gap-2">{rows(current.choices).map((choice, index) => { const state = requirementState(choice.requirements_id, packet.requirements, flags, reputation); return <button key={index} disabled={!state.available} className="rounded border border-blue-300 p-3 text-left text-sm hover:bg-blue-50 disabled:opacity-40 dark:hover:bg-blue-950" onClick={() => { setTranscript((value) => [...value, { speaker: speakerLabel(current, packet.characters), line: current.text, choice: text(choice.choice_text, "Continue") }]); setFlags((value) => new Set([...value, ...strings(choice.set_flags)])); setCurrentId(text(choice.next_node_id)); }}>{text(choice.choice_text, "Continue")}{!state.available && <span className="block text-xs text-amber-700">{state.reason}</span>}</button>; })}{rows(current.choices).length === 0 && <div className="rounded bg-slate-100 p-3 text-sm dark:bg-slate-800">End of conversation.</div>}</div></>}</div></div>
+    <aside className="space-y-3"><Panel title="Rehearsal Controls"><div className="flex gap-2"><button className={inactive} onClick={restart}>Restart</button><button className={inactive} onClick={() => setSnapshots((value) => [...value, transcript])}>Snapshot Path</button></div><details className="mt-3"><summary className="cursor-pointer text-sm font-semibold">Temporary Player State</summary><div className="mt-2"><FlagPicker value={[...flags]} options={packet.flags} onChange={(next) => setFlags(new Set(next))} />{packet.factions.map((faction) => <label key={text(faction.id)} className="mt-2 block text-xs">{label(faction)}<input className={inputClass} type="number" value={reputation[text(faction.id)] || 0} onChange={(event) => setReputation((value) => ({ ...value, [text(faction.id)]: Number(event.target.value) }))} /></label>)}</div></details></Panel><Panel title="Transcript">{transcript.map((row, index) => <div key={index} className="mb-2 rounded border border-slate-200 p-2 text-xs dark:border-slate-800"><b>{text(row.speaker)}</b>: {text(row.line)}<div className="mt-1 text-blue-700">→ {text(row.choice)}</div></div>)}{!transcript.length && <Empty>Choices appear here as you rehearse.</Empty>}</Panel>{snapshots.length > 0 && <Panel title="Path Comparison">{snapshots.map((path, index) => <div key={index} className="mb-2 rounded border p-2 text-xs">Path {index + 1}: {path.map((row) => text(row.choice)).join(" → ") || "Start"}</div>)}</Panel>}</aside>
+  </div>;
+}
+
+function ImpactView({ packet, selectedNodeId }: { packet: DialoguePacket; selectedNodeId: string }) {
+  const source = selectedNodeId ? `dialogue_nodes:${selectedNodeId}` : "";
+  const flags = source ? packet.world_echo.produced_flags.filter((entry) => text(entry.source_id) === source) : packet.world_echo.produced_flags;
+  const consumers = source ? packet.world_echo.consumers.filter((entry) => text(entry.source_id) === source) : packet.world_echo.consumers;
+  return <div className="min-h-[760px] bg-slate-50 p-5 dark:bg-slate-950"><div className="mx-auto max-w-5xl"><h2 className="text-xl font-semibold">World Echo</h2><p className="mt-1 text-sm text-slate-500">{selectedNodeId ? "Impact produced by the selected line and its choices." : "All downstream impact produced by this conversation."}</p><div className="mt-5 grid gap-4 md:grid-cols-2"><Panel title="Produced State">{flags.map((entry) => <Link key={`${text(entry.id)}:${text(entry.path)}`} to={text(entry.route)} className="mb-2 block rounded border border-fuchsia-300 bg-fuchsia-50 p-3 text-sm dark:bg-fuchsia-950"><div className="font-semibold">{text(entry.label, text(entry.entry_id))}</div><div className="text-xs text-slate-500">{text(entry.path)}</div></Link>)}{!flags.length && <Empty>No flags produced from this focus.</Empty>}</Panel><Panel title="Downstream World">{consumers.map((entry) => <Link key={`${text(entry.id)}:${text(entry.path)}`} to={text(entry.route)} className="mb-2 block rounded border border-violet-300 bg-violet-50 p-3 text-sm dark:bg-violet-950"><div className="text-[10px] uppercase text-violet-600">{text(entry.kind)}</div><div className="font-semibold">{text(entry.label, text(entry.entry_id))}</div><div className="text-xs text-slate-500">Unlocked through {text(entry.path)}</div></Link>)}{!consumers.length && <Empty>No known downstream consumers from this focus.</Empty>}</Panel></div></div></div>;
+}
+
+function HealthPanel({ health, onSelect }: { health: Health; onSelect: (id: string) => void }) {
+  return <div className="space-y-2">{health.blockers.map((issue) => <Issue key={issue} tone="red">{issue}</Issue>)}{health.warnings.map((issue) => <Issue key={issue} tone="amber">{issue}</Issue>)}{!health.blockers.length && !health.warnings.length && <Issue tone="green">No scene issues found.</Issue>}{health.unreachable.size > 0 && <div><Caption>Unreachable Lines</Caption>{[...health.unreachable].map((id) => <button key={id} className="block text-sm text-blue-700" onClick={() => onSelect(id)}>{id}</button>)}</div>}</div>;
 }
 
 function ContextPanel({ packet }: { packet: DialoguePacket }) {
-  const groups = [{ title: "Interaction Profiles", entries: packet.context.interaction_profiles, path: "interaction-profiles" }, { title: "Events", entries: packet.context.events, path: "events" }, { title: "POIs", entries: packet.context.pois, path: "location-pois" }];
-  return <div className="space-y-4">{packet.context.character && <div className="text-sm">Character: <Link className="text-blue-700" to={`/author/characters/${encodeURIComponent(text(packet.context.character.id))}`}>{label(packet.context.character)}</Link></div>}{packet.context.location && <div className="text-sm">Location: <Link className="text-blue-700" to={`/author/locations/${encodeURIComponent(text(packet.context.location.id))}`}>{label(packet.context.location)}</Link></div>}{groups.map((group) => <div key={group.title}><div className="text-xs font-semibold uppercase text-slate-500">{group.title}</div>{group.entries.map((entry) => <Link key={text(entry.id)} className="mt-1 block rounded border border-slate-200 p-2 text-sm text-blue-700 dark:border-slate-800" to={`/${group.path}?selected=${encodeURIComponent(text(entry.id))}`}>{label(entry)}</Link>)}{group.entries.length === 0 && <div className="mt-1 text-sm text-slate-500">None.</div>}</div>)}</div>;
+  return <div className="space-y-4"><div><Caption>Participants</Caption>{packet.context.participants.map((entry) => { const profile = packet.context.story_profiles.find((row) => text(row.character_id) === text(entry.id)); return <div key={text(entry.id)} className="mb-2 rounded border border-slate-200 p-2 text-sm dark:border-slate-800"><Link className="font-semibold text-blue-700" to={`/author/characters/${encodeURIComponent(text(entry.id))}`}>{label(entry)}</Link>{profile && <div className="mt-1 text-xs text-slate-500">Want: {text(profile.want, "Unwritten")}<br />Voice: {text(profile.voice_notes, "Unwritten")}</div>}</div>; })}</div><ContextList title="Relationships" entries={packet.context.relationships} route={(entry) => `/character-relationships?selected=${encodeURIComponent(text(entry.id))}`} /><ContextList title="Events" entries={packet.context.events} route={(entry) => `/events?selected=${encodeURIComponent(text(entry.id))}`} /><ContextList title="POIs" entries={packet.context.pois} route={(entry) => `/location-pois?selected=${encodeURIComponent(text(entry.id))}`} /><ContextList title="Interaction Profiles" entries={packet.context.interaction_profiles} route={(entry) => `/interaction-profiles?selected=${encodeURIComponent(text(entry.id))}`} /></div>;
 }
+
+function ContextList({ title, entries, route }: { title: string; entries: EntryRecord[]; route: (entry: EntryRecord) => string }) {
+  return <div><Caption>{title}</Caption>{entries.map((entry) => <Link key={text(entry.id)} className="mb-1 block rounded border border-slate-200 p-2 text-sm text-blue-700 dark:border-slate-800" to={route(entry)}>{label(entry)}</Link>)}{!entries.length && <Empty>None.</Empty>}</div>;
+}
+
+function BundleReview({ review, accepted, setAccepted, saving, onCancel, onCommit }: { review: Review; accepted: string[]; setAccepted: (value: string[]) => void; saving: boolean; onCancel: () => void; onCommit: () => void }) {
+  const allAccepted = review.warnings.every((warning) => accepted.includes(warning.id));
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-4"><section className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-lg bg-white p-5 shadow-xl dark:bg-slate-900"><h2 className="text-xl font-semibold">Dialogue Scene Bundle Review</h2><p className="mt-1 text-xs text-slate-500">Dialogue, lines, and story beats will commit atomically.</p><div className="mt-4 grid grid-cols-4 gap-2">{(["created", "changed", "deleted", "unlinked"] as const).map((key) => <Fact key={key} label={key} value={String(review.review[key]?.length || 0)} />)}</div>{(["created", "changed", "deleted", "unlinked"] as const).map((key) => <details key={key} className="mt-3 rounded border p-2"><summary className="cursor-pointer font-semibold">{key} ({review.review[key]?.length || 0})</summary><pre className="mt-2 overflow-auto text-xs">{JSON.stringify(review.review[key] || [], null, 2)}</pre></details>)}<div className="mt-3 space-y-2">{review.health_warnings.map((warning) => <Issue key={warning} tone="amber">{warning}</Issue>)}{review.warnings.map((warning) => <label key={warning.id} className="flex gap-2 rounded border border-amber-300 p-2 text-sm"><input type="checkbox" checked={accepted.includes(warning.id)} onChange={(event) => setAccepted(event.target.checked ? [...accepted, warning.id] : accepted.filter((id) => id !== warning.id))} />{warning.message}</label>)}</div><div className="mt-4 flex justify-end gap-2"><button className={inactive} onClick={onCancel}>Continue Editing</button><button className={active} disabled={saving || review.blockers.length > 0 || !allAccepted} onClick={onCommit}>{saving ? "Committing..." : "Commit Bundle"}</button></div></section></div>;
+}
+
+function FlagPicker({ value, options, label: pickerLabel = "Flags Set", onChange }: { value: unknown; options: EntryRecord[]; label?: string; onChange: (flags: string[]) => void }) {
+  const [loaded, setLoaded] = useState<EntryRecord[]>(options);
+  useEffect(() => {
+    if (options.length) { setLoaded(options); return; }
+    void apiFetch("/api/flags").then((response) => response.json()).then((body) => setLoaded(rows(body))).catch(() => setLoaded([]));
+  }, [options]);
+  return <label className="block text-xs font-semibold uppercase text-slate-500">{pickerLabel}<select aria-label={pickerLabel} multiple className={`${inputClass} mt-1 min-h-24 normal-case`} value={strings(value)} onChange={(event) => onChange([...event.currentTarget.selectedOptions].map((option) => option.value))}>{loaded.map((flag) => <option key={text(flag.id)} value={text(flag.id)}>{label(flag)}</option>)}</select></label>;
+}
+
+function Field({ label: fieldLabel, value, textarea, onChange }: { label: string; value: unknown; textarea?: boolean; onChange: (value: string) => void }) {
+  return <label className="block text-xs font-semibold uppercase text-slate-500">{fieldLabel}{textarea ? <textarea aria-label={fieldLabel} className={`${inputClass} mt-1 min-h-24 normal-case`} value={value == null ? "" : String(value)} onChange={(event) => onChange(event.target.value)} /> : <input aria-label={fieldLabel} className={`${inputClass} mt-1 normal-case`} value={value == null ? "" : String(value)} onChange={(event) => onChange(event.target.value)} />}</label>;
+}
+function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) { return <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"><h2 className="text-sm font-semibold">{title}</h2>{subtitle && <p className="mb-3 mt-1 text-xs text-slate-500">{subtitle}</p>}{!subtitle && <div className="mb-3" />}{children}</section>; }
+function Notice({ children }: { children: ReactNode }) { return <div className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950">{children}</div>; }
+function Empty({ children }: { children: ReactNode }) { return <div className="text-xs text-slate-500">{children}</div>; }
+function Caption({ children }: { children: ReactNode }) { return <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{children}</div>; }
+function Chip({ children }: { children: ReactNode }) { return <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-semibold text-violet-800 dark:bg-violet-950 dark:text-violet-200">{children}</span>; }
+function Issue({ children, tone }: { children: ReactNode; tone: "red" | "amber" | "green" }) { const style = tone === "red" ? "border-red-300 bg-red-50 text-red-800 dark:bg-red-950" : tone === "amber" ? "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950" : "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950"; return <div className={`mb-2 rounded border p-2 text-xs ${style}`}>{children}</div>; }
+function Fact({ label: factLabel, value }: { label: string; value: string }) { return <div className="rounded border border-slate-200 p-2 text-center dark:border-slate-800"><div className="text-[10px] uppercase text-slate-500">{factLabel}</div><div className="font-semibold">{value}</div></div>; }

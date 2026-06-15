@@ -18,7 +18,7 @@ Working:
 - Generic schema-driven CRUD editors and Advanced Form fallback for all registered datasets.
 - Specialized Item Ecosystem, Quest Journey Board, Adventure Dependency Map, shop, Character Studio, location, atlas, world-builder, Dialogue Flow, and Encounter Stage authoring.
 - Atomic bundle APIs for cross-record authoring workspaces.
-- Dialogue graph sketching, connecting, editing, validation, local layout/draft restore, and gated playthrough.
+- Dialogue Scene graph authoring, story-beat tracks, inline branching, validation, local layout/grouping restore, rehearsal, World Echo, and atomic bundle review.
 - Source CSV export/import and staged full-source rebuilds with preflight, foreign-key checks, and atomic SQLite replacement.
 - Database-enforced faction reputation references on fresh or rebuilt databases, with faction deletion cascading only linked minimum-reputation rows.
 - Project Health, local deterministic authoring helpers, and the local heuristic simulation sandbox.
@@ -79,7 +79,7 @@ The app will start with debug mode enabled and will initialize the SQLite databa
   - For development, you can reset the database with `POST /api/db/reset`.
   - To rebuild the active local SQLite database from tracked source CSVs, run `python scripts/rebuild_source_db.py --source-dir backend/data`.
   - Recovery endpoints are `GET /api/recovery/status`, `POST /api/recovery/export-source`, `POST /api/recovery/restore-source`, and `POST /api/recovery/import-source`.
-  - Dialogue Flow uses `GET /api/ui/dialogues/<dialogue_id>` and atomic `POST /api/ui/dialogues/bundle`.
+  - Dialogue Scene uses `GET /api/ui/dialogues/<dialogue_id>`, rollback-only `POST /api/ui/dialogues/preview`, and atomic `POST /api/ui/dialogues/bundle`.
   - Character Studio uses `GET /api/ui/character-studio/<character_id>`, rollback-only `POST /api/ui/character-studio/preview`, and atomic `POST /api/ui/character-studio/bundle`.
   - Character story profiles, directed relationships, and story beats are included in source recovery exports and intentionally excluded from UE exports.
 
@@ -105,7 +105,7 @@ The generic schema editors remain available for every table. In addition, the fr
 - `/author/characters/new` and `/author/characters/<id>`: character dossier editing with class/faction/home context and linked combat/interaction profile summaries.
 - `/author/locations/new` and `/author/locations/<id>`: location-card and atlas placement editing, including `location_routes` summaries.
 - `/author/locations/map`: atlas view showing locations as graph nodes and `location_routes` as styled edges.
-- `/author/dialogues`, `/author/dialogues/new`, and `/author/dialogues/<id>`: Dialogue Flow Room for graph authoring, health analysis, context review, and playthrough.
+- `/author/dialogues`, `/author/dialogues/new`, and `/author/dialogues/<id>`: Dialogue Scene Room for graph authoring, story beats, rehearsal, World Echo, health analysis, context review, and atomic bundle review.
 - `/author/encounters`, `/author/encounters/new`, and `/author/encounters/<id>`: Encounter Stage for side composition, profile inspection, rewards, gates, placement, health analysis, simulation comparison, and atomic bundle saving.
 - `/author/items/new` and `/author/items/<id>`: rich item mechanics authoring; `/author/items/new/ecosystem` and `/author/items/<id>/ecosystem` compose acquisition sources, placement, comparisons, validation, and atomic bundle saving.
 - `/author/quests`, `/author/quests/new`, and `/author/quests/<id>`: Quest Journey Board for ordered objectives, requirements, arc placement, quest givers, rewards, walkthrough context, and atomic bundle saving.

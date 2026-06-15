@@ -49,7 +49,7 @@ The core entities cover gameplay, economy, world, narrative, encounters, and pro
 - Authoring Studio: offline deterministic recipes, composer, variants, bundle drafts, and fix/enrich suggestions. It creates patches or drafts; saves still go through normal CRUD endpoints.
 - CSV import/export: backend has explicit source CSVs for DB regeneration and UE CSVs for Unreal-friendly DataTable output.
 - Location graph: `locations` are hierarchy/map nodes with place kind plus optional biome ecology; `location_routes` are explicit movement edges. World-building packets add POIs, encounter placement, route events, travel tuning, and creative briefs.
-- Dialogue graph: dialogues and their nodes are edited and saved as one validated bundle, with local graph layout, health analysis, and playthrough.
+- Dialogue Scene: dialogues, nodes, and dialogue-linked character story beats are edited and saved as one validated bundle, with local graph layout/grouping, health analysis, rehearsal, and World Echo.
 - UE integration: CSV/DataTable mirror consumed by Blueprint systems, with Real-Time Able as the canonical gameplay prototype track.
 - UE prototype current implementation shape: `BP_GameInstance_SoA` constructs a `BP_GameDataService` Blueprint Object, `BFL_SoAHelpers` exposes stateless service access, `BP_BattleCharacter` is the shared combatant base, and `BP_TargetingComponent` on `BP_PlayerController_Prototype` owns player-facing `CurrentEnemyTarget`, `CurrentAllyTarget`, and `PartyFocusTarget`.
 
@@ -108,7 +108,7 @@ CSV and DB admin endpoints:
 - `POST /api/source/import/csv/<table>/preview` previews source CSV import changes without committing.
 - `POST /api/import/csv/<table>` remains as a legacy permissive CSV import path.
 - `GET /api/recovery/status`, `POST /api/recovery/export-source`, `POST /api/recovery/restore-source`, and `POST /api/recovery/import-source` manage portable source-CSV recovery.
-- `GET /api/ui/dialogues/<dialogue_id>` loads a Dialogue Flow editing/context packet; `POST /api/ui/dialogues/bundle` validates and atomically saves the dialogue and complete node graph.
+- `GET /api/ui/dialogues/<dialogue_id>` loads a Dialogue Scene editing/context packet; `POST /api/ui/dialogues/preview` performs rollback-only bundle review; `POST /api/ui/dialogues/bundle` atomically saves the dialogue, complete node graph, and staged story-beat links.
 - `POST /api/db/reset`, `/api/db/create`, `/api/db/delete`, `/api/db/select`, `GET /api/db/list`, and `GET /api/db/active` manage local SQLite database files.
 
 Complete-source restore/rebuild preflights the source set, imports into a uniquely named sibling staging SQLite database, runs `PRAGMA foreign_key_check`, and atomically replaces the active database only after success.
@@ -145,7 +145,7 @@ Immersive authoring views are alternate input surfaces for high-use content type
 - `/author/locations/new` and `/author/locations/<id>` provide location-card editing, map coordinate placement, place-kind/ecology/region/level fields, encounter hooks, and route summaries.
 - `/author/locations/map` shows the location atlas with nodes and `location_routes` edges.
 - `/author/world` provides the engine-agnostic world-building workspace for hierarchy browsing, atlas review, POIs/interactables, encounter placement, route events, travel tuning, creative references, and world validation.
-- `/author/dialogues`, `/author/dialogues/new`, and `/author/dialogues/<id>` provide the Dialogue Flow Room for graph sketching, connection, editing, health analysis, context review, and playthrough. The workspace saves the dialogue and complete node graph atomically.
+- `/author/dialogues`, `/author/dialogues/new`, and `/author/dialogues/<id>` provide the Dialogue Scene Room for inline graph writing, story-beat tracks, rehearsal, World Echo, health analysis, context review, and bundle review. The workspace saves the dialogue, complete node graph, and staged story-beat changes atomically.
 - `/author/encounters`, `/author/encounters/new`, and `/author/encounters/<id>` provide the Encounter Stage for side composition, linked profile inspection, gates, rewards, location encounter-table placement, health analysis, simulation comparison, draft restoration, and atomic bundle saving.
 - `/author/items/new` and `/author/items/<id>` preserve rich item mechanics authoring; `/author/items/new/ecosystem` and `/author/items/<id>/ecosystem` provide direct acquisition-source controls, POI placement, power/economy comparisons, issue validation, local drafts, and atomic bundle saving.
 - `/author/quests`, `/author/quests/new`, and `/author/quests/<id>` provide the Quest Journey Board for objectives, gates, rewards, arc placement, quest givers, walkthrough context, and atomic bundle saving.

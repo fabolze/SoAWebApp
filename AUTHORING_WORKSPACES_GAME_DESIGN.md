@@ -34,7 +34,7 @@ Last reviewed: 2026-06-10
 |---|---|
 | World Builder | Implemented; foundation for the shared authoring language |
 | Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, staged preview/commit, and ensemble editing |
-| Dialogue Flow Room | Implemented MVP |
+| Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, bundle review, and graph authoring |
 | Encounter Stage | Implemented MVP |
 | Quest Journey Board And Quest Loom | Journey Board initial MVP; full mixed-content Quest Loom is future vision |
 | Item Ecosystem And Item Forge | Implemented MVP; future work can deepen fantasy, provenance, families, and progression |
@@ -219,11 +219,13 @@ The constellation must style shared-content proximity and inferred relationships
 
 ---
 
-## Dialogue Flow Room
+## Dialogue Scene Room
 
 ### Creative North Star
 
 The writer stages a conversation by placing lines, connecting responses, testing branches, and seeing where player choices matter.
+
+The implemented focused V1 adds a participant-lane story-beat track, inline line writing, direct branch creation, starter recipes, full-room rehearsal, path snapshots, derived World Echo impact, participant narrative context, and previewed atomic saving of dialogue, nodes, and dialogue-linked character story beats.
 
 ### Canvas
 
@@ -248,6 +250,10 @@ A directed conversation map:
 | Drop a flag on a node | Append to node `set_flags` |
 | Drop a flag on a connection | Append to choice `set_flags` |
 | Assign the conversation to a person or place | Set dialogue `character_id` or `location_id` |
+| Create or edit a participant story beat | Create/update `character_story_beats` with `dialogue_id` |
+| Remove a story beat from the scene | Clear the beat's `dialogue_id` without deleting the beat |
+
+Node-to-beat grouping is local workspace state. Character-wide story-beat ordering remains canonical and is displayed but not reordered from the Dialogue Scene Room.
 
 ### Lenses
 

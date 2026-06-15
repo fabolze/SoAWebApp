@@ -230,7 +230,17 @@ const dialoguePacket = {
   requirements: [{ id: "req-1", slug: "req-1", required_flags: ["flag-1"], forbidden_flags: [], min_faction_reputation: [] }],
   flags: [{ id: "flag-1", slug: "flag-1", name: "Allowed", description: "", default_value: false, tags: [] }],
   factions: [],
-  context: { interaction_profiles: [], events: [], pois: [], character: null, location: null },
+  characters: [{ id: "char-1", name: "Guide" }],
+  story_beats: [{
+    id: "beat-1", character_id: "char-1", dialogue_id: "dialogue-1", title: "The Gate Decision", beat_type: "Decision",
+    sort_order: 1, summary: "", required_flags: [], forbidden_flags: [], expected_output_flags: [], relationship_changes: [], tags: [],
+  }],
+  beat_coverage: { "beat-1": { required: { matched: [], missing: [] }, forbidden: { matched: [], missing: [] }, outputs: { matched: [], missing: [] }, implementation_paths: {}, warnings: [] } },
+  context: {
+    interaction_profiles: [], events: [], pois: [], character: null, location: null,
+    participants: [{ id: "char-1", name: "Guide" }], story_profiles: [], relationships: [], participant_next_sort_order: { "char-1": 2 },
+  },
+  world_echo: { dialogue_id: "dialogue-1", produced_flags: [], consumers: [] },
 };
 
 async function mockDialogueApi(page: Page, onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>) {
@@ -238,6 +248,9 @@ async function mockDialogueApi(page: Page, onBundle?: (payload: Record<string, u
     const url = new URL(route.request().url());
     if (url.pathname === "/api/dialogues") return fulfillJson(route, [dialoguePacket.dialogue]);
     if (url.pathname === "/api/ui/dialogues/dialogue-1") return fulfillJson(route, dialoguePacket);
+    if (url.pathname === "/api/ui/dialogues/preview" && route.request().method() === "POST") {
+      return fulfillJson(route, { review: { created: [], changed: [], deleted: [], unlinked: [] }, warnings: [], health_warnings: [], blockers: [] });
+    }
     if (url.pathname === "/api/ui/dialogues/bundle" && route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as Record<string, unknown>;
       if (onBundle) return onBundle(payload, route);
@@ -246,6 +259,7 @@ async function mockDialogueApi(page: Page, onBundle?: (payload: Record<string, u
     if (url.pathname === "/api/requirements") return fulfillJson(route, dialoguePacket.requirements);
     if (url.pathname === "/api/flags") return fulfillJson(route, dialoguePacket.flags);
     if (url.pathname === "/api/factions") return fulfillJson(route, []);
+    if (url.pathname === "/api/characters") return fulfillJson(route, dialoguePacket.characters);
     return fulfillJson(route, []);
   });
 }
@@ -259,15 +273,12 @@ test("dialogue flow sketches, connects, and saves a complete bundle", async ({ p
   });
   await page.goto("/author/dialogues/dialogue-1");
 
-  await page.getByRole("button", { name: "Sketch" }).click();
-  await page.getByTestId("dialogue-canvas").dblclick({ position: { x: 500, y: 300 } });
-  await expect(page.getByText("3 nodes /")).toBeVisible();
+  await page.getByTestId("dialogue-node-node-2").getByRole("button", { name: "+ Choice" }).click();
+  await expect(page.getByText("3 lines /")).toBeVisible();
   await expect(page.getByRole("button", { name: "Save Flow" })).toBeDisabled();
-  await page.getByLabel("Dialogue Text").fill("A newly drafted line.");
-  await page.getByRole("button", { name: "Connect" }).click();
-  await page.getByTestId("dialogue-node-node-2").click();
-  await page.getByTestId("dialogue-node-node-1").click();
+  await page.locator('[data-testid^="dialogue-node-"]').last().getByRole("textbox").fill("A newly drafted line.");
   await page.getByRole("button", { name: "Save Flow" }).click();
+  await page.getByRole("button", { name: "Commit Bundle" }).click();
 
   await expect.poll(() => saved).not.toBeNull();
   expect((saved?.nodes as unknown[]).length).toBe(3);
@@ -277,16 +288,16 @@ test("dialogue flow restores drafts and unlocks gated choices in playthrough", a
   await mockDialogueApi(page);
   await page.goto("/author/dialogues/dialogue-1");
   await page.getByTestId("dialogue-node-node-1").click();
-  await page.getByLabel("Dialogue Text").fill("Unsaved changed line");
+  await page.getByLabel("Dialogue Text", { exact: true }).fill("Unsaved changed line");
   await page.waitForTimeout(450);
   await page.reload();
   await expect(page.getByText("Restored unsaved dialogue flow draft.")).toBeVisible();
-  await expect(page.getByLabel("Dialogue Text")).toHaveValue("Unsaved changed line");
+  await expect(page.getByLabel("Dialogue Text", { exact: true })).toHaveValue("Unsaved changed line");
 
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.getByRole("button", { name: "Rehearsal", exact: true }).click();
   await expect(page.getByRole("button", { name: "Enter" })).toBeDisabled();
   await page.getByText("Temporary Player State").click();
-  await page.getByLabel("Flags Set").selectOption(["flag-1"]);
+  await page.getByText("Temporary Player State").locator("..").getByLabel("Flags Set").selectOption(["flag-1"]);
   await expect(page.getByRole("button", { name: "Enter" })).toBeEnabled();
   await page.getByRole("button", { name: "Enter" }).click();
   await expect(page.getByText("Welcome.").last()).toBeVisible();
@@ -296,22 +307,45 @@ test("dialogue flow reset clears the persisted draft", async ({ page }) => {
   await mockDialogueApi(page);
   await page.goto("/author/dialogues/dialogue-1");
   await page.getByTestId("dialogue-node-node-1").click();
-  await page.getByLabel("Dialogue Text").fill("Discard this line");
+  await page.getByLabel("Dialogue Text", { exact: true }).fill("Discard this line");
   await page.waitForTimeout(450);
   await page.getByRole("button", { name: "Reset" }).click();
   await page.reload();
-  await expect(page.getByLabel("Dialogue Text")).toHaveValue("Choose.");
+  await expect(page.getByLabel("Dialogue Text", { exact: true })).toHaveValue("Choose.");
   await expect(page.getByText("Restored unsaved dialogue flow draft.")).not.toBeVisible();
 });
 
 test("new dialogue draft survives a full reload", async ({ page }) => {
   await mockDialogueApi(page);
   await page.goto("/author/dialogues/new");
-  await page.getByLabel("Title").fill("Reloadable New Dialogue");
+  await page.getByLabel("Title", { exact: true }).fill("Reloadable New Dialogue");
   await page.waitForTimeout(450);
   await page.reload();
   await expect(page.getByText("Restored unsaved dialogue flow draft.")).toBeVisible();
-  await expect(page.getByLabel("Title")).toHaveValue("Reloadable New Dialogue");
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue("Reloadable New Dialogue");
+});
+
+test("dialogue scene starter recipes are interactive", async ({ page }) => {
+  await mockDialogueApi(page);
+  await page.goto("/author/dialogues/new");
+  await page.getByRole("button", { name: "Greeting" }).click();
+  await expect(page.getByText("3 lines /")).toBeVisible();
+});
+
+test("dialogue story beat grouping, rehearsal, and impact views are interactive", async ({ page }) => {
+  await mockDialogueApi(page);
+  await page.goto("/author/dialogues/dialogue-1");
+  await page.getByRole("button", { name: /The Gate Decision/ }).click();
+  await page.getByTestId("dialogue-node-node-1").click();
+  await page.getByLabel("Local Story Beat Group").selectOption("beat-1");
+  await page.reload();
+  await page.getByTestId("dialogue-node-node-1").click();
+  await expect(page.getByLabel("Local Story Beat Group")).toHaveValue("beat-1");
+
+  await page.getByRole("button", { name: "Rehearsal" }).click();
+  await expect(page.getByText("Choose.").last()).toBeVisible();
+  await page.getByRole("button", { name: "Impact" }).click();
+  await expect(page.getByRole("heading", { name: "World Echo" })).toBeVisible();
 });
 
 const encounterPacket = {

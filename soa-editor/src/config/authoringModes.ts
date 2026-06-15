@@ -88,9 +88,9 @@ export const AUTHORING_MODES: readonly AuthoringModeConfig[] = [
   {
     id: "dialogue-flow",
     route: "/author/dialogues",
-    label: "Dialogue Flow",
-    description: "Author a dialogue and its complete branching node graph.",
-    supportedEntities: ["dialogues", "dialogue_nodes"],
+    label: "Dialogue Scene Room",
+    description: "Stage dialogue branches, story beats, rehearsal paths, and downstream world impact.",
+    supportedEntities: ["dialogues", "dialogue_nodes", "character_story_beats"],
     icon: ChatBubbleLeftRightIcon,
   },
   {
