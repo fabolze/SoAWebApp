@@ -14,6 +14,28 @@
       "type": "string",
       "enum": ["setting", "cast", "player_journey", "runtime", "state", "reward", "reference"]
     },
+    "occurrence_kind": {
+      "type": "string",
+      "enum": ["appearance", "transition", "reward", "requirement", "consequence", "reference"],
+      "default": "appearance",
+      "description": "How this linked entity participates in the beat."
+    },
+    "change_type": {
+      "type": "string",
+      "enum": ["introduced", "active", "changed", "unavailable", "restored", "destroyed", "obtained", "lost", "stolen", "consumed", "joins", "leaves", "captured", "injured", "dies", "returns", "transformed", "none"],
+      "default": "active",
+      "description": "Narrative lifecycle/state change caused or represented by this beat."
+    },
+    "state_label": {"type": "string", "description": "Short human label for the state at this point, such as Ruined, Missing, Allied, or Equipped."},
+    "starts_at_beat_id": {"type": "string", "ui": {"widget": "reference", "reference": "adventure-beats", "label": "Starts At Beat"}},
+    "ends_at_beat_id": {"type": "string", "ui": {"widget": "reference", "reference": "adventure-beats", "label": "Ends At Beat"}},
+    "continuity_group_id": {"type": "string", "description": "Optional key for versions of the same entity, such as city-before-siege and city-ruins."},
+    "importance": {
+      "type": "string",
+      "enum": ["critical", "major", "minor", "background"],
+      "default": "major",
+      "description": "Controls how prominently this occurrence should appear in authoring views."
+    },
     "sort_order": {"type": "integer"},
     "notes": {"type": "string", "ui": {"widget": "textarea"}},
     "tags": {"type": "array", "items": {"type": "string"}, "ui": {"widget": "tags", "label": "Tags"}}

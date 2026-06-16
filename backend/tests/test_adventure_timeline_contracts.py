@@ -6,10 +6,13 @@ from sqlalchemy.pool import StaticPool
 from backend.app.models.base import Base
 from backend.app.models.m_adventure_narrative import (
     AdventureBeat,
+    AdventureChangeType,
     AdventureBeatLink,
     AdventureBeatLinkRole,
     AdventureBeatLinkTargetType,
     AdventureBeatType,
+    AdventureImportance,
+    AdventureOccurrenceKind,
 )
 from backend.app.models.m_character_narrative import CharacterBeatType, CharacterStoryBeat
 from backend.app.models.m_characters import Character
@@ -17,6 +20,7 @@ from backend.app.models.m_content_packs import ContentPack
 from backend.app.models.m_dialogues import Dialogue
 from backend.app.models.m_encounters import Encounter, EncounterType
 from backend.app.models.m_events import Event, EventType
+from backend.app.models.m_items import Item, ItemType, Rarity
 from backend.app.models.m_locations import Location
 from backend.app.models.m_quests import Quest
 from backend.app.models.m_story_arcs import ArcType, StoryArc
@@ -52,6 +56,15 @@ def _seed(Session):
         Timeline(id="timeline-1", slug="main-story", name="Main Story", tags=[]),
         Character(id="character-1", slug="guide", name="Guide", level=1, tags=[]),
         Location(id="location-1", slug="first-city", name="First City", tags=[]),
+        Item(
+            id="item-1",
+            slug="city-key",
+            name="City Key",
+            type=ItemType.Quest,
+            rarity=Rarity.Rare,
+            base_price=1,
+            tags=[],
+        ),
         Dialogue(id="dialogue-1", slug="welcome", title="Welcome", location_id="location-1", tags=[]),
         Encounter(
             id="encounter-1",
@@ -171,9 +184,41 @@ def _seed(Session):
         target_type=AdventureBeatLinkTargetType.Location,
         target_id="location-1",
         role=AdventureBeatLinkRole.Setting,
+        occurrence_kind=AdventureOccurrenceKind.Transition,
+        change_type=AdventureChangeType.Introduced,
+        state_label="Intact hub",
+        importance=AdventureImportance.Critical,
         sort_order=0,
         tags=[],
     ))
+    session.add_all([
+        AdventureBeatLink(
+            id="adventure-link-character",
+            adventure_beat_id="adventure-beat-1",
+            target_type=AdventureBeatLinkTargetType.Character,
+            target_id="character-1",
+            role=AdventureBeatLinkRole.Cast,
+            occurrence_kind=AdventureOccurrenceKind.Transition,
+            change_type=AdventureChangeType.Joins,
+            state_label="Guide joins",
+            importance=AdventureImportance.Major,
+            sort_order=1,
+            tags=[],
+        ),
+        AdventureBeatLink(
+            id="adventure-link-item",
+            adventure_beat_id="adventure-beat-1",
+            target_type=AdventureBeatLinkTargetType.Item,
+            target_id="item-1",
+            role=AdventureBeatLinkRole.Reward,
+            occurrence_kind=AdventureOccurrenceKind.Reward,
+            change_type=AdventureChangeType.Obtained,
+            state_label="Obtained",
+            importance=AdventureImportance.Critical,
+            sort_order=2,
+            tags=[],
+        ),
+    ])
     session.commit()
     session.close()
 
@@ -206,7 +251,16 @@ def test_adventure_timeline_aggregates_scoped_order_runtime_and_unplaced_content
     adventure_placement = next(row for row in payload["placements"] if row["id"] == "adventure-beat:adventure-beat-1")
     assert adventure_placement["ordering_source"] == "adventure_beats.sort_order"
     assert adventure_placement["attachments"][0]["target_id"] == "location-1"
+    assert adventure_placement["attachments"][0]["change_type"] == "introduced"
+    assert adventure_placement["attachments"][0]["state_label"] == "Intact hub"
     assert any(edge["relation"] == "setting" for edge in payload["relationships"])
+
+    location_track = payload["entity_tracks"]["locations"][0]
+    assert location_track["entity_id"] == "location-1"
+    assert location_track["change_type"] == "introduced"
+    assert location_track["importance"] == "critical"
+    assert payload["entity_tracks"]["characters"][0]["change_type"] == "joins"
+    assert payload["entity_tracks"]["items"][0]["change_type"] == "obtained"
 
     event_chain = next(row for row in payload["event_chains"] if row["event_id"] == "event-1")
     assert event_chain["next_event_id"] == "event-2"
@@ -240,6 +294,72 @@ def test_adventure_timeline_reports_arc_order_conflicts_without_writing(monkeypa
     session.close()
 
 
+def test_adventure_timeline_warns_when_entity_reappears_after_terminal_change(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add_all([
+        AdventureBeat(
+            id="adventure-beat-destroyed",
+            slug="first-city-destroyed",
+            title="First City Falls",
+            beat_type=AdventureBeatType.Reversal,
+            timeline_id="timeline-1",
+            story_arc_id="arc-1",
+            sort_order=1,
+            required_flags=[],
+            forbidden_flags=[],
+            expected_output_flags=[],
+            tags=[],
+        ),
+        AdventureBeat(
+            id="adventure-beat-reappears",
+            slug="first-city-reappears",
+            title="Return To First City",
+            beat_type=AdventureBeatType.Payoff,
+            timeline_id="timeline-1",
+            story_arc_id="arc-1",
+            sort_order=2,
+            required_flags=[],
+            forbidden_flags=[],
+            expected_output_flags=[],
+            tags=[],
+        ),
+        AdventureBeatLink(
+            id="adventure-link-destroyed",
+            adventure_beat_id="adventure-beat-destroyed",
+            target_type=AdventureBeatLinkTargetType.Location,
+            target_id="location-1",
+            role=AdventureBeatLinkRole.State,
+            occurrence_kind=AdventureOccurrenceKind.Consequence,
+            change_type=AdventureChangeType.Destroyed,
+            state_label="Destroyed",
+            importance=AdventureImportance.Critical,
+            sort_order=0,
+            tags=[],
+        ),
+        AdventureBeatLink(
+            id="adventure-link-reappears",
+            adventure_beat_id="adventure-beat-reappears",
+            target_type=AdventureBeatLinkTargetType.Location,
+            target_id="location-1",
+            role=AdventureBeatLinkRole.Setting,
+            occurrence_kind=AdventureOccurrenceKind.Appearance,
+            change_type=AdventureChangeType.Active,
+            importance=AdventureImportance.Major,
+            sort_order=0,
+            tags=[],
+        ),
+    ])
+    session.commit()
+    session.close()
+
+    payload = client.get("/api/ui/adventure-timeline").get_json()
+    warnings = payload["health"]["warnings"]
+    assert any(warning["code"] == "entity_reappears_after_terminal_change" for warning in warnings)
+    assert payload["entity_tracks"]["locations"][-1]["link_id"] == "adventure-link-reappears"
+
+
 def test_adventure_timeline_empty_project_has_stable_shape(monkeypatch):
     client, _ = _client(monkeypatch)
 
@@ -250,6 +370,13 @@ def test_adventure_timeline_empty_project_has_stable_shape(monkeypatch):
     assert payload["placements"] == []
     assert payload["event_chains"] == []
     assert payload["relationships"] == []
+    assert payload["entity_tracks"] == {
+        "locations": [],
+        "characters": [],
+        "items": [],
+        "quests": [],
+        "factions": [],
+    }
     assert payload["unplaced"] == {
         "story_arc_ids": [],
         "quest_ids": [],
@@ -284,6 +411,9 @@ def test_adventure_timeline_preview_rolls_back_and_bundle_commits_atomically(mon
             "target_type": "event",
             "target_id": "event-2",
             "role": "runtime",
+            "occurrence_kind": None,
+            "change_type": "",
+            "importance": None,
             "sort_order": 0,
             "notes": "",
             "tags": [],
@@ -307,7 +437,11 @@ def test_adventure_timeline_preview_rolls_back_and_bundle_commits_atomically(mon
     assert any(row["id"] == "adventure-beat:adventure-beat-new" for row in packet["placements"])
     session = Session()
     assert session.get(AdventureBeat, "adventure-beat-new") is not None
-    assert session.get(AdventureBeatLink, "adventure-link-new") is not None
+    saved_link = session.get(AdventureBeatLink, "adventure-link-new")
+    assert saved_link is not None
+    assert saved_link.occurrence_kind == AdventureOccurrenceKind.Appearance
+    assert saved_link.change_type == AdventureChangeType.Active
+    assert saved_link.importance == AdventureImportance.Major
     session.close()
 
 

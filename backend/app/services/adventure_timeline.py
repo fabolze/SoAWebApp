@@ -53,6 +53,11 @@ def _relationship(source, target, relation, explicit=True, path="", metadata=Non
     }
 
 
+TRACK_TARGET_TYPES = {"location", "character", "item", "quest", "faction"}
+TERMINAL_CHANGES = {"destroyed", "dies", "lost", "consumed", "unavailable", "leaves"}
+REVIVAL_CHANGES = {"restored", "returns", "obtained", "transformed", "introduced", "joins"}
+
+
 def build_adventure_timeline(db_session):
     timelines = sorted(
         db_session.query(Timeline).all(),
@@ -101,6 +106,7 @@ def build_adventure_timeline(db_session):
     beat_ids_by_event = defaultdict(list)
     adventure_beat_ids_by_arc = defaultdict(list)
     adventure_links_by_beat = defaultdict(list)
+    entity_occurrences_by_kind = defaultdict(list)
 
     for arc in arcs:
         if arc.timeline_id:
@@ -208,10 +214,11 @@ def build_adventure_timeline(db_session):
     for link in adventure_beat_links:
         target_type = _enum_value(link.target_type)
         target = adventure_target_catalogs.get(target_type, {}).get(link.target_id)
-        adventure_links_by_beat[link.adventure_beat_id].append({
+        link_data = {
             **_columns(link),
             "label": _label(target) if target else link.target_id,
-        })
+        }
+        adventure_links_by_beat[link.adventure_beat_id].append(link_data)
         if link.adventure_beat_id not in adventure_beat_by_id:
             warnings.append({
                 "code": "missing_adventure_beat",
@@ -233,6 +240,34 @@ def build_adventure_timeline(db_session):
             path=f"adventure_beat_links.{link.id}",
             metadata={"link_id": link.id, "order": link.sort_order},
         ))
+        beat = adventure_beat_by_id.get(link.adventure_beat_id)
+        if beat and target_type in TRACK_TARGET_TYPES:
+            story_arc = arc_by_id.get(beat.story_arc_id) if beat.story_arc_id else None
+            timeline_id = beat.timeline_id or (story_arc.timeline_id if story_arc else None)
+            entity_occurrences_by_kind[target_type].append({
+                "id": f"adventure-link:{link.id}",
+                "entity_kind": target_type,
+                "entity_id": link.target_id,
+                "label": _label(target) if target else link.target_id,
+                "timeline_id": timeline_id,
+                "story_arc_id": beat.story_arc_id,
+                "adventure_beat_id": beat.id,
+                "adventure_beat_label": beat.title,
+                "source_kind": "adventure_beat",
+                "source_id": beat.id,
+                "source_label": beat.title,
+                "order": beat.sort_order,
+                "link_id": link.id,
+                "role": _enum_value(link.role),
+                "occurrence_kind": _enum_value(link.occurrence_kind),
+                "change_type": _enum_value(link.change_type),
+                "state_label": link.state_label,
+                "starts_at_beat_id": link.starts_at_beat_id,
+                "ends_at_beat_id": link.ends_at_beat_id,
+                "continuity_group_id": link.continuity_group_id or link.target_id,
+                "importance": _enum_value(link.importance),
+                "notes": link.notes,
+            })
 
     for beat in adventure_beats:
         story_arc = arc_by_id.get(beat.story_arc_id) if beat.story_arc_id else None
@@ -418,6 +453,33 @@ def build_adventure_timeline(db_session):
         })
 
     dependency_index = build_dependency_index(db_session)
+    for kind, occurrences in entity_occurrences_by_kind.items():
+        occurrences.sort(key=lambda row: (
+            row["timeline_id"] or "",
+            row["story_arc_id"] or "",
+            row["order"],
+            row["label"],
+            row["id"],
+        ))
+        last_terminal_by_group = {}
+        for occurrence in occurrences:
+            group_id = occurrence["continuity_group_id"] or occurrence["entity_id"]
+            change_type = occurrence["change_type"]
+            if change_type in REVIVAL_CHANGES:
+                last_terminal_by_group.pop(group_id, None)
+            elif change_type in TERMINAL_CHANGES:
+                last_terminal_by_group[group_id] = occurrence
+            elif group_id in last_terminal_by_group:
+                terminal = last_terminal_by_group[group_id]
+                warnings.append({
+                    "code": "entity_reappears_after_terminal_change",
+                    "schema_name": "adventure_beat_links",
+                    "entry_id": occurrence["link_id"],
+                    "message": (
+                        f"{kind} {occurrence['label']} appears after "
+                        f"{terminal['change_type']} at {terminal['source_label']} without an explicit restoration or return."
+                    ),
+                })
     timeline_payload = []
     for timeline in timelines:
         data = _columns(timeline)
@@ -489,6 +551,13 @@ def build_adventure_timeline(db_session):
         "timelines": timeline_payload,
         "story_arcs": arc_payload,
         "placements": placements,
+        "entity_tracks": {
+            "locations": entity_occurrences_by_kind["location"],
+            "characters": entity_occurrences_by_kind["character"],
+            "items": entity_occurrences_by_kind["item"],
+            "quests": entity_occurrences_by_kind["quest"],
+            "factions": entity_occurrences_by_kind["faction"],
+        },
         "event_chains": event_chains,
         "relationships": relationships,
         "unplaced": unplaced,

@@ -28,6 +28,7 @@ const preferBeatCollision: CollisionDetection = (args) => {
 };
 
 type Lens = "story" | "cast" | "locations" | "quests" | "runtime" | "state" | "issues";
+type TrackKind = "location" | "character" | "item" | "quest" | "faction";
 type Selection = { kind: "placement" | "local-beat" | "event" | "library"; id: string; libraryKind?: string } | null;
 
 interface LocalAttachment {
@@ -50,6 +51,24 @@ interface LocalBeat {
 
 interface LocalPlan {
   beats: LocalBeat[];
+}
+
+interface StoryOccurrence {
+  id: string;
+  entity_kind: TrackKind;
+  entity_id: string;
+  label: string;
+  timeline_id: string;
+  story_arc_id: string;
+  source_kind: string;
+  source_id: string;
+  source_label: string;
+  order: number;
+  role?: string;
+  occurrence_kind?: string;
+  change_type?: string;
+  state_label?: string;
+  importance?: string;
 }
 
 function rows(value: unknown): EntryRecord[] {
@@ -185,6 +204,7 @@ export default function StoryTimelinePage() {
   const [packet, setPacket] = useState<EntryRecord | null>(null);
   const [error, setError] = useState("");
   const [lens, setLens] = useState<Lens>("story");
+  const [trackKind, setTrackKind] = useState<TrackKind>("location");
   const [search, setSearch] = useState("");
   const [timelineFocus, setTimelineFocus] = useState("");
   const [arcFocus, setArcFocus] = useState("");
@@ -327,6 +347,13 @@ export default function StoryTimelinePage() {
       target_type: attachment.kind,
       target_id: attachment.entry_id,
       role: attachment.role,
+      occurrence_kind: attachment.role === "reward" ? "reward" : "appearance",
+      change_type: attachment.role === "reward" && attachment.kind === "item" ? "obtained" : "active",
+      state_label: "",
+      starts_at_beat_id: "",
+      ends_at_beat_id: "",
+      continuity_group_id: attachment.entry_id,
+      importance: attachment.kind === "item" || attachment.role === "reward" ? "major" : "minor",
       sort_order: index,
       notes: "",
       tags: [],
@@ -369,6 +396,148 @@ export default function StoryTimelinePage() {
   const selectedLibrary = selection?.kind === "library"
     ? catalogsByKind.get(selection.libraryKind || "")?.get(selection.id)
     : undefined;
+  const entityOccurrences = useMemo(() => {
+    const catalogKeyByKind: Record<TrackKind, string> = {
+      location: "locations",
+      character: "characters",
+      item: "items",
+      quest: "quests",
+      faction: "factions",
+    };
+    const result: StoryOccurrence[] = [];
+    const arcByPlacementSource = new Map<string, EntryRecord>();
+    placements.forEach((placement) => {
+      const source = record(placement.source);
+      if (text(source.kind) && text(source.entry_id)) {
+        arcByPlacementSource.set(`${text(source.kind)}:${text(source.entry_id)}`, placement);
+      }
+    });
+
+    Object.entries(record(packet?.entity_tracks)).forEach(([groupKey, value]) => {
+      rows(value).forEach((row) => {
+        const entityKind = text(row.entity_kind, singular(groupKey)) as TrackKind;
+        if (!["location", "character", "item", "quest", "faction"].includes(entityKind)) return;
+        result.push({
+          id: text(row.id, `track:${entityKind}:${text(row.entity_id)}:${result.length}`),
+          entity_kind: entityKind,
+          entity_id: text(row.entity_id),
+          label: text(row.label),
+          timeline_id: text(row.timeline_id),
+          story_arc_id: text(row.story_arc_id),
+          source_kind: text(row.source_kind, "adventure_beat"),
+          source_id: text(row.source_id),
+          source_label: text(row.source_label),
+          order: Number(row.order) || 0,
+          role: text(row.role),
+          occurrence_kind: text(row.occurrence_kind),
+          change_type: text(row.change_type),
+          state_label: text(row.state_label),
+          importance: text(row.importance, "major"),
+        });
+      });
+    });
+
+    placements.forEach((placement) => {
+      const placementKind = text(placement.kind);
+      if (placementKind === "character_story_beat") {
+        const character = record(placement.character);
+        const characterId = text(character.entry_id);
+        if (characterId && !result.some((row) => row.source_kind === "character_story_beat" && row.source_id === text(placement.entry_id) && row.entity_id === characterId)) {
+          result.push({
+            id: `character-beat:${text(placement.entry_id)}:${characterId}`,
+            entity_kind: "character",
+            entity_id: characterId,
+            label: text(character.label, characterId),
+            timeline_id: text(placement.timeline_id),
+            story_arc_id: text(placement.story_arc_id),
+            source_kind: "character_story_beat",
+            source_id: text(placement.entry_id),
+            source_label: text(placement.label),
+            order: Number(placement.order) || 0,
+            role: "cast",
+            occurrence_kind: "appearance",
+            change_type: "active",
+            importance: "minor",
+          });
+        }
+      }
+      if (placementKind !== "adventure_beat") return;
+      rows(placement.attachments).forEach((attachment, index) => {
+        const entityKind = text(attachment.target_type) as TrackKind;
+        if (!["location", "character", "item", "quest", "faction"].includes(entityKind)) return;
+        const entityId = text(attachment.target_id);
+        if (!entityId || result.some((row) => row.source_kind === "adventure_beat" && row.source_id === text(placement.entry_id) && row.entity_id === entityId && text(attachment.id) && row.id.endsWith(text(attachment.id)))) return;
+        const catalog = catalogsByKind.get(catalogKeyByKind[entityKind]) || new Map<string, EntryRecord>();
+        result.push({
+          id: `adventure:${text(placement.entry_id)}:${entityKind}:${entityId}:${index}`,
+          entity_kind: entityKind,
+          entity_id: entityId,
+          label: text(attachment.label, label(catalog.get(entityId), entityId)),
+          timeline_id: text(placement.timeline_id),
+          story_arc_id: text(placement.story_arc_id),
+          source_kind: "adventure_beat",
+          source_id: text(placement.entry_id),
+          source_label: text(placement.label),
+          order: Number(placement.order) || 0,
+          role: text(attachment.role),
+          occurrence_kind: text(attachment.occurrence_kind, "appearance"),
+          change_type: text(attachment.change_type, "active"),
+          state_label: text(attachment.state_label),
+          importance: text(attachment.importance, "major"),
+        });
+      });
+    });
+
+    eventChains.forEach((event) => {
+      const locationId = text(record(event.attachments).location_id);
+      if (!locationId) return;
+      const placement = arcByPlacementSource.get(`event:${text(event.event_id)}`);
+      result.push({
+        id: `event:${text(event.event_id)}:${locationId}`,
+        entity_kind: "location",
+        entity_id: locationId,
+        label: label(catalogsByKind.get("locations")?.get(locationId), locationId),
+        timeline_id: text(placement?.timeline_id),
+        story_arc_id: text(placement?.story_arc_id),
+        source_kind: "event",
+        source_id: text(event.event_id),
+        source_label: text(event.label),
+        order: Number(placement?.order) || 0,
+        role: "runtime",
+        occurrence_kind: "appearance",
+        change_type: "active",
+        importance: "minor",
+      });
+    });
+
+    plan.beats.forEach((beat) => {
+      beat.attachments.forEach((attachment, index) => {
+        if (!["location", "character", "item", "quest", "faction"].includes(attachment.kind)) return;
+        result.push({
+          id: `local:${beat.id}:${attachment.entry_id}:${index}`,
+          entity_kind: attachment.kind as TrackKind,
+          entity_id: attachment.entry_id,
+          label: attachment.label,
+          timeline_id: beat.timeline_id,
+          story_arc_id: beat.story_arc_id,
+          source_kind: "local_beat",
+          source_id: beat.id,
+          source_label: beat.title,
+          order: beat.order,
+          role: attachment.role,
+          occurrence_kind: attachment.role === "reward" ? "reward" : "appearance",
+          change_type: attachment.role === "reward" && attachment.kind === "item" ? "obtained" : "active",
+          importance: attachment.kind === "item" || attachment.role === "reward" ? "major" : "minor",
+        });
+      });
+    });
+    return result.sort((left, right) =>
+      left.timeline_id.localeCompare(right.timeline_id)
+      || left.story_arc_id.localeCompare(right.story_arc_id)
+      || left.order - right.order
+      || left.label.localeCompare(right.label)
+    );
+  }, [catalogsByKind, eventChains, packet, placements, plan.beats]);
 
   if (error) return <div className="p-5 text-red-700">{error}</div>;
   if (!packet) return <div className="p-5 text-sm text-slate-500">Loading Story Timeline...</div>;
@@ -403,6 +572,23 @@ export default function StoryTimelinePage() {
             {(["story", "cast", "locations", "quests", "runtime", "state", "issues"] as Lens[]).map((value) => <button key={value} type="button" className={`rounded-full border px-3 py-1 text-xs font-semibold ${lens === value ? "border-fuchsia-600 bg-fuchsia-600 text-white" : "border-slate-300 dark:border-slate-700"}`} onClick={() => setLens(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}
           </div>
         </section>
+
+        <TimelineNavigator
+          timelines={timelines}
+          arcs={arcs}
+          placements={placements}
+          localBeats={plan.beats}
+          entityOccurrences={entityOccurrences}
+          trackKind={trackKind}
+          onTrackKindChange={setTrackKind}
+          timelineFocus={timelineFocus}
+          arcFocus={arcFocus}
+          onFocus={(nextTimelineId, nextArcId = "") => {
+            setTimelineFocus(nextTimelineId);
+            setArcFocus(nextArcId);
+            setLens(nextArcId || nextTimelineId ? lens : "story");
+          }}
+        />
 
         <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_330px]">
           <aside className="space-y-4">
@@ -457,6 +643,102 @@ export default function StoryTimelinePage() {
 
 function Metric({ value, label: metricLabel, warning = false }: { value: number; label: string; warning?: boolean }) {
   return <span className={`rounded-full px-3 py-2 font-semibold ${warning ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}>{value} {metricLabel}</span>;
+}
+
+function TimelineNavigator({ timelines, arcs, placements, localBeats, entityOccurrences, trackKind, onTrackKindChange, timelineFocus, arcFocus, onFocus }: { timelines: EntryRecord[]; arcs: EntryRecord[]; placements: EntryRecord[]; localBeats: LocalBeat[]; entityOccurrences: StoryOccurrence[]; trackKind: TrackKind; onTrackKindChange: (kind: TrackKind) => void; timelineFocus: string; arcFocus: string; onFocus: (timelineId: string, arcId?: string) => void }) {
+  const arcsByTimeline = useMemo(() => {
+    const result = new Map<string, EntryRecord[]>();
+    arcs.forEach((arc) => {
+      const timelineId = text(arc.timeline_id);
+      result.set(timelineId, [...(result.get(timelineId) || []), arc]);
+    });
+    return result;
+  }, [arcs]);
+  const arcStats = useMemo(() => {
+    const result = new Map<string, { canonical: number; local: number; tracked: number }>();
+    arcs.forEach((arc) => {
+      const arcId = text(arc.id);
+      result.set(arcId, {
+        canonical: placements.filter((placement) => text(placement.story_arc_id) === arcId).length,
+        local: localBeats.filter((beat) => beat.story_arc_id === arcId).length,
+        tracked: new Set(entityOccurrences.filter((row) => row.entity_kind === trackKind && row.importance !== "background" && row.story_arc_id === arcId).map((row) => row.entity_id)).size,
+      });
+    });
+    return result;
+  }, [arcs, entityOccurrences, localBeats, placements, trackKind]);
+  const trackRows = useMemo(() => entityOccurrences.filter((row) => row.entity_kind === trackKind && row.importance !== "background"), [entityOccurrences, trackKind]);
+  const trackGroups = useMemo(() => {
+    const groups = new Map<string, { label: string; rows: StoryOccurrence[] }>();
+    trackRows.forEach((row) => {
+      const current = groups.get(row.entity_id) || { label: row.label, rows: [] };
+      current.rows.push(row);
+      groups.set(row.entity_id, current);
+    });
+    return [...groups.entries()]
+      .map(([entryId, group]) => ({ entryId, ...group }))
+      .sort((left, right) => right.rows.length - left.rows.length || left.label.localeCompare(right.label));
+  }, [trackRows]);
+  const trackLabels: Record<TrackKind, string> = {
+    location: "Locations",
+    character: "Characters",
+    item: "Important Items",
+    quest: "Quests",
+    faction: "Factions",
+  };
+
+  return <section className={`${panelClass} p-3`}>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 className="font-semibold">Story Navigator</h2>
+        <p className="text-xs text-slate-500">Use this as the wide overview: jump by arc, then inspect repeated entity appearances and state changes without scrolling through every card.</p>
+      </div>
+      <button type="button" className="rounded border px-3 py-1 text-xs font-semibold" onClick={() => onFocus("")}>Show All</button>
+    </div>
+    <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
+      <div className="space-y-2">
+        {timelines.map((timeline) => {
+          const timelineId = text(timeline.id);
+          const timelineArcs = arcsByTimeline.get(timelineId) || [];
+          return <div key={timelineId} className={`rounded-lg border p-2 ${timelineFocus === timelineId ? "border-fuchsia-400 bg-fuchsia-50 dark:bg-fuchsia-950/30" : "border-slate-200 dark:border-slate-800"}`}>
+            <button type="button" className="text-left text-xs font-semibold" onClick={() => onFocus(timelineId)}>{label(timeline)}</button>
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+              {timelineArcs.map((arc) => {
+                const arcId = text(arc.id);
+                const stats = arcStats.get(arcId) || { canonical: 0, local: 0, tracked: 0 };
+                return <button key={arcId} type="button" className={`min-w-44 rounded-md border px-2 py-2 text-left text-[11px] ${arcFocus === arcId ? "border-fuchsia-500 bg-white shadow-sm dark:bg-slate-900" : "border-slate-200 dark:border-slate-800"}`} onClick={() => onFocus(timelineId, arcId)}>
+                  <span className="block truncate font-semibold">{label(arc)}</span>
+                  <span className="mt-1 block text-slate-500">{stats.canonical} canonical / {stats.local} local / {stats.tracked} {trackKind}s</span>
+                </button>;
+              })}
+              {!timelineArcs.length && <span className="rounded border border-dashed px-3 py-2 text-xs text-slate-400">No arcs</span>}
+            </div>
+          </div>;
+        })}
+        {!timelines.length && <p className="rounded border border-dashed p-3 text-xs text-slate-500">No timelines yet. Use the unassigned lane or create a timeline first.</p>}
+      </div>
+      <div className="rounded-lg border border-slate-200 p-2 dark:border-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase text-slate-500">Entity Occurrences</h3>
+          <span className="text-[10px] text-slate-400">{trackRows.length} visible</span>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-1">
+          {(["location", "character", "item", "quest", "faction"] as TrackKind[]).map((kind) => <button key={kind} type="button" className={`rounded border px-2 py-1 text-[10px] font-semibold ${trackKind === kind ? "border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-200" : "border-slate-200 dark:border-slate-800"}`} onClick={() => onTrackKindChange(kind)}>{trackLabels[kind]}</button>)}
+        </div>
+        <div className="mt-2 max-h-64 space-y-2 overflow-auto">
+          {trackGroups.map((group) => {
+            const first = group.rows[0];
+            const states = [...new Set(group.rows.map((row) => row.state_label || row.change_type || row.role).filter(Boolean))];
+            return <button key={group.entryId} type="button" className="block w-full rounded-md border px-2 py-2 text-left text-xs hover:border-fuchsia-300 dark:border-slate-800" onClick={() => onFocus(first.timeline_id, first.story_arc_id)}>
+              <span className="block font-semibold">{group.label}</span>
+              <span className="mt-1 block text-[10px] text-slate-500">{group.rows.length} occurrence(s){states.length ? `: ${states.join(", ")}` : ""}</span>
+              <span className="mt-1 block truncate text-[10px] text-slate-400">First: {first.source_label || "Unplaced"}</span>
+            </button>;
+          })}
+          {!trackGroups.length && <p className="rounded border border-dashed p-3 text-xs text-slate-500">No {trackLabels[trackKind].toLowerCase()} are attached to story beats yet.</p>}
+        </div>
+      </div>
+    </div>
+  </section>;
 }
 
 function LibraryCard({ kind, entry, onSelect, onAttach }: { kind: string; entry: EntryRecord; onSelect: () => void; onAttach?: () => void }) {

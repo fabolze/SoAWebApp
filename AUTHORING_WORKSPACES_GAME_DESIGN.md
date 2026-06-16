@@ -85,6 +85,185 @@ Every living-canvas application must distinguish three layers:
 - **Local Creative Tools:** sketches, previews, traces, comparisons, overlays, and hypothetical arrangements that do not alter canonical data.
 - **Future Canonical Expansion:** valuable concepts that require deliberate new metadata or systems before they can save.
 
+### Cross-Workspace Story Placement Expansion
+
+The Story Timeline now has lifecycle-aware `adventure_beat_links`. That should become a shared authoring capability instead of staying isolated inside `/author/story-timeline`.
+
+The next interaction goal is:
+
+> Every major authoring workspace should answer **where does this matter in the story, and what changes there?**
+
+This does not mean every workspace should display the full Story Timeline. The better pattern is a small, reusable story-placement surface inside each specialized view. The Story Timeline remains the overview and review workspace; the other authoring views become convenient places to attach the selected record to a story beat.
+
+#### Shared Components To Build
+
+These components should be implemented once and reused across Character Studio, Item Ecosystem, Quest Journey Board, Encounter Stage, Dialogue Scene Room, World Builder, and later Creature Workshop.
+
+| Component | Purpose | Current Data Written Or Read |
+|---|---|---|
+| `StoryPlacementPanel` | Show where the current entity appears in adventure beats and let the author place it into an existing or local story beat | Reads `/api/ui/adventure-timeline`; writes `adventure_beat_links` through preview/commit or a scoped bundle endpoint |
+| `EntityOccurrenceTrack` | Group repeated appearances and lifecycle changes for one selected entity | Reads `entity_tracks`, runtime event links, character story beats, and local draft attachments |
+| `PlacementTray` | Provide typed drop targets such as Setting, Cast, Runtime, State, Reward, Requirement, and Reference | Maps to `adventure_beat_links.role` and target type |
+| `LifecycleFields` | Shared compact editor for occurrence kind, change type, state label, start/end beat, continuity group, and importance | Writes lifecycle fields on `adventure_beat_links` |
+| `StoryContextStrip` | Small read-only strip showing nearest timeline, arc, beat, dependencies, warnings, and owning record links | Reads the Story Timeline packet and dependency index |
+| `BundleReview` | One consistent preview/commit UI for multi-record changes | Reuses existing rollback-only preview and atomic commit contracts |
+
+These components should stay data-driven. They should not hard-code locations, characters, or items as special cases except where the UI label or default change type genuinely differs.
+
+#### Shared Data Contract
+
+All story-placement gestures should use the same canonical link shape:
+
+- `adventure_beat_id`: the story beat where the entity matters.
+- `target_type`: `location`, `character`, `quest`, `event`, `dialogue`, `encounter`, `lore_entry`, `item`, `faction`, or `story_arc`.
+- `target_id`: the selected entity.
+- `role`: setting, cast, player journey, runtime, state, reward, or reference.
+- `occurrence_kind`: appearance, transition, reward, requirement, consequence, or reference.
+- `change_type`: introduced, active, changed, unavailable, restored, destroyed, obtained, lost, stolen, consumed, joins, leaves, captured, injured, dies, returns, transformed, or none.
+- `state_label`: short author-facing state such as Ruined, Missing, Allied, Equipped, Hostile, Occupied, or Restored.
+- `starts_at_beat_id` and `ends_at_beat_id`: optional duration boundaries when the state spans more than one beat.
+- `continuity_group_id`: optional key for versions of the same entity, such as city-before-siege/city-ruins or sword-unawakened/sword-awakened.
+- `importance`: critical, major, minor, or background.
+
+Default behavior should be conservative:
+
+- Dropping a location into a beat defaults to `role=setting`, `occurrence_kind=appearance`, `change_type=active`, `importance=minor`.
+- Dropping a character defaults to `role=cast`, `occurrence_kind=appearance`, `change_type=active`, `importance=minor`.
+- Dropping an item as a reward defaults to `role=reward`, `occurrence_kind=reward`, `change_type=obtained`, `importance=major`.
+- Dropping a quest defaults to `role=player_journey`, `occurrence_kind=appearance`, `change_type=active`, `importance=major`.
+- Dropping a faction defaults to `role=state`, `occurrence_kind=appearance`, `change_type=active`, `importance=minor`.
+
+The user should be able to change these defaults before committing.
+
+#### Implementation Sequence
+
+1. **Extract Shared Timeline Reads:** move the client-side helpers that read `entity_tracks`, placements, catalogs, warnings, and relationships into a reusable module.
+2. **Build Read-Only `StoryPlacementPanel`:** embed it in one workspace first, preferably Character Studio. It should show the selected entity's existing occurrences and link back to the Story Timeline.
+3. **Add Scoped Placement Creation:** allow the panel to create one new `adventure_beat_link` against an existing beat, with preview/commit and lifecycle fields.
+4. **Add Drag/Drop Placement Trays:** let authors drag the current entity, a reward item, an encounter, or a dialogue into a typed tray when the owning workspace already has the relevant context.
+5. **Generalize To More Workspaces:** reuse the same panel and lifecycle field editor in Item Ecosystem, Quest Journey Board, Encounter Stage, Dialogue Scene Room, and World Builder.
+6. **Add Coherence Warnings:** surface warnings close to the entity being edited, such as "item required before obtained", "character appears after death", "location restored without destruction", or "dialogue sets important state but is unplaced".
+7. **Add Direct Canonical Editing:** after creation is reliable, support editing and removing existing canonical `adventure_beat_links` from the panel with stale-record protection.
+
+Do not start by building a universal graph editor. The immediate value comes from focused placement panels that write honest beat links.
+
+#### Workspace-Specific Upgrades
+
+**Character Studio**
+
+Add a Character Presence Timeline inside the existing context area:
+
+- Show appearances from adventure beats, character story beats, dialogues, encounters, events, quests, and local story-planning links.
+- Highlight lifecycle states such as introduced, joins, leaves, injured, captured, dies, returns, changed, and active.
+- Let the author place the character into an existing adventure beat as cast or state.
+- Let the author mark major story changes directly from the character view: joins party, leaves party, captured, injured, dies, returns, faction changes, or transformed.
+- Warn when a character appears after a terminal state without an explicit return/restoration.
+- Warn when a character is heavily used in dialogue or encounters but has no clear story introduction.
+
+This should make the character view answer "where is this person in the story?" without forcing the author to open the full timeline.
+
+**Item Ecosystem And Item Forge**
+
+Add an Item Journey Track:
+
+- Show where the item is introduced, obtained, lost, stolen, consumed, upgraded, transformed, restored, required, or rewarded.
+- Distinguish ordinary economic availability from story-important appearances. Use `importance=background` for generic shop/vendor availability so the navigator does not become noisy.
+- Let the author place an item into a story beat as reward, requirement, state, or reference.
+- For quest items and legendary items, encourage explicit continuity groups so changed versions are understandable.
+- Warn when an item is required before it can be obtained.
+- Warn when a quest item is obtained but never used or consumed.
+- Warn when an important item appears in multiple acquisition sources without an intentional explanation.
+
+The item workspace should become the best place to answer "how does the player get this, lose it, use it, and remember it?"
+
+**Quest Journey Board**
+
+Add story beat placement and state walkthrough around the existing objective flow:
+
+- Show which adventure beats start, escalate, branch, and resolve the quest.
+- Let quest cards be placed into story beats as player journey links.
+- Show requirements, flags, items, and rewards in visible trays beside the objective sequence.
+- Add a temporary walkthrough mode that steps through objectives and shows expected state changes.
+- Warn when quest order inside an arc conflicts with requirements, item availability, or runtime event placement.
+- Warn when a quest belongs to an arc but has no clear starting or resolving adventure beat.
+
+The goal is not just to reorder objectives. The author should see whether the quest's playable path makes sense inside the wider story.
+
+**World Builder**
+
+Add a Story/State Overlay for locations:
+
+- On a selected location, show all story occurrences and state changes from `entity_tracks.locations`.
+- Use map styling for lifecycle states: introduced, active, changed, unavailable, destroyed, restored, occupied, or transformed.
+- Allow placing the current location into an adventure beat as setting or state.
+- Allow filtering the map by timeline, story arc, and selected lifecycle state.
+- Warn when a critical location is destroyed but still appears as active later.
+- Warn when a major location appears in many events but no adventure beat introduces it.
+
+The World Builder should answer "what is happening here across the story?" while the Story Timeline answers "where does this place fit in the story order?"
+
+**Dialogue Scene Room**
+
+Add a Story Moment Rail beside the dialogue graph:
+
+- Show the adventure beat, event, quest, and character story beat context for the current dialogue.
+- Let the author place the dialogue into a runtime tray on an adventure beat.
+- Let the author mark dialogue consequences as state links when the scene changes a character, faction, item, or location.
+- Keep flags and requirements visible as dependency context, but use story placement for author-facing narrative moments.
+- Warn when dialogue sets important flags but is not placed in any story beat or event.
+- Warn when a dialogue is referenced by an event but the event has no story placement.
+
+This keeps dialogue authoring focused on conversation while still showing why the scene matters.
+
+**Encounter Stage**
+
+Add encounter-as-moment controls:
+
+- Show where the encounter appears in events, locations, quests, and adventure beats.
+- Let the author place the encounter into a runtime tray on an adventure beat.
+- Let rewards, injured characters, defeated bosses, faction changes, or destroyed locations become lifecycle links from the encounter context.
+- Show aftermath preview: flags set, items granted, characters affected, and location state changes.
+- Warn when a major encounter has no story placement.
+- Warn when encounter rewards are important items but do not appear in item journey tracks.
+
+The Encounter Stage should answer "what changes because this fight or scene happened?"
+
+**Ability Spellcraft Lab**
+
+Add usage and combat-rhythm interactivity rather than story placement as the first priority:
+
+- Show a phase timeline: cast, travel, impact, lingering status, tick interval, upkeep, recovery, and cooldown.
+- Show where the ability is used: characters, combat profiles, encounters, bosses, and variants.
+- Let authors drag the ability into combat profiles or encounter roles through existing relationships.
+- Warn when a signature ability is unused.
+- Warn when an ability's targeting promise conflicts with linked effects or encounter usage.
+- For story-relevant abilities, allow optional reference placement into an adventure beat, but do not force every ability into the Story Timeline.
+
+This workspace should stay about readable action design. Story placement is secondary unless the ability is narratively important.
+
+**Creature Workshop**
+
+When implemented, make it a focused enemy creator with direct placement tools:
+
+- Show habitat, encounter appearances, loot, abilities, faction, and story usage together.
+- Let authors place the creature into locations, encounter tables, encounters, and adventure beats through existing records.
+- Show a creature lifecycle only for named or boss-level creatures. Ordinary enemy species should use habitat and encounter usage instead.
+- Warn when a creature has abilities or loot but no encounter placement.
+- Warn when a boss appears in story beats but lacks a combat profile, encounter, or reward payoff.
+
+The creature workspace should not duplicate Character Studio wholesale. It should focus on "where does the enemy live, what does it do, and why does fighting it matter?"
+
+#### Acceptance Criteria
+
+An author view can be considered "story-placement integrated" when it satisfies all of these:
+
+1. It shows existing story occurrences for the selected record without opening the full Story Timeline.
+2. It can create a valid `adventure_beat_link` through preview/commit.
+3. It exposes lifecycle fields using the shared editor.
+4. It links back to the owning story beat and to the full Story Timeline.
+5. It warns about at least one meaningful coherence problem for that entity type.
+6. It does not save visual layout as canonical data unless the target model already owns a relevant field.
+
 ---
 
 ## Implementation Integrity Rules
@@ -851,9 +1030,11 @@ The main canvas is a horizontally ordered story spine:
 
 Semantic zoom keeps the board readable. Overview shows timelines, arcs, and major beats. Board view shows beat cards and important attachments. Detail view opens the selected beat's complete context packet.
 
+The implemented MVP adds a **Story Navigator** above the board. It is the fast-access layer for larger projects: timeline and arc cards summarize canonical placements, local planning beats, and the selected entity track, while the Entity Occurrences panel groups repeated appearances and state changes for locations, characters, important items, quests, or factions so the author does not have to find every instance by scrolling through timeline lanes.
+
 ### Current-Model Implementation
 
-The current model now owns deliberate cross-domain `adventure_beats` and typed `adventure_beat_links`. The interactive workspace is available at `/author/story-timeline`; `/api/ui/adventure-timeline` remains the read aggregation contract, while rollback-only `/api/ui/adventure-timeline/preview` and atomic `/api/ui/adventure-timeline/bundle` promote reviewed local plans into canonical records.
+The current model now owns deliberate cross-domain `adventure_beats` and typed lifecycle-aware `adventure_beat_links`. The interactive workspace is available at `/author/story-timeline`; `/api/ui/adventure-timeline` remains the read aggregation contract, while rollback-only `/api/ui/adventure-timeline/preview` and atomic `/api/ui/adventure-timeline/bundle` promote reviewed local plans into canonical records.
 
 It exposes current ordering and relationships without inventing a global sequence:
 
@@ -866,7 +1047,8 @@ It exposes current ordering and relationships without inventing a global sequenc
 | `events.next_event_id` and event content references | Runtime event chains and implementation attachments |
 | Dependency index edges | Explicit and inferred prerequisite, state, branch, and unlock context |
 | `adventure_beats.sort_order` | Canonical beat order inside an arc, timeline, or unassigned planning scope |
-| Typed `adventure_beat_links` | Canonical setting, cast, player-journey, runtime, state, reward, and reference attachments |
+| Typed `adventure_beat_links` | Canonical setting, cast, player-journey, runtime, state, reward, and reference attachments with occurrence kind, change type, state label, continuity group, and importance |
+| `entity_tracks`, event locations, character story beats, and local beat attachments | Grouped Entity Occurrences in the Story Navigator |
 
 The aggregator explicitly separates canonical placements, runtime event chains, unplaced content, and inferred dependency relationships. It does not save visual positions or claim that current records form one canonical player path.
 
@@ -880,17 +1062,46 @@ The aggregator explicitly separates canonical placements, runtime event chains, 
 - **State:** requirements, flags, branches, and unlocks.
 - **Issues:** contradictory placement, missing implementation, broken references, and unplaced important content.
 
+### How To Use The Implemented MVP
+
+1. Open `/author/story-timeline`.
+2. Use **Story Navigator** to choose the timeline or arc you want to inspect. This avoids treating the horizontal card rows as the only navigation mechanism.
+3. Use **Entity Occurrences** to switch between locations, characters, important items, quests, and factions. Each row groups every currently known occurrence and shows the first beat or runtime event where the entity appears or changes state.
+4. Use the lens buttons to reduce the board to the question you are asking:
+   - **Locations** for where story beats happen.
+   - **Runtime** for event/dialogue/encounter implementation.
+   - **State** for flags, requirements, rewards, and dependency context.
+   - **Issues** for coherence warnings.
+5. Drag content from the library onto an arc lane to create a local planning beat, or onto an existing local planning beat to attach it.
+6. Select a beat or placement to inspect its context dock and open the owning record.
+7. Use **Review & Commit Plan** to validate the local plan, then **Commit Plan** to persist canonical `adventure_beats` and `adventure_beat_links`.
+
+Local planning beats remain browser-local until committed. Committing creates story intent and typed links; it does not rewrite the attached locations, quests, events, dialogue, encounters, characters, items, or factions.
+
+### Current Lifecycle Support
+
+The MVP can show where locations, characters, important items, quests, and factions appear, and it can attach deliberate lifecycle metadata to canonical beat links:
+
+- `occurrence_kind` for appearance, transition, reward, requirement, consequence, or reference.
+- `change_type` for introduced, active, changed, unavailable, restored, destroyed, obtained, lost, consumed, joins, leaves, dies, returns, transformed, and related states.
+- `state_label` for readable authoring labels such as Ruined, Missing, Allied, Equipped, or Restored.
+- `starts_at_beat_id`, `ends_at_beat_id`, and `continuity_group_id` for duration and version tracking.
+- `importance` so ordinary background mentions do not dominate the overview.
+
+The current canvas can create local planning links and commit them with sensible lifecycle defaults. Direct in-place editing of already-canonical beat links, richer duration visualization, and path comparison remain future workflow work.
+
 ### Living Canvas Application
 
 - **Canonical Save Gestures:** review and commit local planning beats as one atomic `adventure_beats` and `adventure_beat_links` bundle. Existing arc quest order and character story-beat order remain editable through their owning workspaces.
-- **Local Creative Tools:** drag existing content into proposed beat trays; move hypothetical story beats; focus by arc, location, character, quest, or issue; preview dependency context; frame a playable slice.
-- **Future Canonical Expansion:** direct canonical beat reordering/editing, playable-story timeline kinds, optional and failure paths, pacing targets, promises, payoffs, and knowledge state.
+- **Local Creative Tools:** drag existing content into proposed beat trays; move hypothetical story beats; focus by arc, location, character, item, quest, faction, or issue; preview dependency context; frame a playable slice.
+- **Future Canonical Expansion:** direct canonical beat reordering/editing, richer entity-track editing, playable-story timeline kinds, optional and failure paths, pacing targets, promises, payoffs, and knowledge state.
 
 Story Timeline arrangements remain local planning state until the author reviews and commits them. Commit creates canonical adventure beats and typed links without rewriting the linked records.
 
 ### Future Expansion
 
 - Add direct editing and reordering of already-canonical `adventure_beats` and `adventure_beat_links` on the canvas.
+- Add richer visual duration lanes for entity tracks so destroyed, transformed, unavailable, restored, and replaced states can be scanned at a glance.
 - Drag locations, characters, quests, events, dialogue, encounters, lore, and rewards onto typed beat trays.
 - Compare critical, optional, completionist, and failure-aware story paths.
 - Evaluate pacing, content density, novelty, recovery, promises, payoffs, and implementation coverage.
@@ -1000,11 +1211,13 @@ Every workspace should reuse the same authoring verbs:
 
 - **Sketch:** create an incomplete local draft.
 - **Place:** add an existing entity to an existing relationship.
+- **Place In Story:** attach an existing entity to an `adventure_beat` through a lifecycle-aware `adventure_beat_link`.
 - **Connect:** create a real reference or dependency.
 - **Arrange:** reorder only when order is canonical; otherwise change local visual layout.
 - **Inspect:** open a complete context packet.
 - **Compare:** place similar content side by side.
 - **Trace:** follow references and dependencies.
+- **Track:** follow repeated appearances or lifecycle changes for one entity across story beats and implementation records.
 - **Play Through:** step through a temporary interpretation of the existing data.
 - **Focus Lens:** reveal one design concern.
 - **Commit:** preview and atomically save the affected existing records.
@@ -1017,6 +1230,8 @@ Every workspace should reuse the same authoring verbs:
 - Lock badge: requirement gate.
 - Flag token: state set or consumed.
 - Chest/tray: reward payload.
+- Story tray: lifecycle-aware placement into an adventure beat.
+- Timeline chip: existing story placement or entity occurrence.
 - Amber issue: incomplete or suspicious.
 - Red issue: broken or impossible.
 
@@ -1055,16 +1270,16 @@ They may appear as prompts, inferred views, local planning notes, or generated s
 
 | Workspace | Minimum Useful Version |
 |---|---|
-| World Builder | Place and connect locations, inspect packets, apply lenses, validate world structure |
-| Character Studio | Edit the identity/combat/interaction bundle, inspect world presence, compare and validate |
-| Dialogue Flow Room | View/edit node graph, connect choices, trace a path, show broken links |
-| Encounter Stage | Place participants by side/context, edit rewards, show simulation and placements |
-| Item Ecosystem | Show all sources, add item to source/reward, compare price/power/scarcity |
-| Quest Journey Board | Reorder objectives, edit gates/flags/rewards, show quest givers and aftermath |
+| World Builder | Place and connect locations, inspect packets, apply lenses, validate world structure, and show location story/state occurrences |
+| Character Studio | Edit the identity/combat/interaction bundle, inspect world presence, compare, validate, and show character story placements |
+| Dialogue Flow Room | View/edit node graph, connect choices, trace a path, show broken links, and place the scene into story/runtime context |
+| Encounter Stage | Place participants by side/context, edit rewards, show simulation and placements, and show encounter aftermath/story placement |
+| Item Ecosystem | Show all sources, add item to source/reward, compare price/power/scarcity, and track important item journeys |
+| Quest Journey Board | Reorder objectives, edit gates/flags/rewards, show quest givers/aftermath, and place quest beats in the story |
 | Story Timeline And Adventure Board | Arrange scoped story lanes, attach cross-domain content, review local plans, and commit canonical adventure beats without inventing a global sequence |
 | Adventure Dependency Map | Trace flags through requirements to gated content, show impossible/dead state |
-| Ability Spellcraft Lab | Compose trigger, target, effects, scaling, cost, and simulation |
-| Creature Workshop | Focused enemy creator with move kit, spoils, habitat, comparison, and health |
+| Ability Spellcraft Lab | Compose trigger, target, effects, scaling, cost, simulation, and ability usage across profiles/encounters |
+| Creature Workshop | Focused enemy creator with move kit, spoils, habitat, placement, story usage, comparison, and health |
 
 ---
 

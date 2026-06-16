@@ -44,6 +44,43 @@ class AdventureBeatLinkRole(enum.Enum):
     Reference = "reference"
 
 
+class AdventureOccurrenceKind(enum.Enum):
+    Appearance = "appearance"
+    Transition = "transition"
+    Reward = "reward"
+    Requirement = "requirement"
+    Consequence = "consequence"
+    Reference = "reference"
+
+
+class AdventureChangeType(enum.Enum):
+    Introduced = "introduced"
+    Active = "active"
+    Changed = "changed"
+    Unavailable = "unavailable"
+    Restored = "restored"
+    Destroyed = "destroyed"
+    Obtained = "obtained"
+    Lost = "lost"
+    Stolen = "stolen"
+    Consumed = "consumed"
+    Joins = "joins"
+    Leaves = "leaves"
+    Captured = "captured"
+    Injured = "injured"
+    Dies = "dies"
+    Returns = "returns"
+    Transformed = "transformed"
+    None_ = "none"
+
+
+class AdventureImportance(enum.Enum):
+    Critical = "critical"
+    Major = "major"
+    Minor = "minor"
+    Background = "background"
+
+
 class AdventureBeat(Base):
     __tablename__ = "adventure_beats"
 
@@ -66,6 +103,7 @@ class AdventureBeat(Base):
     links = relationship(
         "AdventureBeatLink",
         back_populates="adventure_beat",
+        foreign_keys="AdventureBeatLink.adventure_beat_id",
         cascade="all, delete-orphan",
     )
 
@@ -87,8 +125,15 @@ class AdventureBeatLink(Base):
     target_type = Column(Enum(AdventureBeatLinkTargetType), nullable=False)
     target_id = Column(String, nullable=False)
     role = Column(Enum(AdventureBeatLinkRole), nullable=False, default=AdventureBeatLinkRole.Reference)
+    occurrence_kind = Column(Enum(AdventureOccurrenceKind), nullable=False, default=AdventureOccurrenceKind.Appearance)
+    change_type = Column(Enum(AdventureChangeType), nullable=False, default=AdventureChangeType.Active)
+    state_label = Column(String)
+    starts_at_beat_id = Column(String, ForeignKey("adventure_beats.id"))
+    ends_at_beat_id = Column(String, ForeignKey("adventure_beats.id"))
+    continuity_group_id = Column(String)
+    importance = Column(Enum(AdventureImportance), nullable=False, default=AdventureImportance.Major)
     sort_order = Column(Integer, nullable=False, default=0)
     notes = Column(Text)
     tags = Column(JSON)
 
-    adventure_beat = relationship("AdventureBeat", back_populates="links")
+    adventure_beat = relationship("AdventureBeat", back_populates="links", foreign_keys=[adventure_beat_id])

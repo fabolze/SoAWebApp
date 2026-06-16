@@ -84,8 +84,16 @@ export default function RecoverySyncBanner() {
       }
       const imported = (payload.tables ?? []).reduce((total, table) => total + (table.imported || 0), 0);
       setMessage(`Restore completed. Imported ${imported} rows. Reloading...`);
+      if (latestCsvMtime) {
+        localStorage.setItem(DISMISSED_RECOVERY_KEY, latestCsvMtime);
+        setDismissedMtime(latestCsvMtime);
+      }
+      void loadStatus();
       setConfirmOpen(false);
-      window.setTimeout(() => window.location.reload(), 1200);
+      window.setTimeout(() => {
+        window.location.reload();
+        window.setTimeout(() => setMessage(null), 3000);
+      }, 1200);
     } catch (error: unknown) {
       setMessage(getErrorMessage(error, "Restore from recovery CSVs failed"));
     } finally {
@@ -109,7 +117,7 @@ export default function RecoverySyncBanner() {
           </div>
           {visible && (
             <div className="mt-1 text-xs text-amber-800 dark:text-amber-200">
-              Latest CSV: {formattedCsvTime || "unknown"} · {sync.source_dir || status?.source_dir || "backend/data"}
+              Latest CSV: {formattedCsvTime || "unknown"} - {sync.source_dir || status?.source_dir || "backend/data"}
             </div>
           )}
         </div>

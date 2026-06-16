@@ -203,6 +203,24 @@ def _upgrade_sqlite_schema(active_engine) -> None:
                     if column not in beat_columns:
                         connection.execute(text(f"ALTER TABLE character_story_beats ADD COLUMN {column} JSON"))
 
+            if "adventure_beat_links" in table_names:
+                adventure_link_columns = {column["name"] for column in inspector.get_columns("adventure_beat_links")}
+                additive_adventure_link_columns = {
+                    "occurrence_kind": "VARCHAR",
+                    "change_type": "VARCHAR",
+                    "state_label": "VARCHAR",
+                    "starts_at_beat_id": "VARCHAR",
+                    "ends_at_beat_id": "VARCHAR",
+                    "continuity_group_id": "VARCHAR",
+                    "importance": "VARCHAR",
+                }
+                for column_name, column_type in additive_adventure_link_columns.items():
+                    if column_name not in adventure_link_columns:
+                        connection.execute(text(f"ALTER TABLE adventure_beat_links ADD COLUMN {column_name} {column_type}"))
+                connection.execute(text("UPDATE adventure_beat_links SET occurrence_kind = 'Appearance' WHERE occurrence_kind IS NULL"))
+                connection.execute(text("UPDATE adventure_beat_links SET change_type = 'Active' WHERE change_type IS NULL"))
+                connection.execute(text("UPDATE adventure_beat_links SET importance = 'Major' WHERE importance IS NULL"))
+
             if "ability_effect_links" in table_names:
                 link_columns = {column["name"] for column in inspector.get_columns("ability_effect_links")}
                 additive_link_columns = {

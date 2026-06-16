@@ -29,12 +29,12 @@ Working:
 - Item, shop, Character Studio, location, atlas, and World Builder authoring.
 - Dialogue Flow Room with graph editing, atomic bundle save, health analysis, local drafts/layout, and playthrough.
 - Encounter Stage, Item Ecosystem, Quest Journey Board, Adventure Dependency Map, and Ability Spellcraft Lab.
-- Interactive Story Timeline and Adventure Board with scoped canonical lanes, focused lenses, drag/drop local planning, typed attachments, preview, and atomic commit to canonical adventure beats.
+- Interactive Story Timeline and Adventure Board with scoped canonical lanes, Story Navigator overview, switchable entity occurrence tracks, focused lenses, drag/drop local planning, typed lifecycle attachments, preview, and atomic commit to canonical adventure beats.
 - Project Health, deterministic local authoring helpers, and heuristic simulation.
 
 Planned but not implemented:
 
-- Direct editing/reordering of already-canonical adventure beats on the Story Timeline canvas, focused Creature Workshop, and deeper expansions of the implemented authoring workspaces.
+- Direct editing/reordering of already-canonical adventure beats on the Story Timeline canvas, richer editing of entity lifecycle tracks, focused Creature Workshop, and deeper expansions of the implemented authoring workspaces.
 
 Important limitations:
 
@@ -56,6 +56,16 @@ Use immersive Author Views for normal content entry when available:
 - `/author/dialogues`, `/author/dialogues/new`, and `/author/dialogues/<id>`
 - `/author/encounters`, `/author/encounters/new`, and `/author/encounters/<id>`
 - `/author/story-timeline` for scoped story lanes, drag/drop planning, typed links, and canonical bundle review
+
+Story Timeline workflow:
+
+- Start with **Story Navigator** to jump to a timeline or arc.
+- Use **Entity Occurrences** to inspect repeated locations, characters, important items, quests, or factions without scrolling through every story lane.
+- Use lenses to narrow the board to story, cast, locations, quests, runtime, state, or issues.
+- Drag library content onto an arc lane to create a local planning beat; drag or attach more content to that local beat to build its implementation context.
+- Review and commit the local plan when it should become canonical `adventure_beats` and lifecycle-aware `adventure_beat_links`.
+
+Current capability: `adventure_beat_links` can now mark occurrence kind, change type, state label, optional start/end beats, continuity group, and importance. The navigator uses that metadata to show focused tracks for locations, characters, important items, quests, and factions; full direct editing of existing canonical links on the canvas is still a future workflow.
 
 The Dialogue Flow Room supports Select, Sketch, Connect, and Move modes. It edits dialogues and their node graph together, reports broken or ambiguous paths, restores local unsaved drafts, and can play through requirements, flags, and temporary faction-reputation overrides.
 

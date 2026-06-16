@@ -149,8 +149,9 @@ Immersive authoring views are alternate input surfaces for high-use content type
 - `/author/encounters`, `/author/encounters/new`, and `/author/encounters/<id>` provide the Encounter Stage for side composition, linked profile inspection, gates, rewards, location encounter-table placement, health analysis, simulation comparison, draft restoration, and atomic bundle saving.
 - `/author/items/new` and `/author/items/<id>` preserve rich item mechanics authoring; `/author/items/new/ecosystem` and `/author/items/<id>/ecosystem` provide direct acquisition-source controls, POI placement, power/economy comparisons, issue validation, local drafts, and atomic bundle saving.
 - `/author/quests`, `/author/quests/new`, and `/author/quests/<id>` provide the Quest Journey Board for objectives, gates, rewards, arc placement, quest givers, walkthrough context, and atomic bundle saving.
-- `/author/story-timeline` provides the interactive Story Timeline and Adventure Board: scoped timeline/arc lanes, story/cast/location/quest/runtime/state/issues lenses, drag/drop browser-local planning beats, typed attachments, context inspection, and deliberate preview/commit.
-- `/api/ui/adventure-timeline` provides the read aggregation contract. Rollback-only `/api/ui/adventure-timeline/preview` and atomic `/api/ui/adventure-timeline/bundle` validate and persist canonical `adventure_beats` plus typed `adventure_beat_links`. Generic `/adventure-beats` and `/adventure-beat-links` editors remain the schema-complete fallback.
+- `/author/story-timeline` provides the interactive Story Timeline and Adventure Board: scoped timeline/arc lanes, Story Navigator overview, switchable entity occurrence tracks, story/cast/location/quest/runtime/state/issues lenses, drag/drop browser-local planning beats, typed lifecycle attachments, context inspection, and deliberate preview/commit.
+- `/api/ui/adventure-timeline` provides the read aggregation contract, including `entity_tracks` for locations, characters, items, quests, and factions. Rollback-only `/api/ui/adventure-timeline/preview` and atomic `/api/ui/adventure-timeline/bundle` validate and persist canonical `adventure_beats` plus typed `adventure_beat_links`. Generic `/adventure-beats` and `/adventure-beat-links` editors remain the schema-complete fallback.
+- Story Timeline lifecycle state is stored on canonical beat links with `occurrence_kind`, `change_type`, `state_label`, optional start/end beats, `continuity_group_id`, and `importance`. The canvas still does not directly edit already-canonical beat/link rows in place; use the generic editors for rare direct changes until that workflow is added.
 - `/author/dependencies` provides the Adventure Dependency Map for state tracing, health lenses, and constrained requirement/flag corrections.
 
 Use Author View for normal content creation when the entity has a specialized route. Use Advanced Form when a rare technical field is missing from the immersive surface, when debugging schema behavior, or when editing a dataset without a specialized view. New-entry authoring routes such as `/author/items/new` create local drafts first; nothing is saved until the normal save action posts through the existing CRUD endpoint.
@@ -283,7 +284,7 @@ UE prototype restart path:
 
 Web app/content tool backlog:
 
-1. Deepen Story Timeline with direct canonical beat editing/reordering, richer state/reward attachments, and optional/failure-aware path comparison.
+1. Deepen Story Timeline with direct canonical beat editing/reordering, richer entity-track editing, state/reward workflows, and optional/failure-aware path comparison.
 2. Build focused Creature Workshop and continue validating Ability Spellcraft estimator assumptions against UE runtime behavior.
 3. Keep Advanced Form as the schema-complete fallback for rare fields, debugging, and datasets without immersive authoring surfaces.
 

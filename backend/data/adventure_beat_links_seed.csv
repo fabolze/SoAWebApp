@@ -1,1 +1,1 @@
-Name,id,adventure_beat_id,target_type,target_id,role,sort_order,notes,tags
+Name,id,adventure_beat_id,target_type,target_id,role,occurrence_kind,change_type,state_label,starts_at_beat_id,ends_at_beat_id,continuity_group_id,importance,sort_order,notes,tags

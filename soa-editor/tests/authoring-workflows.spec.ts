@@ -349,6 +349,28 @@ const storyTimelinePacket = {
   relationships: [
     { id: "event:event-1>occurs_at>location:location-1", source: "event:event-1", target: "location:location-1", relation: "occurs_at", explicit: true },
   ],
+  entity_tracks: {
+    locations: [{
+      id: "adventure-link:adventure-link-1",
+      entity_kind: "location",
+      entity_id: "location-1",
+      label: "First City",
+      timeline_id: "timeline-1",
+      story_arc_id: "arc-1",
+      source_kind: "adventure_beat",
+      source_id: "adventure-beat-1",
+      source_label: "Enter The First City",
+      order: 0,
+      role: "setting",
+      occurrence_kind: "appearance",
+      change_type: "active",
+      importance: "major",
+    }],
+    characters: [],
+    items: [],
+    quests: [],
+    factions: [],
+  },
   unplaced: { story_arc_ids: [], quest_ids: [], event_ids: [], character_story_beat_ids: [], adventure_beat_ids: [] },
   catalogs: {
     quests: [{ id: "quest-1", title: "Arrival", description: "Reach the city." }],
@@ -394,6 +416,9 @@ async function mockStoryTimelineApi(page: Page, onBundle?: (payload: Record<stri
 }
 
 async function dragWithPointer(page: Page, source: Locator, target: Locator) {
+  await target.scrollIntoViewIfNeeded();
+  await source.scrollIntoViewIfNeeded();
+  await target.scrollIntoViewIfNeeded();
   const sourceBox = await source.boundingBox();
   const targetBox = await target.boundingBox();
   if (!sourceBox || !targetBox) throw new Error("Drag source or target is not visible.");

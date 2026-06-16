@@ -4,10 +4,13 @@ from sqlalchemy.orm import Session
 
 from backend.app.models.m_adventure_narrative import (
     AdventureBeat,
+    AdventureChangeType,
     AdventureBeatLink,
     AdventureBeatLinkRole,
     AdventureBeatLinkTargetType,
     AdventureBeatType,
+    AdventureImportance,
+    AdventureOccurrenceKind,
 )
 from backend.app.models.m_characters import Character
 from backend.app.models.m_dialogues import Dialogue
@@ -109,11 +112,25 @@ class AdventureBeatLinkRoute(BaseRoute):
         return data["id"]
 
     def process_input_data(self, db_session: Session, item: AdventureBeatLink, data: Dict[str, Any]) -> None:
+        for key, default_value in {
+            "occurrence_kind": AdventureOccurrenceKind.Appearance.value,
+            "change_type": AdventureChangeType.Active.value,
+            "importance": AdventureImportance.Major.value,
+        }.items():
+            if data.get(key) in (None, ""):
+                data[key] = default_value
         self.validate_enums(data, {
             "target_type": AdventureBeatLinkTargetType,
             "role": AdventureBeatLinkRole,
+            "occurrence_kind": AdventureOccurrenceKind,
+            "change_type": AdventureChangeType,
+            "importance": AdventureImportance,
         })
-        self.validate_relationships(db_session, data, {"adventure_beat_id": AdventureBeat})
+        self.validate_relationships(db_session, data, {
+            "adventure_beat_id": AdventureBeat,
+            "starts_at_beat_id": AdventureBeat,
+            "ends_at_beat_id": AdventureBeat,
+        })
         target_id = str(data["target_id"]).strip()
         target_model = self.TARGET_MODELS[data["target_type"]]
         if not target_id or not db_session.get(target_model, target_id):
@@ -131,6 +148,13 @@ class AdventureBeatLinkRoute(BaseRoute):
         item.target_type = data["target_type"]
         item.target_id = target_id
         item.role = data["role"]
+        item.occurrence_kind = data["occurrence_kind"]
+        item.change_type = data["change_type"]
+        item.state_label = data.get("state_label") or None
+        item.starts_at_beat_id = data.get("starts_at_beat_id") or None
+        item.ends_at_beat_id = data.get("ends_at_beat_id") or None
+        item.continuity_group_id = data.get("continuity_group_id") or None
+        item.importance = data["importance"]
         item.sort_order = _require_sort_order(data)
         item.notes = data.get("notes")
         item.tags = _require_string_array(data, "tags")
