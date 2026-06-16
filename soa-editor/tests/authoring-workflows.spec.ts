@@ -21,7 +21,12 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-async function mockApi(page: Page, world = emptyWorld, onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>) {
+async function mockApi(
+  page: Page,
+  world = emptyWorld,
+  onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
+  onStoryPlacementBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
+) {
   await page.route("http://localhost:5000/api/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/ui/world_builder" && route.request().method() === "GET") {
@@ -31,6 +36,17 @@ async function mockApi(page: Page, world = emptyWorld, onBundle?: (payload: Reco
       const payload = route.request().postDataJSON() as Record<string, unknown>;
       if (onBundle) return onBundle(payload, route);
       return fulfillJson(route, world);
+    }
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimelinePacket);
+    if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] });
+    }
+    if (url.pathname === "/api/ui/adventure-timeline/bundle" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      if (onStoryPlacementBundle) return onStoryPlacementBundle(payload, route);
+      return fulfillJson(route, { result: { review: { created: [], changed: [], deleted: [] }, warnings: [], blockers: [] }, packet: storyTimelinePacket });
     }
     return fulfillJson(route, []);
   });
@@ -85,6 +101,81 @@ test("roadmap authoring routes render without replacing rich item authoring", as
   await expect(page.getByRole("heading", { name: "Story Timeline & Adventure Board" })).toBeVisible();
 });
 
+test("quest journey board places the quest into story as player journey", async ({ page }) => {
+  const questPacket = {
+    quest: {
+      id: "quest-1", slug: "arrival", title: "Arrival", description: "Reach the city.",
+      objectives: [{ objective_id: "reach-city", description: "Reach the city.", requirements_id: "", flags_set: [] }],
+      flags_set_on_completion: [], item_rewards: [], currency_rewards: [], reputation_rewards: [], tags: [],
+    },
+    requirements: [],
+    arc: { story_arc_id: "arc-1", related_quests: ["quest-1"], branches: [] },
+    quest_giver_profile_ids: [],
+    flags: [],
+    interaction_profiles: [],
+    dependency_context: { prerequisites: [], aftermath: [] },
+    quests: [{ id: "quest-1", title: "Arrival" }],
+    story_arcs: [{ id: "arc-1", title: "The First City" }],
+  };
+  let saved: Record<string, unknown> | null = null;
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/ui/quests/quest-1") return fulfillJson(route, questPacket);
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimelinePacket);
+    if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] });
+    }
+    if (url.pathname === "/api/ui/adventure-timeline/bundle" && route.request().method() === "POST") {
+      saved = route.request().postDataJSON() as Record<string, unknown>;
+      const links = saved.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, {
+        result: { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] },
+        packet: {
+          ...storyTimelinePacket,
+          entity_tracks: {
+            ...storyTimelinePacket.entity_tracks,
+            quests: [{
+              id: links[0].id,
+              entity_kind: "quest",
+              entity_id: "quest-1",
+              label: "Arrival",
+              timeline_id: "timeline-1",
+              story_arc_id: "arc-1",
+              source_kind: "adventure_beat",
+              source_id: "adventure-beat-1",
+              source_label: "Enter The First City",
+              order: 0,
+              role: links[0].role,
+              occurrence_kind: links[0].occurrence_kind,
+              change_type: links[0].change_type,
+              importance: links[0].importance,
+            }],
+          },
+        },
+      });
+    }
+    return fulfillJson(route, []);
+  });
+
+  await page.goto("/author/quests/quest-1");
+  await expect(page.getByRole("heading", { name: "Quest Journey Board" })).toBeVisible();
+  await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
+  await expect(page.getByTestId("story-placement-review")).toContainText("1 created");
+  await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Placement" }).click();
+
+  await expect.poll(() => saved).not.toBeNull();
+  const link = (saved?.adventure_beat_links as Array<Record<string, unknown>>)[0];
+  expect(link.target_type).toBe("quest");
+  expect(link.target_id).toBe("quest-1");
+  expect(link.role).toBe("player_journey");
+  expect(link.occurrence_kind).toBe("appearance");
+  expect(link.change_type).toBe("active");
+  expect(link.importance).toBe("major");
+  await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City");
+});
+
 test("story timeline sketches and restores local planning beats through drag and drop", async ({ page }) => {
   await mockStoryTimelineApi(page);
   await page.goto("/author/story-timeline");
@@ -103,6 +194,7 @@ test("story timeline sketches and restores local planning beats through drag and
   await page.getByRole("button", { name: "Attach to Selected Beat" }).click();
   await expect(page.getByTestId("story-timeline-context-dock")).toContainText("runtime / event");
   await expect(page.getByTestId("story-timeline-context-dock")).toContainText("Welcome Event");
+  await page.waitForFunction(() => localStorage.getItem("soa.story-timeline.local-plan.v1")?.includes("First City"));
 
   await page.reload();
   await expect(page.locator('[data-testid^="local-planning-beat-"]').first()).toContainText("First City");
@@ -183,6 +275,82 @@ test("item ecosystem edits acquisition sources and saves one atomic bundle", asy
   const sources = saved?.sources as Record<string, unknown>;
   expect((sources.shop_inventory as unknown[]).length).toBe(1);
   expect(sources.poi_ids).toEqual(["poi-1"]);
+});
+
+test("item ecosystem places the item into story as a reward", async ({ page }) => {
+  const packet = {
+    item: { id: "item-1", slug: "signal-key", name: "Signal Key", type: "Quest", rarity: "Rare", base_price: 0, effects: [], stat_modifiers: [], attribute_modifiers: [], tags: [] },
+    requirement: null,
+    sources: { shop_inventory: [], combat_loot: [], quest_rewards: [], encounter_rewards: [], event_rewards: [], poi_ids: [] },
+    catalogs: {
+      items: [{ id: "item-1", name: "Signal Key" }], currencies: [], requirements: [], shops: [], combat_profiles: [], quests: [], encounters: [], events: [], pois: [],
+    },
+    analysis: { total_sources: 0, median_peer_price: 0, source_counts: {}, warnings: [], peers: [] },
+  };
+  let saved: Record<string, unknown> | null = null;
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/ui/items/ecosystem/item-1") return fulfillJson(route, packet);
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, {
+      ...storyTimelinePacket,
+      catalogs: { ...storyTimelinePacket.catalogs, items: [{ id: "item-1", name: "Signal Key" }] },
+    });
+    if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] });
+    }
+    if (url.pathname === "/api/ui/adventure-timeline/bundle" && route.request().method() === "POST") {
+      saved = route.request().postDataJSON() as Record<string, unknown>;
+      const links = saved.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, {
+        result: { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] },
+        packet: {
+          ...storyTimelinePacket,
+          catalogs: { ...storyTimelinePacket.catalogs, items: [{ id: "item-1", name: "Signal Key" }] },
+          entity_tracks: {
+            ...storyTimelinePacket.entity_tracks,
+            items: [{
+              id: links[0].id,
+              entity_kind: "item",
+              entity_id: "item-1",
+              label: "Signal Key",
+              timeline_id: "timeline-1",
+              story_arc_id: "arc-1",
+              source_kind: "adventure_beat",
+              source_id: "adventure-beat-1",
+              source_label: "Enter The First City",
+              order: 0,
+              role: links[0].role,
+              occurrence_kind: links[0].occurrence_kind,
+              change_type: links[0].change_type,
+              importance: links[0].importance,
+            }],
+          },
+        },
+      });
+    }
+    return fulfillJson(route, []);
+  });
+
+  await page.goto("/author/items/item-1/ecosystem");
+  await expect(page.getByRole("heading", { name: "Signal Key" })).toBeVisible();
+  await expect(page.getByTestId("story-placement-panel")).toContainText("Important item has no story placement.");
+  await page.getByTestId("placement-tray-requirement").click();
+  await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
+  await expect(page.getByTestId("story-placement-review")).toContainText("1 created");
+  await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Placement" }).click();
+
+  await expect.poll(() => saved).not.toBeNull();
+  const link = (saved?.adventure_beat_links as Array<Record<string, unknown>>)[0];
+  expect(link.target_type).toBe("item");
+  expect(link.target_id).toBe("item-1");
+  expect(link.role).toBe("reference");
+  expect(link.occurrence_kind).toBe("requirement");
+  expect(link.change_type).toBe("active");
+  expect(link.importance).toBe("major");
+  await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City");
+  await expect(page.getByTestId("story-placement-panel")).not.toContainText("Important item has no story placement.");
 });
 
 test("new item ecosystem restores, resets, and saves the complete draft", async ({ page }) => {
@@ -272,6 +440,62 @@ test("world packet surfaces structured bundle error paths", async ({ page }) => 
   await expect(page.getByText(/encounter_tables\[0\]\.encounter_entries\[0\]\.encounter_id/)).toBeVisible();
 });
 
+test("world builder places the selected location into story as setting", async ({ page }) => {
+  const world = {
+    ...emptyWorld,
+    locations: [{
+      id: "location-1", slug: "first-city", name: "First City", location_type: "Zone", place_kind: "Settlement",
+      coordinates: { x: 50, y: 50 }, level_range: { min: 1, max: 3 }, tags: [], environment_tags: [],
+    }],
+  };
+  let saved: Record<string, unknown> | null = null;
+  await mockApi(page, world, undefined, async (payload, route) => {
+    saved = payload;
+    const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
+    await fulfillJson(route, {
+      result: { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] },
+      packet: {
+        ...storyTimelinePacket,
+        entity_tracks: {
+          ...storyTimelinePacket.entity_tracks,
+          locations: [{
+            id: String(links[0].id),
+            entity_kind: "location",
+            entity_id: "location-1",
+            label: "First City",
+            timeline_id: "timeline-1",
+            story_arc_id: "arc-1",
+            source_kind: "adventure_beat",
+            source_id: "adventure-beat-1",
+            source_label: "Enter The First City",
+            order: 0,
+            role: links[0].role,
+            occurrence_kind: links[0].occurrence_kind,
+            change_type: links[0].change_type,
+            importance: links[0].importance,
+          }],
+        },
+      },
+    });
+  });
+  await page.goto("/author/world?selected=location-1");
+
+  await expect(page.getByRole("heading", { name: "Interactive World Workspace" })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City", { timeout: 15000 });
+  await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
+  await expect(page.getByTestId("story-placement-review")).toContainText("1 created");
+  await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Placement" }).click();
+
+  await expect.poll(() => saved).not.toBeNull();
+  const link = (saved?.adventure_beat_links as Array<Record<string, unknown>>)[0];
+  expect(link.target_type).toBe("location");
+  expect(link.target_id).toBe("location-1");
+  expect(link.role).toBe("setting");
+  expect(link.occurrence_kind).toBe("appearance");
+  expect(link.change_type).toBe("active");
+  expect(link.importance).toBe("minor");
+});
+
 const dialoguePacket = {
   dialogue: { id: "dialogue-1", slug: "dialogue-1", title: "Gate Talk", description: "", tags: [] },
   nodes: [
@@ -294,7 +518,11 @@ const dialoguePacket = {
   world_echo: { dialogue_id: "dialogue-1", produced_flags: [], consumers: [] },
 };
 
-async function mockDialogueApi(page: Page, onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>) {
+async function mockDialogueApi(
+  page: Page,
+  onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
+  onStoryPlacementBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
+) {
   await page.route("http://localhost:5000/api/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/dialogues") return fulfillJson(route, [dialoguePacket.dialogue]);
@@ -311,6 +539,17 @@ async function mockDialogueApi(page: Page, onBundle?: (payload: Record<string, u
     if (url.pathname === "/api/flags") return fulfillJson(route, dialoguePacket.flags);
     if (url.pathname === "/api/factions") return fulfillJson(route, []);
     if (url.pathname === "/api/characters") return fulfillJson(route, dialoguePacket.characters);
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimelinePacket);
+    if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] });
+    }
+    if (url.pathname === "/api/ui/adventure-timeline/bundle" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      if (onStoryPlacementBundle) return onStoryPlacementBundle(payload, route);
+      return fulfillJson(route, { result: { review: { created: [], changed: [], deleted: [] }, warnings: [], blockers: [] }, packet: storyTimelinePacket });
+    }
     return fulfillJson(route, []);
   });
 }
@@ -415,6 +654,88 @@ async function mockStoryTimelineApi(page: Page, onBundle?: (payload: Record<stri
   });
 }
 
+test("character studio shows read-only story placements for the selected character", async ({ page }) => {
+  const characterPacket = {
+    navigator: [{ id: "char-1", name: "Guide", encounter_count: 0, dialogue_count: 1 }],
+    character: { id: "char-1", slug: "guide", name: "Guide", title: "", description: "", level: 1, tags: [] },
+    combat_profile: null,
+    interaction_profile: null,
+    story_profile: null,
+    relationships: [],
+    story_beats: [],
+    world_presence: { encounters: [], dialogues: [], dialogue_nodes: [], shops: [], quests: [], locations: [] },
+    graph: { nodes: [{ id: "character:char-1", kind: "character", entry_id: "char-1", label: "Guide", data: {}, metadata: {} }], edges: [] },
+    catalogs: {
+      characters: [{ id: "char-1", name: "Guide" }],
+      abilities: [], quests: [], dialogues: [], dialogue_nodes: [], encounters: [], shops: [], locations: [], factions: [], characterclasses: [], events: [], story_arcs: [], flags: [],
+    },
+    health: { blockers: [], warnings: [] },
+    flag_coverage: {},
+    unplaced_presence: [],
+  };
+  let saved: Record<string, unknown> | null = null;
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/ui/character-studio/char-1") return fulfillJson(route, characterPacket);
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimelinePacket);
+    if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] });
+    }
+    if (url.pathname === "/api/ui/adventure-timeline/bundle" && route.request().method() === "POST") {
+      saved = route.request().postDataJSON() as Record<string, unknown>;
+      const links = saved.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, {
+        result: { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] },
+        packet: {
+          ...storyTimelinePacket,
+          entity_tracks: {
+            ...storyTimelinePacket.entity_tracks,
+            characters: [{
+              id: links[0].id,
+              entity_kind: "character",
+              entity_id: "char-1",
+              label: "Guide",
+              timeline_id: "timeline-1",
+              story_arc_id: "arc-1",
+              source_kind: "adventure_beat",
+              source_id: "adventure-beat-1",
+              source_label: "Enter The First City",
+              order: 0,
+              role: links[0].role,
+              occurrence_kind: links[0].occurrence_kind,
+              change_type: links[0].change_type,
+              importance: links[0].importance,
+            }],
+          },
+        },
+      });
+    }
+    return fulfillJson(route, []);
+  });
+  await page.goto("/author/characters/char-1");
+
+  await expect(page.getByRole("heading", { name: "Guide" })).toBeVisible();
+  await expect(page.getByTestId("story-placement-panel")).toContainText("Guide Welcomes The Player");
+  await expect(page.getByTestId("story-context-strip")).toContainText("Story Context");
+  await expect(page.getByTestId("story-placement-panel")).toContainText("Main Story / The First City");
+  await expect(page.getByTestId("story-placement-panel").getByRole("link", { name: "Open Timeline" })).toHaveAttribute("href", /\/author\/story-timeline/);
+  await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
+  await expect(page.getByTestId("story-placement-review")).toContainText("1 created");
+  await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Placement" }).click();
+  await expect.poll(() => saved).not.toBeNull();
+  const link = (saved?.adventure_beat_links as Array<Record<string, unknown>>)[0];
+  expect(link.adventure_beat_id).toBe("adventure-beat-1");
+  expect(link.target_type).toBe("character");
+  expect(link.target_id).toBe("char-1");
+  expect(link.role).toBe("cast");
+  expect(link.occurrence_kind).toBe("appearance");
+  expect(link.change_type).toBe("active");
+  expect(link.importance).toBe("minor");
+  await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City");
+});
+
 async function dragWithPointer(page: Page, source: Locator, target: Locator) {
   await target.scrollIntoViewIfNeeded();
   await source.scrollIntoViewIfNeeded();
@@ -446,6 +767,54 @@ test("dialogue flow sketches, connects, and saves a complete bundle", async ({ p
 
   await expect.poll(() => saved).not.toBeNull();
   expect((saved?.nodes as unknown[]).length).toBe(3);
+});
+
+test("dialogue flow places the dialogue into story as runtime", async ({ page }) => {
+  let saved: Record<string, unknown> | null = null;
+  await mockDialogueApi(page, undefined, async (payload, route) => {
+    saved = payload;
+    const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
+    await fulfillJson(route, {
+      result: { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] },
+      packet: {
+        ...storyTimelinePacket,
+        entity_tracks: {
+          ...storyTimelinePacket.entity_tracks,
+          dialogues: [{
+            id: String(links[0].id),
+            entity_kind: "dialogue",
+            entity_id: "dialogue-1",
+            label: "Gate Talk",
+            timeline_id: "timeline-1",
+            story_arc_id: "arc-1",
+            source_kind: "adventure_beat",
+            source_id: "adventure-beat-1",
+            source_label: "Enter The First City",
+            order: 0,
+            role: links[0].role,
+            occurrence_kind: links[0].occurrence_kind,
+            change_type: links[0].change_type,
+            importance: links[0].importance,
+          }],
+        },
+      },
+    });
+  });
+  await page.goto("/author/dialogues/dialogue-1");
+
+  await expect(page.getByTestId("story-placement-panel")).toContainText("Welcome Event");
+  await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
+  await expect(page.getByTestId("story-placement-review")).toContainText("1 created");
+  await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Placement" }).click();
+
+  await expect.poll(() => saved).not.toBeNull();
+  const link = (saved?.adventure_beat_links as Array<Record<string, unknown>>)[0];
+  expect(link.target_type).toBe("dialogue");
+  expect(link.target_id).toBe("dialogue-1");
+  expect(link.role).toBe("runtime");
+  expect(link.occurrence_kind).toBe("appearance");
+  expect(link.change_type).toBe("active");
+  expect(link.importance).toBe("major");
 });
 
 test("dialogue flow restores drafts and unlocks gated choices in playthrough", async ({ page }) => {
@@ -570,7 +939,7 @@ test("encounter stage composes participants, rewards, and placement into one bun
   await page.getByRole("button", { name: /Profileless/ }).click();
   await page.getByRole("button", { name: "Combat !" }).click();
   await expect(page.getByText("Profileless uses Combat without a combat profile.")).toBeVisible();
-  await page.getByLabel("XP").fill("40");
+  await page.getByRole("spinbutton", { name: "XP" }).fill("40");
   await page.locator("section").filter({ hasText: "World Placement" }).locator("select").selectOption("table-1");
   await page.getByRole("button", { name: "Save All" }).first().click();
 
@@ -581,6 +950,73 @@ test("encounter stage composes participants, rewards, and placement into one bun
   expect(participants[0].combat_side).toBe("Neutral");
   expect((encounter.rewards as Record<string, unknown>).xp).toBe(40);
   expect((saved?.placements as Array<Record<string, unknown>>)[0].table_id).toBe("table-1");
+});
+
+test("encounter stage places the encounter into story as runtime", async ({ page }) => {
+  let saved: Record<string, unknown> | null = null;
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/ui/encounters/enc-1") return fulfillJson(route, encounterPacket);
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, {
+      ...storyTimelinePacket,
+      catalogs: { ...storyTimelinePacket.catalogs, encounters: [{ id: "enc-1", name: "Road Ambush" }] },
+    });
+    if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] });
+    }
+    if (url.pathname === "/api/ui/adventure-timeline/bundle" && route.request().method() === "POST") {
+      saved = route.request().postDataJSON() as Record<string, unknown>;
+      const links = saved.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, {
+        result: { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] },
+        packet: {
+          ...storyTimelinePacket,
+          catalogs: { ...storyTimelinePacket.catalogs, encounters: [{ id: "enc-1", name: "Road Ambush" }] },
+          entity_tracks: {
+            ...storyTimelinePacket.entity_tracks,
+            encounters: [{
+              id: links[0].id,
+              entity_kind: "encounter",
+              entity_id: "enc-1",
+              label: "Road Ambush",
+              timeline_id: "timeline-1",
+              story_arc_id: "arc-1",
+              source_kind: "adventure_beat",
+              source_id: "adventure-beat-1",
+              source_label: "Enter The First City",
+              order: 0,
+              role: links[0].role,
+              occurrence_kind: links[0].occurrence_kind,
+              change_type: links[0].change_type,
+              importance: links[0].importance,
+            }],
+          },
+        },
+      });
+    }
+    if (url.pathname === "/api/encounters") return fulfillJson(route, encounterPacket.encounters);
+    if (url.pathname === "/api/characters") return fulfillJson(route, encounterPacket.characters.map((entry) => entry.character));
+    if (url.pathname === "/api/combat_profiles") return fulfillJson(route, []);
+    return fulfillJson(route, []);
+  });
+
+  await page.goto("/author/encounters/enc-1");
+  await expect(page.getByRole("heading", { name: "Encounter Stage" })).toBeVisible();
+  await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
+  await expect(page.getByTestId("story-placement-review")).toContainText("1 created");
+  await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Placement" }).click();
+
+  await expect.poll(() => saved).not.toBeNull();
+  const link = (saved?.adventure_beat_links as Array<Record<string, unknown>>)[0];
+  expect(link.target_type).toBe("encounter");
+  expect(link.target_id).toBe("enc-1");
+  expect(link.role).toBe("runtime");
+  expect(link.occurrence_kind).toBe("appearance");
+  expect(link.change_type).toBe("active");
+  expect(link.importance).toBe("major");
+  await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City");
 });
 
 test("encounter stage restores and resets local drafts", async ({ page }) => {

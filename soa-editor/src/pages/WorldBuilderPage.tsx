@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type PointerEvent, type ReactNode, type SetStateAction } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { apiFetch } from "../lib/api";
 import { responseErrorMessage } from "../lib/apiErrors";
 import { CommaSeparatedInput } from "../authoringViews/controls";
@@ -956,7 +957,7 @@ export default function WorldBuilderPage() {
             </div>
           </section>
 
-          <section className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <section className="space-y-4 rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
             {selectedRoute ? (
               <RouteDetails
                 route={selectedRoute}
@@ -968,23 +969,26 @@ export default function WorldBuilderPage() {
                 onCreateEncounterEvent={() => createRouteEncounterEventDraft(selectedRoute)}
               />
             ) : selected ? (
-              <LocationDetails
-                location={selected}
-                routes={selectedRoutes}
-                locationsById={locationsById}
-                encountersById={encountersById}
-                pois={selectedPois}
-                encounterTables={selectedEncounterTables}
-                routeEvents={selectedRouteEvents}
-                tuning={selectedTuning}
-                briefs={selectedBriefs}
-                issues={selectedIssues}
-                storyBeats={selectedLocationStoryBeats}
-                onQuickSave={quickSaveLocation}
-                onSavePacket={saveWorldPacket}
-                onCreateRoute={startRouteFromSelected}
-                onCreatePoi={() => createPoiDraft(selected)}
-              />
+              <>
+                <LocationDetails
+                  location={selected}
+                  routes={selectedRoutes}
+                  locationsById={locationsById}
+                  encountersById={encountersById}
+                  pois={selectedPois}
+                  encounterTables={selectedEncounterTables}
+                  routeEvents={selectedRouteEvents}
+                  tuning={selectedTuning}
+                  briefs={selectedBriefs}
+                  issues={selectedIssues}
+                  storyBeats={selectedLocationStoryBeats}
+                  onQuickSave={quickSaveLocation}
+                  onSavePacket={saveWorldPacket}
+                  onCreateRoute={startRouteFromSelected}
+                  onCreatePoi={() => createPoiDraft(selected)}
+                />
+                <StoryPlacementPanel entityKind="location" entityId={entryId(selected)} entityLabel={label(selected)} entity={selected} />
+              </>
             ) : (
               <div className="text-sm text-slate-600 dark:text-slate-300">Select a location to inspect its world-building packet.</div>
             )}

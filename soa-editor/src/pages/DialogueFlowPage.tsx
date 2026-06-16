@@ -16,6 +16,7 @@ import "./DialogueFlowPage.css";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { EditableTagList, ReferenceChipPicker, displayText, isRecord } from "../authoringViews/controls";
+import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
@@ -567,6 +568,7 @@ export default function DialogueFlowPage() {
 
       <SceneBrief packet={packet} onChange={updateDialogue} onRecipe={applyRecipe} />
       <BeatTrack packet={packet} selectedBeatId={selectedBeatId} setSelectedBeatId={(beatId) => { setSelectedBeatId(beatId); setTab("beat"); }} onCreate={createBeat} />
+      {!isNew && currentId && <StoryPlacementPanel entityKind="dialogue" entityId={currentId} entityLabel={label(packet.dialogue)} entity={{ ...packet.dialogue, nodes: packet.nodes }} />}
 
       <div className="grid gap-4 xl:grid-cols-[235px_minmax(760px,1fr)_390px]">
         <Panel title="Dialogue Library">

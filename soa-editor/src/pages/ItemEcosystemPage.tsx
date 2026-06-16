@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useDirtyState } from "../components/useDirtyState";
+import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
 import { getSimulationScenarioById, loadSimulationDatasets, SIMULATION_SCENARIOS, simulateEntity, type SimulationDatasets, type SimulationResult } from "../simulation";
@@ -183,6 +184,7 @@ export default function ItemEcosystemPage() {
       {activePanel === "Economy" && <EconomyPanel packet={packet} updateItem={updateItem} setSources={setSources} simulation={simulation} />}
       {activePanel === "Progression" && <ProgressionPanel packet={packet} setSources={setSources} />}
       {activePanel === "Issues" && <IssuesPanel blockers={blockers} warnings={clientWarnings} packet={packet} />}
+      {!isNew && text(packet.item.id) && <StoryPlacementPanel entityKind="item" entityId={text(packet.item.id)} entityLabel={text(packet.item.name, text(packet.item.id))} entity={packet.item} />}
     </div>
   </div>;
 }

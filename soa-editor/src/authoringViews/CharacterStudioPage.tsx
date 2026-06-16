@@ -4,6 +4,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import SchemaForm from "../components/SchemaForm";
+import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import {
   AUTHORING_INPUT_CLASS,
   AuthoringPanel as Panel,
@@ -322,6 +323,7 @@ export default function CharacterStudioPage() {
               <CharacterWeb packet={packet} lens={lens} mode={canvasMode} positions={positions} setPositions={(next) => { setPositions(next); localStorage.setItem(layoutKey(displayText(packet.character.id)), JSON.stringify(next)); }} selectedNode={selectedNode} setSelectedNode={setSelectedNode} connectSource={connectSource} onConnect={connectCharacter} />
             </section>
             <PresenceTrace packet={packet} onChange={(story_beats) => update("story_beats", story_beats)} onDelete={(beat) => deleteOwned("story_beats", beat)} />
+            <StoryPlacementPanel entityKind="character" entityId={displayText(packet.character.id)} entityLabel={displayText(packet.character.name, displayText(packet.character.id, "This character"))} entity={packet.character} />
           </main>
           <aside><Panel title="Context Dock"><div className="mb-3 flex flex-wrap gap-1">{(["dossier","combat","interaction","story","relationships","health","pending","advanced"] as DockTab[]).map((value) => <button key={value} className={tab === value ? active : inactive} onClick={() => setTab(value)}>{value === "story" ? "Story Profile" : value[0].toUpperCase()+value.slice(1)}</button>)}</div>
             {tab === "dossier" && <Dossier packet={packet} updateCharacter={updateCharacter} />}

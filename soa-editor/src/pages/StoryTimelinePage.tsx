@@ -11,6 +11,17 @@ import {
 } from "@dnd-kit/core";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  deriveEntityOccurrences,
+  filterBackgroundOccurrences,
+  label,
+  record,
+  rows,
+  singular,
+  text,
+  type StoryOccurrence,
+  type TrackKind,
+} from "../authoring/storyPlacement";
 import { apiFetch } from "../lib/api";
 import type { EntryRecord } from "../types/editorQol";
 import { generateSlug, generateUlid } from "../utils/generateId";
@@ -28,7 +39,6 @@ const preferBeatCollision: CollisionDetection = (args) => {
 };
 
 type Lens = "story" | "cast" | "locations" | "quests" | "runtime" | "state" | "issues";
-type TrackKind = "location" | "character" | "item" | "quest" | "faction";
 type Selection = { kind: "placement" | "local-beat" | "event" | "library"; id: string; libraryKind?: string } | null;
 
 interface LocalAttachment {
@@ -51,45 +61,6 @@ interface LocalBeat {
 
 interface LocalPlan {
   beats: LocalBeat[];
-}
-
-interface StoryOccurrence {
-  id: string;
-  entity_kind: TrackKind;
-  entity_id: string;
-  label: string;
-  timeline_id: string;
-  story_arc_id: string;
-  source_kind: string;
-  source_id: string;
-  source_label: string;
-  order: number;
-  role?: string;
-  occurrence_kind?: string;
-  change_type?: string;
-  state_label?: string;
-  importance?: string;
-}
-
-function rows(value: unknown): EntryRecord[] {
-  return Array.isArray(value)
-    ? value.filter((row): row is EntryRecord => typeof row === "object" && row !== null && !Array.isArray(row))
-    : [];
-}
-
-function record(value: unknown): EntryRecord {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as EntryRecord : {};
-}
-
-function text(value: unknown, fallback = ""): string {
-  if (value === null || value === undefined) return fallback;
-  const rendered = String(value).trim();
-  return rendered || fallback;
-}
-
-function label(row: EntryRecord | undefined, fallback = "Untitled"): string {
-  if (!row) return fallback;
-  return text(row.name, text(row.title, text(row.slug, text(row.id, fallback))));
 }
 
 function loadPlan(): LocalPlan {
@@ -128,21 +99,6 @@ function entityRoute(kind: string, id: string): string {
     faction: `/factions?selected=${encoded}`,
   };
   return authorRoutes[kind] || "";
-}
-
-function singular(kind: string): string {
-  const values: Record<string, string> = {
-    quests: "quest",
-    events: "event",
-    characters: "character",
-    locations: "location",
-    dialogues: "dialogue",
-    encounters: "encounter",
-    lore_entries: "lore_entry",
-    items: "item",
-    factions: "faction",
-  };
-  return values[kind] || kind.replace(/s$/, "");
 }
 
 function attachmentRole(kind: string): string {
@@ -396,148 +352,13 @@ export default function StoryTimelinePage() {
   const selectedLibrary = selection?.kind === "library"
     ? catalogsByKind.get(selection.libraryKind || "")?.get(selection.id)
     : undefined;
-  const entityOccurrences = useMemo(() => {
-    const catalogKeyByKind: Record<TrackKind, string> = {
-      location: "locations",
-      character: "characters",
-      item: "items",
-      quest: "quests",
-      faction: "factions",
-    };
-    const result: StoryOccurrence[] = [];
-    const arcByPlacementSource = new Map<string, EntryRecord>();
-    placements.forEach((placement) => {
-      const source = record(placement.source);
-      if (text(source.kind) && text(source.entry_id)) {
-        arcByPlacementSource.set(`${text(source.kind)}:${text(source.entry_id)}`, placement);
-      }
-    });
-
-    Object.entries(record(packet?.entity_tracks)).forEach(([groupKey, value]) => {
-      rows(value).forEach((row) => {
-        const entityKind = text(row.entity_kind, singular(groupKey)) as TrackKind;
-        if (!["location", "character", "item", "quest", "faction"].includes(entityKind)) return;
-        result.push({
-          id: text(row.id, `track:${entityKind}:${text(row.entity_id)}:${result.length}`),
-          entity_kind: entityKind,
-          entity_id: text(row.entity_id),
-          label: text(row.label),
-          timeline_id: text(row.timeline_id),
-          story_arc_id: text(row.story_arc_id),
-          source_kind: text(row.source_kind, "adventure_beat"),
-          source_id: text(row.source_id),
-          source_label: text(row.source_label),
-          order: Number(row.order) || 0,
-          role: text(row.role),
-          occurrence_kind: text(row.occurrence_kind),
-          change_type: text(row.change_type),
-          state_label: text(row.state_label),
-          importance: text(row.importance, "major"),
-        });
-      });
-    });
-
-    placements.forEach((placement) => {
-      const placementKind = text(placement.kind);
-      if (placementKind === "character_story_beat") {
-        const character = record(placement.character);
-        const characterId = text(character.entry_id);
-        if (characterId && !result.some((row) => row.source_kind === "character_story_beat" && row.source_id === text(placement.entry_id) && row.entity_id === characterId)) {
-          result.push({
-            id: `character-beat:${text(placement.entry_id)}:${characterId}`,
-            entity_kind: "character",
-            entity_id: characterId,
-            label: text(character.label, characterId),
-            timeline_id: text(placement.timeline_id),
-            story_arc_id: text(placement.story_arc_id),
-            source_kind: "character_story_beat",
-            source_id: text(placement.entry_id),
-            source_label: text(placement.label),
-            order: Number(placement.order) || 0,
-            role: "cast",
-            occurrence_kind: "appearance",
-            change_type: "active",
-            importance: "minor",
-          });
-        }
-      }
-      if (placementKind !== "adventure_beat") return;
-      rows(placement.attachments).forEach((attachment, index) => {
-        const entityKind = text(attachment.target_type) as TrackKind;
-        if (!["location", "character", "item", "quest", "faction"].includes(entityKind)) return;
-        const entityId = text(attachment.target_id);
-        if (!entityId || result.some((row) => row.source_kind === "adventure_beat" && row.source_id === text(placement.entry_id) && row.entity_id === entityId && text(attachment.id) && row.id.endsWith(text(attachment.id)))) return;
-        const catalog = catalogsByKind.get(catalogKeyByKind[entityKind]) || new Map<string, EntryRecord>();
-        result.push({
-          id: `adventure:${text(placement.entry_id)}:${entityKind}:${entityId}:${index}`,
-          entity_kind: entityKind,
-          entity_id: entityId,
-          label: text(attachment.label, label(catalog.get(entityId), entityId)),
-          timeline_id: text(placement.timeline_id),
-          story_arc_id: text(placement.story_arc_id),
-          source_kind: "adventure_beat",
-          source_id: text(placement.entry_id),
-          source_label: text(placement.label),
-          order: Number(placement.order) || 0,
-          role: text(attachment.role),
-          occurrence_kind: text(attachment.occurrence_kind, "appearance"),
-          change_type: text(attachment.change_type, "active"),
-          state_label: text(attachment.state_label),
-          importance: text(attachment.importance, "major"),
-        });
-      });
-    });
-
-    eventChains.forEach((event) => {
-      const locationId = text(record(event.attachments).location_id);
-      if (!locationId) return;
-      const placement = arcByPlacementSource.get(`event:${text(event.event_id)}`);
-      result.push({
-        id: `event:${text(event.event_id)}:${locationId}`,
-        entity_kind: "location",
-        entity_id: locationId,
-        label: label(catalogsByKind.get("locations")?.get(locationId), locationId),
-        timeline_id: text(placement?.timeline_id),
-        story_arc_id: text(placement?.story_arc_id),
-        source_kind: "event",
-        source_id: text(event.event_id),
-        source_label: text(event.label),
-        order: Number(placement?.order) || 0,
-        role: "runtime",
-        occurrence_kind: "appearance",
-        change_type: "active",
-        importance: "minor",
-      });
-    });
-
-    plan.beats.forEach((beat) => {
-      beat.attachments.forEach((attachment, index) => {
-        if (!["location", "character", "item", "quest", "faction"].includes(attachment.kind)) return;
-        result.push({
-          id: `local:${beat.id}:${attachment.entry_id}:${index}`,
-          entity_kind: attachment.kind as TrackKind,
-          entity_id: attachment.entry_id,
-          label: attachment.label,
-          timeline_id: beat.timeline_id,
-          story_arc_id: beat.story_arc_id,
-          source_kind: "local_beat",
-          source_id: beat.id,
-          source_label: beat.title,
-          order: beat.order,
-          role: attachment.role,
-          occurrence_kind: attachment.role === "reward" ? "reward" : "appearance",
-          change_type: attachment.role === "reward" && attachment.kind === "item" ? "obtained" : "active",
-          importance: attachment.kind === "item" || attachment.role === "reward" ? "major" : "minor",
-        });
-      });
-    });
-    return result.sort((left, right) =>
-      left.timeline_id.localeCompare(right.timeline_id)
-      || left.story_arc_id.localeCompare(right.story_arc_id)
-      || left.order - right.order
-      || left.label.localeCompare(right.label)
-    );
-  }, [catalogsByKind, eventChains, packet, placements, plan.beats]);
+  const entityOccurrences = useMemo(() => deriveEntityOccurrences({
+    packet,
+    placements,
+    eventChains,
+    catalogsByKind,
+    localBeats: plan.beats,
+  }), [catalogsByKind, eventChains, packet, placements, plan.beats]);
 
   if (error) return <div className="p-5 text-red-700">{error}</div>;
   if (!packet) return <div className="p-5 text-sm text-slate-500">Loading Story Timeline...</div>;
@@ -661,12 +482,12 @@ function TimelineNavigator({ timelines, arcs, placements, localBeats, entityOccu
       result.set(arcId, {
         canonical: placements.filter((placement) => text(placement.story_arc_id) === arcId).length,
         local: localBeats.filter((beat) => beat.story_arc_id === arcId).length,
-        tracked: new Set(entityOccurrences.filter((row) => row.entity_kind === trackKind && row.importance !== "background" && row.story_arc_id === arcId).map((row) => row.entity_id)).size,
+        tracked: new Set(filterBackgroundOccurrences(entityOccurrences).filter((row) => row.entity_kind === trackKind && row.story_arc_id === arcId).map((row) => row.entity_id)).size,
       });
     });
     return result;
   }, [arcs, entityOccurrences, localBeats, placements, trackKind]);
-  const trackRows = useMemo(() => entityOccurrences.filter((row) => row.entity_kind === trackKind && row.importance !== "background"), [entityOccurrences, trackKind]);
+  const trackRows = useMemo(() => filterBackgroundOccurrences(entityOccurrences).filter((row) => row.entity_kind === trackKind), [entityOccurrences, trackKind]);
   const trackGroups = useMemo(() => {
     const groups = new Map<string, { label: string; rows: StoryOccurrence[] }>();
     trackRows.forEach((row) => {
@@ -681,9 +502,14 @@ function TimelineNavigator({ timelines, arcs, placements, localBeats, entityOccu
   const trackLabels: Record<TrackKind, string> = {
     location: "Locations",
     character: "Characters",
-    item: "Important Items",
     quest: "Quests",
+    event: "Events",
+    dialogue: "Dialogues",
+    encounter: "Encounters",
+    lore_entry: "Lore",
+    item: "Important Items",
     faction: "Factions",
+    story_arc: "Story Arcs",
   };
 
   return <section className={`${panelClass} p-3`}>

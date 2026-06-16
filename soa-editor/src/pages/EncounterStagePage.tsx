@@ -1,6 +1,7 @@
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
@@ -268,6 +269,7 @@ export default function EncounterStagePage() {
             <Stage packet={packet} setPacket={setPacket} selectedCharacter={selectedCharacter} setSelectedCharacter={setSelectedCharacter} />
             <RewardPanel packet={packet} updateEncounter={updateEncounter} />
             <PlacementPanel packet={packet} setPacket={setPacket} />
+            {!isNew && displayText(packet.encounter.id) && <StoryPlacementPanel entityKind="encounter" entityId={displayText(packet.encounter.id)} entityLabel={displayText(packet.encounter.name, displayText(packet.encounter.id))} entity={packet.encounter} />}
             <SimulationComparison packet={packet} />
           </div>
           <div className="space-y-4">
