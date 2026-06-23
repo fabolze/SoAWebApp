@@ -26,6 +26,8 @@ async function mockApi(
   world = emptyWorld,
   onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
   onStoryPlacementBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
+  onStoryPlacementPreview?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
+  storyTimeline: Record<string, unknown> = storyTimelinePacket,
 ) {
   await page.route("http://localhost:5000/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -37,9 +39,10 @@ async function mockApi(
       if (onBundle) return onBundle(payload, route);
       return fulfillJson(route, world);
     }
-    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimelinePacket);
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimeline);
     if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as Record<string, unknown>;
+      if (onStoryPlacementPreview) return onStoryPlacementPreview(payload, route);
       const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
       return fulfillJson(route, { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] });
     }
@@ -224,6 +227,34 @@ test("story timeline previews and commits local beats as one canonical bundle", 
   expect(links[0].target_type).toBe("location");
   expect(links[0].role).toBe("setting");
   await expect(page.locator('[data-testid^="local-planning-beat-"]')).toHaveCount(0);
+});
+
+test("story timeline deep links select tracks and focus matching entity occurrences", async ({ page }) => {
+  await mockStoryTimelineApi(page);
+  const trackLabels = {
+    location: "Locations",
+    character: "Characters",
+    item: "Important Items",
+    quest: "Quests",
+    faction: "Factions",
+  };
+
+  for (const [track, labelText] of Object.entries(trackLabels)) {
+    const entity = track === "location" ? "location-1" : track === "character" ? "char-1" : "missing-entity";
+    await page.goto(`/author/story-timeline?track=${track}&entity=${entity}`);
+    const navigator = page.getByTestId("story-navigator");
+    await expect(navigator.getByRole("button", { name: labelText, exact: true })).toHaveAttribute("aria-pressed", "true");
+    if (track === "location" || track === "character") {
+      await expect(page.getByTestId(`entity-occurrence-${track}-${entity}`)).toHaveAttribute("data-focused", "true");
+    } else {
+      await expect(navigator.locator('[data-focused="true"]')).toHaveCount(0);
+    }
+  }
+
+  await page.goto("/author/story-timeline?track=character&entity=does-not-exist");
+  await expect(page.getByRole("heading", { name: "Story Timeline & Adventure Board" })).toBeVisible();
+  await expect(page.getByTestId("story-timeline-canvas")).toBeVisible();
+  await expect(page.getByTestId("story-navigator").locator('[data-focused="true"]')).toHaveCount(0);
 });
 
 test("home and sidebar expose every specialized authoring workspace", async ({ page }) => {
@@ -496,6 +527,148 @@ test("world builder places the selected location into story as setting", async (
   expect(link.importance).toBe("minor");
 });
 
+test("story placement edits an existing canonical link with stale-record protection", async ({ page }) => {
+  const world = {
+    ...emptyWorld,
+    locations: [{
+      id: "location-1", slug: "first-city", name: "First City", location_type: "Zone", place_kind: "Settlement",
+      coordinates: { x: 50, y: 50 }, level_range: { min: 1, max: 3 }, tags: [], environment_tags: [],
+    }],
+  };
+  let previewed: Record<string, unknown> | null = null;
+  let saved: Record<string, unknown> | null = null;
+  await mockApi(
+    page,
+    world,
+    undefined,
+    async (payload, route) => {
+      saved = payload;
+      const updated = { ...(payload.adventure_beat_links as Array<Record<string, unknown>>)[0] };
+      delete updated.expected_previous;
+      await fulfillJson(route, {
+        result: { review: { created: [], changed: [{ table: "adventure_beat_links", id: updated.id }], deleted: [] }, warnings: [], blockers: [] },
+        packet: storyPacketWithLocationLink(updated),
+      });
+    },
+    async (payload, route) => {
+      previewed = payload;
+      await fulfillJson(route, { review: { created: [], changed: [{ table: "adventure_beat_links", id: "adventure-link-1" }], deleted: [] }, warnings: [], blockers: [] });
+    },
+  );
+  await page.goto("/author/world?selected=location-1");
+
+  const panel = page.getByTestId("story-placement-panel");
+  await expect(panel).toContainText("Enter The First City", { timeout: 15000 });
+  await expect(panel.getByRole("button", { name: "Edit placement" })).toHaveCount(1, { timeout: 15000 });
+  await panel.getByRole("button", { name: "Edit placement" }).click();
+  const editor = page.getByTestId("story-placement-edit");
+  await editor.getByLabel("Change").selectOption("destroyed");
+  await editor.getByLabel("State Label").fill("Ruined");
+  await editor.getByRole("button", { name: "Preview Changes" }).click();
+  await expect(page.getByTestId("story-placement-review")).toContainText("1 changed");
+
+  await expect.poll(() => previewed).not.toBeNull();
+  const previewLink = (previewed?.adventure_beat_links as Array<Record<string, unknown>>)[0];
+  expect(previewLink.id).toBe("adventure-link-1");
+  expect(previewLink.change_type).toBe("destroyed");
+  expect(previewLink.state_label).toBe("Ruined");
+  expect(previewLink.target_type).toBe("location");
+  expect(previewLink.target_id).toBe("location-1");
+  expect(previewLink.notes).toBeNull();
+  expect(previewLink.tags).toEqual([]);
+  expect(previewLink.expected_previous).toEqual(canonicalLocationLink);
+
+  await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Changes" }).click();
+  await expect.poll(() => saved).not.toBeNull();
+  await expect(page.getByTestId("story-placement-create")).toBeVisible();
+  await expect(panel).toContainText("Ruined");
+});
+
+test("story placement removes only the canonical link through the deletion bundle", async ({ page }) => {
+  const world = {
+    ...emptyWorld,
+    locations: [{
+      id: "location-1", slug: "first-city", name: "First City", location_type: "Zone", place_kind: "Settlement",
+      coordinates: { x: 50, y: 50 }, level_range: { min: 1, max: 3 }, tags: [], environment_tags: [],
+    }],
+  };
+  let previewed: Record<string, unknown> | null = null;
+  let saved: Record<string, unknown> | null = null;
+  await mockApi(
+    page,
+    world,
+    undefined,
+    async (payload, route) => {
+      saved = payload;
+      await fulfillJson(route, {
+        result: { review: { created: [], changed: [], deleted: [{ table: "adventure_beat_links", id: "adventure-link-1" }] }, warnings: [], blockers: [] },
+        packet: storyPacketWithLocationLink(null),
+      });
+    },
+    async (payload, route) => {
+      previewed = payload;
+      await fulfillJson(route, { review: { created: [], changed: [], deleted: [{ table: "adventure_beat_links", id: "adventure-link-1" }] }, warnings: [], blockers: [] });
+    },
+  );
+  await page.goto("/author/world?selected=location-1");
+
+  const panel = page.getByTestId("story-placement-panel");
+  await expect(panel).toContainText("Enter The First City", { timeout: 15000 });
+  await panel.getByRole("button", { name: "Edit placement" }).click();
+  await page.getByTestId("story-placement-edit").getByRole("button", { name: "Preview Removal" }).click();
+  await expect(page.getByTestId("story-placement-review")).toContainText("1 deleted");
+
+  await expect.poll(() => previewed).not.toBeNull();
+  expect(previewed?.adventure_beat_links).toEqual([]);
+  expect(previewed?.deletions).toEqual({ adventure_beats: [], adventure_beat_links: ["adventure-link-1"] });
+
+  await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Removal" }).click();
+  await expect.poll(() => saved).not.toBeNull();
+  expect(saved?.adventure_beat_links).toEqual([]);
+  expect(saved?.deletions).toEqual({ adventure_beats: [], adventure_beat_links: ["adventure-link-1"] });
+  await expect(panel.getByRole("button", { name: "Edit placement" })).toHaveCount(0);
+  await expect(panel).toContainText("Welcome Event");
+  await expect(page.getByRole("heading", { name: "First City" })).toBeVisible();
+});
+
+test("targeted lifecycle warnings appear in the owning workspace and timeline issues", async ({ page }) => {
+  const world = {
+    ...emptyWorld,
+    locations: [{
+      id: "location-1", slug: "first-city", name: "First City", location_type: "Zone", place_kind: "Settlement",
+      coordinates: { x: 50, y: 50 }, level_range: { min: 1, max: 3 }, tags: [], environment_tags: [],
+    }],
+  };
+  const message = "First City is restored without an earlier destroyed, unavailable, or changed state in this story lane.";
+  const storyTimeline = {
+    ...storyTimelinePacket,
+    health: {
+      ...storyTimelinePacket.health,
+      warnings: [{
+        code: "location_restored_without_prior_disruption",
+        severity: "warning",
+        schema_name: "adventure_beat_links",
+        entry_id: "adventure-link-1",
+        target_type: "location",
+        target_id: "location-1",
+        scope_kind: "story_arc",
+        scope_id: "arc-1",
+        message,
+      }],
+    },
+  };
+  await mockApi(page, world, undefined, undefined, undefined, storyTimeline);
+  await page.goto("/author/world?selected=location-1");
+
+  const panel = page.getByTestId("story-placement-panel");
+  await expect(panel).toContainText(message, { timeout: 15000 });
+  await expect(panel.getByTestId("story-context-strip")).toContainText("1 warning");
+
+  await page.goto("/author/story-timeline");
+  await page.getByRole("button", { name: "Issues", exact: true }).click();
+  await expect(page.getByText(message)).toBeVisible();
+});
+
 const dialoguePacket = {
   dialogue: { id: "dialogue-1", slug: "dialogue-1", title: "Gate Talk", description: "", tags: [] },
   nodes: [
@@ -554,6 +727,24 @@ async function mockDialogueApi(
   });
 }
 
+const canonicalLocationLink = {
+  id: "adventure-link-1",
+  adventure_beat_id: "adventure-beat-1",
+  target_type: "location",
+  target_id: "location-1",
+  role: "setting",
+  occurrence_kind: "appearance",
+  change_type: "active",
+  state_label: null,
+  starts_at_beat_id: null,
+  ends_at_beat_id: null,
+  continuity_group_id: "location-1",
+  importance: "major",
+  sort_order: 0,
+  notes: null,
+  tags: [],
+};
+
 const storyTimelinePacket = {
   meta: { read_only: true, canonical_global_sequence: false },
   timelines: [{ id: "timeline-1", slug: "main-story", name: "Main Story", description: "The playable story.", story_arc_ids: ["arc-1"], tags: [] }],
@@ -578,7 +769,7 @@ const storyTimelinePacket = {
       id: "adventure-beat:adventure-beat-1", kind: "adventure_beat", entry_id: "adventure-beat-1", label: "Enter The First City",
       timeline_id: "timeline-1", story_arc_id: "arc-1", lane_id: "story_arc:arc-1", order: 0,
       ordering_source: "adventure_beats.sort_order", placement_basis: "explicit", canonical_order: true, beat_type: "Introduction",
-      attachments: [{ id: "adventure-link-1", target_type: "location", target_id: "location-1", role: "setting", label: "First City" }],
+      attachments: [{ ...canonicalLocationLink, label: "First City" }],
     },
   ],
   event_chains: [{
@@ -591,6 +782,7 @@ const storyTimelinePacket = {
   entity_tracks: {
     locations: [{
       id: "adventure-link:adventure-link-1",
+      link_id: "adventure-link-1",
       entity_kind: "location",
       entity_id: "location-1",
       label: "First City",
@@ -616,7 +808,7 @@ const storyTimelinePacket = {
     events: [{ id: "event-1", title: "Welcome Event", location_id: "location-1", dialogue_id: "dialogue-1" }],
     character_story_beats: [{ id: "beat-1", title: "Guide Welcomes The Player", character_id: "char-1", event_id: "event-1" }],
     adventure_beats: [{ id: "adventure-beat-1", title: "Enter The First City", story_arc_id: "arc-1", beat_type: "Introduction" }],
-    adventure_beat_links: [{ id: "adventure-link-1", adventure_beat_id: "adventure-beat-1", target_type: "location", target_id: "location-1", role: "setting" }],
+    adventure_beat_links: [canonicalLocationLink],
     characters: [{ id: "char-1", name: "Guide" }],
     locations: [{ id: "location-1", name: "First City" }],
     dialogues: [{ id: "dialogue-1", title: "Welcome" }],
@@ -626,6 +818,42 @@ const storyTimelinePacket = {
   dependency_index: { nodes: [], edges: [{ id: "quest:quest-1>unlocks>event:event-1", source: "quest:quest-1", target: "event:event-1", relation: "unlocks", explicit: false }], health: {} },
   health: { warnings: [], dependency: {} },
 };
+
+function storyPacketWithLocationLink(link: Record<string, unknown> | null) {
+  const placementLink = link ? { ...link, label: "First City" } : null;
+  const track = link ? {
+    id: `adventure-link:${String(link.id)}`,
+    link_id: link.id,
+    entity_kind: "location",
+    entity_id: "location-1",
+    label: "First City",
+    timeline_id: "timeline-1",
+    story_arc_id: "arc-1",
+    source_kind: "adventure_beat",
+    source_id: "adventure-beat-1",
+    source_label: "Enter The First City",
+    order: 0,
+    role: link.role,
+    occurrence_kind: link.occurrence_kind,
+    change_type: link.change_type,
+    state_label: link.state_label,
+    importance: link.importance,
+  } : null;
+  return {
+    ...storyTimelinePacket,
+    placements: storyTimelinePacket.placements.map((placement) => placement.kind === "adventure_beat"
+      ? { ...placement, attachments: placementLink ? [placementLink] : [] }
+      : placement),
+    entity_tracks: {
+      ...storyTimelinePacket.entity_tracks,
+      locations: track ? [track] : [],
+    },
+    catalogs: {
+      ...storyTimelinePacket.catalogs,
+      adventure_beat_links: link ? [link] : [],
+    },
+  };
+}
 
 async function mockStoryTimelineApi(page: Page, onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>) {
   await page.route("http://localhost:5000/api/**", async (route) => {

@@ -8,6 +8,7 @@ export type StoryImportance = "critical" | "major" | "minor" | "background";
 
 export interface StoryOccurrence {
   id: string;
+  canonical_link_id?: string;
   entity_kind: TrackKind;
   entity_id: string;
   label: string;
@@ -167,6 +168,68 @@ export function defaultPlacementDraft(id: string, entityKind: TrackKind, entityI
   };
 }
 
+function enumValue<T extends string>(value: unknown, options: readonly T[], fallback: T): T {
+  const candidate = text(value);
+  return options.includes(candidate as T) ? candidate as T : fallback;
+}
+
+export function placementDraftFromCanonicalLink(link: EntryRecord): StoryPlacementDraft | null {
+  const id = text(link.id);
+  const adventureBeatId = text(link.adventure_beat_id);
+  const targetType = text(link.target_type);
+  const targetId = text(link.target_id);
+  if (!id || !adventureBeatId || !targetId || !isTrackKind(targetType)) return null;
+
+  const sortOrder = Number(link.sort_order);
+  const defaults = defaultPlacementDraft(
+    id,
+    targetType,
+    targetId,
+    adventureBeatId,
+    Number.isFinite(sortOrder) ? sortOrder : 0,
+  );
+  return {
+    ...defaults,
+    role: enumValue(link.role, STORY_PLACEMENT_ROLES, defaults.role),
+    occurrence_kind: enumValue(link.occurrence_kind, STORY_OCCURRENCE_KINDS, defaults.occurrence_kind),
+    change_type: enumValue(link.change_type, STORY_CHANGE_TYPES, defaults.change_type),
+    state_label: text(link.state_label),
+    starts_at_beat_id: text(link.starts_at_beat_id),
+    ends_at_beat_id: text(link.ends_at_beat_id),
+    continuity_group_id: text(link.continuity_group_id),
+    importance: enumValue(link.importance, STORY_IMPORTANCE_LEVELS, defaults.importance),
+    notes: text(link.notes),
+    tags: stringValues(link.tags),
+  };
+}
+
+export function storyPlacementLinkPayload(candidate: StoryPlacementDraft, original?: EntryRecord): EntryRecord {
+  const base = original
+    ? Object.fromEntries(Object.entries(original).filter(([key]) => key !== "expected_previous"))
+    : {};
+  const payload: EntryRecord = {
+    ...base,
+    id: candidate.id,
+    adventure_beat_id: candidate.adventure_beat_id,
+    target_type: original ? text(original.target_type, candidate.target_type) : candidate.target_type,
+    target_id: original ? text(original.target_id, candidate.target_id) : candidate.target_id,
+    role: candidate.role,
+    occurrence_kind: candidate.occurrence_kind,
+    change_type: candidate.change_type,
+    state_label: candidate.state_label || "",
+    starts_at_beat_id: candidate.starts_at_beat_id || "",
+    ends_at_beat_id: candidate.ends_at_beat_id || "",
+    continuity_group_id: candidate.continuity_group_id || "",
+    importance: candidate.importance,
+    sort_order: original ? original.sort_order : candidate.sort_order,
+  };
+  if (!original) {
+    payload.notes = candidate.notes || "";
+    payload.tags = candidate.tags || [];
+  }
+  return payload;
+}
+
 function stringValues(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : [];
 }
@@ -225,14 +288,43 @@ export function deriveStoryPlacementWarnings({ entityKind, entity, occurrences }
   return warnings;
 }
 
+export function packetStoryPlacementWarnings(
+  packet: EntryRecord | null | undefined,
+  entityKind: TrackKind,
+  entityId: string,
+): StoryPlacementWarning[] {
+  return rows(record(packet?.health).warnings)
+    .filter((warning) =>
+      text(warning.target_type) === entityKind
+      && text(warning.target_id) === entityId
+    )
+    .map((warning, index) => ({
+      id: `backend:${text(warning.code, "warning")}:${text(warning.entry_id, entityId)}:${text(warning.scope_id)}:${index}`,
+      severity: text(warning.severity) === "error" ? "error" : "warning",
+      message: text(warning.message, "Story placement needs review."),
+    }));
+}
+
+export function mergeStoryPlacementWarnings(...groups: StoryPlacementWarning[][]): StoryPlacementWarning[] {
+  const result = new Map<string, StoryPlacementWarning>();
+  groups.flat().forEach((warning) => {
+    const key = `${warning.severity}:${warning.message.trim().toLowerCase()}`;
+    if (!result.has(key)) result.set(key, warning);
+  });
+  return [...result.values()];
+}
+
 export function parseEntityTrackOccurrences(packet: EntryRecord | null | undefined): StoryOccurrence[] {
   const result: StoryOccurrence[] = [];
   Object.entries(record(packet?.entity_tracks)).forEach(([groupKey, value]) => {
     rows(value).forEach((row) => {
       const entityKind = text(row.entity_kind, singular(groupKey));
       if (!isTrackKind(entityKind)) return;
+      const rowId = text(row.id);
+      const canonicalLinkId = text(row.link_id, rowId.startsWith("adventure-link:") ? rowId.slice("adventure-link:".length) : "");
       result.push({
         id: text(row.id, `track:${entityKind}:${text(row.entity_id)}:${result.length}`),
+        ...(canonicalLinkId ? { canonical_link_id: canonicalLinkId } : {}),
         entity_kind: entityKind,
         entity_id: text(row.entity_id),
         label: text(row.label),
@@ -304,12 +396,13 @@ export function deriveAdventureBeatOccurrences(
         && row.source_id === text(placement.entry_id)
         && row.entity_id === entityId
         && text(attachment.id)
-        && row.id.endsWith(text(attachment.id))
+        && row.canonical_link_id === text(attachment.id)
       );
       if (duplicate) return;
       const catalog = catalogsByKind.get(catalogKeyByKind[entityKind]) || new Map<string, EntryRecord>();
       result.push({
         id: `adventure:${text(placement.entry_id)}:${entityKind}:${entityId}:${index}`,
+        ...(text(attachment.id) ? { canonical_link_id: text(attachment.id) } : {}),
         entity_kind: entityKind,
         entity_id: entityId,
         label: text(attachment.label, label(catalog.get(entityId), entityId)),

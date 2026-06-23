@@ -4,6 +4,7 @@ from backend.app.models.m_adventure_narrative import AdventureBeat, AdventureBea
 from backend.app.models.m_character_narrative import CharacterStoryBeat
 from backend.app.models.m_characters import Character
 from backend.app.models.m_dialogues import Dialogue
+from backend.app.models.m_dialogue_nodes import DialogueNode
 from backend.app.models.m_encounters import Encounter
 from backend.app.models.m_events import Event
 from backend.app.models.m_factions import Faction
@@ -15,6 +16,7 @@ from backend.app.models.m_quests import Quest
 from backend.app.models.m_story_arcs import StoryArc
 from backend.app.models.m_timelines import Timeline
 from backend.app.services.dependency_index import build_dependency_index
+from backend.app.services.adventure_timeline_coherence import build_adventure_timeline_coherence_warnings
 
 
 def _enum_value(value):
@@ -54,8 +56,6 @@ def _relationship(source, target, relation, explicit=True, path="", metadata=Non
 
 
 TRACK_TARGET_TYPES = {"location", "character", "item", "quest", "faction"}
-TERMINAL_CHANGES = {"destroyed", "dies", "lost", "consumed", "unavailable", "leaves"}
-REVIVAL_CHANGES = {"restored", "returns", "obtained", "transformed", "introduced", "joins"}
 
 
 def build_adventure_timeline(db_session):
@@ -78,6 +78,7 @@ def build_adventure_timeline(db_session):
     characters = sorted(db_session.query(Character).all(), key=lambda item: item.id)
     locations = sorted(db_session.query(Location).all(), key=lambda item: item.id)
     dialogues = sorted(db_session.query(Dialogue).all(), key=lambda item: item.id)
+    dialogue_nodes = sorted(db_session.query(DialogueNode).all(), key=lambda item: item.id)
     encounters = sorted(db_session.query(Encounter).all(), key=lambda item: item.id)
     lore_entries = sorted(db_session.query(LoreEntry).all(), key=lambda item: item.id)
     items = sorted(db_session.query(Item).all(), key=lambda item: item.id)
@@ -453,7 +454,7 @@ def build_adventure_timeline(db_session):
         })
 
     dependency_index = build_dependency_index(db_session)
-    for kind, occurrences in entity_occurrences_by_kind.items():
+    for occurrences in entity_occurrences_by_kind.values():
         occurrences.sort(key=lambda row: (
             row["timeline_id"] or "",
             row["story_arc_id"] or "",
@@ -461,25 +462,19 @@ def build_adventure_timeline(db_session):
             row["label"],
             row["id"],
         ))
-        last_terminal_by_group = {}
-        for occurrence in occurrences:
-            group_id = occurrence["continuity_group_id"] or occurrence["entity_id"]
-            change_type = occurrence["change_type"]
-            if change_type in REVIVAL_CHANGES:
-                last_terminal_by_group.pop(group_id, None)
-            elif change_type in TERMINAL_CHANGES:
-                last_terminal_by_group[group_id] = occurrence
-            elif group_id in last_terminal_by_group:
-                terminal = last_terminal_by_group[group_id]
-                warnings.append({
-                    "code": "entity_reappears_after_terminal_change",
-                    "schema_name": "adventure_beat_links",
-                    "entry_id": occurrence["link_id"],
-                    "message": (
-                        f"{kind} {occurrence['label']} appears after "
-                        f"{terminal['change_type']} at {terminal['source_label']} without an explicit restoration or return."
-                    ),
-                })
+    warnings.extend(build_adventure_timeline_coherence_warnings(
+        adventure_beats=adventure_beats,
+        adventure_beat_links=adventure_beat_links,
+        characters=characters,
+        items=items,
+        quests=quests,
+        dialogues=dialogues,
+        dialogue_nodes=dialogue_nodes,
+        events=events,
+        encounters=encounters,
+        character_story_beats=beats,
+        locations=locations,
+    ))
     timeline_payload = []
     for timeline in timelines:
         data = _columns(timeline)

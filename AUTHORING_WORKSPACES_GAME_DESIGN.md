@@ -28,19 +28,19 @@ The status index is the only place that records delivery status. When a new auth
 
 ## Workspace Status
 
-Last reviewed: 2026-06-16
+Last reviewed: 2026-06-23
 
 | Workspace | Status |
 |---|---|
-| World Builder | Implemented; foundation for the shared authoring language; selected-location story placement panel integrated |
-| Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, staged preview/commit, ensemble editing, and character story placement panel |
-| Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, bundle review, graph authoring, and dialogue story placement panel |
-| Encounter Stage | Implemented MVP with encounter story placement panel |
-| Quest Journey Board And Quest Loom | Journey Board initial MVP with quest story placement panel; full mixed-content Quest Loom is future vision |
-| Item Ecosystem And Item Forge | Implemented MVP with item story placement panel; future work can deepen fantasy, provenance, families, and progression |
+| World Builder | Implemented; foundation for the shared authoring language; selected-location story placement create/edit/remove integrated |
+| Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, staged preview/commit, ensemble editing, and character story placement create/edit/remove |
+| Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, bundle review, graph authoring, and dialogue story placement create/edit/remove |
+| Encounter Stage | Implemented MVP with encounter story placement create/edit/remove |
+| Quest Journey Board And Quest Loom | Journey Board initial MVP with quest story placement create/edit/remove; full mixed-content Quest Loom is future vision |
+| Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove; future work can deepen fantasy, provenance, families, and progression |
 | Creature Workshop | Planned; Character Creator already covers much of the existing character/combat/interaction bundle |
 | Ability Spellcraft Lab | Implemented expanded lab with trace bench, lifecycle workshop, variants, relationships, and contextual testing |
-| Story Timeline And Adventure Board | Interactive MVP implemented with scoped lanes, lenses, drag/drop local planning, canonical adventure beats/lifecycle-aware typed links, reusable frontend placement helpers, and preview/commit |
+| Story Timeline And Adventure Board | Interactive MVP implemented with scoped lanes, lenses, drag/drop local planning, canonical adventure beats/lifecycle-aware typed links, query-driven entity occurrence focus, scoped lifecycle-coherence warnings, reusable frontend placement helpers, and preview/commit |
 | Adventure Dependency Map | Dependency Map initial MVP |
 
 The workspace descriptions below contain both current-model implementation contracts and future-facing design. A feature is not implemented merely because it appears in this document; the status table is authoritative.
@@ -104,86 +104,26 @@ When a Codex agent is asked to continue this work, start here. Do not begin from
 - Shared read/derive helpers exist in `soa-editor/src/authoring/storyPlacement.ts`.
 - Shared UI components exist in `soa-editor/src/components/storyPlacement/`.
 - `StoryPlacementPanel` is embedded in Character Studio, Item Ecosystem, Quest Journey Board, Encounter Stage, Dialogue Scene Room, and World Builder.
-- The panel can show occurrences and create one new canonical `adventure_beat_link` through `/api/ui/adventure-timeline/preview` and `/api/ui/adventure-timeline/bundle`.
+- The panel can show occurrences and create, edit, or remove canonical `adventure_beat_links` through `/api/ui/adventure-timeline/preview` and `/api/ui/adventure-timeline/bundle`.
+- Canonical occurrences expose edit actions; inferred runtime, character-beat, and local occurrences remain read-only.
+- Story Timeline deep links use `?track=...&entity=...` to select location, character, item, quest, or faction occurrence tracks and focus matching entity groups.
 - The panel exposes lifecycle fields: role, occurrence kind, change type, state label, start/end beat, continuity group, and importance.
+- Backend coherence warnings cover character terminal/recovery order, item availability before requirements, quest start/resolution coverage, stateful dialogue in unplaced events, consequential unplaced encounters, and location restoration/state contradictions. Targeted warnings appear in both the Story Timeline issue lens and the owning workspace panel.
 - The current implementation is **generic placement integration**. It is not yet a finished custom interaction layer for every workspace.
 
 **Known boundaries:**
 
-- Existing canonical `adventure_beat_links` can be viewed as occurrences, but cannot yet be edited or removed from the shared panel.
 - Workspace-specific story actions are not implemented yet. Examples: character joins/leaves, item consumed, encounter aftermath, dialogue consequence, location destroyed/restored.
-- Warnings are first-pass only: important unplaced items, state-changing unplaced dialogues, and important unplaced locations.
+- Lifecycle order warnings compare only canonical order inside one story-arc, timeline-level, or unassigned lane. They do not invent order across arcs or timelines. Encounter importance remains conservatively derived from canonical state/reputation/important-item consequences because encounters have no dedicated importance field.
 - Backend `entity_tracks` are canonical primary tracks for locations, characters, items, quests, and factions. Dialogue, encounter, event, lore, and story-arc occurrences are currently frontend-derived from placements and event chains.
-- The Story Timeline link accepts `?track=...&entity=...`, but the Story Timeline does not yet actively focus that entity from the query string.
 
 #### Next Action Queue
 
 Work this queue in order unless the user explicitly asks for a different item.
 
-If only one implementation task is requested, choose item 1: **Direct Link Editing And Removal**.
+If only one implementation task is requested, choose item 1: **Workspace-Specific Presets**.
 
-1. **Direct Link Editing And Removal**
-
-   Add edit/delete support for existing canonical `adventure_beat_links` in `StoryPlacementPanel`.
-
-   Files to inspect first:
-
-   - `soa-editor/src/components/storyPlacement/StoryPlacementPanel.tsx`
-   - `soa-editor/src/components/storyPlacement/EntityOccurrenceTrack.tsx`
-   - `soa-editor/src/components/storyPlacement/LifecycleFields.tsx`
-   - `soa-editor/src/authoring/storyPlacement.ts`
-   - `backend/app/routes/r_ui_adventure_timeline.py`
-   - `soa-editor/tests/authoring-workflows.spec.ts`
-
-   Expected behavior:
-
-   - Show existing canonical beat-link occurrences for the selected entity with an obvious edit action.
-   - Editing opens the same lifecycle fields used for creation.
-   - Saving sends the edited link through the existing preview/bundle flow.
-   - Removing a link sends it through `deletions.adventure_beat_links`.
-   - Use stale-record protection where available, especially `expected_previous`.
-   - Do not delete or modify the linked target entity.
-   - Do not introduce new backend fields unless a concrete blocker is found.
-
-   Minimum tests:
-
-   - Edit an existing story placement and verify the bundle payload updates the expected link.
-   - Remove an existing story placement and verify the bundle payload uses `deletions.adventure_beat_links`.
-   - Keep existing creation tests passing.
-
-   Validation:
-
-   ```powershell
-   cd soa-editor
-   npm run lint
-   npm run build
-   npx playwright test tests/authoring-workflows.spec.ts -g "story placement|story timeline|character studio|item ecosystem|quest journey|encounter stage|dialogue|world builder"
-   ```
-
-2. **Story Timeline Deep-Link Focus**
-
-   Make `/author/story-timeline?track=...&entity=...` actively focus the requested track/entity.
-
-   Expected behavior:
-
-   - `track=character|location|item|quest|faction` sets the Entity Occurrences track.
-   - `entity=<id>` highlights or scrolls to the grouped occurrence when present.
-   - Missing entity IDs fail quietly and keep the timeline usable.
-
-3. **Lifecycle Coherence Warnings**
-
-   Expand frontend or backend warnings. Prefer backend warnings when the rule depends on canonical records, and frontend warnings when the rule is only a view-level hint.
-
-   Priority warning rules:
-
-   - Character appears after `dies`, `leaves`, or `captured` without `returns`, `joins`, or other explicit recovery.
-   - Item is required before it is obtained.
-   - Quest has a story arc but no start or resolution placement.
-   - Dialogue sets important state but only appears through an unplaced event.
-   - Encounter is major but has no story placement.
-   - Location is restored without prior destroyed/unavailable/changed state.
-
-4. **Workspace-Specific Presets**
+1. **Workspace-Specific Presets**
 
    Add semantic presets on top of the generic `PlacementTray`.
 
@@ -195,11 +135,11 @@ If only one implementation task is requested, choose item 1: **Direct Link Editi
    - Dialogue Scene Room: Runtime Dialogue, Reveals Lore, Sets State, Changes Faction, Changes Character.
    - World Builder: Setting, Occupied, Destroyed, Restored, Unavailable, Transformed.
 
-5. **Shared Bundle Review Extraction**
+2. **Shared Bundle Review Extraction**
 
    Extract a common review component only after create/edit/delete story placement flow is stable. Do not do this first.
 
-6. **Backend Track Parity Decision**
+3. **Backend Track Parity Decision**
 
    Decide whether dialogue, encounter, event, lore, and story-arc occurrences should become backend `entity_tracks` or remain frontend-derived. Do not change this casually; it affects the API contract.
 
@@ -218,7 +158,7 @@ This table is the component inventory. Prefer extending these components over cr
 
 | Component | Purpose | Current Data Written Or Read | Status |
 |---|---|---|---|
-| `StoryPlacementPanel` | Show where the current entity appears in adventure beats and let the author place it into an existing or local story beat | Reads `/api/ui/adventure-timeline`; writes `adventure_beat_links` through preview/commit | Implemented in `soa-editor/src/components/storyPlacement/StoryPlacementPanel.tsx`; embedded in Character Studio, Item Ecosystem, Quest Journey Board, Encounter Stage, Dialogue Scene Room, and World Builder |
+| `StoryPlacementPanel` | Show where the current entity appears in adventure beats and let the author create, edit, or remove canonical story placements | Reads `/api/ui/adventure-timeline`; writes and deletes `adventure_beat_links` through preview/commit | Implemented in `soa-editor/src/components/storyPlacement/StoryPlacementPanel.tsx`; embedded in Character Studio, Item Ecosystem, Quest Journey Board, Encounter Stage, Dialogue Scene Room, and World Builder |
 | `EntityOccurrenceTrack` | Group repeated appearances and lifecycle changes for one selected entity | Reads `entity_tracks`, runtime event links, character story beats, adventure beat attachments, and local draft attachments | Implemented in `soa-editor/src/components/storyPlacement/EntityOccurrenceTrack.tsx` |
 | `PlacementTray` | Provide typed drop targets such as Setting, Cast, Runtime, State, Reward, Requirement, and Reference | Maps tray choices to `adventure_beat_links.role`, `occurrence_kind`, `change_type`, and `importance` | Implemented in `soa-editor/src/components/storyPlacement/PlacementTray.tsx`; click and native-drop gestures currently patch the panel draft before preview |
 | `LifecycleFields` | Shared compact editor for occurrence kind, change type, state label, start/end beat, continuity group, and importance | Writes lifecycle fields on `adventure_beat_links` | Implemented in `soa-editor/src/components/storyPlacement/LifecycleFields.tsx` |
@@ -260,7 +200,7 @@ This backlog gives direction after the next action queue. Do not start here unle
 
 Add a Character Presence Timeline inside the existing context area:
 
-Current status: partially implemented through the shared `StoryPlacementPanel`, `EntityOccurrenceTrack`, `StoryContextStrip`, `PlacementTray`, and `LifecycleFields`. Character Studio can show existing character occurrences and create a new `character` `adventure_beat_link` as cast/state/reference/etc. Remaining work is richer character-specific lifecycle warnings and direct editing/removal of existing canonical links.
+Current status: partially implemented through the shared `StoryPlacementPanel`, `EntityOccurrenceTrack`, `StoryContextStrip`, `PlacementTray`, and `LifecycleFields`. Character Studio can show existing character occurrences, create/edit/remove `character` links, and warn when a character appears after dies/leaves/captured without a scoped recovery. Remaining work includes semantic presets and warning when a heavily used character has no clear introduction.
 
 - Show appearances from adventure beats, character story beats, dialogues, encounters, events, quests, and local story-planning links.
 - Highlight lifecycle states such as introduced, joins, leaves, injured, captured, dies, returns, changed, and active.
@@ -275,7 +215,7 @@ This should make the character view answer "where is this person in the story?" 
 
 Add an Item Journey Track:
 
-Current status: partially implemented for Item Ecosystem through the shared story-placement panel. It can show item occurrences, warn when an important item is unplaced, and create item links as reward, requirement, state, or reference through `PlacementTray`. Remaining work is deeper item journey analysis: required-before-obtained, obtained-never-used, multiple acquisition-source explanations, continuity group guidance, and Item Forge integration if it remains separate from Item Ecosystem.
+Current status: partially implemented for Item Ecosystem through the shared story-placement panel. It can show item occurrences, warn when an important item is unplaced or required while unavailable in the current story lane, and create/edit/remove item links as reward, requirement, state, or reference. Remaining work includes obtained-never-used, multiple acquisition-source explanations, continuity group guidance, semantic presets, and Item Forge integration if it remains separate from Item Ecosystem.
 
 - Show where the item is introduced, obtained, lost, stolen, consumed, upgraded, transformed, restored, required, or rewarded.
 - Distinguish ordinary economic availability from story-important appearances. Use `importance=background` for generic shop/vendor availability so the navigator does not become noisy.
@@ -291,7 +231,7 @@ The item workspace should become the best place to answer "how does the player g
 
 Add story beat placement and state walkthrough around the existing objective flow:
 
-Current status: partially implemented. Quest Journey Board can show quest occurrences and create `quest` `adventure_beat_links` as player journey links through the shared panel and lifecycle editor. Remaining work includes visible requirement/flag/item/reward trays beside objectives, walkthrough mode, and quest-order coherence checks.
+Current status: partially implemented. Quest Journey Board can show quest occurrences, create/edit/remove `quest` links, and warn when an arc-owned quest lacks a clear scoped start or resolution placement. Remaining work includes semantic presets, visible requirement/flag/item/reward trays beside objectives, walkthrough mode, and deeper quest-order coherence checks.
 
 - Show which adventure beats start, escalate, branch, and resolve the quest.
 - Let quest cards be placed into story beats as player journey links.
@@ -306,7 +246,7 @@ The goal is not just to reorder objectives. The author should see whether the qu
 
 Add a Story/State Overlay for locations:
 
-Current status: partially implemented. World Builder now embeds the shared story-placement panel for the selected location, shows location story occurrences/state changes, and can create location links as setting/state/reference/etc. through preview/commit. Remaining work includes map styling/filtering by lifecycle state, timeline/arc lifecycle filters on the map itself, and stronger warnings for destroyed/restored/active contradictions.
+Current status: partially implemented. World Builder embeds the shared story-placement panel, supports location link create/edit/remove, warns when a location is restored without prior disruption, and preserves the existing destroyed/unavailable-then-active contradiction warning inside one canonical lane. Remaining work includes semantic presets, map styling/filtering by lifecycle state, timeline/arc lifecycle filters, and introduction coverage warnings.
 
 - On a selected location, show all story occurrences and state changes from `entity_tracks.locations`.
 - Use map styling for lifecycle states: introduced, active, changed, unavailable, destroyed, restored, occupied, or transformed.
@@ -321,7 +261,7 @@ The World Builder should answer "what is happening here across the story?" while
 
 Add a Story Moment Rail beside the dialogue graph:
 
-Current status: partially implemented. Dialogue Scene Room now embeds the shared story-placement panel for the current dialogue, derives runtime dialogue occurrences from event-chain attachments, warns when a state-changing dialogue is unplaced, and can create dialogue runtime links through preview/commit. Remaining work includes consequence trays for character/faction/item/location state changes and warnings for event-referenced dialogue whose event has no story placement.
+Current status: partially implemented. Dialogue Scene Room embeds the shared story-placement panel, derives runtime occurrences, supports dialogue link create/edit/remove, and warns when a state-setting dialogue appears only through unplaced events. Remaining work includes semantic presets and consequence trays for character/faction/item/location state changes.
 
 - Show the adventure beat, event, quest, and character story beat context for the current dialogue.
 - Let the author place the dialogue into a runtime tray on an adventure beat.
@@ -336,7 +276,7 @@ This keeps dialogue authoring focused on conversation while still showing why th
 
 Add encounter-as-moment controls:
 
-Current status: partially implemented. Encounter Stage now embeds the shared story-placement panel for the current encounter, can create encounter runtime links, and runtime encounter occurrences are derived from event-chain attachments. Remaining work includes aftermath preview, lifecycle links for rewards/injuries/faction/location changes, major-encounter placement warnings, and important reward item journey checks.
+Current status: partially implemented. Encounter Stage embeds the shared story-placement panel, supports encounter link create/edit/remove, derives runtime event occurrences, and warns when an encounter with canonical state, reputation, or important-item consequences has no story placement. Remaining work includes semantic presets, aftermath preview, lifecycle links for rewards/injuries/faction/location changes, and broader important reward journey checks.
 
 - Show where the encounter appears in events, locations, quests, and adventure beats.
 - Let the author place the encounter into a runtime tray on an adventure beat.
@@ -386,8 +326,9 @@ An author view can be considered "story-placement integrated" when it satisfies 
 Current acceptance status for the six integrated workspaces:
 
 - Character Studio, Item Ecosystem, Quest Journey Board, Encounter Stage, Dialogue Scene Room, and World Builder satisfy criteria 1-4 through the shared panel, lifecycle fields, Story Timeline links, and preview/commit creation.
-- Criterion 5 is partially satisfied. Meaningful warnings currently exist for important items, state-changing dialogues, and important locations. Character, quest, encounter, faction, and deeper lifecycle-order warnings remain incomplete.
+- Criterion 5 is satisfied for all six integrated workspaces through targeted frontend hints and scoped backend coherence warnings. Faction-specific warnings and deeper inferred/runtime-path checks remain future work.
 - Criterion 6 is preserved. The shared story-placement work writes canonical `adventure_beat_links`; it does not save visual layout state as canonical data.
+- Canonical links can now be edited or removed from all six integrated workspace panels with preview/commit and stale-record protection for edits. Inferred occurrences remain read-only.
 
 ---
 
@@ -1213,7 +1154,7 @@ The MVP can show where locations, characters, important items, quests, and facti
 - `starts_at_beat_id`, `ends_at_beat_id`, and `continuity_group_id` for duration and version tracking.
 - `importance` so ordinary background mentions do not dominate the overview.
 
-The current canvas can create local planning links and commit them with sensible lifecycle defaults. Direct in-place editing of already-canonical beat links, richer duration visualization, and path comparison remain future workflow work.
+The current canvas can create local planning links and commit them with sensible lifecycle defaults. Direct in-place editing of already-canonical beat links on the Story Timeline canvas, richer duration visualization, and path comparison remain future workflow work; canonical links can be edited from the selected entity's shared Story Placement panel.
 
 ### Living Canvas Application
 

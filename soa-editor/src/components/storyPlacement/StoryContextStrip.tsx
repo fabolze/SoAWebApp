@@ -35,7 +35,6 @@ export default function StoryContextStrip({ packet, entityKind, entityId, occurr
     const key = nodeKey(entityKind, entityId);
     return text(edge.source) === key || text(edge.target) === key;
   });
-  const packetWarnings = rows(record(packet?.health).warnings).filter((warning) => text(warning.entry_id) === entityId || text(warning.target_id) === entityId);
   const sourceRoute = routeForOccurrence(nearest);
 
   return <section className="rounded border border-slate-200 bg-slate-50 p-2 text-xs dark:border-slate-800 dark:bg-slate-950" data-testid="story-context-strip">
@@ -48,7 +47,7 @@ export default function StoryContextStrip({ packet, entityKind, entityId, occurr
       <div className="flex flex-wrap gap-1">
         <span className="rounded bg-white px-2 py-1 text-[10px] font-semibold dark:bg-slate-900">{occurrences.length} occurrence{occurrences.length === 1 ? "" : "s"}</span>
         <span className="rounded bg-white px-2 py-1 text-[10px] font-semibold dark:bg-slate-900">{dependencyEdges.length} dependenc{dependencyEdges.length === 1 ? "y" : "ies"}</span>
-        <span className="rounded bg-white px-2 py-1 text-[10px] font-semibold dark:bg-slate-900">{warnings.length + packetWarnings.length} warning{warnings.length + packetWarnings.length === 1 ? "" : "s"}</span>
+        <span className="rounded bg-white px-2 py-1 text-[10px] font-semibold dark:bg-slate-900">{warnings.length} warning{warnings.length === 1 ? "" : "s"}</span>
       </div>
     </div>
     <div className="mt-2 flex flex-wrap gap-2">

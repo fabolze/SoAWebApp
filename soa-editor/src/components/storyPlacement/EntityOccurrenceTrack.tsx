@@ -7,6 +7,7 @@ interface EntityOccurrenceTrackProps {
   timelines: Map<string, EntryRecord>;
   arcs: Map<string, EntryRecord>;
   entityKind: string;
+  onEditCanonicalLink?: (linkId: string) => void;
 }
 
 const toneByChange: Record<string, string> = {
@@ -36,7 +37,7 @@ function occurrenceTone(occurrence: StoryOccurrence): string {
   return toneByChange[occurrence.change_type || ""] || "border-slate-200 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100";
 }
 
-export default function EntityOccurrenceTrack({ occurrences, timelines, arcs, entityKind }: EntityOccurrenceTrackProps) {
+export default function EntityOccurrenceTrack({ occurrences, timelines, arcs, entityKind, onEditCanonicalLink }: EntityOccurrenceTrackProps) {
   if (occurrences.length === 0) {
     return <p className="rounded border border-dashed border-slate-300 p-3 text-xs text-slate-500 dark:border-slate-700">No story placements found for this {entityKind.replace(/_/g, " ")} yet.</p>;
   }
@@ -58,7 +59,10 @@ export default function EntityOccurrenceTrack({ occurrences, timelines, arcs, en
         <div className="mt-2 text-[10px] opacity-80">
           {label(timeline, "Unassigned timeline")} / {label(arc, "Unassigned arc")}
         </div>
-        {sourceRoute && <Link className="mt-2 inline-block text-[10px] font-semibold underline" to={sourceRoute}>Open source</Link>}
+        <div className="mt-2 flex flex-wrap gap-3 text-[10px] font-semibold">
+          {sourceRoute && <Link className="underline" to={sourceRoute}>Open source</Link>}
+          {occurrence.canonical_link_id && onEditCanonicalLink && <button type="button" className="underline" onClick={() => onEditCanonicalLink(occurrence.canonical_link_id!)}>Edit placement</button>}
+        </div>
       </article>;
     })}
   </div>;

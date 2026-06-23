@@ -18,6 +18,7 @@ from backend.app.models.m_character_narrative import CharacterBeatType, Characte
 from backend.app.models.m_characters import Character
 from backend.app.models.m_content_packs import ContentPack
 from backend.app.models.m_dialogues import Dialogue
+from backend.app.models.m_dialogue_nodes import DialogueNode
 from backend.app.models.m_encounters import Encounter, EncounterType
 from backend.app.models.m_events import Event, EventType
 from backend.app.models.m_items import Item, ItemType, Rarity
@@ -223,6 +224,46 @@ def _seed(Session):
     session.close()
 
 
+def _adventure_beat(beat_id, title, order, beat_type=AdventureBeatType.Other, story_arc_id="arc-1"):
+    return AdventureBeat(
+        id=beat_id,
+        slug=beat_id,
+        title=title,
+        beat_type=beat_type,
+        timeline_id="timeline-1",
+        story_arc_id=story_arc_id,
+        sort_order=order,
+        required_flags=[],
+        forbidden_flags=[],
+        expected_output_flags=[],
+        tags=[],
+    )
+
+
+def _adventure_link(
+    link_id,
+    beat_id,
+    target_type,
+    target_id,
+    role,
+    occurrence_kind=AdventureOccurrenceKind.Appearance,
+    change_type=AdventureChangeType.Active,
+    importance=AdventureImportance.Major,
+):
+    return AdventureBeatLink(
+        id=link_id,
+        adventure_beat_id=beat_id,
+        target_type=target_type,
+        target_id=target_id,
+        role=role,
+        occurrence_kind=occurrence_kind,
+        change_type=change_type,
+        importance=importance,
+        sort_order=0,
+        tags=[],
+    )
+
+
 def test_adventure_timeline_aggregates_scoped_order_runtime_and_unplaced_content(monkeypatch):
     client, Session = _client(monkeypatch)
     _seed(Session)
@@ -360,6 +401,225 @@ def test_adventure_timeline_warns_when_entity_reappears_after_terminal_change(mo
     assert payload["entity_tracks"]["locations"][-1]["link_id"] == "adventure-link-reappears"
 
 
+def test_lifecycle_warnings_track_character_terminal_and_recovery_in_one_scope(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add_all([
+        _adventure_beat("character-captured", "Guide Captured", 1),
+        _adventure_beat("character-active-too-early", "Guide Appears", 2),
+        _adventure_beat("character-returns", "Guide Returns", 3),
+        _adventure_beat("character-active-after-return", "Guide Helps", 4),
+        _adventure_link(
+            "character-link-captured", "character-captured", AdventureBeatLinkTargetType.Character,
+            "character-1", AdventureBeatLinkRole.State, AdventureOccurrenceKind.Transition,
+            AdventureChangeType.Captured,
+        ),
+        _adventure_link(
+            "character-link-too-early", "character-active-too-early", AdventureBeatLinkTargetType.Character,
+            "character-1", AdventureBeatLinkRole.Cast,
+        ),
+        _adventure_link(
+            "character-link-returns", "character-returns", AdventureBeatLinkTargetType.Character,
+            "character-1", AdventureBeatLinkRole.State, AdventureOccurrenceKind.Transition,
+            AdventureChangeType.Returns,
+        ),
+        _adventure_link(
+            "character-link-after-return", "character-active-after-return", AdventureBeatLinkTargetType.Character,
+            "character-1", AdventureBeatLinkRole.Cast,
+        ),
+    ])
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    character_warnings = [row for row in warnings if row["code"] == "character_reappears_after_terminal_change"]
+    assert [row["entry_id"] for row in character_warnings] == ["character-link-too-early"]
+    assert character_warnings[0]["target_id"] == "character-1"
+    assert character_warnings[0]["related_entry_ids"] == ["character-link-captured"]
+
+
+def test_lifecycle_warnings_do_not_compare_character_occurrences_across_arcs(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add(StoryArc(
+        id="arc-2", slug="second-arc", title="Second Arc", summary="Parallel scope.",
+        type=ArcType.Side, content_pack_id="pack-1", timeline_id="timeline-1",
+        related_quests=[], branching=[], required_flags=[], tags=[],
+    ))
+    session.flush()
+    session.add_all([
+        _adventure_beat("character-dies-arc-1", "Guide Dies", 1),
+        _adventure_beat("character-active-arc-2", "Guide Elsewhere", 2, story_arc_id="arc-2"),
+        _adventure_link(
+            "character-link-dies", "character-dies-arc-1", AdventureBeatLinkTargetType.Character,
+            "character-1", AdventureBeatLinkRole.State, AdventureOccurrenceKind.Consequence,
+            AdventureChangeType.Dies,
+        ),
+        _adventure_link(
+            "character-link-other-arc", "character-active-arc-2", AdventureBeatLinkTargetType.Character,
+            "character-1", AdventureBeatLinkRole.Cast,
+        ),
+    ])
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(
+        row["code"] == "character_reappears_after_terminal_change"
+        and row["entry_id"] == "character-link-other-arc"
+        for row in warnings
+    )
+
+
+def test_lifecycle_warnings_track_item_availability_before_requirement(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add_all([
+        _adventure_beat("item-lost", "Key Lost", 1),
+        _adventure_beat("item-required", "Gate Requires Key", 2),
+        _adventure_link(
+            "item-link-lost", "item-lost", AdventureBeatLinkTargetType.Item, "item-1",
+            AdventureBeatLinkRole.State, AdventureOccurrenceKind.Transition, AdventureChangeType.Lost,
+        ),
+        _adventure_link(
+            "item-link-required", "item-required", AdventureBeatLinkTargetType.Item, "item-1",
+            AdventureBeatLinkRole.Reference, AdventureOccurrenceKind.Requirement,
+        ),
+    ])
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert any(row["code"] == "item_required_before_obtained" and row["entry_id"] == "item-link-required" for row in warnings)
+
+    session = Session()
+    session.add_all([
+        _adventure_beat("item-restored", "Key Recovered", 2),
+        _adventure_link(
+            "item-link-restored", "item-restored", AdventureBeatLinkTargetType.Item, "item-1",
+            AdventureBeatLinkRole.Reward, AdventureOccurrenceKind.Reward, AdventureChangeType.Restored,
+        ),
+    ])
+    session.get(AdventureBeat, "item-required").sort_order = 3
+    session.commit()
+    session.close()
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(row["code"] == "item_required_before_obtained" and row["entry_id"] == "item-link-required" for row in warnings)
+
+
+def test_lifecycle_warnings_require_quest_start_and_resolution_in_its_arc(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    quest_codes = {row["code"] for row in warnings if row.get("target_id") == "quest-1"}
+    assert {"quest_missing_start_placement", "quest_missing_resolution_placement"} <= quest_codes
+
+    session = Session()
+    session.add(_adventure_beat("quest-payoff", "Arrival Complete", 3, AdventureBeatType.Payoff))
+    session.flush()
+    session.add_all([
+        _adventure_link(
+            "quest-link-start", "adventure-beat-1", AdventureBeatLinkTargetType.Quest, "quest-1",
+            AdventureBeatLinkRole.PlayerJourney, AdventureOccurrenceKind.Transition,
+            AdventureChangeType.Introduced,
+        ),
+        _adventure_link(
+            "quest-link-resolution", "quest-payoff", AdventureBeatLinkTargetType.Quest, "quest-1",
+            AdventureBeatLinkRole.PlayerJourney, AdventureOccurrenceKind.Consequence,
+            AdventureChangeType.Changed,
+        ),
+    ])
+    session.commit()
+    session.close()
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(row["code"].startswith("quest_missing_") and row.get("target_id") == "quest-1" for row in warnings)
+
+
+def test_lifecycle_warnings_find_stateful_dialogue_only_in_unplaced_event(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add_all([
+        Dialogue(id="dialogue-2", slug="warning", title="Warning", tags=[]),
+        Event(
+            id="event-3", slug="warning-event", title="Warning Event", type=EventType.Dialogue,
+            dialogue_id="dialogue-2", flags_set=[], item_rewards=[], tags=[],
+        ),
+    ])
+    session.flush()
+    session.add(DialogueNode(
+        id="dialogue-node-2", slug="warning-node", dialogue_id="dialogue-2", speaker="Guide",
+        text="The bridge is gone.", choices=[], set_flags=["bridge-gone"], tags=[],
+    ))
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert any(row["code"] == "stateful_dialogue_only_in_unplaced_event" and row["target_id"] == "dialogue-2" for row in warnings)
+
+    session = Session()
+    session.get(Event, "event-1").next_event_id = "event-3"
+    session.commit()
+    session.close()
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(row["code"] == "stateful_dialogue_only_in_unplaced_event" and row["target_id"] == "dialogue-2" for row in warnings)
+
+
+def test_lifecycle_warnings_find_consequential_unplaced_encounter(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add(Encounter(
+        id="encounter-2", slug="boss", name="Bridge Guardian", encounter_type=EncounterType.Combat,
+        participants=[], rewards={"flags_set": ["bridge-open"]}, tags=[],
+    ))
+    session.commit()
+    session.close()
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert any(row["code"] == "major_encounter_unplaced" and row["target_id"] == "encounter-2" for row in warnings)
+
+    session = Session()
+    session.add(_adventure_link(
+        "encounter-link-2", "adventure-beat-1", AdventureBeatLinkTargetType.Encounter, "encounter-2",
+        AdventureBeatLinkRole.Runtime,
+    ))
+    session.commit()
+    session.close()
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(row["code"] == "major_encounter_unplaced" and row["target_id"] == "encounter-2" for row in warnings)
+
+
+def test_lifecycle_warnings_require_prior_location_disruption_before_restore(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add(_adventure_beat("location-restored", "City Restored", 2, AdventureBeatType.Recovery))
+    session.flush()
+    session.add(_adventure_link(
+        "location-link-restored", "location-restored", AdventureBeatLinkTargetType.Location, "location-1",
+        AdventureBeatLinkRole.State, AdventureOccurrenceKind.Transition, AdventureChangeType.Restored,
+    ))
+    session.commit()
+    session.close()
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert any(row["code"] == "location_restored_without_prior_disruption" and row["target_id"] == "location-1" for row in warnings)
+
+    session = Session()
+    session.add(_adventure_beat("location-changed", "City Occupied", 1, AdventureBeatType.Reversal))
+    session.flush()
+    session.add(_adventure_link(
+        "location-link-changed", "location-changed", AdventureBeatLinkTargetType.Location, "location-1",
+        AdventureBeatLinkRole.State, AdventureOccurrenceKind.Transition, AdventureChangeType.Changed,
+    ))
+    session.commit()
+    session.close()
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(row["code"] == "location_restored_without_prior_disruption" and row["target_id"] == "location-1" for row in warnings)
+
+
 def test_adventure_timeline_empty_project_has_stable_shape(monkeypatch):
     client, _ = _client(monkeypatch)
 
@@ -442,6 +702,81 @@ def test_adventure_timeline_preview_rolls_back_and_bundle_commits_atomically(mon
     assert saved_link.occurrence_kind == AdventureOccurrenceKind.Appearance
     assert saved_link.change_type == AdventureChangeType.Active
     assert saved_link.importance == AdventureImportance.Major
+    session.close()
+
+
+def test_adventure_timeline_edits_links_with_stale_record_protection(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    packet = client.get("/api/ui/adventure-timeline").get_json()
+    original = next(row for row in packet["catalogs"]["adventure_beat_links"] if row["id"] == "adventure-link-1")
+    updated = {
+        **original,
+        "change_type": "destroyed",
+        "state_label": "Ruined",
+        "expected_previous": original,
+    }
+    payload = {
+        "adventure_beats": [],
+        "adventure_beat_links": [updated],
+        "deletions": {"adventure_beats": [], "adventure_beat_links": []},
+    }
+
+    preview = client.post("/api/ui/adventure-timeline/preview", json=payload)
+    assert preview.status_code == 200
+    assert preview.get_json()["review"]["changed"] == [
+        {"id": "adventure-link-1", "table": "adventure_beat_links"},
+    ]
+    session = Session()
+    assert session.get(AdventureBeatLink, "adventure-link-1").change_type == AdventureChangeType.Introduced
+    session.close()
+
+    commit = client.post("/api/ui/adventure-timeline/bundle", json=payload)
+    assert commit.status_code == 200
+    session = Session()
+    saved = session.get(AdventureBeatLink, "adventure-link-1")
+    assert saved.change_type == AdventureChangeType.Destroyed
+    assert saved.state_label == "Ruined"
+    assert saved.target_id == "location-1"
+    session.close()
+
+    stale = {
+        **payload,
+        "adventure_beat_links": [{**updated, "state_label": "Changed again"}],
+    }
+    response = client.post("/api/ui/adventure-timeline/bundle", json=stale)
+    assert response.status_code == 400
+    assert "expected_previous is stale" in response.get_json()["message"]
+    session = Session()
+    assert session.get(AdventureBeatLink, "adventure-link-1").state_label == "Ruined"
+    session.close()
+
+
+def test_adventure_timeline_deletes_only_the_requested_link(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    payload = {
+        "adventure_beats": [],
+        "adventure_beat_links": [],
+        "deletions": {"adventure_beats": [], "adventure_beat_links": ["adventure-link-1"]},
+    }
+
+    preview = client.post("/api/ui/adventure-timeline/preview", json=payload)
+    assert preview.status_code == 200
+    assert preview.get_json()["review"]["deleted"] == [
+        {"id": "adventure-link-1", "table": "adventure_beat_links"},
+    ]
+    session = Session()
+    assert session.get(AdventureBeatLink, "adventure-link-1") is not None
+    session.close()
+
+    commit = client.post("/api/ui/adventure-timeline/bundle", json=payload)
+    assert commit.status_code == 200
+    session = Session()
+    assert session.get(AdventureBeatLink, "adventure-link-1") is None
+    assert session.get(AdventureBeat, "adventure-beat-1") is not None
+    assert session.get(Location, "location-1") is not None
+    assert session.get(AdventureBeatLink, "adventure-link-character") is not None
     session.close()
 
 

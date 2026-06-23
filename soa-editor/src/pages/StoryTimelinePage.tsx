@@ -9,8 +9,8 @@ import {
   type DragEndEvent,
   type CollisionDetection,
 } from "@dnd-kit/core";
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   deriveEntityOccurrences,
   filterBackgroundOccurrences,
@@ -29,6 +29,11 @@ import { generateSlug, generateUlid } from "../utils/generateId";
 const panelClass = "rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900";
 const inputClass = "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950";
 const PLAN_STORAGE_KEY = "soa.story-timeline.local-plan.v1";
+const NAVIGATOR_TRACK_KINDS: TrackKind[] = ["location", "character", "item", "quest", "faction"];
+
+function isNavigatorTrackKind(value: string): value is TrackKind {
+  return NAVIGATOR_TRACK_KINDS.includes(value as TrackKind);
+}
 
 const preferBeatCollision: CollisionDetection = (args) => {
   return pointerWithin(args).sort((left, right) => {
@@ -157,10 +162,14 @@ function toneForKind(kind: string): string {
 }
 
 export default function StoryTimelinePage() {
+  const [searchParams] = useSearchParams();
+  const requestedTrack = searchParams.get("track") || "";
+  const requestedEntity = searchParams.get("entity") || "";
   const [packet, setPacket] = useState<EntryRecord | null>(null);
   const [error, setError] = useState("");
   const [lens, setLens] = useState<Lens>("story");
   const [trackKind, setTrackKind] = useState<TrackKind>("location");
+  const [focusedEntityId, setFocusedEntityId] = useState("");
   const [search, setSearch] = useState("");
   const [timelineFocus, setTimelineFocus] = useState("");
   const [arcFocus, setArcFocus] = useState("");
@@ -185,6 +194,15 @@ export default function StoryTimelinePage() {
   useEffect(() => {
     localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(plan));
   }, [plan]);
+
+  useEffect(() => {
+    if (isNavigatorTrackKind(requestedTrack)) {
+      setTrackKind(requestedTrack);
+      setFocusedEntityId(requestedEntity);
+    } else {
+      setFocusedEntityId("");
+    }
+  }, [requestedEntity, requestedTrack]);
 
   const timelines = useMemo(() => rows(packet?.timelines), [packet]);
   const arcs = useMemo(() => rows(packet?.story_arcs), [packet]);
@@ -401,7 +419,9 @@ export default function StoryTimelinePage() {
           localBeats={plan.beats}
           entityOccurrences={entityOccurrences}
           trackKind={trackKind}
-          onTrackKindChange={setTrackKind}
+          focusedEntityId={focusedEntityId}
+          onTrackKindChange={(kind) => { setTrackKind(kind); setFocusedEntityId(""); }}
+          onEntityFocus={setFocusedEntityId}
           timelineFocus={timelineFocus}
           arcFocus={arcFocus}
           onFocus={(nextTimelineId, nextArcId = "") => {
@@ -466,7 +486,8 @@ function Metric({ value, label: metricLabel, warning = false }: { value: number;
   return <span className={`rounded-full px-3 py-2 font-semibold ${warning ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}>{value} {metricLabel}</span>;
 }
 
-function TimelineNavigator({ timelines, arcs, placements, localBeats, entityOccurrences, trackKind, onTrackKindChange, timelineFocus, arcFocus, onFocus }: { timelines: EntryRecord[]; arcs: EntryRecord[]; placements: EntryRecord[]; localBeats: LocalBeat[]; entityOccurrences: StoryOccurrence[]; trackKind: TrackKind; onTrackKindChange: (kind: TrackKind) => void; timelineFocus: string; arcFocus: string; onFocus: (timelineId: string, arcId?: string) => void }) {
+function TimelineNavigator({ timelines, arcs, placements, localBeats, entityOccurrences, trackKind, focusedEntityId, onTrackKindChange, onEntityFocus, timelineFocus, arcFocus, onFocus }: { timelines: EntryRecord[]; arcs: EntryRecord[]; placements: EntryRecord[]; localBeats: LocalBeat[]; entityOccurrences: StoryOccurrence[]; trackKind: TrackKind; focusedEntityId: string; onTrackKindChange: (kind: TrackKind) => void; onEntityFocus: (entityId: string) => void; timelineFocus: string; arcFocus: string; onFocus: (timelineId: string, arcId?: string) => void }) {
+  const focusedGroupRef = useRef<HTMLButtonElement | null>(null);
   const arcsByTimeline = useMemo(() => {
     const result = new Map<string, EntryRecord[]>();
     arcs.forEach((arc) => {
@@ -512,13 +533,19 @@ function TimelineNavigator({ timelines, arcs, placements, localBeats, entityOccu
     story_arc: "Story Arcs",
   };
 
-  return <section className={`${panelClass} p-3`}>
+  useEffect(() => {
+    if (focusedEntityId && trackGroups.some((group) => group.entryId === focusedEntityId)) {
+      focusedGroupRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [focusedEntityId, trackGroups]);
+
+  return <section className={`${panelClass} p-3`} data-testid="story-navigator">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 className="font-semibold">Story Navigator</h2>
         <p className="text-xs text-slate-500">Use this as the wide overview: jump by arc, then inspect repeated entity appearances and state changes without scrolling through every card.</p>
       </div>
-      <button type="button" className="rounded border px-3 py-1 text-xs font-semibold" onClick={() => onFocus("")}>Show All</button>
+      <button type="button" className="rounded border px-3 py-1 text-xs font-semibold" onClick={() => { onFocus(""); onEntityFocus(""); }}>Show All</button>
     </div>
     <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
       <div className="space-y-2">
@@ -548,13 +575,14 @@ function TimelineNavigator({ timelines, arcs, placements, localBeats, entityOccu
           <span className="text-[10px] text-slate-400">{trackRows.length} visible</span>
         </div>
         <div className="mt-2 grid grid-cols-2 gap-1">
-          {(["location", "character", "item", "quest", "faction"] as TrackKind[]).map((kind) => <button key={kind} type="button" className={`rounded border px-2 py-1 text-[10px] font-semibold ${trackKind === kind ? "border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-200" : "border-slate-200 dark:border-slate-800"}`} onClick={() => onTrackKindChange(kind)}>{trackLabels[kind]}</button>)}
+          {NAVIGATOR_TRACK_KINDS.map((kind) => <button key={kind} type="button" aria-pressed={trackKind === kind} className={`rounded border px-2 py-1 text-[10px] font-semibold ${trackKind === kind ? "border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-200" : "border-slate-200 dark:border-slate-800"}`} onClick={() => onTrackKindChange(kind)}>{trackLabels[kind]}</button>)}
         </div>
         <div className="mt-2 max-h-64 space-y-2 overflow-auto">
           {trackGroups.map((group) => {
             const first = group.rows[0];
             const states = [...new Set(group.rows.map((row) => row.state_label || row.change_type || row.role).filter(Boolean))];
-            return <button key={group.entryId} type="button" className="block w-full rounded-md border px-2 py-2 text-left text-xs hover:border-fuchsia-300 dark:border-slate-800" onClick={() => onFocus(first.timeline_id, first.story_arc_id)}>
+            const focused = focusedEntityId === group.entryId;
+            return <button key={group.entryId} ref={focused ? focusedGroupRef : undefined} type="button" data-testid={`entity-occurrence-${trackKind}-${group.entryId}`} data-focused={focused ? "true" : "false"} className={`block w-full rounded-md border px-2 py-2 text-left text-xs hover:border-fuchsia-300 dark:border-slate-800 ${focused ? "border-fuchsia-500 bg-fuchsia-50 ring-2 ring-fuchsia-200 dark:bg-fuchsia-950/40 dark:ring-fuchsia-900" : ""}`} onClick={() => { onEntityFocus(group.entryId); onFocus(first.timeline_id, first.story_arc_id); }}>
               <span className="block font-semibold">{group.label}</span>
               <span className="mt-1 block text-[10px] text-slate-500">{group.rows.length} occurrence(s){states.length ? `: ${states.join(", ")}` : ""}</span>
               <span className="mt-1 block truncate text-[10px] text-slate-400">First: {first.source_label || "Unplaced"}</span>

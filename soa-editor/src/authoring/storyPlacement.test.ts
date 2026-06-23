@@ -4,7 +4,11 @@ import {
   deriveEntityOccurrences,
   deriveStoryPlacementWarnings,
   filterBackgroundOccurrences,
+  mergeStoryPlacementWarnings,
+  packetStoryPlacementWarnings,
   parseEntityTrackOccurrences,
+  placementDraftFromCanonicalLink,
+  storyPlacementLinkPayload,
 } from "./storyPlacement";
 import type { EntryRecord } from "../types/editorQol";
 
@@ -89,6 +93,8 @@ describe("story placement occurrence helpers", () => {
       entity_tracks: {
         locations: [
           {
+            id: "adventure-link:link-1",
+            link_id: "link-1",
             entity_id: "loc-1",
             label: "Old Mill",
             timeline_id: "timeline-1",
@@ -110,6 +116,7 @@ describe("story placement occurrence helpers", () => {
       expect.objectContaining({
         entity_kind: "location",
         entity_id: "loc-1",
+        canonical_link_id: "link-1",
         source_kind: "adventure_beat",
         occurrence_kind: "transition",
         change_type: "destroyed",
@@ -117,6 +124,44 @@ describe("story placement occurrence helpers", () => {
         importance: "critical",
       }),
     ]);
+  });
+
+  it("hydrates canonical links and preserves non-editable fields in update payloads", () => {
+    const original = {
+      id: "link-1",
+      adventure_beat_id: "beat-1",
+      target_type: "location",
+      target_id: "loc-1",
+      role: "setting",
+      occurrence_kind: "appearance",
+      change_type: "active",
+      state_label: null,
+      starts_at_beat_id: null,
+      ends_at_beat_id: null,
+      continuity_group_id: null,
+      importance: "background",
+      sort_order: 4,
+      notes: null,
+      tags: ["keep-me"],
+    };
+    const draft = placementDraftFromCanonicalLink(original);
+
+    expect(draft).toEqual(expect.objectContaining({
+      id: "link-1",
+      adventure_beat_id: "beat-1",
+      target_type: "location",
+      target_id: "loc-1",
+      importance: "background",
+      sort_order: 4,
+    }));
+    expect(storyPlacementLinkPayload({ ...draft!, change_type: "destroyed", state_label: "Ruined" }, original)).toEqual({
+      ...original,
+      change_type: "destroyed",
+      state_label: "Ruined",
+      starts_at_beat_id: "",
+      ends_at_beat_id: "",
+      continuity_group_id: "",
+    });
   });
 
   it("derives occurrences from beat links, runtime events, character beats, and local planning beats", () => {
@@ -207,6 +252,7 @@ describe("story placement occurrence helpers", () => {
       expect.objectContaining({
         entity_kind: "item",
         entity_id: "item-1",
+        canonical_link_id: "link-1",
         source_kind: "adventure_beat",
         role: "reward",
         occurrence_kind: "reward",
@@ -215,6 +261,7 @@ describe("story placement occurrence helpers", () => {
       expect.objectContaining({
         entity_kind: "dialogue",
         entity_id: "dialogue-1",
+        canonical_link_id: "link-dialogue",
         source_kind: "adventure_beat",
         role: "runtime",
       }),
@@ -241,6 +288,7 @@ describe("story placement occurrence helpers", () => {
         source_id: "local-1",
       }),
     ]));
+    expect(occurrences.find((row) => row.id === "event:event-1:dialogue:dialogue-1")).not.toHaveProperty("canonical_link_id");
   });
 
   it("filters background occurrences for navigator summaries", () => {
@@ -250,5 +298,42 @@ describe("story placement occurrence helpers", () => {
     ]);
 
     expect(visible.map((row) => row.id)).toEqual(["major"]);
+  });
+
+  it("targets backend coherence warnings to one workspace and deduplicates messages", () => {
+    const packet = {
+      health: {
+        warnings: [
+          {
+            code: "character_reappears_after_terminal_change",
+            severity: "warning",
+            entry_id: "link-active",
+            target_type: "character",
+            target_id: "char-1",
+            scope_id: "arc-1",
+            message: "Mira appears after capture without an explicit return.",
+          },
+          {
+            code: "item_required_before_obtained",
+            entry_id: "link-required",
+            target_type: "item",
+            target_id: "item-1",
+            message: "Signal Key is required before it is obtained.",
+          },
+        ],
+      },
+    };
+    const targeted = packetStoryPlacementWarnings(packet, "character", "char-1");
+    expect(targeted).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        message: "Mira appears after capture without an explicit return.",
+      }),
+    ]);
+    expect(mergeStoryPlacementWarnings(targeted, [{
+      id: "local-copy",
+      severity: "warning",
+      message: "Mira appears after capture without an explicit return.",
+    }])).toHaveLength(1);
   });
 });
