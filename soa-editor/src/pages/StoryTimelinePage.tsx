@@ -22,6 +22,7 @@ import {
   type StoryOccurrence,
   type TrackKind,
 } from "../authoring/storyPlacement";
+import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import { apiFetch } from "../lib/api";
 import type { EntryRecord } from "../types/editorQol";
 import { generateSlug, generateUlid } from "../utils/generateId";
@@ -176,7 +177,8 @@ export default function StoryTimelinePage() {
   const [libraryKind, setLibraryKind] = useState("locations");
   const [selection, setSelection] = useState<Selection>(null);
   const [plan, setPlan] = useState<LocalPlan>(loadPlan);
-  const [review, setReview] = useState<EntryRecord | null>(null);
+  const [review, setReview] = useState<BundleReviewResult | null>(null);
+  const [previewBundle, setPreviewBundle] = useState<EntryRecord | null>(null);
   const [mutationError, setMutationError] = useState("");
   const [saving, setSaving] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -193,6 +195,9 @@ export default function StoryTimelinePage() {
 
   useEffect(() => {
     localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(plan));
+    setReview(null);
+    setPreviewBundle(null);
+    setMutationError("");
   }, [plan]);
 
   useEffect(() => {
@@ -336,13 +341,15 @@ export default function StoryTimelinePage() {
   });
 
   const submitPlan = async (commit: boolean) => {
+    const bundle = commit ? previewBundle : buildPlanBundle();
+    if (!bundle) return;
     setSaving(true);
     setMutationError("");
     try {
       const response = await apiFetch(`/api/ui/adventure-timeline/${commit ? "bundle" : "preview"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildPlanBundle()),
+        body: JSON.stringify(bundle),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(text(payload.message, "Unable to save Story Timeline plan."));
@@ -351,8 +358,10 @@ export default function StoryTimelinePage() {
         setPlan({ beats: [] });
         setSelection(null);
         setReview(null);
+        setPreviewBundle(null);
       } else {
-        setReview(record(payload));
+        setReview(payload as BundleReviewResult);
+        setPreviewBundle(bundle);
       }
     } catch (reason: unknown) {
       setMutationError(reason instanceof Error ? reason.message : "Unable to save Story Timeline plan.");
@@ -399,7 +408,7 @@ export default function StoryTimelinePage() {
           </div>
         </header>
 
-        {(review || mutationError) && <PlanReview review={review} error={mutationError} saving={saving} onCommit={() => submitPlan(true)} onClose={() => { setReview(null); setMutationError(""); }} />}
+        {(review || mutationError) && <BundleReview result={review} title="Canonical Commit Review" description="Preview validates the complete beat and typed-link bundle without writing it." variant="inline" commitLabel="Commit Plan" cancelLabel="Close Review" saving={saving} error={mutationError} testId="story-timeline-plan-review" onCommit={() => void submitPlan(true)} onCancel={() => { setReview(null); setPreviewBundle(null); setMutationError(""); }} />}
 
         <section className={`${panelClass} p-3`}>
           <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px]">
@@ -701,19 +710,6 @@ function ContextDock({ selection, localBeat, placement, event, libraryEntry, lib
   const selectedWarnings = warnings.filter((warning) => text(warning.entry_id) === selectedId);
   const entry = placement || event || libraryEntry || {};
   return <aside className={`${panelClass} h-fit p-3`} data-testid="story-timeline-context-dock"><div className="text-[10px] font-semibold uppercase text-slate-500">{selectedKind.replace(/_/g, " ")}</div><h2 className="font-semibold">{text(entry.label, label(entry))}</h2>{entityRoute(selectedKind, selectedId) && <Link className="mt-2 inline-block text-xs font-semibold text-blue-700 dark:text-blue-300" to={entityRoute(selectedKind, selectedId)}>Open owning workspace</Link>}<div className="mt-4 space-y-2 text-xs"><Detail label="Placement Basis" value={placement?.placement_basis} /><Detail label="Ordering Source" value={placement?.ordering_source} /><Detail label="Lane" value={placement?.lane_id} /><Detail label="Next Event" value={event?.next_event_id} /></div><div className="mt-4"><div className="text-xs font-semibold uppercase text-slate-500">Nearby Relationships</div><div className="mt-2 max-h-64 space-y-1 overflow-auto">{related.map((edge) => <div key={text(edge.id)} className={`rounded border p-2 text-[10px] ${edge.explicit === false ? "border-dashed" : ""}`}>{text(edge.source)}<br /><strong>{text(edge.relation)}</strong><br />{text(edge.target)}</div>)}{!related.length && <p className="text-xs text-slate-500">No direct relationships in the current aggregation.</p>}</div></div>{selectedWarnings.length > 0 && <div className="mt-4 space-y-1">{selectedWarnings.map((warning) => <p key={text(warning.code)} className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">{text(warning.message)}</p>)}</div>}</aside>;
-}
-
-function PlanReview({ review, error, saving, onCommit, onClose }: { review: EntryRecord | null; error: string; saving: boolean; onCommit: () => void; onClose: () => void }) {
-  const changes = record(review?.review);
-  const warnings = rows(review?.warnings);
-  const blockers = Array.isArray(review?.blockers) ? review.blockers : [];
-  return <section className={`${panelClass} border-fuchsia-300 p-4`} data-testid="story-timeline-plan-review">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">Canonical Commit Review</h2><p className="text-xs text-slate-500">Preview validates the complete beat and typed-link bundle without writing it.</p></div><button type="button" className="text-xs font-semibold" onClick={onClose}>Close Review</button></div>
-    {error && <p className="mt-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-    {review && <div className="mt-3 flex flex-wrap gap-2 text-xs"><Metric value={rows(changes.created).length} label="created" /><Metric value={rows(changes.changed).length} label="changed" /><Metric value={rows(changes.deleted).length} label="deleted" /><Metric value={warnings.length} label="warnings" warning={warnings.length > 0} /><Metric value={blockers.length} label="blockers" warning={blockers.length > 0} /></div>}
-    {warnings.length > 0 && <div className="mt-3 max-h-40 space-y-1 overflow-auto">{warnings.map((warning) => <p key={`${text(warning.code)}:${text(warning.entry_id)}`} className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">{text(warning.message)}</p>)}</div>}
-    {review && <button type="button" className="mt-4 rounded-md bg-fuchsia-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" disabled={saving || blockers.length > 0} onClick={onCommit}>Commit Plan</button>}
-  </section>;
 }
 
 function Detail({ label: detailLabel, value }: { label: string; value: unknown }) {

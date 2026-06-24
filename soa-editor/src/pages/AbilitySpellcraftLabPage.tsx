@@ -2,6 +2,7 @@ import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSe
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import SchemaForm from "../components/SchemaForm";
+import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import SimulationWorkbench from "../components/simulation/SimulationWorkbench";
 import AbilityLabBench from "../components/abilityLab/AbilityLabBench";
 import {
@@ -215,7 +216,9 @@ export default function AbilitySpellcraftLabPage() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [restored, setRestored] = useState(false);
-  const [reviewOpen, setReviewOpen] = useState(false);
+  const [review, setReview] = useState<BundleReviewResult | null>(null);
+  const [previewMutation, setPreviewMutation] = useState<EntryRecord | null>(null);
+  const [reviewError, setReviewError] = useState("");
   const dirtySource = useRef(`ability-spellcraft-${id || "new"}`);
   const { setDirty } = useDirtyState();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -278,23 +281,49 @@ export default function AbilitySpellcraftLabPage() {
 
   const updateAbility = (patch: EntryRecord) => setPacket((current) => current ? ({ ...current, ability: { ...current.ability, ...patch } }) : current);
 
-  const save = async () => {
+  const bundleMutation = (): EntryRecord => ({
+    ability: packet?.ability,
+    effect_upserts: effectUpserts,
+    status_upserts: statusUpserts,
+    requirement: packet?.requirement,
+    assigned_combat_profile_ids: packet?.assigned_combat_profile_ids || [],
+    relations: packet?.relations || [],
+    combat_profile_upserts: packet?.catalogs.combat_profiles.filter((profile) => packet.assigned_combat_profile_ids.includes(displayText(profile.id))) || [],
+  });
+
+  const preview = async () => {
     if (!packet || issues.blockers.length > 0) return;
+    const nextMutation = bundleMutation();
     setSaving(true);
     setNotice("");
+    setReviewError("");
+    try {
+      const response = await apiFetch("/api/ui/abilities/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nextMutation),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !isRecord(body)) throw new Error(formatApiError(body, "Ability preview failed."));
+      setReview(body as unknown as BundleReviewResult);
+      setPreviewMutation(nextMutation);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Ability preview failed.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const save = async () => {
+    if (!packet || !previewMutation) return;
+    setSaving(true);
+    setNotice("");
+    setReviewError("");
     try {
       const response = await apiFetch("/api/ui/abilities/bundle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ability: packet.ability,
-          effect_upserts: effectUpserts,
-          status_upserts: statusUpserts,
-          requirement: packet.requirement,
-          assigned_combat_profile_ids: packet.assigned_combat_profile_ids,
-          relations: packet.relations || [],
-          combat_profile_upserts: packet.catalogs.combat_profiles.filter((profile) => packet.assigned_combat_profile_ids.includes(displayText(profile.id))),
-        }),
+        body: JSON.stringify(previewMutation),
       });
       const body = await response.json().catch(() => null);
       if (!response.ok || !isRecord(body)) throw new Error(formatApiError(body, "Ability bundle failed to save."));
@@ -306,11 +335,12 @@ export default function AbilitySpellcraftLabPage() {
       setStatusUpserts([]);
       setOriginalUpserts({ effects: [], statuses: [] });
       setRestored(false);
-      setReviewOpen(false);
+      setReview(null);
+      setPreviewMutation(null);
       setNotice("Ability spellcraft bundle saved.");
       if (isNew) navigate(`/author/abilities/${encodeURIComponent(displayText(saved.ability.id))}`, { replace: true });
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Ability bundle failed to save.");
+      setReviewError(error instanceof Error ? error.message : "Ability bundle failed to save.");
     } finally {
       setSaving(false);
     }
@@ -324,6 +354,9 @@ export default function AbilitySpellcraftLabPage() {
     setStatusUpserts([]);
     setSelectedEffectId("");
     setRestored(false);
+    setReview(null);
+    setPreviewMutation(null);
+    setReviewError("");
     setNotice("Unsaved spellcraft changes reset.");
   };
 
@@ -380,7 +413,7 @@ export default function AbilitySpellcraftLabPage() {
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
         <div className="mx-auto max-w-[1800px] space-y-4">
-          <Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} advanced={advanced} setAdvanced={setAdvanced} onSave={() => setReviewOpen(true)} onReset={reset} />
+          <Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} advanced={advanced} setAdvanced={setAdvanced} onSave={() => void preview()} onReset={reset} />
           {(notice || restored) && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{restored ? "Restored unsaved Ability Spellcraft draft. " : ""}{notice}</div>}
           <AbilitySelector packet={packet} />
           {advanced ? (
@@ -436,9 +469,9 @@ export default function AbilitySpellcraftLabPage() {
           <div className="sticky bottom-3 flex justify-end gap-2 rounded-md border border-slate-200 bg-white/95 p-3 shadow dark:border-slate-800 dark:bg-slate-900/95">
             <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} to={`/abilities?selected=${encodeURIComponent(displayText(packet.ability.id))}`}>Generic Editor</Link>
             <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={reset}>Reset</button>
-            <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || issues.blockers.length > 0 || !dirty} onClick={() => setReviewOpen(true)}>{saving ? "Saving..." : "Review & Save"}</button>
+            <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || issues.blockers.length > 0 || !dirty} onClick={() => void preview()}>{saving ? "Reviewing..." : "Review & Save"}</button>
           </div>
-          {reviewOpen && <BundleReview packet={packet} effectUpserts={effectUpserts} statusUpserts={statusUpserts} blockers={issues.blockers} warnings={issues.warnings} onCancel={() => setReviewOpen(false)} onCommit={() => void save()} />}
+          {review && <BundleReview result={review} title="Ability Bundle Review" description="Preview validates the complete canonical change before it commits atomically." variant="modal" commitLabel="Commit Bundle" saving={saving} error={reviewError} additionalWarnings={issues.warnings} additionalBlockers={issues.blockers} onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={() => void save()} />}
         </div>
       </div>
     </DndContext>
@@ -559,10 +592,6 @@ function RequirementPanel({ packet, setPacket }: { packet: AbilityPacket; setPac
     setPacket((current) => current ? ({ ...current, ability: { ...current.ability, requirements_id: id }, requirement }) : current);
   };
   return <Panel title="Unlock Gate" subtitle="Link or create the reusable requirement that unlocks this ability."><select className={AUTHORING_INPUT_CLASS} value={displayText(packet.ability.requirements_id)} onChange={(event) => select(event.target.value)}><option value="">Unassigned</option>{packet.catalogs.requirements.map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.slug, displayText(entry.id)))}</option>)}</select>{!packet.requirement && <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs} mt-2`} onClick={create}>Create Ability Requirement</button>}{packet.requirement && <div className="mt-2 rounded border border-slate-200 p-2 text-xs dark:border-slate-800">Requirement: {displayText(packet.requirement.slug, displayText(packet.requirement.id))}<button className="ml-2 text-red-700" onClick={() => select("")}>Clear</button></div>}</Panel>;
-}
-
-function BundleReview({ packet, effectUpserts, statusUpserts, blockers, warnings, onCancel, onCommit }: { packet: AbilityPacket; effectUpserts: EntryRecord[]; statusUpserts: EntryRecord[]; blockers: string[]; warnings: string[]; onCancel: () => void; onCommit: () => void }) {
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-4"><section className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-lg bg-white p-5 shadow-xl dark:bg-slate-900"><h2 className="text-lg font-semibold">Bundle Review</h2><p className="mt-1 text-xs text-slate-500">Commit the complete canonical change atomically.</p><div className="mt-4 grid gap-3 md:grid-cols-3"><Fact label="Ability Changed" value={displayText(packet.ability.name)} /><Fact label="Effects Upserted" value={String(effectUpserts.length)} /><Fact label="Statuses Upserted" value={String(statusUpserts.length)} /><Fact label="Timed Payload Links" value={String(abilityEffectLinks(packet.ability).length)} /><Fact label="Assignments" value={String(packet.assigned_combat_profile_ids.length)} /><Fact label="Relationships" value={String((packet.relations || []).length)} /></div><div className="mt-4">{blockers.map((issue) => <Issue key={issue} tone="red">{issue}</Issue>)}{warnings.map((issue) => <Issue key={issue} tone="amber">{issue}</Issue>)}</div><div className="mt-4 flex justify-end gap-2"><button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} onClick={onCancel}>Continue Editing</button><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={blockers.length > 0} onClick={onCommit}>Commit Bundle</button></div></section></div>;
 }
 
 function TestBench({ packet, draftEffects }: { packet: AbilityPacket; draftEffects: EntryRecord[] }) {

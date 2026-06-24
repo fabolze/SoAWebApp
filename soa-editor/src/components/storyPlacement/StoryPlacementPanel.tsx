@@ -18,6 +18,7 @@ import {
 import { apiFetch } from "../../lib/api";
 import type { EntryRecord } from "../../types/editorQol";
 import { generateUlid } from "../../utils/generateId";
+import BundleReview, { type BundleReviewResult } from "../authoring/BundleReview";
 import EntityOccurrenceTrack from "./EntityOccurrenceTrack";
 import LifecycleFields from "./LifecycleFields";
 import PlacementTray from "./PlacementTray";
@@ -39,12 +40,6 @@ function catalogsByKind(packet: EntryRecord | null): Map<string, Map<string, Ent
   return result;
 }
 
-function blockers(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.map((item) => typeof item === "string" ? item : text(record(item).message, text(record(item).id))).filter(Boolean)
-    : [];
-}
-
 type PlacementAction = "create" | "edit" | "remove";
 
 export default function StoryPlacementPanel({ entityKind, entityId, entityLabel, entity }: StoryPlacementPanelProps) {
@@ -54,7 +49,7 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
   const [createDraft, setCreateDraft] = useState<StoryPlacementDraft>(() => defaultPlacementDraft(generateUlid(), entityKind, entityId));
   const [editDraft, setEditDraft] = useState<StoryPlacementDraft | null>(null);
   const [originalLink, setOriginalLink] = useState<EntryRecord | null>(null);
-  const [review, setReview] = useState<EntryRecord | null>(null);
+  const [review, setReview] = useState<BundleReviewResult | null>(null);
   const [reviewAction, setReviewAction] = useState<PlacementAction | null>(null);
   const [mutationError, setMutationError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -128,6 +123,7 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
   const clearReview = () => {
     setReview(null);
     setReviewAction(null);
+    setMutationError("");
   };
 
   const updateActiveDraft = (value: StoryPlacementDraft) => {
@@ -194,7 +190,7 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
         setReview(null);
         setReviewAction(null);
       } else {
-        setReview(record(payload));
+        setReview(payload as BundleReviewResult);
         setReviewAction(action);
       }
     } catch (reason: unknown) {
@@ -204,9 +200,6 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
     }
   };
 
-  const reviewBlockers = blockers(review?.blockers);
-  const reviewWarnings = rows(review?.warnings);
-  const reviewDetails = record(review?.review);
   const actionLabel = reviewAction === "remove" ? "Removal" : reviewAction === "edit" ? "Changes" : "Placement";
 
   return <section className="rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900" data-testid="story-placement-panel">
@@ -246,14 +239,19 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
           <LifecycleFields value={activeDraft} beatOptions={context.beatOptions} onChange={updateActiveDraft} />
         </div>
         {editing && <button type="button" className="mt-3 rounded border border-red-300 px-2 py-1 text-xs font-semibold text-red-700 disabled:opacity-40 dark:border-red-900 dark:text-red-200" disabled={saving} onClick={() => void submitPlacement("remove", false)}>Preview Removal</button>}
-        {mutationError && <p className="mt-3 rounded border border-red-300 bg-red-50 p-2 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100">{mutationError}</p>}
-        {review && <div className="mt-3 rounded border border-fuchsia-300 bg-fuchsia-50 p-2 text-xs text-fuchsia-900 dark:border-fuchsia-900 dark:bg-fuchsia-950 dark:text-fuchsia-100" data-testid="story-placement-review">
-          <div className="font-semibold">Preview Ready</div>
-          <div className="mt-1">{rows(reviewDetails.created).length} created / {rows(reviewDetails.changed).length} changed / {rows(reviewDetails.deleted).length} deleted / {reviewWarnings.length} warning(s)</div>
-          {reviewWarnings.map((warning) => <p key={`${text(warning.code)}:${text(warning.id)}`} className="mt-1">{text(warning.message)}</p>)}
-          {reviewBlockers.map((blocker) => <p key={blocker} className="mt-1 text-red-700 dark:text-red-200">{blocker}</p>)}
-          <button type="button" className="mt-2 rounded bg-fuchsia-600 px-3 py-1 text-xs font-semibold text-white disabled:opacity-40" disabled={saving || reviewBlockers.length > 0 || !reviewAction} onClick={() => reviewAction && void submitPlacement(reviewAction, true)}>Commit {actionLabel}</button>
-        </div>}
+        {(review || mutationError) && <div className="mt-3"><BundleReview
+          result={review}
+          title="Story Placement Review"
+          description="Preview validates this canonical beat link without writing it."
+          variant="inline"
+          commitLabel={`Commit ${actionLabel}`}
+          cancelLabel="Close Review"
+          saving={saving}
+          error={mutationError}
+          testId="story-placement-review"
+          onCancel={clearReview}
+          onCommit={() => reviewAction && void submitPlacement(reviewAction, true)}
+        /></div>}
         {context.beatOptions.length === 0 && <p className="mt-3 rounded border border-dashed border-slate-300 p-2 text-xs text-slate-500 dark:border-slate-700">Create an adventure beat in the Story Timeline before placing this record.</p>}
       </div>
     </div>}

@@ -16,6 +16,7 @@ import "./DialogueFlowPage.css";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { EditableTagList, ReferenceChipPicker, displayText, isRecord } from "../authoringViews/controls";
+import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
@@ -59,12 +60,6 @@ interface DialoguePacket {
     participant_next_sort_order: Record<string, number>;
   };
   world_echo: { dialogue_id: string; produced_flags: EntryRecord[]; consumers: EntryRecord[] };
-}
-interface Review {
-  review: Record<"created" | "changed" | "deleted" | "unlinked", EntryRecord[]>;
-  warnings: { id: string; message: string }[];
-  health_warnings: string[];
-  blockers: string[];
 }
 interface Health {
   blockers: string[];
@@ -337,8 +332,9 @@ export default function DialogueFlowPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
-  const [review, setReview] = useState<Review | null>(null);
-  const [acceptedWarnings, setAcceptedWarnings] = useState<string[]>([]);
+  const [review, setReview] = useState<BundleReviewResult | null>(null);
+  const [previewMutation, setPreviewMutation] = useState<EntryRecord | null>(null);
+  const [reviewError, setReviewError] = useState("");
   const dirtySource = useRef(`dialogue-flow-${id || "index"}`);
   const { setDirty } = useDirtyState();
 
@@ -474,35 +470,37 @@ export default function DialogueFlowPage() {
   };
 
   const preview = async () => {
-    setSaving(true); setNotice("");
+    const nextMutation = mutation();
+    setSaving(true); setNotice(""); setReviewError("");
     try {
-      const response = await apiFetch("/api/ui/dialogues/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(mutation()) });
+      const response = await apiFetch("/api/ui/dialogues/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(nextMutation) });
       const body = await response.json();
       if (!response.ok || !isRecord(body)) throw new Error(formatApiError(body, "Dialogue preview failed."));
-      setReview(body as unknown as Review); setAcceptedWarnings([]);
+      setReview(body as unknown as BundleReviewResult); setPreviewMutation(nextMutation);
     } catch (error) { setNotice(error instanceof Error ? error.message : "Dialogue preview failed."); }
     finally { setSaving(false); }
   };
 
-  const commit = async () => {
-    setSaving(true); setNotice("");
+  const commit = async (acceptedWarningIds: string[]) => {
+    if (!previewMutation) return;
+    setSaving(true); setNotice(""); setReviewError("");
     try {
-      const response = await apiFetch("/api/ui/dialogues/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(mutation(acceptedWarnings)) });
+      const response = await apiFetch("/api/ui/dialogues/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...previewMutation, accepted_warning_ids: acceptedWarningIds }) });
       const body = await response.json();
       if (!response.ok || !isRecord(body)) throw new Error(formatApiError(body, "Dialogue bundle failed to save."));
       const saved = normalizePacket(body, emptyPacket);
-      setPacket(saved); setOriginal(saved); setDeletions([]); setBeatUnlinks([]); setReview(null);
+      setPacket(saved); setOriginal(saved); setDeletions([]); setBeatUnlinks([]); setReview(null); setPreviewMutation(null);
       localStorage.removeItem(draftKey(currentId)); localStorage.removeItem(NEW_DRAFT_POINTER);
       localStorage.setItem(layoutKey(currentId), JSON.stringify(positions)); localStorage.setItem(groupKey(currentId), JSON.stringify(groups));
       setNotice("Dialogue Scene bundle committed.");
       if (isNew) navigate(`/author/dialogues/${encodeURIComponent(text(saved.dialogue.id))}`, { replace: true });
-    } catch (error) { setNotice(error instanceof Error ? error.message : "Dialogue commit failed."); }
+    } catch (error) { setReviewError(error instanceof Error ? error.message : "Dialogue commit failed."); }
     finally { setSaving(false); }
   };
 
   const reset = () => {
     if (!original) return;
-    setPacket(original); setDeletions([]); setBeatUnlinks([]); setSelectedChoice(null); setSelectedBeatId("");
+    setPacket(original); setDeletions([]); setBeatUnlinks([]); setSelectedChoice(null); setSelectedBeatId(""); setReview(null); setPreviewMutation(null); setReviewError("");
     localStorage.removeItem(draftKey(currentId)); if (isNew) localStorage.removeItem(NEW_DRAFT_POINTER);
     setNotice("Unsaved Dialogue Scene changes discarded.");
   };
@@ -610,7 +608,7 @@ export default function DialogueFlowPage() {
         </Panel>
       </div>
     </div>
-    {review && <BundleReview review={review} accepted={acceptedWarnings} setAccepted={setAcceptedWarnings} saving={saving} onCancel={() => setReview(null)} onCommit={() => void commit()} />}
+    {review && <BundleReview result={review} title="Dialogue Scene Bundle Review" description="Dialogue, lines, and story beats will commit atomically." variant="modal" commitLabel="Commit Bundle" saving={saving} error={reviewError} warningAcknowledgement="required" onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={(acceptedWarningIds) => void commit(acceptedWarningIds)} />}
   </div>;
 }
 
@@ -697,11 +695,6 @@ function ContextList({ title, entries, route }: { title: string; entries: EntryR
   return <div><Caption>{title}</Caption>{entries.map((entry) => <Link key={text(entry.id)} className="mb-1 block rounded border border-slate-200 p-2 text-sm text-blue-700 dark:border-slate-800" to={route(entry)}>{label(entry)}</Link>)}{!entries.length && <Empty>None.</Empty>}</div>;
 }
 
-function BundleReview({ review, accepted, setAccepted, saving, onCancel, onCommit }: { review: Review; accepted: string[]; setAccepted: (value: string[]) => void; saving: boolean; onCancel: () => void; onCommit: () => void }) {
-  const allAccepted = review.warnings.every((warning) => accepted.includes(warning.id));
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-4"><section className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-lg bg-white p-5 shadow-xl dark:bg-slate-900"><h2 className="text-xl font-semibold">Dialogue Scene Bundle Review</h2><p className="mt-1 text-xs text-slate-500">Dialogue, lines, and story beats will commit atomically.</p><div className="mt-4 grid grid-cols-4 gap-2">{(["created", "changed", "deleted", "unlinked"] as const).map((key) => <Fact key={key} label={key} value={String(review.review[key]?.length || 0)} />)}</div>{(["created", "changed", "deleted", "unlinked"] as const).map((key) => <details key={key} className="mt-3 rounded border p-2"><summary className="cursor-pointer font-semibold">{key} ({review.review[key]?.length || 0})</summary><pre className="mt-2 overflow-auto text-xs">{JSON.stringify(review.review[key] || [], null, 2)}</pre></details>)}<div className="mt-3 space-y-2">{review.health_warnings.map((warning) => <Issue key={warning} tone="amber">{warning}</Issue>)}{review.warnings.map((warning) => <label key={warning.id} className="flex gap-2 rounded border border-amber-300 p-2 text-sm"><input type="checkbox" checked={accepted.includes(warning.id)} onChange={(event) => setAccepted(event.target.checked ? [...accepted, warning.id] : accepted.filter((id) => id !== warning.id))} />{warning.message}</label>)}</div><div className="mt-4 flex justify-end gap-2"><button className={inactive} onClick={onCancel}>Continue Editing</button><button className={active} disabled={saving || review.blockers.length > 0 || !allAccepted} onClick={onCommit}>{saving ? "Committing..." : "Commit Bundle"}</button></div></section></div>;
-}
-
 function FlagPicker({ value, options, label: pickerLabel = "Flags Set", onChange }: { value: unknown; options: EntryRecord[]; label?: string; onChange: (flags: string[]) => void }) {
   const [loaded, setLoaded] = useState<EntryRecord[]>(options);
   useEffect(() => {
@@ -734,4 +727,3 @@ function Empty({ children }: { children: ReactNode }) { return <div className="t
 function Caption({ children }: { children: ReactNode }) { return <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{children}</div>; }
 function Chip({ children }: { children: ReactNode }) { return <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-semibold text-violet-800 dark:bg-violet-950 dark:text-violet-200">{children}</span>; }
 function Issue({ children, tone }: { children: ReactNode; tone: "red" | "amber" | "green" }) { const style = tone === "red" ? "border-red-300 bg-red-50 text-red-800 dark:bg-red-950" : tone === "amber" ? "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950" : "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950"; return <div className={`mb-2 rounded border p-2 text-xs ${style}`}>{children}</div>; }
-function Fact({ label: factLabel, value }: { label: string; value: string }) { return <div className="rounded border border-slate-200 p-2 text-center dark:border-slate-800"><div className="text-[10px] uppercase text-slate-500">{factLabel}</div><div className="font-semibold">{value}</div></div>; }

@@ -4,6 +4,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import SchemaForm from "../components/SchemaForm";
+import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import {
   AUTHORING_INPUT_CLASS,
@@ -47,13 +48,6 @@ interface StudioPacket {
   flag_coverage: Record<string, FlagCoverage>;
   unplaced_presence: { kind: string; entry: EntryRecord }[];
 }
-interface Review {
-  review: { created: EntryRecord[]; changed: EntryRecord[]; deleted: EntryRecord[] };
-  warnings: { id: string; message: string }[];
-  health_warnings?: string[];
-  blockers: string[];
-}
-
 const RELATION_PRESETS = ["Ally", "Rival", "Mentor", "Family", "Debt", "Enemy", "Friend", "Love", "Fear", "Duty"];
 const STORY_FIELDS = ["public_face", "private_truth", "want", "need", "fear", "duty", "contradiction", "secret", "voice_notes", "arc_summary", "author_notes"];
 const BEAT_TYPES = ["Entrance", "Decision", "Revelation", "Conflict", "Change", "Reaction", "Exit", "Other"];
@@ -111,8 +105,9 @@ export default function CharacterStudioPage() {
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [review, setReview] = useState<Review | null>(null);
-  const [acceptedWarnings, setAcceptedWarnings] = useState<string[]>([]);
+  const [review, setReview] = useState<BundleReviewResult | null>(null);
+  const [previewMutation, setPreviewMutation] = useState<EntryRecord | null>(null);
+  const [reviewError, setReviewError] = useState("");
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [search, setSearch] = useState("");
   const [libraryKind, setLibraryKind] = useState("characters");
@@ -188,7 +183,7 @@ export default function CharacterStudioPage() {
     else update(key, null as StudioPacket[typeof key]);
   };
 
-  const mutation = (): EntryRecord => {
+  const mutation = (acceptedWarningIds: string[] = []): EntryRecord => {
     if (!packet || !original) return {};
     const originalBy = (key: string) => new Map((original.catalogs[key] || []).map((row) => [displayText(row.id), row]));
     const changedRows = (current: EntryRecord[], before: EntryRecord[]) => {
@@ -220,39 +215,42 @@ export default function CharacterStudioPage() {
       relationships: changedRows(packet.relationships, original.relationships),
       story_beats: changedRows(packet.story_beats, original.story_beats),
       deletions, presence, quest_links: questLinks,
-      accepted_warning_ids: acceptedWarnings,
+      accepted_warning_ids: acceptedWarningIds,
     };
   };
 
   const preview = async () => {
-    setSaving(true); setNotice("");
+    const nextMutation = mutation();
+    setSaving(true); setNotice(""); setReviewError("");
     try {
-      const response = await apiFetch("/api/ui/character-studio/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(mutation()) });
+      const response = await apiFetch("/api/ui/character-studio/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(nextMutation) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message || "Preview failed.");
-      setReview(payload as Review);
+      setReview(payload as BundleReviewResult);
+      setPreviewMutation(nextMutation);
     } catch (error) { setNotice(error instanceof Error ? error.message : "Preview failed."); }
     finally { setSaving(false); }
   };
-  const commit = async () => {
-    setSaving(true); setNotice("");
+  const commit = async (acceptedWarningIds: string[]) => {
+    if (!previewMutation) return;
+    setSaving(true); setNotice(""); setReviewError("");
     try {
-      const response = await apiFetch("/api/ui/character-studio/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(mutation()) });
+      const response = await apiFetch("/api/ui/character-studio/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...previewMutation, accepted_warning_ids: acceptedWarningIds }) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message || "Commit failed.");
       const next = payload.packet || payload.packets?.[0];
       if (next) { setPacket(next); setOriginal(next); setSelectedIds(payload.result.selected_character_ids); }
-      setDeletions({}); setReview(null); setAcceptedWarnings([]);
+      setDeletions({}); setReview(null); setPreviewMutation(null);
       localStorage.removeItem(draftKey(selectedIds, studioMode));
       setNotice("Character Studio bundle committed.");
       if (isNew && next?.character?.id) navigate(`/author/characters/${encodeURIComponent(next.character.id)}`, { replace: true });
-    } catch (error) { setNotice(error instanceof Error ? error.message : "Commit failed."); }
+    } catch (error) { setReviewError(error instanceof Error ? error.message : "Commit failed."); }
     finally { setSaving(false); }
   };
 
   const reset = () => {
     if (!original) return;
-    setPacket(original); setDeletions({}); setReview(null); setAcceptedWarnings([]);setPendingStarter(null);setTab("combat");
+    setPacket(original); setDeletions({}); setReview(null); setPreviewMutation(null); setReviewError("");setPendingStarter(null);setTab("combat");
     localStorage.removeItem(draftKey(selectedIds, studioMode));
     setNotice("Draft reset.");
   };
@@ -337,7 +335,7 @@ export default function CharacterStudioPage() {
           </Panel></aside>
         </div>
       </div>
-      {review && <BundleReview review={review} accepted={acceptedWarnings} setAccepted={setAcceptedWarnings} onCancel={() => setReview(null)} onCommit={() => void commit()} saving={saving} />}
+      {review && <BundleReview result={review} title="Character Bundle Review" description="Character records, narrative records, and presence changes will commit atomically." variant="modal" commitLabel="Commit Bundle" saving={saving} error={reviewError} warningAcknowledgement="required" onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={(acceptedWarningIds) => void commit(acceptedWarningIds)} />}
     </div>
   </DndContext>;
 }
@@ -368,8 +366,6 @@ function StoryDock({packet,onChange,onDelete}:{packet:StudioPacket;onChange:(val
 function RelationshipsDock({packet,selectedIds,onChange,onDelete}:{packet:StudioPacket;selectedIds:string[];onChange:(rows:EntryRecord[])=>void;onDelete:(row:EntryRecord)=>void}){const add=()=>{const from=selectedIds[0]||displayText(packet.character.id);const toId=selectedIds.find((id)=>id!==from)||displayText(packet.catalogs.characters.find((c)=>displayText(c.id)!==from)?.id);if(toId)onChange([...packet.relationships,{id:generateUlid(),from_character_id:from,to_character_id:toId,relationship_type:"Ally",summary:"",public_stance:"",private_stance:"",trust:0,tension:0,influence:0,is_secret:false,tags:[]}]);};const visible=packet.relationships.filter((r)=>selectedIds.includes(displayText(r.from_character_id))||selectedIds.includes(displayText(r.to_character_id)));const replace=(id:string,patch:EntryRecord)=>onChange(packet.relationships.map((row)=>displayText(row.id)===id?{...row,...patch}:row));return <div><button className={active} disabled={packet.catalogs.characters.filter((row)=>displayText(row.id)!==displayText(packet.character.id)).length===0} onClick={add}>Add Directed Relationship</button>{packet.catalogs.characters.filter((row)=>displayText(row.id)!==displayText(packet.character.id)).length===0&&<p className="mt-2 rounded border border-dashed border-slate-300 p-2 text-xs text-slate-500">A relationship needs another saved character. <Link className="text-blue-700 underline" to="/author/characters/new">Create another character</Link>, then return here.</p>}<div className="mt-3 space-y-3">{visible.map((row)=>{const id=displayText(row.id);return <div key={id} className="rounded border border-slate-200 p-2 dark:border-slate-800"><SelectReference label="From" value={row.from_character_id} options={packet.catalogs.characters} onChange={(from_character_id)=>replace(id,{from_character_id})}/><SelectReference label="To" value={row.to_character_id} options={packet.catalogs.characters} onChange={(to_character_id)=>replace(id,{to_character_id})}/><label className="block text-xs"><Caption>Relationship Type</Caption><input className={AUTHORING_INPUT_CLASS} list="relationship-presets" value={editableText(row.relationship_type)} onChange={(e)=>replace(id,{relationship_type:e.target.value})}/><datalist id="relationship-presets">{RELATION_PRESETS.map((v)=><option key={v}>{v}</option>)}</datalist></label><TextArea label="Summary" value={row.summary} onChange={(summary)=>replace(id,{summary})}/><TextArea label="Public Stance" value={row.public_stance} onChange={(public_stance)=>replace(id,{public_stance})}/><TextArea label="Private Stance" value={row.private_stance} onChange={(private_stance)=>replace(id,{private_stance})}/><div className="grid grid-cols-3 gap-2"><NumberField label="Trust" value={row.trust} emptyValue="zero" onChange={(trust)=>replace(id,{trust})}/><NumberField label="Tension" value={row.tension} emptyValue="zero" onChange={(tension)=>replace(id,{tension})}/><NumberField label="Influence" value={row.influence} emptyValue="zero" onChange={(influence)=>replace(id,{influence})}/></div><button className="mt-2 text-xs text-red-600" onClick={()=>onDelete(row)}>Remove Relationship</button></div>})}</div></div>}
 function HealthDock({packet}:{packet:StudioPacket}){return <div className="space-y-2">{packet.health.blockers.map((v)=><Issue key={v} tone="red">{v}</Issue>)}{packet.health.warnings.map((v)=><Issue key={v} tone="amber">{v}</Issue>)}{!packet.health.blockers.length&&!packet.health.warnings.length&&<Issue tone="green">No issues found.</Issue>}</div>}
 function PendingDock({mutation,deletions}:{mutation:EntryRecord;deletions:Record<string,string[]>}){return <div className="space-y-2 text-xs"><Fact label="Relationships" value={String(rows(mutation.relationships).length)}/><Fact label="Story Beats" value={String(rows(mutation.story_beats).length)}/><Fact label="Presence Changes" value={String(Object.values((mutation.presence as Record<string,unknown[]>)||{}).reduce((sum,value)=>sum+value.length,0))}/><Fact label="Deletions" value={String(Object.values(deletions).reduce((sum,value)=>sum+value.length,0))}/></div>}
-function BundleReview({review,accepted,setAccepted,onCancel,onCommit,saving}:{review:Review;accepted:string[];setAccepted:(v:string[])=>void;onCancel:()=>void;onCommit:()=>void;saving:boolean}){const allAccepted=review.warnings.every((w)=>accepted.includes(w.id));return <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-4"><section className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-lg bg-white p-5 dark:bg-slate-900"><h2 className="text-xl font-semibold">Bundle Review</h2><div className="mt-4 grid grid-cols-3 gap-2"><Fact label="Created" value={String(review.review.created.length)}/><Fact label="Changed" value={String(review.review.changed.length)}/><Fact label="Deleted" value={String(review.review.deleted.length)}/></div>{(["created","changed","deleted"] as const).map((key)=><details key={key} className="mt-3 rounded border p-2"><summary className="cursor-pointer font-semibold">{key} ({review.review[key].length})</summary><pre className="mt-2 overflow-auto text-xs">{JSON.stringify(review.review[key],null,2)}</pre></details>)}<div className="mt-3 space-y-2">{(review.health_warnings||[]).map((warning)=><Issue key={warning} tone="amber">{warning}</Issue>)}{review.warnings.map((warning)=><label key={warning.id} className="flex gap-2 rounded border border-amber-300 p-2 text-sm"><input type="checkbox" checked={accepted.includes(warning.id)} onChange={(e)=>setAccepted(e.target.checked?[...accepted,warning.id]:accepted.filter((id)=>id!==warning.id))}/>{warning.message}</label>)}</div><div className="mt-4 flex justify-end gap-2"><button className={inactive} onClick={onCancel}>Continue Editing</button><button className={active} disabled={saving||review.blockers.length>0||!allAccepted} onClick={onCommit}>{saving?"Committing...":"Commit Bundle"}</button></div></section></div>}
-
 function QuickStep({number,label,detail,done,onClick}:{number:string;label:string;detail:string;done:boolean;onClick:()=>void}){return <button className={`rounded border p-3 text-left ${done?"border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950":"border-slate-300 bg-white hover:border-violet-400 dark:border-slate-700 dark:bg-slate-900"}`} onClick={onClick}><span className="text-[10px] font-bold uppercase text-slate-500">Step {number} {done?"Complete":""}</span><strong className="mt-1 block text-sm">{label}</strong><span className="mt-1 block text-xs text-slate-500">{detail}</span></button>}
 function SelectReference({label,value,options,onChange}:{label:string;value:unknown;options:EntryRecord[];onChange:(v:string)=>void}){return <label className="block"><Caption>{label}</Caption><select aria-label={label} className={AUTHORING_INPUT_CLASS} value={displayText(value)} onChange={(e)=>onChange(e.target.value)}>{options.map((v)=><option key={displayText(v.id)} value={displayText(v.id)}>{rowLabel(v,displayText(v.id))}</option>)}</select></label>}
 function ChipPicker({label,values,options,onChange}:{label:string;values:string[];options:EntryRecord[];onChange:(v:string[])=>void}){return <div><Caption>{label}</Caption><div className="flex flex-wrap gap-1">{options.map((option)=>{const id=displayText(option.id);const chosen=values.includes(id);return <button key={id} className={chosen?active:inactive} onClick={()=>onChange(chosen?values.filter((v)=>v!==id):[...values,id])}>{rowLabel(option,id)}</button>})}</div></div>}

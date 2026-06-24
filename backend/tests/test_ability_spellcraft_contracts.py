@@ -141,6 +141,41 @@ def test_bundle_creates_ability_effect_status_and_assignment_atomically(monkeypa
     session.close()
 
 
+def test_preview_reports_complete_ability_bundle_and_rolls_back(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    payload = {
+        "ability": _ability(effects=["effect-new"]),
+        "effect_upserts": [{
+            "id": "effect-new", "slug": "apply-freeze", "name": "Apply Freeze",
+            "type": "Status", "target": "Enemy", "status_id": "status-new", "tags": [],
+        }],
+        "status_upserts": [{
+            "id": "status-new", "slug": "freeze", "name": "Freeze", "category": "Control", "tags": [],
+        }],
+        "assigned_combat_profile_ids": ["profile-1"],
+        "relations": [],
+    }
+
+    response = client.post("/api/ui/abilities/preview", json=payload)
+
+    assert response.status_code == 200, response.get_json()
+    review = response.get_json()["review"]
+    assert {(row["table"], row["id"]) for row in review["created"]} == {
+        ("abilities", "ability-new"),
+        ("effects", "effect-new"),
+        ("statuses", "status-new"),
+    }
+    profile_change = next(row for row in review["changed"] if row["table"] == "combat_profiles")
+    assert profile_change["details"]["custom_abilities"]["to"] == ["ability-old", "ability-new"]
+    session = Session()
+    assert session.get(Ability, "ability-new") is None
+    assert session.get(Effect, "effect-new") is None
+    assert session.get(Status, "status-new") is None
+    assert session.get(CombatProfile, "profile-1").custom_abilities == ["ability-old"]
+    session.close()
+
+
 def test_clone_upsert_keeps_shared_effect_unchanged(monkeypatch):
     client, Session = _client(monkeypatch)
     _seed(Session)

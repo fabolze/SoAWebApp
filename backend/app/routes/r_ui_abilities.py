@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from flask import Blueprint, abort, jsonify, request
 from werkzeug.exceptions import HTTPException
 
@@ -254,7 +256,19 @@ def _upsert_many(db_session, route, model, rows, root):
     return result
 
 
-def _reconcile_assignments(db_session, ability_id, assigned_ids):
+def _review_change(review, action, table, item_id, details=None):
+    existing = next(
+        (row for row in review[action] if row["table"] == table and row["id"] == item_id),
+        None,
+    )
+    if existing:
+        if details:
+            existing["details"] = {**existing.get("details", {}), **details}
+        return
+    review[action].append({"table": table, "id": item_id, "details": details or {}})
+
+
+def _reconcile_assignments(db_session, ability_id, assigned_ids, review):
     if not isinstance(assigned_ids, list) or any(not isinstance(value, str) for value in assigned_ids):
         abort(400, description="assigned_combat_profile_ids must be an array of ids")
     if len(assigned_ids) != len(set(assigned_ids)):
@@ -273,9 +287,16 @@ def _reconcile_assignments(db_session, ability_id, assigned_ids):
         if next_abilities != abilities:
             profile.custom_abilities = next_abilities
             db_session.add(profile)
+            _review_change(
+                review,
+                "changed",
+                "combat_profiles",
+                profile.id,
+                {"custom_abilities": {"from": abilities, "to": next_abilities}},
+            )
 
 
-def _reconcile_relations(db_session, ability_id, rows):
+def _reconcile_relations(db_session, ability_id, rows, review):
     if not isinstance(rows, list):
         abort(400, description="relations must be an array")
     desired_ids = set()
@@ -286,14 +307,72 @@ def _reconcile_relations(db_session, ability_id, rows):
         next_data.setdefault("from_ability_id", ability_id)
         if ability_id not in (next_data.get("from_ability_id"), next_data.get("to_ability_id")):
             abort(400, description=f"relations[{index}] must reference the bundle ability")
+        existed = db_session.get(AbilityRelation, next_data.get("id")) is not None
         relation = _upsert(db_session, relation_route, AbilityRelation, next_data, f"relations[{index}]")
         desired_ids.add(relation.id)
+        _review_change(
+            review,
+            "changed" if existed else "created",
+            "ability_relations",
+            relation.id,
+            {
+                "from_ability_id": relation.from_ability_id,
+                "to_ability_id": relation.to_ability_id,
+                "relation_type": _enum_value(relation.relation_type),
+            },
+        )
     current = db_session.query(AbilityRelation).filter(
         (AbilityRelation.from_ability_id == ability_id) | (AbilityRelation.to_ability_id == ability_id)
     ).all()
     for relation in current:
         if relation.id not in desired_ids:
+            details = _columns(relation)
             db_session.delete(relation)
+            _review_change(review, "deleted", "ability_relations", relation.id, details)
+
+
+def _reconcile_bundle(db_session, payload):
+    if not isinstance(payload, dict) or not isinstance(payload.get("ability"), dict):
+        abort(400, description="ability bundle requires an ability object")
+    ability_data = dict(payload["ability"])
+    ability_id = ability_data.get("id")
+    if not ability_id:
+        abort(400, description="ability.id is required")
+
+    review = {"created": [], "changed": [], "deleted": []}
+    for key, route, model, table in [
+        ("status_upserts", status_route, Status, "statuses"),
+        ("effect_upserts", effect_route, Effect, "effects"),
+        ("combat_profile_upserts", combat_profile_route, CombatProfile, "combat_profiles"),
+    ]:
+        rows = payload.get(key, [])
+        if not isinstance(rows, list):
+            abort(400, description=f"{key} must be an array")
+        existed = {row.get("id") for row in rows if isinstance(row, dict) and db_session.get(model, row.get("id"))}
+        saved = _upsert_many(db_session, route, model, rows, key)
+        for item in saved:
+            _review_change(review, "changed" if item.id in existed else "created", table, item.id)
+
+    requirement = payload.get("requirement")
+    if requirement is not None:
+        if not isinstance(requirement, dict) or requirement.get("id") != ability_data.get("requirements_id"):
+            abort(400, description="requirement.id must match ability.requirements_id")
+        existed = db_session.get(Requirement, requirement.get("id")) is not None
+        saved_requirement = _upsert(db_session, requirement_route, Requirement, requirement, "requirement")
+        _review_change(review, "changed" if existed else "created", "requirements", saved_requirement.id)
+
+    ability_existed = db_session.get(Ability, ability_id) is not None
+    ability = _upsert(db_session, ability_route, Ability, ability_data, "ability")
+    _review_change(review, "changed" if ability_existed else "created", "abilities", ability.id)
+    _reconcile_assignments(db_session, ability_id, payload.get("assigned_combat_profile_ids", []), review)
+    _reconcile_relations(db_session, ability_id, payload.get("relations", []), review)
+    db_session.flush()
+    return ability, {
+        "review": review,
+        "warnings": [],
+        "health_warnings": [],
+        "blockers": [],
+    }
 
 
 @bp.get("/api/ui/abilities")
@@ -321,29 +400,25 @@ def get_ability_lab(ability_id):
 def save_ability_bundle():
     db_session = get_db_session()
     try:
-        payload = request.get_json(silent=True)
-        if not isinstance(payload, dict) or not isinstance(payload.get("ability"), dict):
-            abort(400, description="ability bundle requires an ability object")
-        ability_data = dict(payload["ability"])
-        ability_id = ability_data.get("id")
-        if not ability_id:
-            abort(400, description="ability.id is required")
-
-        _upsert_many(db_session, status_route, Status, payload.get("status_upserts", []), "status_upserts")
-        _upsert_many(db_session, effect_route, Effect, payload.get("effect_upserts", []), "effect_upserts")
-        _upsert_many(db_session, combat_profile_route, CombatProfile, payload.get("combat_profile_upserts", []), "combat_profile_upserts")
-
-        requirement = payload.get("requirement")
-        if requirement is not None:
-            if not isinstance(requirement, dict) or requirement.get("id") != ability_data.get("requirements_id"):
-                abort(400, description="requirement.id must match ability.requirements_id")
-            _upsert(db_session, requirement_route, Requirement, requirement, "requirement")
-
-        ability = _upsert(db_session, ability_route, Ability, ability_data, "ability")
-        _reconcile_assignments(db_session, ability_id, payload.get("assigned_combat_profile_ids", []))
-        _reconcile_relations(db_session, ability_id, payload.get("relations", []))
+        ability, _ = _reconcile_bundle(db_session, request.get_json(silent=True))
         db_session.commit()
         return jsonify(_packet(db_session, ability))
+    except Exception as error:
+        db_session.rollback()
+        if isinstance(error, HTTPException) and error.code != 400:
+            raise
+        return bundle_error_response(error)
+    finally:
+        db_session.close()
+
+
+@bp.post("/api/ui/abilities/preview")
+def preview_ability_bundle():
+    db_session = get_db_session()
+    try:
+        _, result = _reconcile_bundle(db_session, deepcopy(request.get_json(silent=True)))
+        db_session.rollback()
+        return jsonify(result)
     except Exception as error:
         db_session.rollback()
         if isinstance(error, HTTPException) and error.code != 400:

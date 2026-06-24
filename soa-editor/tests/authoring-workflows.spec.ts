@@ -164,6 +164,9 @@ test("quest journey board places the quest into story as player journey", async 
 
   await page.goto("/author/quests/quest-1");
   await expect(page.getByRole("heading", { name: "Quest Journey Board" })).toBeVisible();
+  await expect(page.getByTestId("story-presets-quest")).toContainText("Escalates");
+  await page.getByTestId("story-preset-quest-resolves").click();
+  await expect(page.getByLabel("State Label")).toHaveValue("Resolved");
   await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
   await expect(page.getByTestId("story-placement-review")).toContainText("1 created");
   await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Placement" }).click();
@@ -173,9 +176,10 @@ test("quest journey board places the quest into story as player journey", async 
   expect(link.target_type).toBe("quest");
   expect(link.target_id).toBe("quest-1");
   expect(link.role).toBe("player_journey");
-  expect(link.occurrence_kind).toBe("appearance");
-  expect(link.change_type).toBe("active");
+  expect(link.occurrence_kind).toBe("consequence");
+  expect(link.change_type).toBe("changed");
   expect(link.importance).toBe("major");
+  expect(link.state_label).toBe("Resolved");
   await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City");
 });
 
@@ -308,7 +312,7 @@ test("item ecosystem edits acquisition sources and saves one atomic bundle", asy
   expect(sources.poi_ids).toEqual(["poi-1"]);
 });
 
-test("item ecosystem places the item into story as a reward", async ({ page }) => {
+test("item ecosystem places an item lifecycle consequence through a semantic preset", async ({ page }) => {
   const packet = {
     item: { id: "item-1", slug: "signal-key", name: "Signal Key", type: "Quest", rarity: "Rare", base_price: 0, effects: [], stat_modifiers: [], attribute_modifiers: [], tags: [] },
     requirement: null,
@@ -367,7 +371,9 @@ test("item ecosystem places the item into story as a reward", async ({ page }) =
   await page.goto("/author/items/item-1/ecosystem");
   await expect(page.getByRole("heading", { name: "Signal Key" })).toBeVisible();
   await expect(page.getByTestId("story-placement-panel")).toContainText("Important item has no story placement.");
-  await page.getByTestId("placement-tray-requirement").click();
+  await expect(page.getByTestId("story-presets-item")).toContainText("Transformed");
+  await expect(page.getByTestId("placement-tray-requirement")).toBeVisible();
+  await page.getByTestId("story-preset-item-consumed").click();
   await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
   await expect(page.getByTestId("story-placement-review")).toContainText("1 created");
   await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Placement" }).click();
@@ -376,9 +382,9 @@ test("item ecosystem places the item into story as a reward", async ({ page }) =
   const link = (saved?.adventure_beat_links as Array<Record<string, unknown>>)[0];
   expect(link.target_type).toBe("item");
   expect(link.target_id).toBe("item-1");
-  expect(link.role).toBe("reference");
-  expect(link.occurrence_kind).toBe("requirement");
-  expect(link.change_type).toBe("active");
+  expect(link.role).toBe("state");
+  expect(link.occurrence_kind).toBe("consequence");
+  expect(link.change_type).toBe("consumed");
   expect(link.importance).toBe("major");
   await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City");
   await expect(page.getByTestId("story-placement-panel")).not.toContainText("Important item has no story placement.");
@@ -471,7 +477,7 @@ test("world packet surfaces structured bundle error paths", async ({ page }) => 
   await expect(page.getByText(/encounter_tables\[0\]\.encounter_entries\[0\]\.encounter_id/)).toBeVisible();
 });
 
-test("world builder places the selected location into story as setting", async ({ page }) => {
+test("world builder places a selected location state through a semantic preset", async ({ page }) => {
   const world = {
     ...emptyWorld,
     locations: [{
@@ -513,6 +519,8 @@ test("world builder places the selected location into story as setting", async (
 
   await expect(page.getByRole("heading", { name: "Interactive World Workspace" })).toBeVisible({ timeout: 15000 });
   await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City", { timeout: 15000 });
+  await expect(page.getByTestId("story-presets-location")).toContainText("Destroyed");
+  await page.getByTestId("story-preset-location-occupied").click();
   await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
   await expect(page.getByTestId("story-placement-review")).toContainText("1 created");
   await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Placement" }).click();
@@ -521,10 +529,11 @@ test("world builder places the selected location into story as setting", async (
   const link = (saved?.adventure_beat_links as Array<Record<string, unknown>>)[0];
   expect(link.target_type).toBe("location");
   expect(link.target_id).toBe("location-1");
-  expect(link.role).toBe("setting");
-  expect(link.occurrence_kind).toBe("appearance");
-  expect(link.change_type).toBe("active");
-  expect(link.importance).toBe("minor");
+  expect(link.role).toBe("state");
+  expect(link.occurrence_kind).toBe("transition");
+  expect(link.change_type).toBe("changed");
+  expect(link.importance).toBe("major");
+  expect(link.state_label).toBe("Occupied");
 });
 
 test("story placement edits an existing canonical link with stale-record protection", async ({ page }) => {
@@ -562,7 +571,7 @@ test("story placement edits an existing canonical link with stale-record protect
   await expect(panel.getByRole("button", { name: "Edit placement" })).toHaveCount(1, { timeout: 15000 });
   await panel.getByRole("button", { name: "Edit placement" }).click();
   const editor = page.getByTestId("story-placement-edit");
-  await editor.getByLabel("Change").selectOption("destroyed");
+  await editor.getByTestId("story-preset-location-destroyed").click();
   await editor.getByLabel("State Label").fill("Ruined");
   await editor.getByRole("button", { name: "Preview Changes" }).click();
   await expect(page.getByTestId("story-placement-review")).toContainText("1 changed");
@@ -570,7 +579,10 @@ test("story placement edits an existing canonical link with stale-record protect
   await expect.poll(() => previewed).not.toBeNull();
   const previewLink = (previewed?.adventure_beat_links as Array<Record<string, unknown>>)[0];
   expect(previewLink.id).toBe("adventure-link-1");
+  expect(previewLink.role).toBe("state");
+  expect(previewLink.occurrence_kind).toBe("consequence");
   expect(previewLink.change_type).toBe("destroyed");
+  expect(previewLink.importance).toBe("critical");
   expect(previewLink.state_label).toBe("Ruined");
   expect(previewLink.target_type).toBe("location");
   expect(previewLink.target_id).toBe("location-1");
@@ -695,12 +707,15 @@ async function mockDialogueApi(
   page: Page,
   onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
   onStoryPlacementBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
+  onPreview?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
 ) {
   await page.route("http://localhost:5000/api/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/dialogues") return fulfillJson(route, [dialoguePacket.dialogue]);
     if (url.pathname === "/api/ui/dialogues/dialogue-1") return fulfillJson(route, dialoguePacket);
     if (url.pathname === "/api/ui/dialogues/preview" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      if (onPreview) return onPreview(payload, route);
       return fulfillJson(route, { review: { created: [], changed: [], deleted: [], unlinked: [] }, warnings: [], health_warnings: [], blockers: [] });
     }
     if (url.pathname === "/api/ui/dialogues/bundle" && route.request().method() === "POST") {
@@ -882,7 +897,7 @@ async function mockStoryTimelineApi(page: Page, onBundle?: (payload: Record<stri
   });
 }
 
-test("character studio shows read-only story placements for the selected character", async ({ page }) => {
+test("character studio shows occurrences and places a character consequence", async ({ page }) => {
   const characterPacket = {
     navigator: [{ id: "char-1", name: "Guide", encounter_count: 0, dialogue_count: 1 }],
     character: { id: "char-1", slug: "guide", name: "Guide", title: "", description: "", level: 1, tags: [] },
@@ -949,6 +964,8 @@ test("character studio shows read-only story placements for the selected charact
   await expect(page.getByTestId("story-context-strip")).toContainText("Story Context");
   await expect(page.getByTestId("story-placement-panel")).toContainText("Main Story / The First City");
   await expect(page.getByTestId("story-placement-panel").getByRole("link", { name: "Open Timeline" })).toHaveAttribute("href", /\/author\/story-timeline/);
+  await expect(page.getByTestId("story-presets-character")).toContainText("Returns");
+  await page.getByTestId("story-preset-character-dies").click();
   await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
   await expect(page.getByTestId("story-placement-review")).toContainText("1 created");
   await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Placement" }).click();
@@ -957,10 +974,10 @@ test("character studio shows read-only story placements for the selected charact
   expect(link.adventure_beat_id).toBe("adventure-beat-1");
   expect(link.target_type).toBe("character");
   expect(link.target_id).toBe("char-1");
-  expect(link.role).toBe("cast");
-  expect(link.occurrence_kind).toBe("appearance");
-  expect(link.change_type).toBe("active");
-  expect(link.importance).toBe("minor");
+  expect(link.role).toBe("state");
+  expect(link.occurrence_kind).toBe("consequence");
+  expect(link.change_type).toBe("dies");
+  expect(link.importance).toBe("critical");
   await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City");
 });
 
@@ -983,6 +1000,8 @@ test("dialogue flow sketches, connects, and saves a complete bundle", async ({ p
     saved = payload;
     const nodes = payload.nodes as Array<Record<string, unknown>>;
     await fulfillJson(route, { ...dialoguePacket, dialogue: payload.dialogue, nodes });
+  }, undefined, async (_payload, route) => {
+    await fulfillJson(route, { review: { created: [{ table: "dialogue_nodes", id: "node-new" }], changed: [], deleted: [], unlinked: [] }, warnings: [{ id: "warning-1", message: "Acknowledge this reassignment." }], health_warnings: [], blockers: [] });
   });
   await page.goto("/author/dialogues/dialogue-1");
 
@@ -991,13 +1010,16 @@ test("dialogue flow sketches, connects, and saves a complete bundle", async ({ p
   await expect(page.getByRole("button", { name: "Save Flow" })).toBeDisabled();
   await page.locator('[data-testid^="dialogue-node-"]').last().getByRole("textbox").fill("A newly drafted line.");
   await page.getByRole("button", { name: "Save Flow" }).click();
+  await expect(page.getByRole("button", { name: "Commit Bundle" })).toBeDisabled();
+  await page.getByText("Acknowledge this reassignment.").click();
+  await expect(page.getByRole("button", { name: "Commit Bundle" })).toBeEnabled();
   await page.getByRole("button", { name: "Commit Bundle" }).click();
 
   await expect.poll(() => saved).not.toBeNull();
   expect((saved?.nodes as unknown[]).length).toBe(3);
 });
 
-test("dialogue flow places the dialogue into story as runtime", async ({ page }) => {
+test("dialogue flow places a dialogue state consequence through a semantic preset", async ({ page }) => {
   let saved: Record<string, unknown> | null = null;
   await mockDialogueApi(page, undefined, async (payload, route) => {
     saved = payload;
@@ -1031,6 +1053,8 @@ test("dialogue flow places the dialogue into story as runtime", async ({ page })
   await page.goto("/author/dialogues/dialogue-1");
 
   await expect(page.getByTestId("story-placement-panel")).toContainText("Welcome Event");
+  await expect(page.getByTestId("story-presets-dialogue")).toContainText("Reveals Lore");
+  await page.getByTestId("story-preset-dialogue-sets-state").click();
   await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
   await expect(page.getByTestId("story-placement-review")).toContainText("1 created");
   await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Placement" }).click();
@@ -1039,10 +1063,11 @@ test("dialogue flow places the dialogue into story as runtime", async ({ page })
   const link = (saved?.adventure_beat_links as Array<Record<string, unknown>>)[0];
   expect(link.target_type).toBe("dialogue");
   expect(link.target_id).toBe("dialogue-1");
-  expect(link.role).toBe("runtime");
-  expect(link.occurrence_kind).toBe("appearance");
-  expect(link.change_type).toBe("active");
+  expect(link.role).toBe("state");
+  expect(link.occurrence_kind).toBe("consequence");
+  expect(link.change_type).toBe("changed");
   expect(link.importance).toBe("major");
+  expect(link.state_label).toBe("State Set");
 });
 
 test("dialogue flow restores drafts and unlocks gated choices in playthrough", async ({ page }) => {
@@ -1180,7 +1205,7 @@ test("encounter stage composes participants, rewards, and placement into one bun
   expect((saved?.placements as Array<Record<string, unknown>>)[0].table_id).toBe("table-1");
 });
 
-test("encounter stage places the encounter into story as runtime", async ({ page }) => {
+test("encounter stage places a decisive outcome through a semantic preset", async ({ page }) => {
   let saved: Record<string, unknown> | null = null;
   await page.route("http://localhost:5000/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -1232,6 +1257,8 @@ test("encounter stage places the encounter into story as runtime", async ({ page
 
   await page.goto("/author/encounters/enc-1");
   await expect(page.getByRole("heading", { name: "Encounter Stage" })).toBeVisible();
+  await expect(page.getByTestId("story-presets-encounter")).toContainText("Encounter Resolved");
+  await page.getByTestId("story-preset-encounter-boss-defeated").click();
   await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
   await expect(page.getByTestId("story-placement-review")).toContainText("1 created");
   await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Placement" }).click();
@@ -1240,10 +1267,11 @@ test("encounter stage places the encounter into story as runtime", async ({ page
   const link = (saved?.adventure_beat_links as Array<Record<string, unknown>>)[0];
   expect(link.target_type).toBe("encounter");
   expect(link.target_id).toBe("enc-1");
-  expect(link.role).toBe("runtime");
-  expect(link.occurrence_kind).toBe("appearance");
-  expect(link.change_type).toBe("active");
-  expect(link.importance).toBe("major");
+  expect(link.role).toBe("state");
+  expect(link.occurrence_kind).toBe("consequence");
+  expect(link.change_type).toBe("changed");
+  expect(link.importance).toBe("critical");
+  expect(link.state_label).toBe("Boss Defeated");
   await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City");
 });
 
@@ -1295,10 +1323,22 @@ const abilityPacket = {
   analysis: { similar_abilities: [] },
 };
 
-async function mockAbilityApi(page: Page, onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>) {
+async function mockAbilityApi(
+  page: Page,
+  onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
+  onPreview?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
+) {
   await page.route("http://localhost:5000/api/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/ui/abilities" || url.pathname === "/api/ui/abilities/ability-1") return fulfillJson(route, abilityPacket);
+    if (url.pathname === "/api/ui/abilities/preview" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      if (onPreview) return onPreview(payload, route);
+      const created = [payload.ability, ...(payload.effect_upserts as unknown[] || []), ...(payload.status_upserts as unknown[] || [])]
+        .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null)
+        .map((entry, index) => ({ table: index === 0 ? "abilities" : "bundle_records", id: entry.id }));
+      return fulfillJson(route, { review: { created, changed: [], deleted: [] }, warnings: [], health_warnings: [], blockers: [] });
+    }
     if (url.pathname === "/api/ui/abilities/bundle" && route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as Record<string, unknown>;
       if (onBundle) return onBundle(payload, route);
@@ -1312,9 +1352,13 @@ async function mockAbilityApi(page: Page, onBundle?: (payload: Record<string, un
 
 test("ability spellcraft composes a status payload and saves one atomic bundle", async ({ page }) => {
   let saved: Record<string, unknown> | null = null;
+  let previewed: Record<string, unknown> | null = null;
   await mockAbilityApi(page, async (payload, route) => {
     saved = payload;
     await fulfillJson(route, { ...abilityPacket, ability: payload.ability, linked_effects: payload.effect_upserts, linked_statuses: payload.status_upserts });
+  }, async (payload, route) => {
+    previewed = payload;
+    await fulfillJson(route, { review: { created: [{ table: "abilities", id: "ability-1" }, { table: "effects", id: "effect-new" }, { table: "statuses", id: "status-new" }], changed: [], deleted: [] }, warnings: [], health_warnings: [], blockers: [] });
   });
   await page.goto("/author/abilities/new");
   await expect(page.getByText("Live Combat Sentence")).toBeVisible();
@@ -1326,10 +1370,24 @@ test("ability spellcraft composes a status payload and saves one atomic bundle",
   await page.getByRole("button", { name: "Create Status For Effect" }).click();
   await page.getByLabel("Slug").first().fill("frost-mark");
   await page.getByRole("button", { name: "Save All" }).first().click();
+  await expect(page.getByRole("heading", { name: "Ability Bundle Review" })).toBeVisible();
+  await expect.poll(() => previewed).not.toBeNull();
   await page.getByRole("button", { name: "Commit Bundle" }).click();
   await expect.poll(() => saved).not.toBeNull();
   expect((saved?.effect_upserts as Array<Record<string, unknown>>).length).toBe(1);
   expect((saved?.status_upserts as Array<Record<string, unknown>>).length).toBe(1);
+});
+
+test("ability spellcraft keeps the shared review open after a failed commit", async ({ page }) => {
+  await mockAbilityApi(page, async (_payload, route) => {
+    await fulfillJson(route, { message: "Ability changed on the server.", path: "ability" }, 400);
+  });
+  await page.goto("/author/abilities/new");
+  await page.getByLabel("Name").first().fill("Changed Ability");
+  await page.getByRole("button", { name: "Save All" }).first().click();
+  await page.getByRole("button", { name: "Commit Bundle" }).click();
+  await expect(page.getByRole("heading", { name: "Ability Bundle Review" })).toBeVisible();
+  await expect(page.getByText(/Ability changed on the server/)).toBeVisible();
 });
 
 test("ability spellcraft clones shared effects before editing", async ({ page }) => {

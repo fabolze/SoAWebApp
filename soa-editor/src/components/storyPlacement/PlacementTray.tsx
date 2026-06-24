@@ -1,5 +1,12 @@
 import { useState, type DragEvent } from "react";
 import type { StoryPlacementDraft } from "../../authoring/storyPlacement";
+import {
+  GENERIC_STORY_PLACEMENT_PRESETS,
+  applyStoryPlacementPreset,
+  storyPlacementPresetIsActive,
+  workspaceStoryPlacementPresets,
+  type StoryPlacementPreset,
+} from "../../authoring/storyPlacementPresets";
 
 interface PlacementTrayProps {
   value: StoryPlacementDraft;
@@ -7,43 +14,21 @@ interface PlacementTrayProps {
   onChange: (value: StoryPlacementDraft) => void;
 }
 
-type TrayPreset = Pick<StoryPlacementDraft, "role" | "occurrence_kind" | "change_type" | "importance"> & {
-  id: string;
-  label: string;
-  note: string;
-};
-
-const presets: TrayPreset[] = [
-  { id: "setting", label: "Setting", note: "Where this beat happens.", role: "setting", occurrence_kind: "appearance", change_type: "active", importance: "minor" },
-  { id: "cast", label: "Cast", note: "Who appears in the scene.", role: "cast", occurrence_kind: "appearance", change_type: "active", importance: "minor" },
-  { id: "runtime", label: "Runtime", note: "What plays or triggers here.", role: "runtime", occurrence_kind: "appearance", change_type: "active", importance: "major" },
-  { id: "state", label: "State", note: "A story state changes here.", role: "state", occurrence_kind: "transition", change_type: "changed", importance: "major" },
-  { id: "reward", label: "Reward", note: "The player gains this here.", role: "reward", occurrence_kind: "reward", change_type: "obtained", importance: "major" },
-  { id: "requirement", label: "Requirement", note: "This is needed here.", role: "reference", occurrence_kind: "requirement", change_type: "active", importance: "major" },
-  { id: "reference", label: "Reference", note: "Mentioned or contextual.", role: "reference", occurrence_kind: "reference", change_type: "none", importance: "minor" },
-  { id: "player_journey", label: "Player Journey", note: "Quest or path beat.", role: "player_journey", occurrence_kind: "appearance", change_type: "active", importance: "major" },
-];
-
 function title(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 export default function PlacementTray({ value, entityLabel, onChange }: PlacementTrayProps) {
   const [dragging, setDragging] = useState(false);
-  const activeId = presets.find((preset) =>
-    preset.role === value.role
-    && preset.occurrence_kind === value.occurrence_kind
-    && preset.change_type === value.change_type
-    && preset.importance === value.importance
-  )?.id;
-  const apply = ({ role, occurrence_kind, change_type, importance }: TrayPreset) => onChange({ ...value, role, occurrence_kind, change_type, importance });
+  const workspacePresets = workspaceStoryPlacementPresets(value.target_type);
+  const apply = (preset: StoryPlacementPreset) => onChange(applyStoryPlacementPreset(value, preset));
   const dragStart = (event: DragEvent<HTMLDivElement>) => {
     event.dataTransfer.setData("application/x-story-placement-entity", value.target_id);
     event.dataTransfer.effectAllowed = "copy";
     setDragging(true);
   };
   const dragEnd = () => setDragging(false);
-  const drop = (event: DragEvent<HTMLButtonElement>, preset: TrayPreset) => {
+  const drop = (event: DragEvent<HTMLButtonElement>, preset: StoryPlacementPreset) => {
     event.preventDefault();
     apply(preset);
     setDragging(false);
@@ -65,9 +50,31 @@ export default function PlacementTray({ value, entityLabel, onChange }: Placemen
         {entityLabel}
       </div>
     </div>
+    {workspacePresets.length > 0 && <div className="mt-3" data-testid={`story-presets-${value.target_type}`}>
+      <div className="text-[10px] font-semibold uppercase text-slate-500">Quick Story Actions</div>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {workspacePresets.map((preset) => {
+          const active = storyPlacementPresetIsActive(value, preset);
+          return <button
+            key={preset.id}
+            type="button"
+            className={`rounded border p-2 text-left text-xs transition ${active ? "border-fuchsia-500 bg-fuchsia-50 text-fuchsia-950 ring-2 ring-fuchsia-100 dark:bg-fuchsia-950 dark:text-fuchsia-100 dark:ring-fuchsia-900" : "border-slate-200 hover:border-fuchsia-300 dark:border-slate-800"}`}
+            onClick={() => apply(preset)}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => drop(event, preset)}
+            data-testid={`story-preset-${value.target_type}-${preset.id}`}
+          >
+            <span className="block font-semibold">{preset.label}</span>
+            <span className="mt-1 block text-[10px] text-slate-500">{preset.note}</span>
+            <span className="mt-2 block text-[10px] text-slate-400">{title(preset.occurrence_kind)} / {title(preset.change_type)}</span>
+          </button>;
+        })}
+      </div>
+    </div>}
+    <div className="mt-3 text-[10px] font-semibold uppercase text-slate-500">Generic Placement Roles</div>
     <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-      {presets.map((preset) => {
-        const active = preset.id === activeId;
+      {GENERIC_STORY_PLACEMENT_PRESETS.map((preset) => {
+        const active = storyPlacementPresetIsActive(value, preset);
         return <button
           key={preset.id}
           type="button"
