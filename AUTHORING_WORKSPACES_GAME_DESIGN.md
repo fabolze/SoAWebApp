@@ -32,16 +32,20 @@ Last reviewed: 2026-06-25
 
 | Workspace | Status |
 |---|---|
-| World Builder | Implemented; foundation for the shared authoring language; selected-location story placement create/edit/remove and semantic location presets integrated |
+| World Builder | Implemented; foundation for the shared authoring language; selected-location story placement create/edit/remove, semantic location presets, route event bindings, travel tuning, creative briefs, route/story filters, validation, and atomic world bundle saves integrated |
+| Location Atlas | Implemented standalone map review mode for arranging and inspecting existing locations through `/author/locations/map` |
+| Location Authoring | Implemented standalone location creation route for hierarchy, ecology, map placement, POIs, routes, encounter hooks, and validation through `/author/locations/new` |
 | Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, semantic character presets, scoped introduction-coverage warnings, and cross-entity character consequence actions |
 | Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, and selected-dialogue presets |
-| Encounter Stage | Implemented MVP with encounter story placement create/edit/remove and selected-encounter presets |
+| Encounter Stage | Implemented MVP with participant composition, requirements, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, and selected-encounter presets |
 | Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, and temporary flag-state walkthrough; full mixed-content Quest Loom is future vision |
-| Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove and semantic item lifecycle presets; future work can deepen fantasy, provenance, families, and progression |
-| Creature Workshop | Implemented MVP as focused enemy creator over characters, combat profiles, encounter participants, location encounter tables, and optional character story placement |
-| Ability Spellcraft Lab | Implemented expanded lab with trace bench, lifecycle workshop, variants, relationships, contextual testing, and shared rollback-preview/atomic-commit review |
+| Item Authoring | Implemented standalone item creation route for player-facing mechanics and presentation through `/author/items/new` |
+| Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove, semantic item lifecycle presets, Item Journey source summary, acquisition-channel analysis, obtained-never-used warning, multiple-source explanation warning, and continuity/version guidance; future work can deepen fantasy, provenance, families, and progression |
+| Shop Authoring | Implemented standalone merchant-facing route for creating shops and inventory together through `/author/shops/new` |
+| Creature Workshop | Implemented MVP as focused enemy creator over characters, combat profiles, encounter participants, location encounter tables, local draft restore/reset, stale-protected scoped placement changes, and optional character story placement |
+| Ability Spellcraft Lab | Implemented expanded lab with trace bench, lifecycle workshop, shared effect/status clone-edit flows, local status playground, variants, relationships, Create Related Draft, contextual testing, status defense rules, and shared rollback-preview/atomic-commit review |
 | Story Timeline And Adventure Board | Interactive MVP implemented with scoped lanes, lenses, drag/drop local planning, canonical adventure beats/lifecycle-aware typed links, backend-complete tracks and query-driven focus for all ten target types, scoped lifecycle-coherence warnings, reusable frontend placement helpers, and shared preview/commit review |
-| Adventure Dependency Map | Dependency Map initial MVP |
+| Adventure Dependency Map | Implemented MVP with actionable health groups, issue focusing, broken-edge display, inferred unlock edges, cycle detection, node/relationship metrics, and explicit versus inferred relationship styling |
 
 The workspace descriptions below contain both current-model implementation contracts and future-facing design. A feature is not implemented merely because it appears in this document; the status table is authoritative.
 
@@ -195,15 +199,15 @@ This should make the character view answer "where is this person in the story?" 
 
 Add an Item Journey Track:
 
-Current status: partially implemented for Item Ecosystem through the shared story-placement panel. It can show item occurrences, apply item lifecycle presets, warn when an important item is unplaced or required while unavailable in the current story lane, and create/edit/remove item links as reward, requirement, state, or reference. Remaining work includes obtained-never-used, multiple acquisition-source explanations, continuity group guidance, and Item Forge integration if it remains separate from Item Ecosystem.
+Current status: substantially implemented for Item Ecosystem through the shared story-placement panel and Item Journey summary. It can show item occurrences, apply item lifecycle presets, warn when an important item is unplaced, required while unavailable, obtained but never later used in the current story lane, transformed/restored without continuity context, or spread across multiple acquisition channels without story-placement explanation, and create/edit/remove item links as reward, requirement, state, or reference. Remaining work includes richer journey visualization, deeper acquired-source ordering, and Item Forge integration if it remains separate from Item Ecosystem.
 
 - Show where the item is introduced, obtained, lost, stolen, consumed, upgraded, transformed, restored, required, or rewarded.
 - Distinguish ordinary economic availability from story-important appearances. Use `importance=background` for generic shop/vendor availability so the navigator does not become noisy.
 - Let the author place an item into a story beat as reward, requirement, state, or reference.
-- For quest items and legendary items, encourage explicit continuity groups so changed versions are understandable.
-- Warn when an item is required before it can be obtained.
-- Warn when a quest item is obtained but never used or consumed.
-- Warn when an important item appears in multiple acquisition sources without an intentional explanation.
+- For quest items and legendary items, encourage explicit continuity groups so changed versions are understandable. Implemented through shared lifecycle fields plus continuity/state/notes warnings for transformed or restored important items.
+- Warn when an item is required before it can be obtained. Implemented with scoped canonical lane comparison.
+- Warn when a quest item is obtained but never used or consumed. Implemented for important items with later requirement, loss, consumption, transformation, destruction, or consequence clearing the warning.
+- Warn when an important item appears in multiple acquisition sources without an intentional explanation. Implemented through Item Ecosystem acquisition-channel analysis and existing story-placement context fields.
 
 The item workspace should become the best place to answer "how does the player get this, lose it, use it, and remember it?"
 
@@ -377,8 +381,12 @@ The future workspace should support player-path traces, pacing and density compa
 - Routes are explicit selectable connections.
 - Existing location coordinates and POI positions can be saved.
 - Locations can be authored with POIs, encounters, route events, travel tuning, creative briefs, and validation.
+- Route event bindings, travel tuning, and creative briefs are shown in the selected location or route packet rather than hidden in separate schema tables.
+- Route and node filters expose story relevance, danger, fast travel, safety, and issue states.
+- Ownership and deletion protections keep location-owned POIs, routes, encounter tables, route events, travel tuning, and creative briefs from being accidentally removed outside the reviewed bundle.
+- Hierarchy validation rejects cycles and invalid world shapes before commit.
 - Danger, story, and issue lenses reveal different readings of the same world.
-- Bundle saving keeps the complete location packet coherent.
+- Bundle saving keeps the complete location packet coherent through atomic preview/commit.
 
 ### Living Canvas Application
 
@@ -402,6 +410,85 @@ The World Builder should remain the reference example for selection-centered con
 - Are travel, danger, discovery, and reward distributed meaningfully?
 - Does the world react visibly to important player actions?
 - Are routes and locations supported by enough authored content?
+
+---
+
+## Location Atlas
+
+### Creative North Star
+
+The author reviews the world as a spatial atlas: where places sit, how regions read at a glance, which locations feel isolated, and whether the map expresses the intended journey.
+
+The Atlas should stay focused on review, arrangement, and inspection. Deeper packet editing belongs in World Builder or Location Authoring.
+
+### Current-Model Implementation
+
+The implemented route is `/author/locations/map`. It is a standalone map-oriented entry point over existing `locations`.
+
+- Existing location coordinates can be reviewed and arranged.
+- Location hierarchy and playable-space signals can be inspected from the map context.
+- The route gives authors a fast visual way to check location placement without opening the full World Builder bundle.
+
+### Living Canvas Application
+
+- **Canonical Save Gestures:** arrange locations only through model-backed location coordinates and open the owning location record for deeper edits.
+- **Local Creative Tools:** map review, selection, scanning, and quick spatial sanity checks.
+- **Future Canonical Expansion:** regional map layers, travel-density overlays, authored map annotations, and route-aware journey previews.
+
+The Atlas must not invent canonical layout data beyond fields that `locations` already own.
+
+### Future Expansion
+
+- Add map layers for danger, story relevance, biome, ownership, and traversal cost.
+- Show route reachability and disconnected regions directly on the atlas.
+- Compare intended region identity against actual encounters, POIs, shops, and quest content.
+
+### Health Questions
+
+- Are important locations placed intentionally rather than clustered accidentally?
+- Are playable spaces visually discoverable on the map?
+- Do adjacent locations make sense as a region or journey?
+- Which important locations are disconnected from route or story context?
+
+---
+
+## Location Authoring
+
+### Creative North Star
+
+The author creates a place as a playable promise: what it is, where it belongs, what the player can discover there, and how it connects to travel, encounters, and story.
+
+The workspace should make a new location feel like a small world packet, not a blank database row.
+
+### Current-Model Implementation
+
+The implemented route is `/author/locations/new`. It creates a location with its current supported context.
+
+- Location identity, hierarchy, ecology, map placement, playable-space flags, safety, travel, and encounter hooks can be authored from one route.
+- POIs, routes, encounter tables, route events, travel tuning, and creative context remain grounded in their existing records.
+- Draft reset behavior lets the author return to the last saved packet before committing.
+- Validation keeps hierarchy and relationship shape honest before save.
+
+### Living Canvas Application
+
+- **Canonical Save Gestures:** create or edit the location and supported related world records through their existing fields and reviewed bundle payloads.
+- **Local Creative Tools:** starter choices, draft placement, packet preview, and validation feedback before save.
+- **Future Canonical Expansion:** authored location promises, discovery beats, region identity, ambient storytelling, and state variants.
+
+Location creation should remain compatible with World Builder so a place can be authored in detail and then reviewed in the larger world context.
+
+### Future Expansion
+
+- Add richer starter recipes for settlement, dungeon, wilderness, route hub, safe zone, and story landmark.
+- Create a compact first-visit player trace that uses current POIs, encounters, routes, and story placements.
+- Compare location identity against nearby regions and repeated content patterns.
+
+### Health Questions
+
+- What does the player expect to find here?
+- Does the location have enough playable content for its importance?
+- Is it connected to the world by routes, story, or encounter context?
+- Does its level range, safety, biome, and encounter ecology agree?
 
 ---
 
@@ -468,7 +555,7 @@ A directed conversation map:
 
 ### Current-Model Implementation
 
-The implemented MVP is available at `/author/creatures`, `/author/creatures/new`, and `/author/creatures/<id>`. It reads and writes only existing canonical records through `/api/ui/creatures`, rollback-only `/api/ui/creatures/preview`, and atomic `/api/ui/creatures/bundle`.
+The implemented MVP is available at `/author/dialogues`, `/author/dialogues/new`, and `/author/dialogues/:id`. It reads and writes only existing canonical records through `/api/ui/dialogues`, rollback-only `/api/ui/dialogues/preview`, and atomic `/api/ui/dialogues/bundle`.
 
 | Author Gesture | Existing Data Written |
 |---|---|
@@ -582,6 +669,8 @@ The stage is not a tactical battle map. Position inside a side is visual only.
 | Place encounter into a location deck | Add/update a `location_encounter_tables.encounter_entries` row |
 | Place encounter at a specific POI | Set `location_pois.encounter_id` |
 | Put encounter in an event chain | Set `events.encounter_id` on an Encounter event |
+
+The implemented stage also supports local draft restore/reset, encounter health warnings, threat simulation, and peer comparison so participant composition, requirements, rewards, and placement can be reviewed before commit.
 
 ### Lenses
 
@@ -770,6 +859,45 @@ The arc skyline may combine saved arc ordering with dashed inferred flag depende
 
 ---
 
+## Item Authoring
+
+### Creative North Star
+
+The author creates an item by starting from the player-facing promise: what the item is, why the player wants it, what it changes mechanically, and how its presentation communicates that use.
+
+This route should remain the focused forge for a single item. The broader Item Ecosystem answers where the item comes from, how often it appears, and what it does to economy and progression.
+
+### Current-Model Implementation
+
+The implemented route is `/author/items/new`. It creates an item through the current item schema and player-facing presentation fields.
+
+- Item identity, category, rarity, price, presentation, effects, modifiers, requirements, and use/equipment fields can be authored through existing item data.
+- Advanced fields remain available through the schema-complete authoring escape hatch.
+- The created item can later be placed into shops, loot, rewards, events, POIs, and story beats through Item Ecosystem or other owning workspaces.
+
+### Living Canvas Application
+
+- **Canonical Save Gestures:** create or edit the item fields, effects, modifiers, prices, tags, and requirements that already exist on the item model.
+- **Local Creative Tools:** starter framing, presentation checks, local comparison notes, and unsaved drafts before the item is committed.
+- **Future Canonical Expansion:** item fantasy prompts, maker/owner history, family membership, set bonuses, transformation lineage, and intended progression tier.
+
+The route should not duplicate the acquisition-source graph. It should hand off naturally to Item Ecosystem once the item needs economy, reward, source, or story placement context.
+
+### Future Expansion
+
+- Add starter recipes for consumable, equipment, quest item, crafting material, currency-adjacent item, and legendary artifact.
+- Compare player-facing description against effects, modifiers, rarity, and price.
+- Suggest source and story-placement needs after creation without saving invented provenance fields.
+
+### Health Questions
+
+- What player action or decision does this item enable?
+- Does the item's rarity match its power, presentation, and intended scarcity?
+- Do its effects, modifiers, requirements, and price support one coherent fantasy?
+- Should this item immediately be placed into a source, reward, shop, POI, or story beat?
+
+---
+
 ## Item Ecosystem And Item Forge
 
 ### Creative North Star
@@ -822,6 +950,8 @@ Show a derived player journey:
 
 "Earliest" is inferred from location level ranges, quest/story-arc context, and gates. It must be labeled as an estimate.
 
+The implemented Item Journey summary shows acquisition channel count, total source count, source channel chips, and story-relevance guidance. Backend analysis warns when important items appear in multiple source channels without story-placement explanation. Story Timeline coherence now warns when important items are obtained without later use and when transformed or restored item versions lack continuity, state-label, or note context.
+
 ### Living Canvas Application
 
 - **Canonical Save Gestures:** attach effects and modifiers, edit gates and economy fields, and place the item into existing shops, loot tables, rewards, events, and POIs.
@@ -870,6 +1000,45 @@ The progression horizon and earliest-source reading are estimates, not saved tie
 
 ---
 
+## Shop Authoring
+
+### Creative North Star
+
+The author creates a merchant-facing workspace: who the shop serves, where it belongs, what it sells, and what the inventory says about the local economy and player progression.
+
+The future workspace should make a shop feel like a curated player choice point rather than a flat inventory table.
+
+### Current-Model Implementation
+
+The implemented route is `/author/shops/new`. It creates a shop and its inventory together through existing `shops` and `shops_inventory` records.
+
+- Shop identity, location context, currency assumptions, and inventory rows can be authored as one merchant packet.
+- Inventory entries keep their canonical item references, quantities, prices, and stock behavior rather than becoming local-only shop cards.
+- Item Ecosystem can read shop inventory as an acquisition channel for item source analysis and story-relevance warnings.
+
+### Living Canvas Application
+
+- **Canonical Save Gestures:** create the shop and add, edit, or remove inventory rows through existing shop and inventory records.
+- **Local Creative Tools:** merchant draft framing, inventory balance review, price comparison, and source-context checks.
+- **Future Canonical Expansion:** merchant personality, restock rules, regional supply, faction pricing, shop progression tiers, and curated storefront layouts.
+
+Shop Authoring should remain the best entry point for creating a merchant packet; Item Ecosystem remains the best place to inspect what a shop does to a selected item.
+
+### Future Expansion
+
+- Add starter recipes for general store, blacksmith, alchemist, rare trader, faction vendor, and quest-gated merchant.
+- Compare shop inventory against nearby location level, economy, scarcity, and item power.
+- Show whether inventory accidentally leaks quest-important or late-progression items.
+
+### Health Questions
+
+- Does this shop belong in its location and progression band?
+- Does the inventory offer meaningful choices instead of redundant items?
+- Are prices, stock, and currencies coherent?
+- Does the shop unintentionally sell items that should be story-gated or rare?
+
+---
+
 ## Creature Workshop
 
 ### Creative North Star
@@ -903,6 +1072,8 @@ A creature workbench with five trays:
 | Place creature in an encounter | Update encounter participants |
 | Place encounter in a habitat | Update location encounter table |
 | Link creature to quests | Update combat-profile `related_quests` |
+
+The implemented workshop also supports local draft restore/reset and stale-protected scoped encounter and habitat changes so the enemy bundle can be saved without overwriting concurrent placement edits.
 
 ### Lenses
 
@@ -994,6 +1165,8 @@ The ability's simulation result and player-facing description remain visible whi
 | Define status stacking, decay, cleanse, and dispel behavior | Update status lifecycle fields |
 | Define profile immunity or resistance | Update combat-profile `status_rules` |
 | Connect related abilities | Create an `ability_relations` row |
+
+The implemented lab includes shared effect and status clone/edit flows, a local status lifecycle playground, relationship authoring with `Create Related Draft`, contextual test-bench comparisons, and combat-profile status defense rules. Rollback preview and atomic commit use the shared `BundleReview` surface.
 
 ### Lenses
 
@@ -1211,6 +1384,8 @@ The author can focus on one flag, requirement, quest, or story arc and expand ou
 | Connect event to next event | Set `next_event_id` |
 | Connect a story-arc branch | Update existing branch structure |
 
+The implemented map currently exposes actionable health groups, issue focusing, broken-edge display, node and relationship metrics, inferred unlock edges, cycle detection, and explicit versus inferred edge styling. It is an inspection and diagnosis workspace first; direct graph editing remains limited to relationships that already have honest save contracts.
+
 ### Lenses
 
 - **Dead State:** flags that are set but never read.
@@ -1223,6 +1398,8 @@ The author can focus on one flag, requirement, quest, or story arc and expand ou
 ### State Walkthrough
 
 Begin with an empty temporary state, trigger existing sources, and watch available content change. This provides a simple, playable model of narrative progression without creating any new canonical sequence.
+
+The full walkthrough interaction remains future work. The current MVP already supports focused dependency inspection and issue-driven navigation, but it does not yet provide a complete temporary state-playthrough UI.
 
 ### Living Canvas Application
 
@@ -1320,16 +1497,20 @@ They may appear as prompts, inferred views, local planning notes, or generated s
 
 | Workspace | Minimum Useful Version |
 |---|---|
-| World Builder | Place and connect locations, inspect packets, apply lenses, validate world structure, and show location story/state occurrences |
-| Character Studio | Edit the identity/combat/interaction bundle, inspect world presence, compare, validate, and show character story placements |
-| Dialogue Flow Room | View/edit node graph, connect choices, trace a path, show broken links, and place the scene into story/runtime context |
+| World Builder | Place and connect locations, inspect packets, apply lenses, validate world structure, manage route events/travel/creative briefs, and show location story/state occurrences |
+| Location Atlas | Review and arrange existing locations on the map, inspect hierarchy and playable-space context, and avoid inventing non-model layout data |
+| Location Authoring | Create a location with hierarchy, ecology, map placement, POIs, routes, encounter hooks, travel context, and validation |
+| Character Studio And Character Web | Edit the identity/combat/interaction bundle, inspect world presence, compare, validate, and show character story placements |
+| Dialogue Scene Room | View/edit node graph, connect choices, trace a path, show broken links, and place the scene into story/runtime context |
 | Encounter Stage | Place participants by side/context, edit rewards, show simulation and placements, and show encounter aftermath/story placement |
-| Item Ecosystem | Show all sources, add item to source/reward, compare price/power/scarcity, and track important item journeys |
-| Quest Journey Board | Reorder objectives, edit gates/flags/rewards, show quest givers/aftermath, and place quest beats in the story |
+| Quest Journey Board And Quest Loom | Reorder objectives, edit gates/flags/rewards, show quest givers/aftermath, and place quest beats in the story |
+| Item Authoring | Create a single item with mechanics, presentation, effects, modifiers, price, rarity, and requirements |
+| Item Ecosystem And Item Forge | Show all sources, add item to source/reward, compare price/power/scarcity, and track important item journeys |
+| Shop Authoring | Create a shop and inventory packet with canonical item references, stock, pricing, and merchant acquisition context |
+| Creature Workshop | Focused enemy creator with move kit, spoils, habitat, placement, story usage, draft restore/reset, stale-protected scoped changes, comparison, and health |
+| Ability Spellcraft Lab | Compose trigger, target, effects, statuses, scaling, cost, simulation, relationships, status defenses, and ability usage across profiles/encounters |
 | Story Timeline And Adventure Board | Arrange scoped story lanes, attach cross-domain content, review local plans, and commit canonical adventure beats without inventing a global sequence |
-| Adventure Dependency Map | Trace flags through requirements to gated content, show impossible/dead state |
-| Ability Spellcraft Lab | Compose trigger, target, effects, scaling, cost, simulation, and ability usage across profiles/encounters |
-| Creature Workshop | Focused enemy creator with move kit, spoils, habitat, placement, story usage, comparison, and health |
+| Adventure Dependency Map | Trace flags through requirements to gated content, focus health issues, distinguish explicit/inferred edges, and show impossible/dead/cyclic state |
 
 ---
 
