@@ -16,12 +16,16 @@ from backend.app.models.m_adventure_narrative import (
 )
 from backend.app.models.m_character_narrative import CharacterBeatType, CharacterStoryBeat
 from backend.app.models.m_characters import Character
+from backend.app.models.m_combat_profiles import CombatProfile
 from backend.app.models.m_content_packs import ContentPack
 from backend.app.models.m_dialogues import Dialogue
 from backend.app.models.m_dialogue_nodes import DialogueNode
 from backend.app.models.m_encounters import Encounter, EncounterType
 from backend.app.models.m_events import Event, EventType
+from backend.app.models.m_factions import Alignment, Faction
 from backend.app.models.m_items import Item, ItemType, Rarity
+from backend.app.models.m_interaction_profiles import InteractionProfile
+from backend.app.models.m_lore_entries import LoreEntry
 from backend.app.models.m_locations import Location
 from backend.app.models.m_quests import Quest
 from backend.app.models.m_story_arcs import ArcType, StoryArc
@@ -64,6 +68,23 @@ def _seed(Session):
             type=ItemType.Quest,
             rarity=Rarity.Rare,
             base_price=1,
+            tags=[],
+        ),
+        Faction(
+            id="faction-1",
+            slug="city-watch",
+            name="City Watch",
+            alignment=Alignment.Friendly,
+            relationships={},
+            reputation_config={},
+            tags=[],
+        ),
+        LoreEntry(
+            id="lore-1",
+            slug="city-charter",
+            title="City Charter",
+            text="The charter records the city's founding.",
+            related_story_arcs=[],
             tags=[],
         ),
         Dialogue(id="dialogue-1", slug="welcome", title="Welcome", location_id="location-1", tags=[]),
@@ -264,9 +285,49 @@ def _adventure_link(
     )
 
 
+def _seed_track_parity_links(Session):
+    session = Session()
+    session.add_all([
+        _adventure_link(
+            "adventure-link-quest", "adventure-beat-1", AdventureBeatLinkTargetType.Quest,
+            "quest-1", AdventureBeatLinkRole.PlayerJourney,
+        ),
+        _adventure_link(
+            "adventure-link-event", "adventure-beat-1", AdventureBeatLinkTargetType.Event,
+            "event-1", AdventureBeatLinkRole.Runtime,
+        ),
+        _adventure_link(
+            "adventure-link-dialogue", "adventure-beat-1", AdventureBeatLinkTargetType.Dialogue,
+            "dialogue-1", AdventureBeatLinkRole.Runtime,
+        ),
+        _adventure_link(
+            "adventure-link-encounter", "adventure-beat-1", AdventureBeatLinkTargetType.Encounter,
+            "encounter-1", AdventureBeatLinkRole.Runtime, AdventureOccurrenceKind.Consequence,
+            AdventureChangeType.Changed, AdventureImportance.Critical,
+        ),
+        _adventure_link(
+            "adventure-link-lore", "adventure-beat-1", AdventureBeatLinkTargetType.LoreEntry,
+            "lore-1", AdventureBeatLinkRole.Reference, AdventureOccurrenceKind.Reference,
+            AdventureChangeType.None_, AdventureImportance.Minor,
+        ),
+        _adventure_link(
+            "adventure-link-faction", "adventure-beat-1", AdventureBeatLinkTargetType.Faction,
+            "faction-1", AdventureBeatLinkRole.State, AdventureOccurrenceKind.Transition,
+            AdventureChangeType.Changed,
+        ),
+        _adventure_link(
+            "adventure-link-story-arc", "adventure-beat-1", AdventureBeatLinkTargetType.StoryArc,
+            "arc-1", AdventureBeatLinkRole.Reference, AdventureOccurrenceKind.Reference,
+        ),
+    ])
+    session.commit()
+    session.close()
+
+
 def test_adventure_timeline_aggregates_scoped_order_runtime_and_unplaced_content(monkeypatch):
     client, Session = _client(monkeypatch)
     _seed(Session)
+    _seed_track_parity_links(Session)
 
     response = client.get("/api/ui/adventure-timeline")
     assert response.status_code == 200
@@ -302,6 +363,27 @@ def test_adventure_timeline_aggregates_scoped_order_runtime_and_unplaced_content
     assert location_track["importance"] == "critical"
     assert payload["entity_tracks"]["characters"][0]["change_type"] == "joins"
     assert payload["entity_tracks"]["items"][0]["change_type"] == "obtained"
+    expected_tracks = {
+        "locations": ("location", "location-1", "First City"),
+        "characters": ("character", "character-1", "Guide"),
+        "quests": ("quest", "quest-1", "Arrival"),
+        "events": ("event", "event-1", "Welcome Event"),
+        "dialogues": ("dialogue", "dialogue-1", "Welcome"),
+        "encounters": ("encounter", "encounter-1", "Ambush"),
+        "lore_entries": ("lore_entry", "lore-1", "City Charter"),
+        "items": ("item", "item-1", "City Key"),
+        "factions": ("faction", "faction-1", "City Watch"),
+        "story_arcs": ("story_arc", "arc-1", "The First City"),
+    }
+    assert set(payload["entity_tracks"]) == set(expected_tracks)
+    for group_name, (entity_kind, entity_id, label) in expected_tracks.items():
+        track = payload["entity_tracks"][group_name][0]
+        assert track["entity_kind"] == entity_kind
+        assert track["entity_id"] == entity_id
+        assert track["label"] == label
+        assert track["link_id"].startswith("adventure-link-")
+        assert track["source_kind"] == "adventure_beat"
+        assert track["source_id"] == "adventure-beat-1"
 
     event_chain = next(row for row in payload["event_chains"] if row["event_id"] == "event-1")
     assert event_chain["next_event_id"] == "event-2"
@@ -473,6 +555,275 @@ def test_lifecycle_warnings_do_not_compare_character_occurrences_across_arcs(mon
     )
 
 
+def test_character_introduction_warning_reports_deduplicated_scoped_usage_evidence(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add_all([
+        Character(id="character-2", slug="captain", name="Captain", level=3, tags=[]),
+        Dialogue(
+            id="dialogue-2", slug="captain-orders", title="Captain's Orders",
+            character_id="character-2", tags=[],
+        ),
+        Encounter(
+            id="encounter-2", slug="captain-defense", name="Captain's Defense",
+            encounter_type=EncounterType.Combat,
+            participants=[
+                {"character_id": "character-2", "contexts": ["Combat"], "combat_side": "Friendly"},
+                {"character_id": "character-2", "contexts": ["Interaction"], "combat_side": "Friendly"},
+            ],
+            rewards={}, tags=[],
+        ),
+        InteractionProfile(
+            id="interaction-2", character_id="character-2", available_quests=["quest-1"],
+            inventory=[], flags_set_on_interaction=[], tags=[],
+        ),
+        CombatProfile(
+            id="combat-2", character_id="character-2", custom_stats=[], custom_abilities=[],
+            status_rules=[], loot_table=[], currency_rewards=[], reputation_rewards=[],
+            related_quests=["quest-1"], companion_config={}, tags=[],
+        ),
+    ])
+    session.flush()
+    session.add_all([
+        DialogueNode(
+            id="dialogue-node-captain-1", slug="captain-line-1", dialogue_id="dialogue-2",
+            speaker="Captain", speaker_character_id="character-2", text="Hold the gate.",
+            choices=[], set_flags=[], tags=[],
+        ),
+        DialogueNode(
+            id="dialogue-node-captain-2", slug="captain-line-2", dialogue_id="dialogue-2",
+            speaker="Captain", speaker_character_id="character-2", text="Protect the civilians.",
+            choices=[], set_flags=[], tags=[],
+        ),
+        Event(
+            id="event-captain", slug="captain-event", title="Captain Rallies The Guard",
+            type=EventType.Dialogue, dialogue_id="dialogue-2", flags_set=[], item_rewards=[], tags=[],
+        ),
+        CharacterStoryBeat(
+            id="beat-captain", character_id="character-2", title="Captain Takes Command",
+            beat_type=CharacterBeatType.Decision, sort_order=2, story_arc_id="arc-1",
+            required_flags=[], forbidden_flags=[], expected_output_flags=[], relationship_changes=[], tags=[],
+        ),
+        _adventure_link(
+            "captain-dialogue-link", "adventure-beat-1", AdventureBeatLinkTargetType.Dialogue,
+            "dialogue-2", AdventureBeatLinkRole.Runtime,
+        ),
+        _adventure_link(
+            "captain-encounter-link", "adventure-beat-1", AdventureBeatLinkTargetType.Encounter,
+            "encounter-2", AdventureBeatLinkRole.Runtime,
+        ),
+        _adventure_link(
+            "captain-event-link", "adventure-beat-1", AdventureBeatLinkTargetType.Event,
+            "event-captain", AdventureBeatLinkRole.Runtime,
+        ),
+    ])
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    warning = next(
+        row for row in warnings
+        if row["code"] == "character_missing_introduction_placement" and row["target_id"] == "character-2"
+    )
+    assert warning["schema_name"] == "characters"
+    assert warning["scope_kind"] == "story_arc"
+    assert warning["scope_id"] == "arc-1"
+    assert warning["usage_count"] == 5
+    assert warning["usage_counts"] == {
+        "dialogue": 1,
+        "encounter": 1,
+        "event": 1,
+        "quest": 1,
+        "character_story_beat": 1,
+    }
+    assert {row["kind"] for row in warning["usage_evidence"]} == {
+        "dialogue", "encounter", "event", "quest", "character_story_beat",
+    }
+    dialogue_evidence = next(row for row in warning["usage_evidence"] if row["kind"] == "dialogue")
+    assert dialogue_evidence["entry_id"] == "dialogue-2"
+    assert dialogue_evidence["paths"] == [
+        "dialogue_nodes.dialogue-node-captain-1.speaker_character_id",
+        "dialogue_nodes.dialogue-node-captain-2.speaker_character_id",
+        "dialogues.character_id",
+    ]
+    quest_evidence = next(row for row in warning["usage_evidence"] if row["kind"] == "quest")
+    assert quest_evidence["entry_id"] == "quest-1"
+    assert quest_evidence["paths"] == [
+        "combat_profiles.combat-2.related_quests",
+        "interaction_profiles.interaction-2.available_quests",
+    ]
+    assert warning["earliest_comparable_usage"]["order"] == 0
+
+    introduction_payload = {
+        "adventure_beats": [],
+        "adventure_beat_links": [{
+            "id": "captain-introduction-link",
+            "adventure_beat_id": "adventure-beat-1",
+            "target_type": "character",
+            "target_id": "character-2",
+            "role": "cast",
+            "occurrence_kind": "transition",
+            "change_type": "introduced",
+            "importance": "major",
+            "sort_order": 4,
+            "tags": [],
+        }],
+        "deletions": {"adventure_beats": [], "adventure_beat_links": []},
+    }
+    preview = client.post("/api/ui/adventure-timeline/preview", json=introduction_payload)
+    assert preview.status_code == 200
+    assert not any(
+        row["code"] in {"character_missing_introduction_placement", "character_introduction_after_first_use"}
+        and row.get("target_id") == "character-2"
+        for row in preview.get_json()["warnings"]
+    )
+    warnings_after_preview = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert any(
+        row["code"] == "character_missing_introduction_placement" and row.get("target_id") == "character-2"
+        for row in warnings_after_preview
+    )
+
+    commit = client.post("/api/ui/adventure-timeline/bundle", json=introduction_payload)
+    assert commit.status_code == 200
+    assert not any(
+        row["code"] in {"character_missing_introduction_placement", "character_introduction_after_first_use"}
+        and row.get("target_id") == "character-2"
+        for row in commit.get_json()["packet"]["health"]["warnings"]
+    )
+
+
+def test_character_introduction_warning_respects_threshold_scope_and_introduction_order(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add_all([
+        Character(id="character-2", slug="captain", name="Captain", level=3, tags=[]),
+        Dialogue(
+            id="dialogue-2", slug="captain-orders", title="Captain's Orders",
+            character_id="character-2", tags=[],
+        ),
+        Encounter(
+            id="encounter-2", slug="captain-defense", name="Captain's Defense",
+            encounter_type=EncounterType.Combat,
+            participants=[{"character_id": "character-2", "contexts": ["Combat"], "combat_side": "Friendly"}],
+            rewards={}, tags=[],
+        ),
+        Event(
+            id="event-captain", slug="captain-event", title="Captain Rallies The Guard",
+            type=EventType.Dialogue, dialogue_id="dialogue-2", flags_set=[], item_rewards=[], tags=[],
+        ),
+        _adventure_beat("captain-introduction", "Meet The Captain", 2),
+    ])
+    session.flush()
+    session.add_all([
+        _adventure_link(
+            "captain-dialogue-link", "adventure-beat-1", AdventureBeatLinkTargetType.Dialogue,
+            "dialogue-2", AdventureBeatLinkRole.Runtime,
+        ),
+        _adventure_link(
+            "captain-encounter-link", "adventure-beat-1", AdventureBeatLinkTargetType.Encounter,
+            "encounter-2", AdventureBeatLinkRole.Runtime,
+        ),
+        _adventure_link(
+            "captain-event-link", "adventure-beat-1", AdventureBeatLinkTargetType.Event,
+            "event-captain", AdventureBeatLinkRole.Runtime,
+        ),
+        _adventure_link(
+            "captain-introduction-link", "captain-introduction", AdventureBeatLinkTargetType.Character,
+            "character-2", AdventureBeatLinkRole.Cast, AdventureOccurrenceKind.Transition,
+            AdventureChangeType.Introduced,
+        ),
+    ])
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    late = next(
+        row for row in warnings
+        if row["code"] == "character_introduction_after_first_use" and row["target_id"] == "character-2"
+    )
+    assert late["introduction_entry_ids"] == ["captain-introduction-link"]
+    assert late["earliest_comparable_usage"]["adventure_beat_id"] == "adventure-beat-1"
+
+    session = Session()
+    session.get(AdventureBeatLink, "captain-introduction-link").adventure_beat_id = "adventure-beat-1"
+    session.commit()
+    session.close()
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(
+        row["code"] in {"character_missing_introduction_placement", "character_introduction_after_first_use"}
+        and row.get("target_id") == "character-2"
+        for row in warnings
+    )
+
+
+def test_character_introduction_warning_does_not_use_other_scope_or_below_threshold(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add_all([
+        Character(id="character-2", slug="captain", name="Captain", level=3, tags=[]),
+        Character(id="character-3", slug="scout", name="Scout", level=2, tags=[]),
+        StoryArc(
+            id="arc-2", slug="second-arc", title="Second Arc", summary="Parallel scope.",
+            type=ArcType.Side, content_pack_id="pack-1", timeline_id="timeline-1",
+            related_quests=[], branching=[], required_flags=[], tags=[],
+        ),
+    ])
+    session.flush()
+    session.add_all([
+        CharacterStoryBeat(
+            id=f"captain-beat-{index}", character_id="character-2", title=f"Captain Beat {index}",
+            beat_type=CharacterBeatType.Reaction, sort_order=index, story_arc_id="arc-1",
+            required_flags=[], forbidden_flags=[], expected_output_flags=[], relationship_changes=[], tags=[],
+        )
+        for index in range(3)
+    ] + [
+        CharacterStoryBeat(
+            id=f"scout-beat-{index}", character_id="character-3", title=f"Scout Beat {index}",
+            beat_type=CharacterBeatType.Reaction, sort_order=index, story_arc_id="arc-1",
+            required_flags=[], forbidden_flags=[], expected_output_flags=[], relationship_changes=[], tags=[],
+        )
+        for index in range(2)
+    ] + [
+        _adventure_beat("captain-joins-other-arc", "Captain Joins Elsewhere", 0, story_arc_id="arc-2"),
+    ])
+    session.flush()
+    session.add(_adventure_link(
+        "captain-joins-other-arc-link", "captain-joins-other-arc", AdventureBeatLinkTargetType.Character,
+        "character-2", AdventureBeatLinkRole.Cast, AdventureOccurrenceKind.Transition,
+        AdventureChangeType.Joins,
+    ))
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    captain_warning = next(
+        row for row in warnings
+        if row["code"] == "character_missing_introduction_placement" and row["target_id"] == "character-2"
+    )
+    assert captain_warning["scope_id"] == "arc-1"
+    assert not any(
+        row["code"] == "character_missing_introduction_placement" and row.get("target_id") == "character-3"
+        for row in warnings
+    )
+
+    session = Session()
+    session.add(_adventure_link(
+        "captain-joins-arc-1-link", "adventure-beat-1", AdventureBeatLinkTargetType.Character,
+        "character-2", AdventureBeatLinkRole.Cast, AdventureOccurrenceKind.Transition,
+        AdventureChangeType.Joins,
+    ))
+    session.commit()
+    session.close()
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(
+        row["code"] == "character_missing_introduction_placement" and row.get("target_id") == "character-2"
+        for row in warnings
+    )
+
+
 def test_lifecycle_warnings_track_item_availability_before_requirement(monkeypatch):
     client, Session = _client(monkeypatch)
     _seed(Session)
@@ -633,9 +984,14 @@ def test_adventure_timeline_empty_project_has_stable_shape(monkeypatch):
     assert payload["entity_tracks"] == {
         "locations": [],
         "characters": [],
-        "items": [],
         "quests": [],
+        "events": [],
+        "dialogues": [],
+        "encounters": [],
+        "lore_entries": [],
+        "items": [],
         "factions": [],
+        "story_arcs": [],
     }
     assert payload["unplaced"] == {
         "story_arc_ids": [],

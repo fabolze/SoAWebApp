@@ -14,10 +14,12 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   deriveEntityOccurrences,
   filterBackgroundOccurrences,
+  isTrackKind,
   label,
   record,
   rows,
   singular,
+  STORY_TRACK_KINDS,
   text,
   type StoryOccurrence,
   type TrackKind,
@@ -30,12 +32,6 @@ import { generateSlug, generateUlid } from "../utils/generateId";
 const panelClass = "rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900";
 const inputClass = "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950";
 const PLAN_STORAGE_KEY = "soa.story-timeline.local-plan.v1";
-const NAVIGATOR_TRACK_KINDS: TrackKind[] = ["location", "character", "item", "quest", "faction"];
-
-function isNavigatorTrackKind(value: string): value is TrackKind {
-  return NAVIGATOR_TRACK_KINDS.includes(value as TrackKind);
-}
-
 const preferBeatCollision: CollisionDetection = (args) => {
   return pointerWithin(args).sort((left, right) => {
     const leftIsBeat = String(left.id).startsWith("beat:");
@@ -201,7 +197,7 @@ export default function StoryTimelinePage() {
   }, [plan]);
 
   useEffect(() => {
-    if (isNavigatorTrackKind(requestedTrack)) {
+    if (isTrackKind(requestedTrack)) {
       setTrackKind(requestedTrack);
       setFocusedEntityId(requestedEntity);
     } else {
@@ -584,7 +580,7 @@ function TimelineNavigator({ timelines, arcs, placements, localBeats, entityOccu
           <span className="text-[10px] text-slate-400">{trackRows.length} visible</span>
         </div>
         <div className="mt-2 grid grid-cols-2 gap-1">
-          {NAVIGATOR_TRACK_KINDS.map((kind) => <button key={kind} type="button" aria-pressed={trackKind === kind} className={`rounded border px-2 py-1 text-[10px] font-semibold ${trackKind === kind ? "border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-200" : "border-slate-200 dark:border-slate-800"}`} onClick={() => onTrackKindChange(kind)}>{trackLabels[kind]}</button>)}
+          {STORY_TRACK_KINDS.map((kind) => <button key={kind} type="button" aria-pressed={trackKind === kind} className={`rounded border px-2 py-1 text-[10px] font-semibold ${trackKind === kind ? "border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-200" : "border-slate-200 dark:border-slate-800"}`} onClick={() => onTrackKindChange(kind)}>{trackLabels[kind]}</button>)}
         </div>
         <div className="mt-2 max-h-64 space-y-2 overflow-auto">
           {trackGroups.map((group) => {
@@ -693,7 +689,7 @@ function RelationshipSection({ title, relationships }: { title: string; relation
 
 function IssueSection({ warnings, dependencyHealth }: { warnings: EntryRecord[]; dependencyHealth: EntryRecord }) {
   const dependencyGroups = Object.entries(dependencyHealth).filter(([, value]) => Array.isArray(value) && value.length);
-  return <section className={`${panelClass} p-3`}><h2 className="font-semibold">Coherence & Dependency Issues</h2><div className="mt-3 grid gap-3 lg:grid-cols-2">{warnings.map((warning) => <div key={`${text(warning.code)}:${text(warning.entry_id)}`} className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"><div className="font-semibold">{text(warning.code).replace(/_/g, " ")}</div><div className="mt-1">{text(warning.message)}</div></div>)}{dependencyGroups.map(([group, value]) => <div key={group} className="rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200"><div className="font-semibold">{group.replace(/_/g, " ")}</div><div className="mt-1">{(value as unknown[]).length} dependency issue(s)</div></div>)}{!warnings.length && !dependencyGroups.length && <p className="text-sm text-emerald-700">No timeline coherence or dependency issues detected.</p>}</div></section>;
+  return <section className={`${panelClass} p-3`}><h2 className="font-semibold">Coherence & Dependency Issues</h2><div className="mt-3 grid gap-3 lg:grid-cols-2">{warnings.map((warning, index) => <div key={`${text(warning.code)}:${text(warning.entry_id)}:${text(warning.scope_kind)}:${text(warning.scope_id)}:${index}`} className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"><div className="font-semibold">{text(warning.code).replace(/_/g, " ")}</div><div className="mt-1">{text(warning.message)}</div></div>)}{dependencyGroups.map(([group, value]) => <div key={group} className="rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200"><div className="font-semibold">{group.replace(/_/g, " ")}</div><div className="mt-1">{(value as unknown[]).length} dependency issue(s)</div></div>)}{!warnings.length && !dependencyGroups.length && <p className="text-sm text-emerald-700">No timeline coherence or dependency issues detected.</p>}</div></section>;
 }
 
 function UnplacedSummary({ unplaced }: { unplaced: EntryRecord }) {

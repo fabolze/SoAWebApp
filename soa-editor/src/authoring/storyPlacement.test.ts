@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   defaultPlacementDraft,
+  buildCrossEntityConsequenceBundle,
+  crossEntityConsequenceTargetOptions,
   deriveEntityOccurrences,
   deriveStoryPlacementWarnings,
   filterBackgroundOccurrences,
@@ -8,6 +10,7 @@ import {
   packetStoryPlacementWarnings,
   parseEntityTrackOccurrences,
   placementDraftFromCanonicalLink,
+  STORY_TRACK_KINDS,
   storyPlacementLinkPayload,
 } from "./storyPlacement";
 import type { EntryRecord } from "../types/editorQol";
@@ -124,6 +127,75 @@ describe("story placement occurrence helpers", () => {
         importance: "critical",
       }),
     ]);
+  });
+
+  it("parses every canonical entity track group", () => {
+    const groupKinds = {
+      locations: "location",
+      characters: "character",
+      quests: "quest",
+      events: "event",
+      dialogues: "dialogue",
+      encounters: "encounter",
+      lore_entries: "lore_entry",
+      items: "item",
+      factions: "faction",
+      story_arcs: "story_arc",
+    } as const;
+    const entity_tracks = Object.fromEntries(Object.entries(groupKinds).map(([group, kind]) => [group, [{
+      id: `adventure-link:${kind}-link`,
+      link_id: `${kind}-link`,
+      entity_id: `${kind}-1`,
+      label: kind,
+      source_id: "beat-1",
+      source_label: "Opening",
+      importance: "major",
+    }]]));
+
+    const occurrences = parseEntityTrackOccurrences({ entity_tracks });
+
+    expect(new Set(occurrences.map((row) => row.entity_kind))).toEqual(new Set(STORY_TRACK_KINDS));
+    expect(occurrences.every((row) => row.canonical_link_id?.endsWith("-link"))).toBe(true);
+  });
+
+  it("prefers backend canonical tracks without duplicating placement fallbacks", () => {
+    const occurrences = deriveEntityOccurrences({
+      packet: {
+        entity_tracks: {
+          dialogues: [{
+            id: "adventure-link:dialogue-link",
+            link_id: "dialogue-link",
+            entity_kind: "dialogue",
+            entity_id: "dialogue-1",
+            label: "Gate Talk",
+            source_id: "beat-1",
+            source_label: "Opening",
+            importance: "major",
+          }],
+        },
+      },
+      placements: [{
+        kind: "adventure_beat",
+        entry_id: "beat-1",
+        label: "Opening",
+        attachments: [{
+          id: "dialogue-link",
+          target_type: "dialogue",
+          target_id: "dialogue-1",
+          role: "runtime",
+        }],
+      }],
+      eventChains: [{
+        event_id: "event-1",
+        label: "Gate Event",
+        attachments: { dialogue_id: "dialogue-1" },
+      }],
+      catalogsByKind,
+      localBeats: [],
+    });
+
+    expect(occurrences.filter((row) => row.canonical_link_id === "dialogue-link")).toHaveLength(1);
+    expect(occurrences.filter((row) => row.entity_id === "dialogue-1" && row.source_kind === "event")).toHaveLength(1);
   });
 
   it("hydrates canonical links and preserves non-editable fields in update payloads", () => {
@@ -335,5 +407,124 @@ describe("story placement occurrence helpers", () => {
       severity: "warning",
       message: "Mira appears after capture without an explicit return.",
     }])).toHaveLength(1);
+  });
+
+  it("filters cross-entity consequence targets and requires an explicit target", () => {
+    const catalogs = {
+      characters: [{ id: "char-1", name: "Mira" }, { id: "char-2", name: "Soren" }],
+      items: [{ id: "item-1", name: "Signal Key" }],
+    };
+
+    expect(crossEntityConsequenceTargetOptions("character", catalogs, "char-1").map((row) => row.id)).toEqual(["char-2"]);
+    expect(crossEntityConsequenceTargetOptions("item", catalogs, "char-1").map((row) => row.id)).toEqual(["item-1"]);
+
+    const result = buildCrossEntityConsequenceBundle({
+      selectedCharacterId: "char-1",
+      selectedCharacterLabel: "Mira",
+      targetDraft: defaultPlacementDraft("draft-target", "item", "", "beat-1"),
+      existingLinks: [],
+      makeId: () => "anchor-link",
+    });
+
+    expect(result.error).toBe("Choose a consequence target before previewing.");
+    expect(result.bundle).toEqual({});
+  });
+
+  it("builds a character anchor and separate target consequence link", () => {
+    const targetDraft = {
+      ...defaultPlacementDraft("target-link", "location", "loc-1", "beat-1"),
+      role: "state",
+      occurrence_kind: "consequence",
+      change_type: "destroyed",
+      importance: "critical",
+      state_label: "Destroyed",
+    } as const;
+
+    const result = buildCrossEntityConsequenceBundle({
+      selectedCharacterId: "char-1",
+      selectedCharacterLabel: "Mira",
+      targetDraft,
+      existingLinks: [],
+      makeId: () => "anchor-link",
+    });
+
+    expect(result.error).toBe("");
+    expect(result.bundle.adventure_beat_links).toEqual([
+      expect.objectContaining({
+        id: "anchor-link",
+        adventure_beat_id: "beat-1",
+        target_type: "character",
+        target_id: "char-1",
+        role: "cast",
+        occurrence_kind: "appearance",
+        change_type: "active",
+      }),
+      expect.objectContaining({
+        id: "target-link",
+        adventure_beat_id: "beat-1",
+        target_type: "location",
+        target_id: "loc-1",
+        role: "state",
+        occurrence_kind: "consequence",
+        change_type: "destroyed",
+        state_label: "Destroyed",
+      }),
+    ]);
+  });
+
+  it("skips existing character anchors and updates existing target consequence links", () => {
+    const anchor = {
+      id: "existing-anchor",
+      adventure_beat_id: "beat-1",
+      target_type: "character",
+      target_id: "char-1",
+      role: "cast",
+      occurrence_kind: "appearance",
+      change_type: "active",
+      importance: "minor",
+      sort_order: 0,
+      tags: [],
+    };
+    const target = {
+      id: "existing-target",
+      adventure_beat_id: "beat-1",
+      target_type: "item",
+      target_id: "item-1",
+      role: "state",
+      occurrence_kind: "consequence",
+      change_type: "lost",
+      state_label: "",
+      importance: "major",
+      sort_order: 0,
+      notes: "",
+      tags: [],
+    };
+    const targetDraft = {
+      ...defaultPlacementDraft("new-target", "item", "item-1", "beat-1"),
+      role: "state",
+      occurrence_kind: "consequence",
+      change_type: "destroyed",
+      importance: "critical",
+      state_label: "Destroyed",
+    } as const;
+
+    const result = buildCrossEntityConsequenceBundle({
+      selectedCharacterId: "char-1",
+      selectedCharacterLabel: "Mira",
+      targetDraft,
+      existingLinks: [anchor, target],
+      makeId: () => "unused-anchor",
+    });
+
+    expect(result.bundle.adventure_beat_links).toEqual([
+      expect.objectContaining({
+        id: "existing-target",
+        target_type: "item",
+        target_id: "item-1",
+        role: "state",
+        change_type: "destroyed",
+        expected_previous: target,
+      }),
+    ]);
   });
 });

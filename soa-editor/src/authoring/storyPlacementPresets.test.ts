@@ -8,6 +8,7 @@ import {
   type TrackKind,
 } from "./storyPlacement";
 import {
+  CROSS_ENTITY_CONSEQUENCE_PRESETS,
   GENERIC_STORY_PLACEMENT_PRESETS,
   WORKSPACE_STORY_PLACEMENT_PRESETS,
   applyStoryPlacementPreset,
@@ -30,7 +31,7 @@ describe("workspace story placement presets", () => {
   });
 
   it("uses unique identifiers and only canonical enum values", () => {
-    Object.entries(WORKSPACE_STORY_PLACEMENT_PRESETS).forEach(([kind, presets]) => {
+    [...Object.entries(WORKSPACE_STORY_PLACEMENT_PRESETS), ...Object.entries(CROSS_ENTITY_CONSEQUENCE_PRESETS)].forEach(([kind, presets]) => {
       expect(new Set(presets.map((preset) => preset.id)).size, `${kind} preset ids`).toBe(presets.length);
       presets.forEach((preset) => {
         expect(STORY_PLACEMENT_ROLES).toContain(preset.role);
@@ -40,6 +41,13 @@ describe("workspace story placement presets", () => {
       });
     });
     expect(new Set(GENERIC_STORY_PLACEMENT_PRESETS.map((preset) => preset.id)).size).toBe(GENERIC_STORY_PLACEMENT_PRESETS.length);
+  });
+
+  it("provides cross-entity consequence actions for supported explicit targets", () => {
+    expect(CROSS_ENTITY_CONSEQUENCE_PRESETS.character.map((preset) => preset.label)).toEqual(["Injured", "Captured", "Dies", "Returns", "Changed"]);
+    expect(CROSS_ENTITY_CONSEQUENCE_PRESETS.faction.map((preset) => preset.label)).toEqual(["Hostile", "Allied", "Changed"]);
+    expect(CROSS_ENTITY_CONSEQUENCE_PRESETS.item.map((preset) => preset.label)).toEqual(["Obtained", "Lost", "Stolen", "Consumed", "Destroyed", "Transformed"]);
+    expect(CROSS_ENTITY_CONSEQUENCE_PRESETS.location.map((preset) => preset.label)).toEqual(["Occupied", "Unavailable", "Destroyed", "Restored", "Transformed"]);
   });
 
   it("maps coherence-sensitive quest and location actions exactly", () => {

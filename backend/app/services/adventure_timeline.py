@@ -3,6 +3,7 @@ from collections import defaultdict
 from backend.app.models.m_adventure_narrative import AdventureBeat, AdventureBeatLink
 from backend.app.models.m_character_narrative import CharacterStoryBeat
 from backend.app.models.m_characters import Character
+from backend.app.models.m_combat_profiles import CombatProfile
 from backend.app.models.m_dialogues import Dialogue
 from backend.app.models.m_dialogue_nodes import DialogueNode
 from backend.app.models.m_encounters import Encounter
@@ -10,6 +11,7 @@ from backend.app.models.m_events import Event
 from backend.app.models.m_factions import Faction
 from backend.app.models.m_flags import Flag
 from backend.app.models.m_items import Item
+from backend.app.models.m_interaction_profiles import InteractionProfile
 from backend.app.models.m_lore_entries import LoreEntry
 from backend.app.models.m_locations import Location
 from backend.app.models.m_quests import Quest
@@ -55,7 +57,18 @@ def _relationship(source, target, relation, explicit=True, path="", metadata=Non
     }
 
 
-TRACK_TARGET_TYPES = {"location", "character", "item", "quest", "faction"}
+ENTITY_TRACK_GROUPS = {
+    "location": "locations",
+    "character": "characters",
+    "quest": "quests",
+    "event": "events",
+    "dialogue": "dialogues",
+    "encounter": "encounters",
+    "lore_entry": "lore_entries",
+    "item": "items",
+    "faction": "factions",
+    "story_arc": "story_arcs",
+}
 
 
 def build_adventure_timeline(db_session):
@@ -76,6 +89,8 @@ def build_adventure_timeline(db_session):
         key=lambda item: (item.adventure_beat_id, item.sort_order, item.id),
     )
     characters = sorted(db_session.query(Character).all(), key=lambda item: item.id)
+    combat_profiles = sorted(db_session.query(CombatProfile).all(), key=lambda item: item.id)
+    interaction_profiles = sorted(db_session.query(InteractionProfile).all(), key=lambda item: item.id)
     locations = sorted(db_session.query(Location).all(), key=lambda item: item.id)
     dialogues = sorted(db_session.query(Dialogue).all(), key=lambda item: item.id)
     dialogue_nodes = sorted(db_session.query(DialogueNode).all(), key=lambda item: item.id)
@@ -242,7 +257,7 @@ def build_adventure_timeline(db_session):
             metadata={"link_id": link.id, "order": link.sort_order},
         ))
         beat = adventure_beat_by_id.get(link.adventure_beat_id)
-        if beat and target_type in TRACK_TARGET_TYPES:
+        if beat and target_type in ENTITY_TRACK_GROUPS:
             story_arc = arc_by_id.get(beat.story_arc_id) if beat.story_arc_id else None
             timeline_id = beat.timeline_id or (story_arc.timeline_id if story_arc else None)
             entity_occurrences_by_kind[target_type].append({
@@ -473,6 +488,8 @@ def build_adventure_timeline(db_session):
         events=events,
         encounters=encounters,
         character_story_beats=beats,
+        combat_profiles=combat_profiles,
+        interaction_profiles=interaction_profiles,
         locations=locations,
     ))
     timeline_payload = []
@@ -547,11 +564,8 @@ def build_adventure_timeline(db_session):
         "story_arcs": arc_payload,
         "placements": placements,
         "entity_tracks": {
-            "locations": entity_occurrences_by_kind["location"],
-            "characters": entity_occurrences_by_kind["character"],
-            "items": entity_occurrences_by_kind["item"],
-            "quests": entity_occurrences_by_kind["quest"],
-            "factions": entity_occurrences_by_kind["faction"],
+            group_name: entity_occurrences_by_kind[target_type]
+            for target_type, group_name in ENTITY_TRACK_GROUPS.items()
         },
         "event_chains": event_chains,
         "relationships": relationships,

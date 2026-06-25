@@ -1,4 +1,4 @@
-import type { StoryPlacementDraft, TrackKind } from "./storyPlacement";
+import type { CrossEntityConsequenceTargetKind, StoryPlacementDraft, TrackKind } from "./storyPlacement";
 
 type PresetFields = Pick<StoryPlacementDraft, "role" | "occurrence_kind" | "change_type" | "importance" | "state_label">;
 
@@ -62,6 +62,36 @@ export const WORKSPACE_STORY_PLACEMENT_PRESETS: Partial<Record<TrackKind, StoryP
     { id: "runtime-encounter", label: "Runtime Encounter", note: "This encounter plays at the beat.", role: "runtime", occurrence_kind: "appearance", change_type: "active", importance: "major", state_label: "" },
     { id: "boss-defeated", label: "Boss Defeated", note: "The encounter ends in a decisive boss defeat.", role: "state", occurrence_kind: "consequence", change_type: "changed", importance: "critical", state_label: "Boss Defeated" },
     { id: "resolved", label: "Encounter Resolved", note: "The encounter is resolved at this beat.", role: "state", occurrence_kind: "consequence", change_type: "changed", importance: "major", state_label: "Resolved" },
+  ],
+};
+
+export const CROSS_ENTITY_CONSEQUENCE_PRESETS: Record<CrossEntityConsequenceTargetKind, StoryPlacementPreset[]> = {
+  character: [
+    { id: "character-injured", label: "Injured", note: "The second character is injured here.", role: "state", occurrence_kind: "consequence", change_type: "injured", importance: "major", state_label: "" },
+    { id: "character-captured", label: "Captured", note: "The second character becomes captive.", role: "state", occurrence_kind: "consequence", change_type: "captured", importance: "major", state_label: "" },
+    { id: "character-dies", label: "Dies", note: "The second character dies here.", role: "state", occurrence_kind: "consequence", change_type: "dies", importance: "critical", state_label: "" },
+    { id: "character-returns", label: "Returns", note: "The second character explicitly returns.", role: "cast", occurrence_kind: "transition", change_type: "returns", importance: "major", state_label: "" },
+    { id: "character-changed", label: "Changed", note: "The second character changes state.", role: "state", occurrence_kind: "consequence", change_type: "changed", importance: "major", state_label: "Changed" },
+  ],
+  faction: [
+    { id: "faction-hostile", label: "Hostile", note: "The faction becomes hostile.", role: "state", occurrence_kind: "consequence", change_type: "changed", importance: "major", state_label: "Hostile" },
+    { id: "faction-allied", label: "Allied", note: "The faction becomes allied.", role: "state", occurrence_kind: "consequence", change_type: "changed", importance: "major", state_label: "Allied" },
+    { id: "faction-changed", label: "Changed", note: "The faction state changes.", role: "state", occurrence_kind: "consequence", change_type: "changed", importance: "major", state_label: "Changed" },
+  ],
+  item: [
+    { id: "item-obtained", label: "Obtained", note: "The player gains the item.", role: "reward", occurrence_kind: "reward", change_type: "obtained", importance: "major", state_label: "" },
+    { id: "item-lost", label: "Lost", note: "The item becomes lost.", role: "state", occurrence_kind: "consequence", change_type: "lost", importance: "major", state_label: "" },
+    { id: "item-stolen", label: "Stolen", note: "The item is stolen.", role: "state", occurrence_kind: "consequence", change_type: "stolen", importance: "major", state_label: "" },
+    { id: "item-consumed", label: "Consumed", note: "The item is consumed.", role: "state", occurrence_kind: "consequence", change_type: "consumed", importance: "major", state_label: "" },
+    { id: "item-destroyed", label: "Destroyed", note: "The item is destroyed.", role: "state", occurrence_kind: "consequence", change_type: "destroyed", importance: "critical", state_label: "Destroyed" },
+    { id: "item-transformed", label: "Transformed", note: "The item changes form.", role: "state", occurrence_kind: "transition", change_type: "transformed", importance: "major", state_label: "Transformed" },
+  ],
+  location: [
+    { id: "location-occupied", label: "Occupied", note: "The location becomes occupied.", role: "state", occurrence_kind: "consequence", change_type: "changed", importance: "major", state_label: "Occupied" },
+    { id: "location-unavailable", label: "Unavailable", note: "The location becomes unavailable.", role: "state", occurrence_kind: "consequence", change_type: "unavailable", importance: "major", state_label: "Unavailable" },
+    { id: "location-destroyed", label: "Destroyed", note: "The location is destroyed.", role: "state", occurrence_kind: "consequence", change_type: "destroyed", importance: "critical", state_label: "Destroyed" },
+    { id: "location-restored", label: "Restored", note: "The location is restored.", role: "state", occurrence_kind: "transition", change_type: "restored", importance: "major", state_label: "Restored" },
+    { id: "location-transformed", label: "Transformed", note: "The location changes form.", role: "state", occurrence_kind: "transition", change_type: "transformed", importance: "major", state_label: "Transformed" },
   ],
 };
 

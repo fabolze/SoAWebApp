@@ -234,25 +234,39 @@ test("story timeline previews and commits local beats as one canonical bundle", 
 });
 
 test("story timeline deep links select tracks and focus matching entity occurrences", async ({ page }) => {
+  test.slow();
   await mockStoryTimelineApi(page);
   const trackLabels = {
     location: "Locations",
     character: "Characters",
-    item: "Important Items",
     quest: "Quests",
+    event: "Events",
+    dialogue: "Dialogues",
+    encounter: "Encounters",
+    lore_entry: "Lore",
+    item: "Important Items",
     faction: "Factions",
+    story_arc: "Story Arcs",
+  };
+  const trackEntities: Record<string, string> = {
+    location: "location-1",
+    character: "char-1",
+    quest: "quest-1",
+    event: "event-1",
+    dialogue: "dialogue-1",
+    encounter: "encounter-1",
+    lore_entry: "lore-1",
+    item: "item-1",
+    faction: "faction-1",
+    story_arc: "arc-1",
   };
 
   for (const [track, labelText] of Object.entries(trackLabels)) {
-    const entity = track === "location" ? "location-1" : track === "character" ? "char-1" : "missing-entity";
+    const entity = trackEntities[track];
     await page.goto(`/author/story-timeline?track=${track}&entity=${entity}`);
     const navigator = page.getByTestId("story-navigator");
-    await expect(navigator.getByRole("button", { name: labelText, exact: true })).toHaveAttribute("aria-pressed", "true");
-    if (track === "location" || track === "character") {
-      await expect(page.getByTestId(`entity-occurrence-${track}-${entity}`)).toHaveAttribute("data-focused", "true");
-    } else {
-      await expect(navigator.locator('[data-focused="true"]')).toHaveCount(0);
-    }
+    await expect(navigator.getByRole("button", { name: labelText, exact: true })).toHaveAttribute("aria-pressed", "true", { timeout: 15000 });
+    await expect(page.getByTestId(`entity-occurrence-${track}-${entity}`)).toHaveAttribute("data-focused", "true", { timeout: 15000 });
   }
 
   await page.goto("/author/story-timeline?track=character&entity=does-not-exist");
@@ -329,6 +343,7 @@ test("item ecosystem places an item lifecycle consequence through a semantic pre
     if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, {
       ...storyTimelinePacket,
       catalogs: { ...storyTimelinePacket.catalogs, items: [{ id: "item-1", name: "Signal Key" }] },
+      entity_tracks: { ...storyTimelinePacket.entity_tracks, items: [] },
     });
     if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as Record<string, unknown>;
@@ -760,6 +775,26 @@ const canonicalLocationLink = {
   tags: [],
 };
 
+function mockEntityTrack(entityKind: string, entityId: string, label: string) {
+  return {
+    id: `adventure-link:${entityKind}-link`,
+    link_id: `${entityKind}-link`,
+    entity_kind: entityKind,
+    entity_id: entityId,
+    label,
+    timeline_id: "timeline-1",
+    story_arc_id: "arc-1",
+    source_kind: "adventure_beat",
+    source_id: "adventure-beat-1",
+    source_label: "Enter The First City",
+    order: 0,
+    role: "reference",
+    occurrence_kind: "appearance",
+    change_type: "active",
+    importance: "major",
+  };
+}
+
 const storyTimelinePacket = {
   meta: { read_only: true, canonical_global_sequence: false },
   timelines: [{ id: "timeline-1", slug: "main-story", name: "Main Story", description: "The playable story.", story_arc_ids: ["arc-1"], tags: [] }],
@@ -812,10 +847,15 @@ const storyTimelinePacket = {
       change_type: "active",
       importance: "major",
     }],
-    characters: [],
-    items: [],
-    quests: [],
-    factions: [],
+    characters: [mockEntityTrack("character", "char-1", "Guide")],
+    quests: [mockEntityTrack("quest", "quest-1", "Arrival")],
+    events: [mockEntityTrack("event", "event-1", "Welcome Event")],
+    dialogues: [mockEntityTrack("dialogue", "dialogue-1", "Welcome")],
+    encounters: [mockEntityTrack("encounter", "encounter-1", "Road Ambush")],
+    lore_entries: [mockEntityTrack("lore_entry", "lore-1", "City Charter")],
+    items: [mockEntityTrack("item", "item-1", "Signal Key")],
+    factions: [mockEntityTrack("faction", "faction-1", "City Watch")],
+    story_arcs: [mockEntityTrack("story_arc", "arc-1", "The First City")],
   },
   unplaced: { story_arc_ids: [], quest_ids: [], event_ids: [], character_story_beat_ids: [], adventure_beat_ids: [] },
   catalogs: {
@@ -827,8 +867,10 @@ const storyTimelinePacket = {
     characters: [{ id: "char-1", name: "Guide" }],
     locations: [{ id: "location-1", name: "First City" }],
     dialogues: [{ id: "dialogue-1", title: "Welcome" }],
-    encounters: [],
-    lore_entries: [],
+    encounters: [{ id: "encounter-1", name: "Road Ambush" }],
+    lore_entries: [{ id: "lore-1", title: "City Charter" }],
+    items: [{ id: "item-1", name: "Signal Key" }],
+    factions: [{ id: "faction-1", name: "City Watch" }],
   },
   dependency_index: { nodes: [], edges: [{ id: "quest:quest-1>unlocks>event:event-1", source: "quest:quest-1", target: "event:event-1", relation: "unlocks", explicit: false }], health: {} },
   health: { warnings: [], dependency: {} },
@@ -898,6 +940,27 @@ async function mockStoryTimelineApi(page: Page, onBundle?: (payload: Record<stri
 }
 
 test("character studio shows occurrences and places a character consequence", async ({ page }) => {
+  const introductionWarning = "Character Guide has 3 scoped uses in story arc arc-1 (1 dialogue, 1 encounter, 1 character story beat) but no canonical introduced or joins placement in this story lane.";
+  const characterStoryTimeline = {
+    ...storyTimelinePacket,
+    health: {
+      ...storyTimelinePacket.health,
+      warnings: [{
+        code: "character_missing_introduction_placement",
+        severity: "warning",
+        schema_name: "characters",
+        entry_id: "char-1",
+        target_type: "character",
+        target_id: "char-1",
+        scope_kind: "story_arc",
+        scope_id: "arc-1",
+        usage_count: 3,
+        usage_counts: { dialogue: 1, encounter: 1, character_story_beat: 1 },
+        usage_evidence: [],
+        message: introductionWarning,
+      }],
+    },
+  };
   const characterPacket = {
     navigator: [{ id: "char-1", name: "Guide", encounter_count: 0, dialogue_count: 1 }],
     character: { id: "char-1", slug: "guide", name: "Guide", title: "", description: "", level: 1, tags: [] },
@@ -920,7 +983,7 @@ test("character studio shows occurrences and places a character consequence", as
   await page.route("http://localhost:5000/api/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/ui/character-studio/char-1") return fulfillJson(route, characterPacket);
-    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimelinePacket);
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, characterStoryTimeline);
     if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as Record<string, unknown>;
       const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
@@ -932,7 +995,7 @@ test("character studio shows occurrences and places a character consequence", as
       return fulfillJson(route, {
         result: { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] },
         packet: {
-          ...storyTimelinePacket,
+          ...characterStoryTimeline,
           entity_tracks: {
             ...storyTimelinePacket.entity_tracks,
             characters: [{
@@ -962,6 +1025,8 @@ test("character studio shows occurrences and places a character consequence", as
   await expect(page.getByRole("heading", { name: "Guide" })).toBeVisible();
   await expect(page.getByTestId("story-placement-panel")).toContainText("Guide Welcomes The Player");
   await expect(page.getByTestId("story-context-strip")).toContainText("Story Context");
+  await expect(page.getByTestId("story-placement-panel")).toContainText(introductionWarning);
+  await expect(page.getByTestId("story-context-strip")).toContainText("1 warning");
   await expect(page.getByTestId("story-placement-panel")).toContainText("Main Story / The First City");
   await expect(page.getByTestId("story-placement-panel").getByRole("link", { name: "Open Timeline" })).toHaveAttribute("href", /\/author\/story-timeline/);
   await expect(page.getByTestId("story-presets-character")).toContainText("Returns");
@@ -979,6 +1044,89 @@ test("character studio shows occurrences and places a character consequence", as
   expect(link.change_type).toBe("dies");
   expect(link.importance).toBe("critical");
   await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City");
+
+  await page.goto("/author/story-timeline");
+  await page.getByRole("button", { name: "Issues", exact: true }).click();
+  await expect(page.getByText(introductionWarning)).toBeVisible();
+});
+
+test("character studio authors a cross-entity item consequence as separate beat links", async ({ page }) => {
+  const characterPacket = {
+    navigator: [{ id: "char-1", name: "Guide", encounter_count: 0, dialogue_count: 1 }],
+    character: { id: "char-1", slug: "guide", name: "Guide", title: "", description: "", level: 1, tags: [] },
+    combat_profile: null,
+    interaction_profile: null,
+    story_profile: null,
+    relationships: [],
+    story_beats: [],
+    world_presence: { encounters: [], dialogues: [], dialogue_nodes: [], shops: [], quests: [], locations: [] },
+    graph: { nodes: [{ id: "character:char-1", kind: "character", entry_id: "char-1", label: "Guide", data: {}, metadata: {} }], edges: [] },
+    catalogs: {
+      characters: [{ id: "char-1", name: "Guide" }],
+      abilities: [], quests: [], dialogues: [], dialogue_nodes: [], encounters: [], shops: [], locations: [], factions: [], characterclasses: [], events: [], story_arcs: [], flags: [],
+    },
+    health: { blockers: [], warnings: [] },
+    flag_coverage: {},
+    unplaced_presence: [],
+  };
+  let saved: Record<string, unknown> | null = null;
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/ui/character-studio/char-1") return fulfillJson(route, characterPacket);
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, {
+      ...storyTimelinePacket,
+      catalogs: {
+        ...storyTimelinePacket.catalogs,
+        adventure_beat_links: [canonicalLocationLink],
+        items: [{ id: "item-1", name: "Signal Key" }],
+      },
+    });
+    if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] });
+    }
+    if (url.pathname === "/api/ui/adventure-timeline/bundle" && route.request().method() === "POST") {
+      saved = route.request().postDataJSON() as Record<string, unknown>;
+      const links = saved.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, {
+        result: { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] },
+        packet: storyTimelinePacket,
+      });
+    }
+    return fulfillJson(route, []);
+  });
+
+  await page.goto("/author/characters/char-1");
+  await expect(page.getByTestId("cross-entity-consequence")).toBeVisible();
+  await page.getByLabel("Target Type").selectOption("item");
+  await page.getByLabel("Explicit Target").selectOption("item-1");
+  await page.getByTestId("cross-entity-preset-item-destroyed").click();
+  await page.getByTestId("cross-entity-consequence").getByRole("button", { name: "Preview Consequence" }).click();
+  await expect(page.getByTestId("story-placement-review")).toContainText("2 created");
+  await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Consequence" }).click();
+
+  await expect.poll(() => saved).not.toBeNull();
+  const links = saved?.adventure_beat_links as Array<Record<string, unknown>>;
+  expect(links).toHaveLength(2);
+  expect(links[0]).toEqual(expect.objectContaining({
+    adventure_beat_id: "adventure-beat-1",
+    target_type: "character",
+    target_id: "char-1",
+    role: "cast",
+    occurrence_kind: "appearance",
+    change_type: "active",
+  }));
+  expect(links[1]).toEqual(expect.objectContaining({
+    adventure_beat_id: "adventure-beat-1",
+    target_type: "item",
+    target_id: "item-1",
+    role: "state",
+    occurrence_kind: "consequence",
+    change_type: "destroyed",
+    state_label: "Destroyed",
+    importance: "critical",
+  }));
 });
 
 async function dragWithPointer(page: Page, source: Locator, target: Locator) {

@@ -5,6 +5,7 @@ export type StoryPlacementRole = "setting" | "cast" | "player_journey" | "runtim
 export type StoryOccurrenceKind = "appearance" | "transition" | "reward" | "requirement" | "consequence" | "reference";
 export type StoryChangeType = "introduced" | "active" | "changed" | "unavailable" | "restored" | "destroyed" | "obtained" | "lost" | "stolen" | "consumed" | "joins" | "leaves" | "captured" | "injured" | "dies" | "returns" | "transformed" | "none";
 export type StoryImportance = "critical" | "major" | "minor" | "background";
+export type CrossEntityConsequenceTargetKind = "character" | "faction" | "item" | "location";
 
 export interface StoryOccurrence {
   id: string;
@@ -65,6 +66,14 @@ export interface StoryPlacementWarning {
   message: string;
 }
 
+export interface CrossEntityConsequenceBundleOptions {
+  selectedCharacterId: string;
+  selectedCharacterLabel: string;
+  targetDraft: StoryPlacementDraft;
+  existingLinks: EntryRecord[];
+  makeId: () => string;
+}
+
 interface DeriveEntityOccurrencesOptions {
   packet: EntryRecord | null | undefined;
   placements: EntryRecord[];
@@ -79,7 +88,8 @@ interface DeriveStoryPlacementWarningsOptions {
   occurrences: StoryOccurrence[];
 }
 
-const TRACK_KINDS: TrackKind[] = ["location", "character", "quest", "event", "dialogue", "encounter", "lore_entry", "item", "faction", "story_arc"];
+export const STORY_TRACK_KINDS: TrackKind[] = ["location", "character", "quest", "event", "dialogue", "encounter", "lore_entry", "item", "faction", "story_arc"];
+export const CROSS_ENTITY_CONSEQUENCE_TARGET_KINDS: CrossEntityConsequenceTargetKind[] = ["character", "faction", "item", "location"];
 
 const catalogKeyByKind: Record<TrackKind, string> = {
   location: "locations",
@@ -136,7 +146,7 @@ export function singular(kind: string): string {
 }
 
 export function isTrackKind(value: string): value is TrackKind {
-  return TRACK_KINDS.includes(value as TrackKind);
+  return STORY_TRACK_KINDS.includes(value as TrackKind);
 }
 
 export function defaultPlacementDraft(id: string, entityKind: TrackKind, entityId: string, beatId = "", sortOrder = 0): StoryPlacementDraft {
@@ -228,6 +238,77 @@ export function storyPlacementLinkPayload(candidate: StoryPlacementDraft, origin
     payload.tags = candidate.tags || [];
   }
   return payload;
+}
+
+export function crossEntityConsequenceTargetOptions(
+  targetKind: CrossEntityConsequenceTargetKind,
+  catalogs: Record<string, unknown>,
+  selectedCharacterId: string,
+): EntryRecord[] {
+  const values: Record<CrossEntityConsequenceTargetKind, string> = {
+    character: "characters",
+    faction: "factions",
+    item: "items",
+    location: "locations",
+  };
+  return rows(catalogs[values[targetKind]])
+    .filter((entry) => targetKind !== "character" || text(entry.id) !== selectedCharacterId);
+}
+
+export function matchingStoryPlacementLink(candidate: StoryPlacementDraft, existingLinks: EntryRecord[]): EntryRecord | undefined {
+  return existingLinks.find((link) =>
+    text(link.adventure_beat_id) === candidate.adventure_beat_id
+    && text(link.target_type) === candidate.target_type
+    && text(link.target_id) === candidate.target_id
+    && text(link.role) === candidate.role
+  );
+}
+
+export function buildCrossEntityConsequenceBundle({
+  selectedCharacterId,
+  selectedCharacterLabel,
+  targetDraft,
+  existingLinks,
+  makeId,
+}: CrossEntityConsequenceBundleOptions): { bundle: EntryRecord; error: string } {
+  if (!targetDraft.adventure_beat_id) {
+    return { bundle: {}, error: "Choose an adventure beat before previewing a consequence." };
+  }
+  if (!targetDraft.target_id) {
+    return { bundle: {}, error: "Choose a consequence target before previewing." };
+  }
+  if (targetDraft.target_type === "character" && targetDraft.target_id === selectedCharacterId) {
+    return { bundle: {}, error: "Choose a second character for cross-entity consequences." };
+  }
+
+  const anchorDraft = {
+    ...defaultPlacementDraft(makeId(), "character", selectedCharacterId, targetDraft.adventure_beat_id, 0),
+    role: "cast" as const,
+    occurrence_kind: "appearance" as const,
+    change_type: "active" as const,
+    importance: "minor" as const,
+    state_label: "",
+    continuity_group_id: selectedCharacterId,
+    notes: `Places ${selectedCharacterLabel} in the beat for a cross-entity consequence.`,
+  };
+  const anchorLink = matchingStoryPlacementLink(anchorDraft, existingLinks);
+  const targetLink = matchingStoryPlacementLink(targetDraft, existingLinks);
+  const resolvedTargetDraft = targetLink ? { ...targetDraft, id: text(targetLink.id, targetDraft.id) } : targetDraft;
+  const linkPayloads = [
+    ...(anchorLink ? [] : [storyPlacementLinkPayload(anchorDraft)]),
+    {
+      ...storyPlacementLinkPayload(resolvedTargetDraft, targetLink),
+      ...(targetLink ? { expected_previous: targetLink } : {}),
+    },
+  ];
+  return {
+    error: "",
+    bundle: {
+      adventure_beats: [],
+      adventure_beat_links: linkPayloads,
+      deletions: { adventure_beats: [], adventure_beat_links: [] },
+    },
+  };
 }
 
 function stringValues(value: unknown): string[] {

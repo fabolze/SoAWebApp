@@ -33,14 +33,14 @@ Last reviewed: 2026-06-24
 | Workspace | Status |
 |---|---|
 | World Builder | Implemented; foundation for the shared authoring language; selected-location story placement create/edit/remove and semantic location presets integrated |
-| Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, and semantic character presets |
+| Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, semantic character presets, scoped introduction-coverage warnings, and cross-entity character consequence actions |
 | Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, and selected-dialogue presets |
 | Encounter Stage | Implemented MVP with encounter story placement create/edit/remove and selected-encounter presets |
 | Quest Journey Board And Quest Loom | Journey Board initial MVP with quest story placement create/edit/remove and semantic journey presets; full mixed-content Quest Loom is future vision |
 | Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove and semantic item lifecycle presets; future work can deepen fantasy, provenance, families, and progression |
 | Creature Workshop | Planned; Character Creator already covers much of the existing character/combat/interaction bundle |
 | Ability Spellcraft Lab | Implemented expanded lab with trace bench, lifecycle workshop, variants, relationships, contextual testing, and shared rollback-preview/atomic-commit review |
-| Story Timeline And Adventure Board | Interactive MVP implemented with scoped lanes, lenses, drag/drop local planning, canonical adventure beats/lifecycle-aware typed links, query-driven entity occurrence focus, scoped lifecycle-coherence warnings, reusable frontend placement helpers, and shared preview/commit review |
+| Story Timeline And Adventure Board | Interactive MVP implemented with scoped lanes, lenses, drag/drop local planning, canonical adventure beats/lifecycle-aware typed links, backend-complete tracks and query-driven focus for all ten target types, scoped lifecycle-coherence warnings, reusable frontend placement helpers, and shared preview/commit review |
 | Adventure Dependency Map | Dependency Map initial MVP |
 
 The workspace descriptions below contain both current-model implementation contracts and future-facing design. A feature is not implemented merely because it appears in this document; the status table is authoritative.
@@ -106,28 +106,22 @@ When a Codex agent is asked to continue this work, start here. Do not begin from
 - `StoryPlacementPanel` is embedded in Character Studio, Item Ecosystem, Quest Journey Board, Encounter Stage, Dialogue Scene Room, and World Builder.
 - The panel can show occurrences and create, edit, or remove canonical `adventure_beat_links` through `/api/ui/adventure-timeline/preview` and `/api/ui/adventure-timeline/bundle`.
 - Canonical occurrences expose edit actions; inferred runtime, character-beat, and local occurrences remain read-only.
-- Story Timeline deep links use `?track=...&entity=...` to select location, character, item, quest, or faction occurrence tracks and focus matching entity groups.
+- Story Timeline deep links use `?track=...&entity=...` to select and focus matching occurrence groups for every canonical beat-link target type.
 - The panel exposes lifecycle fields: role, occurrence kind, change type, state label, start/end beat, continuity group, and importance.
 - `PlacementTray` exposes selected-entity semantic presets for characters, items, quests, locations, dialogues, and encounters above the unchanged generic placement roles. Presets patch the existing lifecycle fields and remain editable before preview.
 - `BundleReview` provides the shared canonical review surface for Story Timeline, Story Placement, Character Studio, Dialogue Scene Room, and Ability Spellcraft. Inline and modal shells preserve workspace context while sharing change summaries, warnings, blockers, acknowledgement gates, and retryable commit errors.
-- Backend coherence warnings cover character terminal/recovery order, item availability before requirements, quest start/resolution coverage, stateful dialogue in unplaced events, consequential unplaced encounters, and location restoration/state contradictions. Targeted warnings appear in both the Story Timeline issue lens and the owning workspace panel.
+- Backend coherence warnings cover scoped character introduction coverage with explicit usage evidence, character terminal/recovery order, item availability before requirements, quest start/resolution coverage, stateful dialogue in unplaced events, consequential unplaced encounters, and location restoration/state contradictions. Targeted warnings appear in both the Story Timeline issue lens and the owning workspace panel.
 - The current implementation is **generic placement integration with selected-entity semantic shortcuts**. It is not yet a finished custom interaction layer for every workspace.
 
 **Known boundaries:**
 
-- Semantic presets write lifecycle metadata only for the selected workspace entity. Cross-entity consequence actions still need explicit target selection; examples include encounter rewards/location changes and dialogue changes to a specific faction or character.
+- Semantic presets write lifecycle metadata only for the selected workspace entity. Character Studio supports explicit second-target consequence selection for characters, factions, items, and locations; other cross-entity consequence actions still need workspace-specific target selection, such as encounter rewards/location changes and dialogue changes to a specific faction or character.
 - Lifecycle order warnings compare only canonical order inside one story-arc, timeline-level, or unassigned lane. They do not invent order across arcs or timelines. Encounter importance remains conservatively derived from canonical state/reputation/important-item consequences because encounters have no dedicated importance field.
-- Backend `entity_tracks` are canonical primary tracks for locations, characters, items, quests, and factions. Dialogue, encounter, event, lore, and story-arc occurrences are currently frontend-derived from placements and event chains.
+- Backend `entity_tracks` expose canonical adventure-beat-link occurrences for locations, characters, quests, events, dialogues, encounters, lore entries, items, factions, and story arcs. The frontend composes those canonical tracks with separately inferred runtime-event, character-beat, and browser-local occurrences without treating inferred context as canonical data.
 
 #### Next Action Queue
 
-Work this queue in order unless the user explicitly asks for a different item.
-
-If only one implementation task is requested, choose item 1: **Backend Track Parity Decision**.
-
-1. **Backend Track Parity Decision**
-
-   Decide whether dialogue, encounter, event, lore, and story-arc occurrences should become backend `entity_tracks` or remain frontend-derived. Do not change this casually; it affects the API contract.
+No active queue item. Choose the next focused task from the workspace-specific backlog unless the user asks for a specific workspace.
 
 #### Do Not Do
 
@@ -186,14 +180,14 @@ This backlog gives direction after the next action queue. Do not start here unle
 
 Add a Character Presence Timeline inside the existing context area:
 
-Current status: partially implemented through the shared `StoryPlacementPanel`, `EntityOccurrenceTrack`, `StoryContextStrip`, `PlacementTray`, and `LifecycleFields`. Character Studio can show existing character occurrences, create/edit/remove `character` links, apply selected-character lifecycle presets, and warn when a character appears after dies/leaves/captured without a scoped recovery. Remaining work includes warning when a heavily used character has no clear introduction and cross-entity character consequences.
+Current status: partially implemented through the shared `StoryPlacementPanel`, `EntityOccurrenceTrack`, `StoryContextStrip`, `PlacementTray`, and `LifecycleFields`. Character Studio can show existing character occurrences, create/edit/remove `character` links, apply selected-character lifecycle presets, warn when a character appears after dies/leaves/captured without a scoped recovery, warn when three or more deduplicated dialogue, encounter, event, quest, or character-story-beat usages in one lane lack an on-time canonical `introduced` or `joins` occurrence, and author cross-entity consequences against an explicit second character, faction, item, or location target. Usage evidence remains structured and order is compared only when both sides use `adventure_beats.sort_order`.
 
 - Show appearances from adventure beats, character story beats, dialogues, encounters, events, quests, and local story-planning links.
 - Highlight lifecycle states such as introduced, joins, leaves, injured, captured, dies, returns, changed, and active.
 - Let the author place the character into an existing adventure beat as cast or state.
 - Let the author mark major story changes directly from the character view: joins party, leaves party, captured, injured, dies, returns, faction changes, or transformed.
 - Warn when a character appears after a terminal state without an explicit return/restoration.
-- Warn when a character is heavily used in dialogue or encounters but has no clear story introduction.
+- Warn when a character is heavily used in dialogue, encounters, events, quests, or character story beats but has no clear scoped story introduction. Implemented with a conservative three-record threshold, explicit evidence paths, and lane-local order checks.
 
 This should make the character view answer "where is this person in the story?" without forcing the author to open the full timeline.
 
@@ -1082,7 +1076,7 @@ The main canvas is a horizontally ordered story spine:
 
 Semantic zoom keeps the board readable. Overview shows timelines, arcs, and major beats. Board view shows beat cards and important attachments. Detail view opens the selected beat's complete context packet.
 
-The implemented MVP adds a **Story Navigator** above the board. It is the fast-access layer for larger projects: timeline and arc cards summarize canonical placements, local planning beats, and the selected entity track, while the Entity Occurrences panel groups repeated appearances and state changes for locations, characters, important items, quests, or factions so the author does not have to find every instance by scrolling through timeline lanes.
+The implemented MVP adds a **Story Navigator** above the board. It is the fast-access layer for larger projects: timeline and arc cards summarize canonical placements, local planning beats, and the selected entity track, while the Entity Occurrences panel groups repeated appearances and state changes for all ten canonical beat-link target types so the author does not have to find every instance by scrolling through timeline lanes.
 
 ### Current-Model Implementation
 
@@ -1100,7 +1094,7 @@ It exposes current ordering and relationships without inventing a global sequenc
 | Dependency index edges | Explicit and inferred prerequisite, state, branch, and unlock context |
 | `adventure_beats.sort_order` | Canonical beat order inside an arc, timeline, or unassigned planning scope |
 | Typed `adventure_beat_links` | Canonical setting, cast, player-journey, runtime, state, reward, and reference attachments with occurrence kind, change type, state label, continuity group, and importance |
-| `entity_tracks`, event locations, character story beats, and local beat attachments | Grouped Entity Occurrences in the Story Navigator |
+| Canonical `entity_tracks`, inferred event attachments, character story beats, and local beat attachments | Grouped Entity Occurrences in the Story Navigator, with canonical and inferred sources kept distinct |
 
 The aggregator explicitly separates canonical placements, runtime event chains, unplaced content, and inferred dependency relationships. It does not save visual positions or claim that current records form one canonical player path.
 
@@ -1118,7 +1112,7 @@ The aggregator explicitly separates canonical placements, runtime event chains, 
 
 1. Open `/author/story-timeline`.
 2. Use **Story Navigator** to choose the timeline or arc you want to inspect. This avoids treating the horizontal card rows as the only navigation mechanism.
-3. Use **Entity Occurrences** to switch between locations, characters, important items, quests, and factions. Each row groups every currently known occurrence and shows the first beat or runtime event where the entity appears or changes state.
+3. Use **Entity Occurrences** to switch between locations, characters, quests, events, dialogues, encounters, lore entries, important items, factions, and story arcs. Each row groups every currently known occurrence and shows the first beat or runtime event where the entity appears or changes state.
 4. Use the lens buttons to reduce the board to the question you are asking:
    - **Locations** for where story beats happen.
    - **Runtime** for event/dialogue/encounter implementation.

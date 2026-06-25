@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  CROSS_ENTITY_CONSEQUENCE_TARGET_KINDS,
+  buildCrossEntityConsequenceBundle,
+  crossEntityConsequenceTargetOptions,
   defaultPlacementDraft,
   deriveEntityOccurrences,
   deriveStoryPlacementWarnings,
@@ -12,9 +15,11 @@ import {
   rows,
   storyPlacementLinkPayload,
   text,
+  type CrossEntityConsequenceTargetKind,
   type StoryPlacementDraft,
   type TrackKind,
 } from "../../authoring/storyPlacement";
+import { CROSS_ENTITY_CONSEQUENCE_PRESETS, applyStoryPlacementPreset, storyPlacementPresetIsActive } from "../../authoring/storyPlacementPresets";
 import { apiFetch } from "../../lib/api";
 import type { EntryRecord } from "../../types/editorQol";
 import { generateUlid } from "../../utils/generateId";
@@ -29,6 +34,7 @@ interface StoryPlacementPanelProps {
   entityId: string;
   entityLabel: string;
   entity?: EntryRecord;
+  enableCharacterConsequenceActions?: boolean;
 }
 
 function catalogsByKind(packet: EntryRecord | null): Map<string, Map<string, EntryRecord>> {
@@ -41,16 +47,23 @@ function catalogsByKind(packet: EntryRecord | null): Map<string, Map<string, Ent
 }
 
 type PlacementAction = "create" | "edit" | "remove";
+type ReviewMode = PlacementAction | "cross-entity";
 
-export default function StoryPlacementPanel({ entityKind, entityId, entityLabel, entity }: StoryPlacementPanelProps) {
+function title(value: string): string {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+export default function StoryPlacementPanel({ entityKind, entityId, entityLabel, entity, enableCharacterConsequenceActions = false }: StoryPlacementPanelProps) {
   const [packet, setPacket] = useState<EntryRecord | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [createDraft, setCreateDraft] = useState<StoryPlacementDraft>(() => defaultPlacementDraft(generateUlid(), entityKind, entityId));
   const [editDraft, setEditDraft] = useState<StoryPlacementDraft | null>(null);
   const [originalLink, setOriginalLink] = useState<EntryRecord | null>(null);
+  const [consequenceKind, setConsequenceKind] = useState<CrossEntityConsequenceTargetKind>("character");
+  const [consequenceDraft, setConsequenceDraft] = useState<StoryPlacementDraft>(() => defaultPlacementDraft(generateUlid(), "character", ""));
   const [review, setReview] = useState<BundleReviewResult | null>(null);
-  const [reviewAction, setReviewAction] = useState<PlacementAction | null>(null);
+  const [reviewAction, setReviewAction] = useState<ReviewMode | null>(null);
   const [mutationError, setMutationError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -78,6 +91,8 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
     setCreateDraft(defaultPlacementDraft(generateUlid(), entityKind, entityId));
     setEditDraft(null);
     setOriginalLink(null);
+    setConsequenceKind("character");
+    setConsequenceDraft(defaultPlacementDraft(generateUlid(), "character", ""));
     setReview(null);
     setReviewAction(null);
     setMutationError("");
@@ -87,6 +102,7 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
     const timelines = new Map(rows(packet?.timelines).map((entry) => [text(entry.id), entry]));
     const arcs = new Map(rows(packet?.story_arcs).map((entry) => [text(entry.id), entry]));
     const beatOptions = rows(record(packet?.catalogs).adventure_beats);
+    const catalogs = record(packet?.catalogs);
     const placementBeats = rows(packet?.placements)
       .filter((placement) => text(placement.kind) === "adventure_beat")
       .map((placement) => ({
@@ -96,7 +112,8 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
         story_arc_id: text(placement.story_arc_id),
       }));
     const beatsById = new Map([...beatOptions, ...placementBeats].map((beat) => [text(beat.id), beat]));
-    const canonicalLinks = new Map(rows(record(packet?.catalogs).adventure_beat_links).map((link) => [text(link.id), link]));
+    const existingLinks = rows(catalogs.adventure_beat_links);
+    const canonicalLinks = new Map(existingLinks.map((link) => [text(link.id), link]));
     const occurrences = deriveEntityOccurrences({
       packet,
       placements: rows(packet?.placements),
@@ -108,7 +125,7 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
       deriveStoryPlacementWarnings({ entityKind, entity, occurrences }),
       packetStoryPlacementWarnings(packet, entityKind, entityId),
     );
-    return { timelines, arcs, beatOptions: [...beatsById.values()], canonicalLinks, occurrences, warnings };
+    return { timelines, arcs, beatOptions: [...beatsById.values()], catalogs, existingLinks, canonicalLinks, occurrences, warnings };
   }, [entity, entityId, entityKind, packet]);
 
   useEffect(() => {
@@ -117,8 +134,20 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
     }
   }, [context.beatOptions, createDraft.adventure_beat_id]);
 
+  useEffect(() => {
+    if (!consequenceDraft.adventure_beat_id && context.beatOptions.length > 0) {
+      setConsequenceDraft((current) => ({ ...current, adventure_beat_id: text(context.beatOptions[0].id) }));
+    }
+  }, [context.beatOptions, consequenceDraft.adventure_beat_id]);
+
   const activeDraft = editDraft || createDraft;
   const editing = Boolean(editDraft && originalLink);
+
+  useEffect(() => {
+    if (activeDraft.adventure_beat_id && consequenceDraft.adventure_beat_id !== activeDraft.adventure_beat_id) {
+      setConsequenceDraft((current) => ({ ...current, adventure_beat_id: activeDraft.adventure_beat_id }));
+    }
+  }, [activeDraft.adventure_beat_id, consequenceDraft.adventure_beat_id]);
 
   const clearReview = () => {
     setReview(null);
@@ -169,6 +198,14 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
     };
   };
 
+  const buildConsequenceBundle = () => buildCrossEntityConsequenceBundle({
+    selectedCharacterId: entityId,
+    selectedCharacterLabel: entityLabel,
+    targetDraft: consequenceDraft,
+    existingLinks: context.existingLinks,
+    makeId: generateUlid,
+  });
+
   const submitPlacement = async (action: PlacementAction, commit: boolean) => {
     const candidate = action === "create" ? createDraft : editDraft;
     if (!candidate || (action !== "create" && !originalLink)) return;
@@ -200,7 +237,43 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
     }
   };
 
-  const actionLabel = reviewAction === "remove" ? "Removal" : reviewAction === "edit" ? "Changes" : "Placement";
+  const submitConsequence = async (commit: boolean) => {
+    const { bundle, error: bundleError } = buildConsequenceBundle();
+    if (bundleError) {
+      setMutationError(bundleError);
+      setReview(null);
+      setReviewAction("cross-entity");
+      return;
+    }
+    setSaving(true);
+    setMutationError("");
+    try {
+      const response = await apiFetch(`/api/ui/adventure-timeline/${commit ? "bundle" : "preview"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bundle),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(text(record(payload).message, "Unable to save story consequence."));
+      if (commit) {
+        setPacket(record(record(payload).packet));
+        setConsequenceDraft(defaultPlacementDraft(generateUlid(), consequenceKind, ""));
+        setReview(null);
+        setReviewAction(null);
+      } else {
+        setReview(payload as BundleReviewResult);
+        setReviewAction("cross-entity");
+      }
+    } catch (reason: unknown) {
+      setMutationError(reason instanceof Error ? reason.message : "Unable to save story consequence.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const consequenceTargets = crossEntityConsequenceTargetOptions(consequenceKind, context.catalogs, entityId);
+  const consequenceActionLabel = reviewAction === "cross-entity" ? "Consequence" : reviewAction === "remove" ? "Removal" : reviewAction === "edit" ? "Changes" : "Placement";
+  const consequenceSectionEnabled = enableCharacterConsequenceActions && entityKind === "character";
 
   return <section className="rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900" data-testid="story-placement-panel">
     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -238,19 +311,70 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
         <div className="mt-3">
           <LifecycleFields value={activeDraft} beatOptions={context.beatOptions} onChange={updateActiveDraft} />
         </div>
+        {consequenceSectionEnabled && !editing && <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950" data-testid="cross-entity-consequence">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold">Cross-Entity Consequence</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300">Place {entityLabel} in this beat and apply the consequence to a second explicit target.</p>
+            </div>
+            <button type="button" className="rounded border border-amber-300 bg-white px-2 py-1 text-xs font-semibold disabled:opacity-40 dark:border-amber-800 dark:bg-slate-950" disabled={saving || !consequenceDraft.adventure_beat_id || !consequenceDraft.target_id} onClick={() => void submitConsequence(false)}>Preview Consequence</button>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <label className="block text-[10px] font-semibold uppercase text-slate-500">Target Type
+              <select className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs normal-case dark:border-slate-700 dark:bg-slate-950" value={consequenceKind} onChange={(event) => {
+                const nextKind = event.target.value as CrossEntityConsequenceTargetKind;
+                setConsequenceKind(nextKind);
+                setConsequenceDraft(defaultPlacementDraft(generateUlid(), nextKind, "", consequenceDraft.adventure_beat_id));
+                clearReview();
+              }}>
+                {CROSS_ENTITY_CONSEQUENCE_TARGET_KINDS.map((kind) => <option key={kind} value={kind}>{title(kind)}</option>)}
+              </select>
+            </label>
+            <label className="block text-[10px] font-semibold uppercase text-slate-500 sm:col-span-2">Explicit Target
+              <select className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs normal-case dark:border-slate-700 dark:bg-slate-950" value={consequenceDraft.target_id} onChange={(event) => {
+                setConsequenceDraft({ ...consequenceDraft, target_id: event.target.value, continuity_group_id: event.target.value });
+                clearReview();
+              }}>
+                <option value="">Choose target</option>
+                {consequenceTargets.map((target) => <option key={text(target.id)} value={text(target.id)}>{label(target)}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {CROSS_ENTITY_CONSEQUENCE_PRESETS[consequenceKind].map((preset) => {
+              const activePreset = storyPlacementPresetIsActive(consequenceDraft, preset);
+              return <button
+                key={preset.id}
+                type="button"
+                className={`rounded border p-2 text-left text-xs transition ${activePreset ? "border-amber-600 bg-white text-amber-950 ring-2 ring-amber-200 dark:bg-slate-950 dark:text-amber-100 dark:ring-amber-900" : "border-amber-200 bg-white hover:border-amber-400 dark:border-amber-900 dark:bg-slate-950"}`}
+                onClick={() => {
+                  setConsequenceDraft(applyStoryPlacementPreset(consequenceDraft, preset));
+                  clearReview();
+                }}
+                data-testid={`cross-entity-preset-${preset.id}`}
+              >
+                <span className="block font-semibold">{preset.label}</span>
+                <span className="mt-1 block text-[10px] text-slate-500">{preset.note}</span>
+              </button>;
+            })}
+          </div>
+          <div className="mt-3">
+            <LifecycleFields value={consequenceDraft} beatOptions={context.beatOptions} onChange={(value) => { setConsequenceDraft(value); clearReview(); }} />
+          </div>
+        </div>}
         {editing && <button type="button" className="mt-3 rounded border border-red-300 px-2 py-1 text-xs font-semibold text-red-700 disabled:opacity-40 dark:border-red-900 dark:text-red-200" disabled={saving} onClick={() => void submitPlacement("remove", false)}>Preview Removal</button>}
         {(review || mutationError) && <div className="mt-3"><BundleReview
           result={review}
           title="Story Placement Review"
           description="Preview validates this canonical beat link without writing it."
           variant="inline"
-          commitLabel={`Commit ${actionLabel}`}
+          commitLabel={`Commit ${consequenceActionLabel}`}
           cancelLabel="Close Review"
           saving={saving}
           error={mutationError}
           testId="story-placement-review"
           onCancel={clearReview}
-          onCommit={() => reviewAction && void submitPlacement(reviewAction, true)}
+          onCommit={() => reviewAction === "cross-entity" ? void submitConsequence(true) : reviewAction && void submitPlacement(reviewAction, true)}
         /></div>}
         {context.beatOptions.length === 0 && <p className="mt-3 rounded border border-dashed border-slate-300 p-2 text-xs text-slate-500 dark:border-slate-700">Create an adventure beat in the Story Timeline before placing this record.</p>}
       </div>
