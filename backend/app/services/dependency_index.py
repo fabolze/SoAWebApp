@@ -182,6 +182,7 @@ def build_dependency_index(db_session):
 
 def quest_context(index, quest_id):
     quest_node = _node_id("quests", quest_id)
+    nodes_by_id = {node["id"]: node for node in index["nodes"]}
     outgoing_flags = {edge["target"] for edge in index["edges"] if edge["source"] == quest_node and edge["relation"] == "sets"}
     gated_requirements = {edge["source"] for edge in index["edges"] if edge["target"] == quest_node and edge["relation"] == "gates"}
     prerequisites = [
@@ -192,4 +193,13 @@ def quest_context(index, quest_id):
         edge for edge in index["edges"]
         if edge["source"] == quest_node and edge["relation"] == "unlocks"
     ]
-    return {"prerequisites": prerequisites, "aftermath": aftermath}
+    referenced_node_ids = {quest_node}
+    for edge in prerequisites + aftermath:
+        referenced_node_ids.add(edge["source"])
+        referenced_node_ids.add(edge["target"])
+    nodes = [
+        nodes_by_id[node_id]
+        for node_id in sorted(referenced_node_ids)
+        if node_id in nodes_by_id
+    ]
+    return {"prerequisites": prerequisites, "aftermath": aftermath, "nodes": nodes}

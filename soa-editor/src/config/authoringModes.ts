@@ -1,6 +1,7 @@
 import type { ElementType } from "react";
 import {
   BuildingStorefrontIcon,
+  BugAntIcon,
   ChatBubbleLeftRightIcon,
   ClipboardDocumentListIcon,
   ClockIcon,
@@ -117,6 +118,14 @@ export const AUTHORING_MODES: readonly AuthoringModeConfig[] = [
     description: "Compose trigger, reach, payload, scaling, cadence, effects, statuses, and test-bench feedback together.",
     supportedEntities: ["abilities", "effects", "statuses", "stats", "requirements", "combat_profiles"],
     icon: SparklesIcon,
+  },
+  {
+    id: "creature-workshop",
+    route: "/author/creatures",
+    label: "Creature Workshop",
+    description: "Create enemy-facing characters with combat kits, spoils, encounter placement, habitats, and story usage.",
+    supportedEntities: ["characters", "combat_profiles", "encounters", "location_encounter_tables", "items", "abilities", "locations", "adventure_beat_links"],
+    icon: BugAntIcon,
   },
   {
     id: "story-timeline",

@@ -28,7 +28,7 @@ The status index is the only place that records delivery status. When a new auth
 
 ## Workspace Status
 
-Last reviewed: 2026-06-24
+Last reviewed: 2026-06-25
 
 | Workspace | Status |
 |---|---|
@@ -36,9 +36,9 @@ Last reviewed: 2026-06-24
 | Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, semantic character presets, scoped introduction-coverage warnings, and cross-entity character consequence actions |
 | Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, and selected-dialogue presets |
 | Encounter Stage | Implemented MVP with encounter story placement create/edit/remove and selected-encounter presets |
-| Quest Journey Board And Quest Loom | Journey Board initial MVP with quest story placement create/edit/remove and semantic journey presets; full mixed-content Quest Loom is future vision |
+| Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, and temporary flag-state walkthrough; full mixed-content Quest Loom is future vision |
 | Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove and semantic item lifecycle presets; future work can deepen fantasy, provenance, families, and progression |
-| Creature Workshop | Planned; Character Creator already covers much of the existing character/combat/interaction bundle |
+| Creature Workshop | Implemented MVP as focused enemy creator over characters, combat profiles, encounter participants, location encounter tables, and optional character story placement |
 | Ability Spellcraft Lab | Implemented expanded lab with trace bench, lifecycle workshop, variants, relationships, contextual testing, and shared rollback-preview/atomic-commit review |
 | Story Timeline And Adventure Board | Interactive MVP implemented with scoped lanes, lenses, drag/drop local planning, canonical adventure beats/lifecycle-aware typed links, backend-complete tracks and query-driven focus for all ten target types, scoped lifecycle-coherence warnings, reusable frontend placement helpers, and shared preview/commit review |
 | Adventure Dependency Map | Dependency Map initial MVP |
@@ -211,7 +211,7 @@ The item workspace should become the best place to answer "how does the player g
 
 Add story beat placement and state walkthrough around the existing objective flow:
 
-Current status: partially implemented. Quest Journey Board can show quest occurrences, create/edit/remove `quest` links, apply start/escalation/branch/resolution presets, and warn when an arc-owned quest lacks a clear scoped start or resolution placement. Remaining work includes visible requirement/flag/item/reward trays beside objectives, walkthrough mode, and deeper quest-order coherence checks.
+Current status: partially implemented. Quest Journey Board can show quest occurrences, create/edit/remove `quest` links, apply start/escalation/branch/resolution presets, show visible requirement/flag/reward trays, step through a temporary flag-state walkthrough, and warn when an arc-owned quest lacks a clear scoped start or resolution placement. Remaining work includes deeper quest-order coherence checks, item availability checks, and richer runtime event placement checks.
 
 - Show which adventure beats start, escalate, branch, and resolve the quest.
 - Let quest cards be placed into story beats as player journey links.
@@ -282,13 +282,15 @@ This workspace should stay about readable action design. Story placement is seco
 
 **Creature Workshop**
 
-When implemented, make it a focused enemy creator with direct placement tools:
+Current status: implemented MVP as a focused enemy creator with direct placement tools. It edits the existing character/combat bundle, stages creature participation in existing encounters, stages those encounters into existing location encounter tables, shows habitat/encounter/spoils/ability context, uses rollback preview and atomic commit, embeds optional character story placement for saved creatures, and warns when creature combat, encounter, habitat, or boss payoff coverage is weak.
 
 - Show habitat, encounter appearances, loot, abilities, faction, and story usage together.
 - Let authors place the creature into locations, encounter tables, encounters, and adventure beats through existing records.
 - Show a creature lifecycle only for named or boss-level creatures. Ordinary enemy species should use habitat and encounter usage instead.
 - Warn when a creature has abilities or loot but no encounter placement.
 - Warn when a boss appears in story beats but lacks a combat profile, encounter, or reward payoff.
+
+Remaining work includes richer encounter-combination authoring, family/nearby-threat comparison, behavior-rhythm sketches, direct missing-role handoff from Encounter Stage, and deeper boss payoff checks across item journeys and story beats.
 
 The creature workspace should not duplicate Character Studio wholesale. It should focus on "where does the enemy live, what does it do, and why does fighting it matter?"
 
@@ -465,6 +467,8 @@ A directed conversation map:
 - The current speaker gives each node a visual identity.
 
 ### Current-Model Implementation
+
+The implemented MVP is available at `/author/creatures`, `/author/creatures/new`, and `/author/creatures/<id>`. It reads and writes only existing canonical records through `/api/ui/creatures`, rollback-only `/api/ui/creatures/preview`, and atomic `/api/ui/creatures/bundle`.
 
 | Author Gesture | Existing Data Written |
 |---|---|

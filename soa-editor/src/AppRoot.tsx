@@ -60,6 +60,7 @@ const LocationAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAutho
 const LocationMapAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.LocationMapAuthoringPage })));
 const ShopAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoringPage").then((module) => ({ default: module.ShopAuthoringPage })));
 const AbilitySpellcraftLabPage = lazy(() => import("./pages/AbilitySpellcraftLabPage"));
+const CreatureWorkshopPage = lazy(() => import("./pages/CreatureWorkshopPage"));
 const StoryTimelinePage = lazy(() => import("./pages/StoryTimelinePage"));
 
 const SIDEBAR_COLLAPSED_KEY = "soa.sidebar.collapsed";
@@ -137,6 +138,9 @@ export default function AppRoot() {
               <Route path="author/abilities" element={<AbilitySpellcraftLabPage />} />
               <Route path="author/abilities/new" element={<AbilitySpellcraftLabPage />} />
               <Route path="author/abilities/:id" element={<AbilitySpellcraftLabPage />} />
+              <Route path="author/creatures" element={<CreatureWorkshopPage />} />
+              <Route path="author/creatures/new" element={<CreatureWorkshopPage />} />
+              <Route path="author/creatures/:id" element={<CreatureWorkshopPage />} />
               <Route path="currencies" element={<CurrenciesEditorPage />} />
               <Route path="interaction-profiles" element={<InteractionProfilesEditorPage />} />
               <Route path="location-creative-briefs" element={<LocationCreativeBriefsEditorPage />} />

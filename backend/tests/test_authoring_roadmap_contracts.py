@@ -167,6 +167,26 @@ def test_quest_bundle_reconciles_arc_and_giver(monkeypatch):
     session.close()
 
 
+def test_quest_packet_dependency_context_includes_labeled_nodes(monkeypatch):
+    client, Session = _client(monkeypatch, r_ui_quests)
+    _seed(Session)
+    session = Session()
+    session.add(Requirement(id="req-1", slug="requires-flag", tags=[]))
+    session.flush()
+    session.add(RequirementRequiredFlag(id="req-flag-1", requirement_id="req-1", flag_id="flag-1"))
+    session.get(Quest, "quest-1").requirements_id = "req-1"
+    session.add(Quest(id="quest-2", slug="next", title="Next Quest", description="Next", requirements_id="req-1", objectives=[], flags_set_on_completion=[], item_rewards=[], tags=[]))
+    session.commit()
+    session.close()
+
+    packet = client.get("/api/ui/quests/quest-1").get_json()
+
+    node_ids = {node["id"] for node in packet["dependency_context"]["nodes"]}
+    assert {"quests:quest-1", "flag:flag-1", "requirement:req-1", "quests:quest-2"} <= node_ids
+    labels = {node["id"]: node["label"] for node in packet["dependency_context"]["nodes"]}
+    assert labels["quests:quest-2"] == "Next Quest"
+
+
 def test_quest_packet_round_trip_preserves_originating_branches(monkeypatch):
     client, Session = _client(monkeypatch, r_ui_quests)
     _seed(Session)

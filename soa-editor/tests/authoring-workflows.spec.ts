@@ -183,6 +183,72 @@ test("quest journey board places the quest into story as player journey", async 
   await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City");
 });
 
+test("quest journey board walks temporary state through objectives and payoff", async ({ page }) => {
+  const questPacket = {
+    quest: {
+      id: "quest-1", slug: "gate", title: "Open The Gate", description: "Reach the gate.",
+      requirements_id: "req-start",
+      objectives: [
+        { objective_id: "find-key", description: "Find the key.", requirements_id: "", flags_set: ["has-key"] },
+        { objective_id: "open-gate", description: "Open the gate.", requirements_id: "req-key", flags_set: ["gate-open"] },
+      ],
+      flags_set_on_completion: ["quest-done"],
+      xp_reward: 25,
+      item_rewards: [{ item_id: "item-1", quantity: 1 }],
+      currency_rewards: [],
+      reputation_rewards: [],
+      tags: [],
+    },
+    requirements: [
+      { id: "req-start", slug: "start-ready", required_flags: ["intro-done"], forbidden_flags: [], min_faction_reputation: [] },
+      { id: "req-key", slug: "key-required", required_flags: ["has-key"], forbidden_flags: [], min_faction_reputation: [] },
+    ],
+    arc: { story_arc_id: "arc-1", related_quests: ["quest-1"], branches: [] },
+    quest_giver_profile_ids: [],
+    flags: [
+      { id: "intro-done", name: "Intro Done" },
+      { id: "has-key", name: "Has Key" },
+      { id: "gate-open", name: "Gate Open" },
+      { id: "quest-done", name: "Quest Done" },
+    ],
+    items: [{ id: "item-1", name: "Gate Key Trophy" }],
+    currencies: [],
+    factions: [],
+    interaction_profiles: [],
+    dependency_context: {
+      prerequisites: [{ id: "flag:intro-done>required_by>requirement:req-start>required_flags", source: "flag:intro-done", target: "requirement:req-start", relation: "required_by", explicit: true, path: "required_flags" }],
+      aftermath: [{ id: "quests:quest-1>unlocks>quests:quest-2>quest-done>req-next", source: "quests:quest-1", target: "quests:quest-2", relation: "unlocks", explicit: false, path: "quest-done>req-next" }],
+      nodes: [
+        { id: "flag:intro-done", kind: "flag", entry_id: "intro-done", label: "Intro Done", schema_name: "flags" },
+        { id: "requirement:req-start", kind: "requirement", entry_id: "req-start", label: "start-ready", schema_name: "requirements" },
+        { id: "quests:quest-1", kind: "quests", entry_id: "quest-1", label: "Open The Gate", schema_name: "quests" },
+        { id: "quests:quest-2", kind: "quests", entry_id: "quest-2", label: "Next Quest", schema_name: "quests" },
+      ],
+    },
+    quests: [{ id: "quest-1", title: "Open The Gate" }, { id: "quest-2", title: "Next Quest" }],
+    story_arcs: [{ id: "arc-1", title: "The Gate" }],
+  };
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/ui/quests/quest-1") return fulfillJson(route, questPacket);
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimelinePacket);
+    return fulfillJson(route, []);
+  });
+
+  await page.goto("/author/quests/quest-1");
+  const panel = page.getByTestId("quest-walkthrough-panel");
+  await expect(panel).toContainText("start-ready is locked");
+  await panel.getByText("Temporary Player State").locator("..").locator("select").selectOption("intro-done");
+  await expect(panel).toContainText("start-ready is open");
+  await panel.getByRole("button", { name: "Objective 2" }).click();
+  await expect(panel).toContainText("key-required is open");
+  await expect(panel).toContainText("Has Key");
+  await panel.getByRole("button", { name: "Completion & Payoff" }).click();
+  await expect(panel).toContainText("XP: 25");
+  await expect(panel).toContainText("Gate Key Trophy");
+  await expect(panel).toContainText("Next Quest");
+});
+
 test("story timeline sketches and restores local planning beats through drag and drop", async ({ page }) => {
   await mockStoryTimelineApi(page);
   await page.goto("/author/story-timeline");

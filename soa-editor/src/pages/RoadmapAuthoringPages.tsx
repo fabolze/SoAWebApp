@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { EditableTagList, ReferenceChipPicker, ReferenceManageLink, rowLabel, useReferenceOptions } from "../authoringViews/controls";
+import { buildQuestWalkthrough, type QuestWalkthroughStep } from "../authoring/questWalkthrough";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
@@ -25,6 +26,12 @@ function strings(value: unknown): string[] {
 function numberValue(value: unknown): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function labelFromOptions(id: unknown, options: EntryRecord[], fallback = "Unknown"): string {
+  const value = text(id);
+  const option = options.find((entry) => text(entry.id) === value);
+  return option ? rowLabel(option, value) : value || fallback;
 }
 
 function JsonEditor({ label, value, onChange }: { label: string; value: unknown; onChange: (value: unknown) => void }) {
@@ -123,19 +130,95 @@ function RewardRows({ label, rowsValue, reference, idKey, amountKey, onChange }:
 function DependencyContext({ context, packet }: { context: unknown; packet: EntryRecord }) {
   const value = typeof context === "object" && context !== null && !Array.isArray(context) ? context as EntryRecord : {};
   const edges = [...rows(value.prerequisites), ...rows(value.aftermath)];
-  const catalogs = [...rows(packet.flags), ...rows(packet.requirements), ...rows(packet.quests), ...rows(packet.story_arcs)];
+  const catalogs = [...rows(packet.flags), ...rows(packet.requirements), ...rows(packet.quests), ...rows(packet.story_arcs), ...rows(value.nodes)];
   const labels = new Map<string, string>();
-  catalogs.forEach((entry) => labels.set(text(entry.id), rowLabel(entry, text(entry.id))));
+  catalogs.forEach((entry) => {
+    const resolvedLabel = text(entry.label) || rowLabel(entry, text(entry.id));
+    labels.set(text(entry.id), resolvedLabel);
+    if (text(entry.entry_id)) labels.set(text(entry.entry_id), resolvedLabel);
+  });
   const nodeLabel = (nodeId: unknown) => {
     const raw = text(nodeId);
     const entryId = raw.includes(":") ? raw.slice(raw.indexOf(":") + 1) : raw;
-    return labels.get(entryId) || entryId || "Unknown";
+    return labels.get(raw) || labels.get(entryId) || entryId || "Unknown";
   };
   return <div className="space-y-3">
     <p className="text-sm text-slate-500">Objectives apply flags in order. Completion flags can unlock later content.</p>
     <div><div className="mb-1 text-xs font-semibold uppercase text-slate-500">Prerequisites</div>{rows(value.prerequisites).length ? rows(value.prerequisites).map((edge) => <div key={text(edge.id)} className="mb-1 rounded border border-amber-200 px-2 py-1 text-xs">{nodeLabel(edge.source)} -&gt; {text(edge.relation)} -&gt; {nodeLabel(edge.target)}</div>) : <p className="text-xs text-slate-500">No prerequisite flag gates detected.</p>}</div>
     <div><div className="mb-1 text-xs font-semibold uppercase text-slate-500">Aftermath</div>{rows(value.aftermath).length ? rows(value.aftermath).map((edge) => <div key={text(edge.id)} className="mb-1 rounded border border-emerald-200 px-2 py-1 text-xs">{nodeLabel(edge.source)} -&gt; unlocks -&gt; {nodeLabel(edge.target)}</div>) : <p className="text-xs text-slate-500">No downstream content is currently unlocked by this quest.</p>}</div>
     {edges.some((edge) => !text(edge.source) || !text(edge.target)) && <p className="text-sm text-red-600">Broken dependency context detected.</p>}
+  </div>;
+}
+
+function FlagTray({ label, values, flags, empty = "None." }: { label: string; values: string[]; flags: EntryRecord[]; empty?: string }) {
+  return <div><div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">{label}</div><div className="flex flex-wrap gap-1">
+    {values.length ? values.map((flag) => <span key={flag} className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">{labelFromOptions(flag, flags, flag)}</span>) : <span className="text-xs text-slate-500">{empty}</span>}
+  </div></div>;
+}
+
+function RequirementStatus({ step, flags }: { step: QuestWalkthroughStep; flags: EntryRecord[] }) {
+  const requirement = step.requirement;
+  if (!requirement) return <p className="text-xs text-slate-500">No gate for this step.</p>;
+  return <div className={`rounded-md border p-3 text-xs ${requirement.satisfied ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200" : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"}`}>
+    <div className="mb-2 font-semibold">{requirement.label} {requirement.satisfied ? "is open" : "is locked"}</div>
+    <div className="grid gap-2 md:grid-cols-2">
+      <FlagTray label="Required" values={requirement.requiredFlags} flags={flags} empty="No required flags." />
+      <FlagTray label="Forbidden" values={requirement.forbiddenFlags} flags={flags} empty="No forbidden flags." />
+    </div>
+    {requirement.missingRequiredFlags.length > 0 && <div className="mt-2">Missing: {requirement.missingRequiredFlags.map((flag) => labelFromOptions(flag, flags, flag)).join(", ")}</div>}
+    {requirement.presentForbiddenFlags.length > 0 && <div className="mt-2">Forbidden state present: {requirement.presentForbiddenFlags.map((flag) => labelFromOptions(flag, flags, flag)).join(", ")}</div>}
+    {requirement.reputationGates.length > 0 && <div className="mt-2">Reputation gates: {requirement.reputationGates.map((gate) => `${gate.factionId} >= ${gate.minimum}`).join(", ")}</div>}
+  </div>;
+}
+
+function RewardTray({ rewards, packet }: { rewards: EntryRecord; packet: EntryRecord }) {
+  const itemRewards = rows(rewards.item_rewards);
+  const currencyRewards = rows(rewards.currency_rewards);
+  const reputationRewards = rows(rewards.reputation_rewards);
+  const hasRewards = numberValue(rewards.xp_reward) !== 0 || itemRewards.length > 0 || currencyRewards.length > 0 || reputationRewards.length > 0;
+  if (!hasRewards) return <p className="text-xs text-slate-500">No payoff authored for this step.</p>;
+  return <div className="grid gap-2 text-xs md:grid-cols-2">
+    {numberValue(rewards.xp_reward) !== 0 && <div className="rounded border border-slate-200 p-2 dark:border-slate-800">XP: {numberValue(rewards.xp_reward)}</div>}
+    {itemRewards.map((reward, index) => <div key={`item-${index}`} className="rounded border border-slate-200 p-2 dark:border-slate-800">Item: {labelFromOptions(reward.item_id, rows(packet.items), text(reward.item_id))} x {text(reward.quantity) || "1"}</div>)}
+    {currencyRewards.map((reward, index) => <div key={`currency-${index}`} className="rounded border border-slate-200 p-2 dark:border-slate-800">Currency: {labelFromOptions(reward.currency_id, rows(packet.currencies), text(reward.currency_id))} x {text(reward.amount) || "0"}</div>)}
+    {reputationRewards.map((reward, index) => <div key={`reputation-${index}`} className="rounded border border-slate-200 p-2 dark:border-slate-800">Reputation: {labelFromOptions(reward.faction_id, rows(packet.factions), text(reward.faction_id))} {text(reward.amount) || "0"}</div>)}
+  </div>;
+}
+
+function QuestWalkthroughPanel({ packet }: { packet: EntryRecord }) {
+  const flags = rows(packet.flags);
+  const [initialFlags, setInitialFlags] = useState<string[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const model = useMemo(() => buildQuestWalkthrough(packet, initialFlags), [packet, initialFlags]);
+  const step = model.steps[Math.min(activeIndex, Math.max(model.steps.length - 1, 0))];
+  const updateInitialFlags = (values: string[]) => {
+    setInitialFlags(values);
+    setActiveIndex(0);
+  };
+  if (!step) return null;
+  return <div className="space-y-4" data-testid="quest-walkthrough-panel">
+    <MultiReferencePicker label="Temporary Player State" values={initialFlags} options={flags} onChange={updateInitialFlags} emptyText="Start with no flags." />
+    <div className="flex flex-wrap gap-2">
+      {model.steps.map((entry, index) => <button key={entry.id} type="button" className={`rounded-md border px-3 py-1.5 text-xs font-semibold ${index === activeIndex ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 dark:border-slate-700"}`} onClick={() => setActiveIndex(index)}>{entry.title}</button>)}
+    </div>
+    <article className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div><div className="text-[11px] font-semibold uppercase text-slate-500">{step.kind}</div><h3 className="font-semibold">{step.title}</h3><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{step.description}</p></div>
+        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${step.requirement && !step.requirement.satisfied ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>{step.requirement && !step.requirement.satisfied ? "Locked" : "Open"}</span>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <RequirementStatus step={step} flags={flags} />
+        <div className="space-y-3">
+          <FlagTray label="Flags Before" values={step.flagsBefore} flags={flags} empty="No flags yet." />
+          <FlagTray label="Flags Gained" values={step.flagsGained} flags={flags} empty="No flags gained." />
+          <FlagTray label="Flags After" values={step.flagsAfter} flags={flags} empty="No flags after this step." />
+        </div>
+      </div>
+      {step.kind === "completion" && <div className="mt-3"><div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">Payoff</div><RewardTray rewards={step.rewards} packet={packet} /></div>}
+      {step.warnings.length > 0 && <div className="mt-3 space-y-1">{step.warnings.map((warning) => <p key={warning} className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">{warning}</p>)}</div>}
+    </article>
+    {model.warnings.length > 0 && <div className="space-y-1">{model.warnings.map((warning) => <p key={warning} className="rounded border border-amber-200 px-2 py-1 text-xs text-amber-800 dark:border-amber-900 dark:text-amber-200">{warning}</p>)}</div>}
+    <DependencyContext context={packet.dependency_context} packet={packet} />
   </div>;
 }
 
@@ -166,7 +249,7 @@ export function QuestJourneyPage() {
     <section className={panelClass}><div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">Journey Health</h2><span className={`rounded-full px-2 py-1 text-xs font-semibold ${rows(quest.objectives).length && !objectiveIssues ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{rows(quest.objectives).length && !objectiveIssues ? "Ready to review" : "Needs attention"}</span></div><div className="space-y-2 text-sm">{rows(quest.objectives).length === 0 && <p className="rounded border border-amber-200 p-2 text-amber-800">Add at least one objective.</p>}{objectiveIssues > 0 && <p className="rounded border border-amber-200 p-2 text-amber-800">{objectiveIssues} objective(s) need both an ID and player-facing description.</p>}{strings(quest.flags_set_on_completion).length === 0 && <p className="rounded border border-slate-200 p-2 text-slate-600">No completion flag is set, so this quest cannot directly unlock flag-gated content.</p>}{!hasRewards && <p className="rounded border border-amber-200 p-2 text-amber-800">Quest has no authored payoff.</p>}{strings(packet.quest_giver_profile_ids).length === 0 && <p className="rounded border border-slate-200 p-2 text-slate-600">No quest giver currently offers this quest.</p>}</div></section>
     <section className={`${panelClass} xl:col-span-2`}><h2 className="mb-3 font-semibold">Ordered Objectives</h2><ObjectiveBoard objectives={quest.objectives} flags={questFlags} onChange={(objectives) => update("objectives", objectives)} /></section>
     <section className={panelClass}><h2 className="mb-3 font-semibold">Completion & Payoff</h2><div className="space-y-4"><MultiReferencePicker label="Completion Flags" values={quest.flags_set_on_completion} options={questFlags} onChange={(flags) => update("flags_set_on_completion", flags)} /><label className="block text-xs font-semibold uppercase text-slate-500">Experience Reward<input className={`${inputClass} mt-1`} type="number" value={text(quest.xp_reward)} onChange={(event) => update("xp_reward", Number(event.target.value))} /></label><RewardRows label="Item Reward" rowsValue={quest.item_rewards} reference="items" idKey="item_id" amountKey="quantity" onChange={(value) => update("item_rewards", value)} /><RewardRows label="Currency Reward" rowsValue={quest.currency_rewards} reference="currencies" idKey="currency_id" amountKey="amount" onChange={(value) => update("currency_rewards", value)} /><RewardRows label="Reputation Reward" rowsValue={quest.reputation_rewards} reference="factions" idKey="faction_id" amountKey="amount" onChange={(value) => update("reputation_rewards", value)} /></div></section>
-    <section className={panelClass}><h2 className="mb-3 font-semibold">Walkthrough & Aftermath</h2><DependencyContext context={packet.dependency_context} packet={packet} /><Link className="mt-4 inline-block text-sm font-semibold text-primary" to="/author/dependencies">Open Dependency Map</Link></section>
+    <section className={panelClass}><h2 className="mb-3 font-semibold">Walkthrough & Aftermath</h2><QuestWalkthroughPanel packet={packet} /><Link className="mt-4 inline-block text-sm font-semibold text-primary" to="/author/dependencies">Open Dependency Map</Link></section>
     {!isNew && text(quest.id) && <section className="xl:col-span-2"><StoryPlacementPanel entityKind="quest" entityId={text(quest.id)} entityLabel={text(quest.title) || text(quest.id)} entity={quest} /></section>}
     <section className={`${panelClass} xl:col-span-2`}><details><summary className="cursor-pointer font-semibold">Advanced Arc & Branch Data</summary><div className="mt-3"><JsonEditor label="Arc selection and branches" value={packet.arc} onChange={(value) => setPacket({ ...packet, arc: value })} /></div></details></section>
   </div></Shell>;

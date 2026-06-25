@@ -3,7 +3,10 @@ from werkzeug.exceptions import HTTPException
 
 from backend.app.db.init_db import get_db_session
 from backend.app.models.m_flags import Flag
+from backend.app.models.m_currencies import Currency
+from backend.app.models.m_factions import Faction
 from backend.app.models.m_interaction_profiles import InteractionProfile
+from backend.app.models.m_items import Item
 from backend.app.models.m_quests import Quest
 from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_story_arcs import StoryArc
@@ -26,6 +29,9 @@ def _catalogs(db_session):
         "quests": [_columns(row) for row in db_session.query(Quest).all()],
         "story_arcs": [_columns(row) for row in db_session.query(StoryArc).all()],
         "interaction_profiles": [_columns(row) for row in db_session.query(InteractionProfile).all()],
+        "items": [_compact(row) for row in db_session.query(Item).all()],
+        "currencies": [_compact(row) for row in db_session.query(Currency).all()],
+        "factions": [_compact(row) for row in db_session.query(Faction).all()],
         "requirements": [requirement_route.serialize_item(row) for row in db_session.query(Requirement).all()],
         "flags": [_compact(row) for row in db_session.query(Flag).all()],
     }

@@ -1,0 +1,114 @@
+🔧 Initializing database...
+📑 Registering blueprints...
+✅ Registered abilities blueprint
+✅ Registered ability_effect_links blueprint
+✅ Registered ability_relations blueprint
+✅ Registered effects blueprint
+✅ Registered attributes blueprint
+✅ Registered characterclasses blueprint
+✅ Registered dialogue_nodes blueprint
+✅ Registered dialogues blueprint
+✅ Registered encounters blueprint
+✅ Registered events blueprint
+✅ Registered characters blueprint
+✅ Registered character_story_profiles blueprint
+✅ Registered character_relationships blueprint
+✅ Registered character_story_beats blueprint
+✅ Registered adventure_beats blueprint
+✅ Registered adventure_beat_links blueprint
+✅ Registered combat_profiles blueprint
+✅ Registered interaction_profiles blueprint
+✅ Registered content_packs blueprint
+✅ Registered currencies blueprint
+✅ Registered factions blueprint
+✅ Registered flags blueprint
+✅ Registered items blueprint
+✅ Registered location_routes blueprint
+✅ Registered locations blueprint
+✅ Registered location_pois blueprint
+✅ Registered location_encounter_tables blueprint
+✅ Registered route_event_bindings blueprint
+✅ Registered travel_tuning blueprint
+✅ Registered location_creative_briefs blueprint
+✅ Registered lore_entries blueprint
+✅ Registered quests blueprint
+✅ Registered requirements blueprint
+✅ Registered shops blueprint
+✅ Registered shop_inventory blueprint
+✅ Registered stats blueprint
+✅ Registered statuses blueprint
+✅ Registered story_arcs blueprint
+✅ Registered timelines blueprint
+✅ Registered talent_trees blueprint
+✅ Registered talent_nodes blueprint
+✅ Registered talent_node_links blueprint
+✅ Registered export blueprint
+✅ Registered bulk_export blueprint
+✅ Registered db_admin blueprint
+✅ Registered authoring blueprint
+✅ Registered ui_items blueprint
+✅ Registered ui_characters blueprint
+✅ Registered ui_character_studio blueprint
+✅ Registered ui_location_graph blueprint
+✅ Registered ui_world_builder blueprint
+✅ Registered ui_dialogues blueprint
+✅ Registered ui_encounters blueprint
+✅ Registered ui_item_ecosystem blueprint
+✅ Registered ui_quests blueprint
+✅ Registered ui_dependencies blueprint
+✅ Registered ui_abilities blueprint
+✅ Registered ui_creatures blueprint
+✅ Registered ui_adventure_timeline blueprint
+✅ Registered recovery blueprint
+Startup recovery: skipped - Partial recovery import skipped: no empty tables with source rows.
+  content_packs: skipped - CSV has no data rows.
+  stats: skipped - Table already has data.
+  attributes: skipped - Table already has data.
+  statuses: skipped - CSV has no data rows.
+  currencies: skipped - Table already has data.
+  factions: skipped - CSV has no data rows.
+  flags: skipped - Table already has data.
+  requirements: skipped - Table already has data.
+  requirement_required_flags: skipped - CSV has no data rows.
+  requirement_forbidden_flags: skipped - CSV has no data rows.
+  requirement_min_faction_reputation: skipped - CSV has no data rows.
+  effects: skipped - Table already has data.
+  abilities: skipped - Table already has data.
+  ability_effect_links: skipped - Table already has data.
+  ability_scaling_links: skipped - Table already has data.
+  ability_relations: skipped - CSV has no data rows.
+  attribute_stat_links: skipped - Table already has data.
+  characterclasses: skipped - Table already has data.
+  locations: skipped - Table already has data.
+  location_routes: skipped - Table already has data.
+  travel_tuning: skipped - CSV has no data rows.
+  characters: skipped - Table already has data.
+  character_story_profiles: skipped - Table already has data.
+  character_relationships: skipped - CSV has no data rows.
+  combat_profiles: skipped - CSV has no data rows.
+  interaction_profiles: skipped - CSV has no data rows.
+  items: skipped - CSV has no data rows.
+  item_stat_modifiers: skipped - CSV has no data rows.
+  item_attribute_modifiers: skipped - CSV has no data rows.
+  shops: skipped - CSV has no data rows.
+  shops_inventory: skipped - CSV has no data rows.
+  timelines: skipped - CSV has no data rows.
+  story_arcs: skipped - CSV has no data rows.
+  adventure_beats: skipped - CSV has no data rows.
+  lore_entries: skipped - CSV has no data rows.
+  quests: skipped - CSV has no data rows.
+  dialogues: skipped - CSV has no data rows.
+  dialogue_nodes: skipped - CSV has no data rows.
+  encounters: skipped - CSV has no data rows.
+  events: skipped - CSV has no data rows.
+  character_story_beats: skipped - Table already has data.
+  adventure_beat_links: skipped - CSV has no data rows.
+  location_pois: skipped - CSV has no data rows.
+  location_encounter_tables: skipped - CSV has no data rows.
+  route_event_bindings: skipped - CSV has no data rows.
+  location_creative_briefs: skipped - CSV has no data rows.
+  talent_trees: skipped - CSV has no data rows.
+  talent_nodes: skipped - CSV has no data rows.
+  talent_node_links: skipped - CSV has no data rows.
+ * Serving Flask app 'backend.app'
+ * Debug mode: on
