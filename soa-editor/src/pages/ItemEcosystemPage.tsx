@@ -182,7 +182,7 @@ export default function ItemEcosystemPage() {
       {activePanel === "Acquisition" && <AcquisitionPanel packet={packet} setSources={setSources} />}
       {activePanel === "Power" && <PowerPanel simulation={simulation} peerResults={peerResults} scenarioId={scenarioId} setScenarioId={setScenarioId} />}
       {activePanel === "Economy" && <EconomyPanel packet={packet} updateItem={updateItem} setSources={setSources} simulation={simulation} />}
-      {activePanel === "Progression" && <ProgressionPanel packet={packet} setSources={setSources} />}
+      {activePanel === "Progression" && <div className="space-y-4"><ItemJourneySummary packet={packet} /><ProgressionPanel packet={packet} setSources={setSources} /></div>}
       {activePanel === "Issues" && <IssuesPanel blockers={blockers} warnings={clientWarnings} packet={packet} />}
       {!isNew && text(packet.item.id) && <StoryPlacementPanel entityKind="item" entityId={text(packet.item.id)} entityLabel={text(packet.item.name, text(packet.item.id))} entity={packet.item} />}
     </div>
@@ -230,7 +230,37 @@ function ProgressionPanel({ packet, setSources }: { packet: ItemPacket; setSourc
   return <div className="grid gap-4 lg:grid-cols-2"><section className={AUTHORING_PANEL_CLASS}><h2 className="font-semibold">World Placements</h2><p className="mt-1 text-xs text-slate-500">Occupied POIs must be cleared from their current item before assignment.</p><div className="mt-3 space-y-2">{(packet.catalogs.pois || []).map((poi) => {
     const occupiedByOther = Boolean(poi.item_id && poi.item_id !== packet.item.id);
     return <label key={text(poi.id)} className={`flex items-center justify-between gap-3 rounded-md border p-3 ${occupiedByOther ? "opacity-50" : ""}`}><span><span className="block text-sm font-semibold">{label(poi)}</span><span className="text-xs text-slate-500">{isRecord(poi.location) ? label(poi.location) : text(poi.location_id)}</span></span><input type="checkbox" disabled={occupiedByOther} checked={selected.has(text(poi.id))} onChange={(event) => { const next = new Set(selected); if (event.target.checked) next.add(text(poi.id)); else next.delete(text(poi.id)); setSources("poi_ids", [...next]); }} /></label>;
-  })}</div></section><section className={AUTHORING_PANEL_CLASS}><h2 className="font-semibold">Progression Shape</h2><div className="mt-3 grid gap-3 sm:grid-cols-2">{Object.entries(packet.analysis.source_counts || {}).map(([key, value]) => <Fact key={key} label={key.replace(/_/g, " ")} value={text(value)} />)}</div><p className="mt-3 text-sm text-slate-500">Rarity: {text(packet.item.rarity, "Unset")} · Requirement: {text(packet.item.requirements_id, "None")}</p></section></div>;
+  })}</div></section><section className={AUTHORING_PANEL_CLASS}><h2 className="font-semibold">Progression Shape</h2><div className="mt-3 grid gap-3 sm:grid-cols-2">{Object.entries(packet.analysis.source_counts || {}).map(([key, value]) => <Fact key={key} label={key.replace(/_/g, " ")} value={text(value)} />)}</div><p className="mt-3 text-sm text-slate-500">Rarity: {text(packet.item.rarity, "Unset")} - Requirement: {text(packet.item.requirements_id, "None")}</p></section></div>;
+}
+
+function ItemJourneySummary({ packet }: { packet: ItemPacket }) {
+  const channels = rows(packet.analysis.acquisition_channels);
+  const important = isImportantItem(packet.item);
+  return <section className={AUTHORING_PANEL_CLASS} data-testid="item-journey-summary">
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h2 className="font-semibold">Item Journey</h2>
+        <p className="mt-1 text-xs text-slate-500">Acquisition channels and story context for this item.</p>
+      </div>
+      <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${important ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}>{important ? "Story relevant" : "Routine item"}</span>
+    </div>
+    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <Fact label="Acquisition Channels" value={text(packet.analysis.acquisition_channel_count, String(channels.length))} />
+      <Fact label="Total Sources" value={text(packet.analysis.total_sources, "0")} />
+    </div>
+    <div className="mt-3 flex flex-wrap gap-2">
+      {channels.map((channel) => <span key={text(channel.key, text(channel.label))} className="rounded-full border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">{text(channel.label)} ({text(channel.count, "0")})</span>)}
+      {channels.length === 0 && <span className="text-xs text-slate-500">No acquisition channel yet.</span>}
+    </div>
+    {important && <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">Use story placements, continuity group, state label, or notes to explain important item versions and alternate acquisition paths.</p>}
+  </section>;
+}
+
+function isImportantItem(item: EntryRecord): boolean {
+  const tags = Array.isArray(item.tags) ? item.tags.map((tag) => String(tag).toLowerCase()) : [];
+  return ["quest", "setpiece"].includes(text(item.type).toLowerCase())
+    || ["rare", "epic", "legendary"].includes(text(item.rarity).toLowerCase())
+    || tags.some((tag) => ["quest", "key", "story", "legendary"].includes(tag));
 }
 
 function PowerPanel({ simulation, peerResults, scenarioId, setScenarioId }: { simulation: SimulationResult | null; peerResults: Array<{ peer: EntryRecord; result: SimulationResult }>; scenarioId: string; setScenarioId: (id: string) => void }) {

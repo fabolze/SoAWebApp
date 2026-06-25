@@ -110,6 +110,25 @@ def test_item_ecosystem_packet_includes_analysis_labels_and_pricing(monkeypatch)
     assert payload["sources"]["shop_inventory"][0]["pricing"]["buy_price"] == 7
 
 
+def test_item_ecosystem_analysis_reports_acquisition_channels_for_important_items(monkeypatch):
+    client, Session = _client(monkeypatch, r_ui_item_ecosystem)
+    _seed(Session)
+    session = Session()
+    item = session.get(Item, "item-1")
+    item.type = ItemType.Quest
+    session.add(ShopInventory(id="inv-1", slug="inv", shop_id="shop-1", item_id="item-1", tags=[]))
+    session.commit()
+    session.close()
+
+    payload = client.get("/api/ui/items/ecosystem/item-1").get_json()
+    assert payload["analysis"]["acquisition_channel_count"] == 2
+    assert {row["key"] for row in payload["analysis"]["acquisition_channels"]} == {
+        "shop_inventory",
+        "quest_rewards",
+    }
+    assert any("multiple acquisition channels" in warning for warning in payload["analysis"]["warnings"])
+
+
 def test_new_item_ecosystem_creates_item_and_sources_atomically(monkeypatch):
     client, Session = _client(monkeypatch, r_ui_item_ecosystem)
     _seed(Session)

@@ -368,7 +368,15 @@ test("item ecosystem edits acquisition sources and saves one atomic bundle", asy
       combat_profiles: [], quests: [{ id: "quest-1", title: "First Quest" }], encounters: [], events: [],
       pois: [{ id: "poi-1", name: "Chest", location_id: "loc-1", location: { id: "loc-1", name: "Ruins" } }],
     },
-    analysis: { total_sources: 0, median_peer_price: 120, source_counts: {}, warnings: ["Item has no acquisition sources."], peers: [] },
+    analysis: {
+      total_sources: 0,
+      median_peer_price: 120,
+      source_counts: {},
+      acquisition_channels: [],
+      acquisition_channel_count: 0,
+      warnings: ["Item has no acquisition sources."],
+      peers: [],
+    },
   };
   let saved: Record<string, unknown> | null = null;
   await page.route("http://localhost:5000/api/**", async (route) => {
@@ -384,6 +392,8 @@ test("item ecosystem edits acquisition sources and saves one atomic bundle", asy
   await expect(page.getByRole("heading", { name: "Blade" })).toBeVisible();
   await page.getByRole("button", { name: "Add Source" }).first().click();
   await page.getByRole("button", { name: "Progression" }).click();
+  await expect(page.getByTestId("item-journey-summary")).toContainText("Item Journey");
+  await expect(page.getByTestId("item-journey-summary")).toContainText("Story relevant");
   await page.getByText("Chest").click();
   await page.getByRole("button", { name: "Save All" }).click();
   await expect.poll(() => saved).not.toBeNull();
@@ -667,7 +677,7 @@ test("story placement edits an existing canonical link with stale-record protect
   expect(previewLink.state_label).toBe("Ruined");
   expect(previewLink.target_type).toBe("location");
   expect(previewLink.target_id).toBe("location-1");
-  expect(previewLink.notes).toBeNull();
+  expect(previewLink.notes).toBe("");
   expect(previewLink.tags).toEqual([]);
   expect(previewLink.expected_previous).toEqual(canonicalLocationLink);
 

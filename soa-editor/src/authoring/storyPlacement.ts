@@ -232,9 +232,9 @@ export function storyPlacementLinkPayload(candidate: StoryPlacementDraft, origin
     continuity_group_id: candidate.continuity_group_id || "",
     importance: candidate.importance,
     sort_order: original ? original.sort_order : candidate.sort_order,
+    notes: candidate.notes || "",
   };
   if (!original) {
-    payload.notes = candidate.notes || "";
     payload.tags = candidate.tags || [];
   }
   return payload;

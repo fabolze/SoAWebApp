@@ -14,6 +14,7 @@ from backend.app.models.m_shop_inventory import ShopInventory
 from backend.app.models.m_shops import Shop
 from backend.app.models.m_characters import Character
 from backend.app.models.m_locations import Location
+from backend.app.models.m_adventure_narrative import AdventureBeatLink
 from backend.app.routes.bundle_validation import bundle_error_response, wrap_bundle_error
 from backend.app.routes.r_combat_profiles import route as combat_profile_route
 from backend.app.routes.r_encounters import route as encounter_route
@@ -80,6 +81,10 @@ SOURCE_CONFIG = {
     "event_rewards": (Event, event_route, "item_rewards"),
 }
 
+IMPORTANT_ITEM_TYPES = {"quest", "setpiece"}
+IMPORTANT_ITEM_RARITIES = {"rare", "epic", "legendary"}
+IMPORTANT_ITEM_TAGS = {"quest", "key", "story", "legendary"}
+
 
 def _normalize_route_lists(model, data):
     fields = {
@@ -115,11 +120,50 @@ def _source_rows(db_session, item_id):
     return sources
 
 
+def _source_channel_keys(source_counts):
+    labels = {
+        "shop_inventory": "shop inventory",
+        "combat_loot": "combat loot",
+        "quest_rewards": "quest rewards",
+        "encounter_rewards": "encounter rewards",
+        "event_rewards": "event rewards",
+        "poi_ids": "world placements",
+    }
+    return [
+        {"key": key, "label": label, "count": source_counts.get(key, 0)}
+        for key, label in labels.items()
+        if source_counts.get(key, 0) > 0
+    ]
+
+
+def _important_item(item):
+    tags = item.tags or []
+    return (
+        str(_enum_value(item.type)).lower() in IMPORTANT_ITEM_TYPES
+        or str(_enum_value(item.rarity)).lower() in IMPORTANT_ITEM_RARITIES
+        or any(str(tag).lower() in IMPORTANT_ITEM_TAGS for tag in tags)
+    )
+
+
+def _has_story_explanation(db_session, item_id):
+    for link in db_session.query(AdventureBeatLink).filter(AdventureBeatLink.target_id == item_id).all():
+        if _enum_value(link.target_type) != "item" or _enum_value(link.importance) == "background":
+            continue
+        if (
+            (link.notes or "").strip()
+            or (link.state_label or "").strip()
+            or ((link.continuity_group_id or "").strip() and link.continuity_group_id != item_id)
+        ):
+            return True
+    return False
+
+
 def _analysis(db_session, item, sources):
     source_counts = {
         key: len(value) for key, value in sources.items()
         if isinstance(value, list)
     }
+    acquisition_channels = _source_channel_keys(source_counts)
     total_sources = sum(source_counts.values())
     repeated = []
     for key in ("combat_loot", "quest_rewards", "encounter_rewards", "event_rewards"):
@@ -136,6 +180,8 @@ def _analysis(db_session, item, sources):
         warnings.append("Rarity and acquisition scarcity appear mismatched.")
     if repeated:
         warnings.append("Item is rewarded repeatedly by the same source.")
+    if _important_item(item) and len(acquisition_channels) > 1 and not _has_story_explanation(db_session, item.id):
+        warnings.append("Important item appears in multiple acquisition channels without story placement context explaining why.")
     peers = [
         row for row in db_session.query(Item).all()
         if row.id != item.id and (_enum_value(row.type) == _enum_value(item.type) or _enum_value(row.rarity) == _enum_value(item.rarity))
@@ -147,6 +193,8 @@ def _analysis(db_session, item, sources):
     return {
         "source_counts": source_counts,
         "total_sources": total_sources,
+        "acquisition_channels": acquisition_channels,
+        "acquisition_channel_count": len(acquisition_channels),
         "repeated_sources": repeated,
         "median_peer_price": median_price,
         "warnings": warnings,
@@ -314,7 +362,16 @@ def get_new_item_ecosystem():
             "requirement": None,
             "sources": {**{key: [] for key in SOURCE_CONFIG}, "shop_inventory": [], "poi_ids": []},
             "catalogs": _catalogs(db_session),
-            "analysis": {"source_counts": {}, "total_sources": 0, "repeated_sources": [], "median_peer_price": 0, "warnings": ["Item has no acquisition sources."], "peers": []},
+            "analysis": {
+                "source_counts": {},
+                "total_sources": 0,
+                "acquisition_channels": [],
+                "acquisition_channel_count": 0,
+                "repeated_sources": [],
+                "median_peer_price": 0,
+                "warnings": ["Item has no acquisition sources."],
+                "peers": [],
+            },
         })
     finally:
         db_session.close()

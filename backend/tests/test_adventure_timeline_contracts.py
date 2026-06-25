@@ -859,6 +859,64 @@ def test_lifecycle_warnings_track_item_availability_before_requirement(monkeypat
     session.close()
     warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
     assert not any(row["code"] == "item_required_before_obtained" and row["entry_id"] == "item-link-required" for row in warnings)
+    assert not any(row["code"] == "item_obtained_never_used" and row["target_id"] == "item-1" for row in warnings)
+
+
+def test_lifecycle_warnings_find_important_item_obtained_never_used(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert any(
+        row["code"] == "item_obtained_never_used" and row["entry_id"] == "adventure-link-item"
+        for row in warnings
+    )
+
+    session = Session()
+    session.add_all([
+        _adventure_beat("item-used", "Gate Uses Key", 2),
+        _adventure_link(
+            "item-link-used", "item-used", AdventureBeatLinkTargetType.Item, "item-1",
+            AdventureBeatLinkRole.Reference, AdventureOccurrenceKind.Requirement,
+        ),
+    ])
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(row["code"] == "item_obtained_never_used" and row["target_id"] == "item-1" for row in warnings)
+
+
+def test_lifecycle_warnings_require_item_continuity_context_for_transformation(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add_all([
+        _adventure_beat("item-transformed", "Key Awakens", 2),
+        _adventure_link(
+            "item-link-transformed", "item-transformed", AdventureBeatLinkTargetType.Item, "item-1",
+            AdventureBeatLinkRole.State, AdventureOccurrenceKind.Transition, AdventureChangeType.Transformed,
+        ),
+    ])
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert any(
+        row["code"] == "item_continuity_group_missing" and row["entry_id"] == "item-link-transformed"
+        for row in warnings
+    )
+
+    session = Session()
+    session.get(AdventureBeatLink, "item-link-transformed").continuity_group_id = "city-key-awakened"
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(
+        row["code"] == "item_continuity_group_missing" and row["entry_id"] == "item-link-transformed"
+        for row in warnings
+    )
 
 
 def test_lifecycle_warnings_require_quest_start_and_resolution_in_its_arc(monkeypatch):

@@ -62,5 +62,8 @@ export default function LifecycleFields({ value, beatOptions, onChange }: Lifecy
     <label className="block text-[10px] font-semibold uppercase text-slate-500 sm:col-span-2">Continuity Group
       <input className={`${inputClass} mt-1 normal-case`} value={value.continuity_group_id} onChange={(event) => patch({ continuity_group_id: event.target.value })} />
     </label>
+    <label className="block text-[10px] font-semibold uppercase text-slate-500 sm:col-span-2">Notes
+      <textarea className={`${inputClass} mt-1 min-h-16 normal-case`} value={value.notes} onChange={(event) => patch({ notes: event.target.value })} />
+    </label>
   </div>;
 }

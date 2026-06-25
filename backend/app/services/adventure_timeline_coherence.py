@@ -8,11 +8,13 @@ CHARACTER_HEAVY_USAGE_THRESHOLD = 3
 CHARACTER_USAGE_KINDS = ("dialogue", "encounter", "event", "quest", "character_story_beat")
 ITEM_ACQUIRED_CHANGES = {"obtained", "restored"}
 ITEM_UNAVAILABLE_CHANGES = {"lost", "stolen", "consumed"}
+ITEM_USE_CHANGES = {"lost", "stolen", "consumed", "transformed", "destroyed"}
 LOCATION_DISRUPTION_CHANGES = {"destroyed", "unavailable", "changed"}
 QUEST_START_BEAT_TYPES = {"Hook", "Introduction"}
 QUEST_RESOLUTION_BEAT_TYPES = {"Recovery", "Payoff"}
 IMPORTANT_ITEM_TYPES = {"quest", "setpiece"}
-IMPORTANT_ITEM_RARITIES = {"epic", "legendary"}
+IMPORTANT_ITEM_RARITIES = {"rare", "epic", "legendary"}
+IMPORTANT_ITEM_TAGS = {"quest", "key", "story", "legendary"}
 
 
 def _enum_value(value):
@@ -451,14 +453,14 @@ def _character_warnings(occurrences, characters_by_id):
 
 def _item_warnings(occurrences, items_by_id):
     warnings = []
-    for (item_id, _, scope_kind, scope_id), rows in _group_occurrences(occurrences, "item").items():
+    for (item_id, _continuity_group_id, scope_kind, scope_id), rows in _group_occurrences(occurrences, "item").items():
+        item = items_by_id.get(item_id)
         available = False
         last_unavailable = None
         for same_beat in _by_order(rows):
             for row in same_beat:
                 if row["occurrence_kind"] != "requirement" or row["importance"] == "background" or available:
                     continue
-                item = items_by_id.get(item_id)
                 related = [last_unavailable["link"].id] if last_unavailable else []
                 warnings.append(_warning(
                     "item_required_before_obtained",
@@ -483,6 +485,60 @@ def _item_warnings(occurrences, items_by_id):
             elif unavailable:
                 available = False
                 last_unavailable = unavailable[-1]
+        if not item or not _important_item(item):
+            continue
+
+        story_rows = [row for row in rows if row["importance"] != "background"]
+        for index, row in enumerate(story_rows):
+            if row["change_type"] not in ITEM_ACQUIRED_CHANGES:
+                continue
+            used_later = any(
+                later["order"] > row["order"] and _item_usage_row(later)
+                for later in story_rows[index + 1:]
+            )
+            if not used_later:
+                warnings.append(_warning(
+                    "item_obtained_never_used",
+                    "adventure_beat_links",
+                    row["link"].id,
+                    "item",
+                    item_id,
+                    (
+                        f"Important item {_label(item)} is obtained at {row['beat'].title} "
+                        "but has no later requirement, loss, consumption, transformation, or consequence in this story lane."
+                    ),
+                    scope_kind=scope_kind,
+                    scope_id=scope_id,
+                    adventure_beat_id=row["beat"].id,
+                    related_entry_ids=[],
+                ))
+
+        for row in story_rows:
+            if row["change_type"] not in {"transformed", "restored"}:
+                continue
+            link = row["link"]
+            has_version_context = (
+                bool((link.continuity_group_id or "").strip() and link.continuity_group_id != item_id)
+                or bool((link.state_label or "").strip())
+                or bool((link.notes or "").strip())
+            )
+            if has_version_context:
+                continue
+            warnings.append(_warning(
+                "item_continuity_group_missing",
+                "adventure_beat_links",
+                link.id,
+                "item",
+                item_id,
+                (
+                    f"Important item {_label(item)} changes form at {row['beat'].title} "
+                    "without a continuity group, state label, or note explaining the version."
+                ),
+                scope_kind=scope_kind,
+                scope_id=scope_id,
+                adventure_beat_id=row["beat"].id,
+                related_entry_ids=[],
+            ))
     return warnings
 
 
@@ -595,9 +651,19 @@ def _dialogue_warnings(occurrences, dialogues_by_id, dialogue_nodes, events, pla
 
 
 def _important_item(item):
+    tags = getattr(item, "tags", None) or []
     return (
         str(_enum_value(item.type)).lower() in IMPORTANT_ITEM_TYPES
         or str(_enum_value(item.rarity)).lower() in IMPORTANT_ITEM_RARITIES
+        or any(str(tag).lower() in IMPORTANT_ITEM_TAGS for tag in tags)
+    )
+
+
+def _item_usage_row(row):
+    return (
+        row["occurrence_kind"] == "requirement"
+        or row["occurrence_kind"] == "consequence"
+        or row["change_type"] in ITEM_USE_CHANGES
     )
 
 

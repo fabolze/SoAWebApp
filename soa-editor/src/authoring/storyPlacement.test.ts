@@ -233,6 +233,7 @@ describe("story placement occurrence helpers", () => {
       starts_at_beat_id: "",
       ends_at_beat_id: "",
       continuity_group_id: "",
+      notes: "",
     });
   });
 
