@@ -566,7 +566,7 @@ export default function DialogueFlowPage() {
 
       <SceneBrief packet={packet} onChange={updateDialogue} onRecipe={applyRecipe} />
       <BeatTrack packet={packet} selectedBeatId={selectedBeatId} setSelectedBeatId={(beatId) => { setSelectedBeatId(beatId); setTab("beat"); }} onCreate={createBeat} />
-      {!isNew && currentId && <StoryPlacementPanel entityKind="dialogue" entityId={currentId} entityLabel={label(packet.dialogue)} entity={{ ...packet.dialogue, nodes: packet.nodes }} />}
+      {!isNew && currentId && <StoryPlacementPanel entityKind="dialogue" entityId={currentId} entityLabel={label(packet.dialogue)} entity={{ ...packet.dialogue, nodes: packet.nodes }} enableCrossEntityConsequenceActions />}
 
       <div className="grid gap-4 xl:grid-cols-[235px_minmax(760px,1fr)_390px]">
         <Panel title="Dialogue Library">

@@ -269,7 +269,7 @@ export default function EncounterStagePage() {
             <Stage packet={packet} setPacket={setPacket} selectedCharacter={selectedCharacter} setSelectedCharacter={setSelectedCharacter} />
             <RewardPanel packet={packet} updateEncounter={updateEncounter} />
             <PlacementPanel packet={packet} setPacket={setPacket} />
-            {!isNew && displayText(packet.encounter.id) && <StoryPlacementPanel entityKind="encounter" entityId={displayText(packet.encounter.id)} entityLabel={displayText(packet.encounter.name, displayText(packet.encounter.id))} entity={packet.encounter} />}
+            {!isNew && displayText(packet.encounter.id) && <StoryPlacementPanel entityKind="encounter" entityId={displayText(packet.encounter.id)} entityLabel={displayText(packet.encounter.name, displayText(packet.encounter.id))} entity={packet.encounter} enableCrossEntityConsequenceActions />}
             <SimulationComparison packet={packet} />
           </div>
           <div className="space-y-4">

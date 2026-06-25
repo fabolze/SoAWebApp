@@ -66,9 +66,27 @@ export interface StoryPlacementWarning {
   message: string;
 }
 
+export interface CharacterPresenceRow {
+  id: string;
+  origin: "canonical" | "character_story_beat" | "runtime_usage" | "local_draft" | "unplaced";
+  label: string;
+  source_kind: string;
+  source_id: string;
+  timeline_id: string;
+  story_arc_id: string;
+  scope_label: string;
+  order: number;
+  lifecycle: string;
+  role: string;
+  importance: string;
+  warning?: string;
+  route?: string;
+}
+
 export interface CrossEntityConsequenceBundleOptions {
-  selectedCharacterId: string;
-  selectedCharacterLabel: string;
+  anchorKind: Extract<TrackKind, "character" | "dialogue" | "encounter">;
+  anchorId: string;
+  anchorLabel: string;
   targetDraft: StoryPlacementDraft;
   existingLinks: EntryRecord[];
   makeId: () => string;
@@ -265,8 +283,9 @@ export function matchingStoryPlacementLink(candidate: StoryPlacementDraft, exist
 }
 
 export function buildCrossEntityConsequenceBundle({
-  selectedCharacterId,
-  selectedCharacterLabel,
+  anchorKind,
+  anchorId,
+  anchorLabel,
   targetDraft,
   existingLinks,
   makeId,
@@ -277,19 +296,19 @@ export function buildCrossEntityConsequenceBundle({
   if (!targetDraft.target_id) {
     return { bundle: {}, error: "Choose a consequence target before previewing." };
   }
-  if (targetDraft.target_type === "character" && targetDraft.target_id === selectedCharacterId) {
+  if (anchorKind === "character" && targetDraft.target_type === "character" && targetDraft.target_id === anchorId) {
     return { bundle: {}, error: "Choose a second character for cross-entity consequences." };
   }
 
   const anchorDraft = {
-    ...defaultPlacementDraft(makeId(), "character", selectedCharacterId, targetDraft.adventure_beat_id, 0),
-    role: "cast" as const,
+    ...defaultPlacementDraft(makeId(), anchorKind, anchorId, targetDraft.adventure_beat_id, 0),
+    role: anchorKind === "character" ? "cast" as const : "runtime" as const,
     occurrence_kind: "appearance" as const,
     change_type: "active" as const,
-    importance: "minor" as const,
+    importance: anchorKind === "character" ? "minor" as const : "major" as const,
     state_label: "",
-    continuity_group_id: selectedCharacterId,
-    notes: `Places ${selectedCharacterLabel} in the beat for a cross-entity consequence.`,
+    continuity_group_id: anchorId,
+    notes: `Places ${anchorLabel} in the beat for a cross-entity consequence.`,
   };
   const anchorLink = matchingStoryPlacementLink(anchorDraft, existingLinks);
   const targetLink = matchingStoryPlacementLink(targetDraft, existingLinks);
@@ -384,6 +403,18 @@ export function packetStoryPlacementWarnings(
       severity: text(warning.severity) === "error" ? "error" : "warning",
       message: text(warning.message, "Story placement needs review."),
     }));
+}
+
+export function packetStoryPlacementWarningRecords(
+  packet: EntryRecord | null | undefined,
+  entityKind: TrackKind,
+  entityId: string,
+): EntryRecord[] {
+  return rows(record(packet?.health).warnings)
+    .filter((warning) =>
+      text(warning.target_type) === entityKind
+      && text(warning.target_id) === entityId
+    );
 }
 
 export function mergeStoryPlacementWarnings(...groups: StoryPlacementWarning[][]): StoryPlacementWarning[] {
@@ -576,6 +607,145 @@ export function deriveLocalBeatOccurrences(localBeats: StoryPlacementLocalBeat[]
 
 export function filterBackgroundOccurrences(occurrences: StoryOccurrence[]): StoryOccurrence[] {
   return occurrences.filter((row) => row.importance !== "background");
+}
+
+function sourceRoute(kind: string, id: string): string {
+  if (!id) return "";
+  const encoded = encodeURIComponent(id);
+  const routes: Record<string, string> = {
+    adventure_beat: `/adventure-beats?selected=${encoded}`,
+    character_story_beat: `/character-story-beats?selected=${encoded}`,
+    dialogue: `/author/dialogues/${encoded}`,
+    encounter: `/author/encounters/${encoded}`,
+    event: `/events?selected=${encoded}`,
+    quest: `/author/quests/${encoded}`,
+  };
+  return routes[kind] || "";
+}
+
+function warningScopeLabel(warning: EntryRecord): string {
+  const scopeKind = text(warning.scope_kind);
+  const scopeId = text(warning.scope_id);
+  if (!scopeKind && !scopeId) return "Unassigned story lane";
+  return `${scopeKind.replace(/_/g, " ") || "scope"} ${scopeId || "unassigned"}`;
+}
+
+function presenceLifecycle(value: EntryRecord): string {
+  return text(value.state_label, text(value.change_type, text(value.occurrence_kind, text(value.role, "active"))));
+}
+
+function numericOrder(value: unknown, fallback: number): number {
+  const candidate = Number(value);
+  return Number.isFinite(candidate) ? candidate : fallback;
+}
+
+export function deriveCharacterPresenceRows({
+  timelinePacket,
+  characterId,
+  characterLabel,
+  occurrences,
+  localStoryBeats,
+  unplacedPresence,
+}: {
+  timelinePacket: EntryRecord | null | undefined;
+  characterId: string;
+  characterLabel: string;
+  occurrences: StoryOccurrence[];
+  localStoryBeats: EntryRecord[];
+  unplacedPresence: EntryRecord[];
+}): CharacterPresenceRow[] {
+  const rowsByKey = new Map<string, CharacterPresenceRow>();
+  const add = (row: CharacterPresenceRow) => {
+    const key = `${row.origin}:${row.source_kind}:${row.source_id}:${row.label}:${row.warning || ""}`;
+    if (!rowsByKey.has(key)) rowsByKey.set(key, row);
+  };
+
+  occurrences
+    .filter((occurrence) => occurrence.entity_kind === "character" && occurrence.entity_id === characterId)
+    .forEach((occurrence) => add({
+      id: occurrence.id,
+      origin: occurrence.canonical_link_id ? "canonical" : occurrence.source_kind === "character_story_beat" ? "character_story_beat" : "runtime_usage",
+      label: occurrence.source_label || occurrence.label || characterLabel,
+      source_kind: occurrence.source_kind,
+      source_id: occurrence.source_id,
+      timeline_id: occurrence.timeline_id,
+      story_arc_id: occurrence.story_arc_id,
+      scope_label: "",
+      order: occurrence.order,
+      lifecycle: presenceLifecycle(occurrence as unknown as EntryRecord),
+      role: occurrence.role || "cast",
+      importance: occurrence.importance || "minor",
+      route: sourceRoute(occurrence.source_kind, occurrence.source_id),
+    }));
+
+  localStoryBeats.forEach((beat, index) => add({
+    id: `local-character-beat:${text(beat.id, String(index))}`,
+    origin: "local_draft",
+    label: text(beat.title, "Draft character beat"),
+    source_kind: "local_character_story_beat",
+    source_id: text(beat.id),
+    timeline_id: text(beat.timeline_id),
+    story_arc_id: text(beat.story_arc_id),
+    scope_label: "Local Character Studio draft",
+    order: numericOrder(beat.sort_order, index),
+    lifecycle: text(beat.beat_type, "draft"),
+    role: "cast",
+    importance: "minor",
+  }));
+
+  unplacedPresence.forEach((entry, index) => {
+    const content = record(entry.entry);
+    const kind = singular(text(entry.kind));
+    add({
+      id: `unplaced:${kind}:${text(content.id, String(index))}`,
+      origin: "unplaced",
+      label: label(content, text(content.id, "Unplaced content")),
+      source_kind: kind,
+      source_id: text(content.id),
+      timeline_id: "",
+      story_arc_id: "",
+      scope_label: "Connected content without a beat",
+      order: Number.MAX_SAFE_INTEGER - 1,
+      lifecycle: "unplaced",
+      role: "reference",
+      importance: "minor",
+      route: sourceRoute(kind, text(content.id)),
+    });
+  });
+
+  packetStoryPlacementWarningRecords(timelinePacket, "character", characterId)
+    .flatMap((warning) => rows(warning.usage_evidence).map((evidence) => ({ warning, evidence })))
+    .forEach(({ warning, evidence }, index) => add({
+      id: `warning-evidence:${text(warning.code, "warning")}:${text(evidence.kind)}:${text(evidence.entry_id)}:${index}`,
+      origin: "runtime_usage",
+      label: text(evidence.label, text(evidence.entry_id, "Usage evidence")),
+      source_kind: text(evidence.kind, "usage"),
+      source_id: text(evidence.entry_id),
+      timeline_id: text(evidence.timeline_id),
+      story_arc_id: text(evidence.scope_kind) === "story_arc" ? text(evidence.scope_id) : "",
+      scope_label: warningScopeLabel(evidence),
+      order: numericOrder(evidence.order, Number.MAX_SAFE_INTEGER - 2),
+      lifecycle: "usage",
+      role: "evidence",
+      importance: "minor",
+      warning: text(warning.message),
+      route: sourceRoute(text(evidence.kind), text(evidence.entry_id)),
+    }));
+
+  const originOrder: Record<CharacterPresenceRow["origin"], number> = {
+    canonical: 0,
+    character_story_beat: 1,
+    runtime_usage: 2,
+    local_draft: 3,
+    unplaced: 4,
+  };
+  return [...rowsByKey.values()].sort((left, right) =>
+    left.order - right.order
+    || originOrder[left.origin] - originOrder[right.origin]
+    || left.timeline_id.localeCompare(right.timeline_id)
+    || left.story_arc_id.localeCompare(right.story_arc_id)
+    || left.label.localeCompare(right.label)
+  );
 }
 
 export function deriveEntityOccurrences({

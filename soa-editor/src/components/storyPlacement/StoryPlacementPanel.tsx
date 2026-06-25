@@ -1,18 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CROSS_ENTITY_CONSEQUENCE_TARGET_KINDS,
   buildCrossEntityConsequenceBundle,
   crossEntityConsequenceTargetOptions,
   defaultPlacementDraft,
-  deriveEntityOccurrences,
-  deriveStoryPlacementWarnings,
   label,
-  mergeStoryPlacementWarnings,
-  packetStoryPlacementWarnings,
   placementDraftFromCanonicalLink,
   record,
-  rows,
   storyPlacementLinkPayload,
   text,
   type CrossEntityConsequenceTargetKind,
@@ -28,6 +23,7 @@ import EntityOccurrenceTrack from "./EntityOccurrenceTrack";
 import LifecycleFields from "./LifecycleFields";
 import PlacementTray from "./PlacementTray";
 import StoryContextStrip from "./StoryContextStrip";
+import { useEntityStoryPlacement } from "./useEntityStoryPlacement";
 
 interface StoryPlacementPanelProps {
   entityKind: TrackKind;
@@ -35,15 +31,9 @@ interface StoryPlacementPanelProps {
   entityLabel: string;
   entity?: EntryRecord;
   enableCharacterConsequenceActions?: boolean;
-}
-
-function catalogsByKind(packet: EntryRecord | null): Map<string, Map<string, EntryRecord>> {
-  const catalogs = record(packet?.catalogs);
-  const result = new Map<string, Map<string, EntryRecord>>();
-  Object.entries(catalogs).forEach(([kind, value]) => {
-    result.set(kind, new Map(rows(value).map((entry) => [text(entry.id), entry])));
-  });
-  return result;
+  enableCrossEntityConsequenceActions?: boolean;
+  storyPacket?: EntryRecord | null;
+  onStoryPacketChange?: (packet: EntryRecord) => void;
 }
 
 type PlacementAction = "create" | "edit" | "remove";
@@ -53,10 +43,7 @@ function title(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export default function StoryPlacementPanel({ entityKind, entityId, entityLabel, entity, enableCharacterConsequenceActions = false }: StoryPlacementPanelProps) {
-  const [packet, setPacket] = useState<EntryRecord | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+export default function StoryPlacementPanel({ entityKind, entityId, entityLabel, entity, enableCharacterConsequenceActions = false, enableCrossEntityConsequenceActions = false, storyPacket, onStoryPacketChange }: StoryPlacementPanelProps) {
   const [createDraft, setCreateDraft] = useState<StoryPlacementDraft>(() => defaultPlacementDraft(generateUlid(), entityKind, entityId));
   const [editDraft, setEditDraft] = useState<StoryPlacementDraft | null>(null);
   const [originalLink, setOriginalLink] = useState<EntryRecord | null>(null);
@@ -66,26 +53,7 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
   const [reviewAction, setReviewAction] = useState<ReviewMode | null>(null);
   const [mutationError, setMutationError] = useState("");
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    apiFetch("/api/ui/adventure-timeline")
-      .then(async (response) => {
-        const payload = await response.json();
-        if (!response.ok) throw new Error(text(record(payload).message, "Unable to load story placements."));
-        if (!cancelled) setPacket(record(payload));
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load story placements.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { packet, setPacket, error, loading, context } = useEntityStoryPlacement({ entityKind, entityId, entity, externalPacket: storyPacket });
 
   useEffect(() => {
     setCreateDraft(defaultPlacementDraft(generateUlid(), entityKind, entityId));
@@ -97,36 +65,6 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
     setReviewAction(null);
     setMutationError("");
   }, [entityId, entityKind]);
-
-  const context = useMemo(() => {
-    const timelines = new Map(rows(packet?.timelines).map((entry) => [text(entry.id), entry]));
-    const arcs = new Map(rows(packet?.story_arcs).map((entry) => [text(entry.id), entry]));
-    const beatOptions = rows(record(packet?.catalogs).adventure_beats);
-    const catalogs = record(packet?.catalogs);
-    const placementBeats = rows(packet?.placements)
-      .filter((placement) => text(placement.kind) === "adventure_beat")
-      .map((placement) => ({
-        id: text(placement.entry_id),
-        title: text(placement.label),
-        timeline_id: text(placement.timeline_id),
-        story_arc_id: text(placement.story_arc_id),
-      }));
-    const beatsById = new Map([...beatOptions, ...placementBeats].map((beat) => [text(beat.id), beat]));
-    const existingLinks = rows(catalogs.adventure_beat_links);
-    const canonicalLinks = new Map(existingLinks.map((link) => [text(link.id), link]));
-    const occurrences = deriveEntityOccurrences({
-      packet,
-      placements: rows(packet?.placements),
-      eventChains: rows(packet?.event_chains),
-      catalogsByKind: catalogsByKind(packet),
-      localBeats: [],
-    }).filter((occurrence) => occurrence.entity_kind === entityKind && occurrence.entity_id === entityId);
-    const warnings = mergeStoryPlacementWarnings(
-      deriveStoryPlacementWarnings({ entityKind, entity, occurrences }),
-      packetStoryPlacementWarnings(packet, entityKind, entityId),
-    );
-    return { timelines, arcs, beatOptions: [...beatsById.values()], catalogs, existingLinks, canonicalLinks, occurrences, warnings };
-  }, [entity, entityId, entityKind, packet]);
 
   useEffect(() => {
     if (!createDraft.adventure_beat_id && context.beatOptions.length > 0) {
@@ -199,8 +137,9 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
   };
 
   const buildConsequenceBundle = () => buildCrossEntityConsequenceBundle({
-    selectedCharacterId: entityId,
-    selectedCharacterLabel: entityLabel,
+    anchorKind: entityKind as "character" | "dialogue" | "encounter",
+    anchorId: entityId,
+    anchorLabel: entityLabel,
     targetDraft: consequenceDraft,
     existingLinks: context.existingLinks,
     makeId: generateUlid,
@@ -220,7 +159,9 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
       const payload = await response.json();
       if (!response.ok) throw new Error(text(record(payload).message, "Unable to save story placement."));
       if (commit) {
-        setPacket(record(record(payload).packet));
+        const nextPacket = record(record(payload).packet);
+        setPacket(nextPacket);
+        onStoryPacketChange?.(nextPacket);
         if (action === "create") setCreateDraft(defaultPlacementDraft(generateUlid(), entityKind, entityId));
         setEditDraft(null);
         setOriginalLink(null);
@@ -256,7 +197,9 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
       const payload = await response.json();
       if (!response.ok) throw new Error(text(record(payload).message, "Unable to save story consequence."));
       if (commit) {
-        setPacket(record(record(payload).packet));
+        const nextPacket = record(record(payload).packet);
+        setPacket(nextPacket);
+        onStoryPacketChange?.(nextPacket);
         setConsequenceDraft(defaultPlacementDraft(generateUlid(), consequenceKind, ""));
         setReview(null);
         setReviewAction(null);
@@ -271,9 +214,10 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
     }
   };
 
-  const consequenceTargets = crossEntityConsequenceTargetOptions(consequenceKind, context.catalogs, entityId);
+  const consequenceTargets = crossEntityConsequenceTargetOptions(consequenceKind, context.catalogs, entityKind === "character" ? entityId : "");
   const consequenceActionLabel = reviewAction === "cross-entity" ? "Consequence" : reviewAction === "remove" ? "Removal" : reviewAction === "edit" ? "Changes" : "Placement";
-  const consequenceSectionEnabled = enableCharacterConsequenceActions && entityKind === "character";
+  const consequenceSectionEnabled = (enableCrossEntityConsequenceActions || (enableCharacterConsequenceActions && entityKind === "character"))
+    && (entityKind === "character" || entityKind === "dialogue" || entityKind === "encounter");
 
   return <section className="rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900" data-testid="story-placement-panel">
     <div className="flex flex-wrap items-start justify-between gap-2">

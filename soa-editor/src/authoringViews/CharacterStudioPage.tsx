@@ -5,7 +5,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import SchemaForm from "../components/SchemaForm";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
+import CharacterPresenceTimeline from "../components/storyPlacement/CharacterPresenceTimeline";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
+import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
 import {
   AUTHORING_INPUT_CLASS,
   AuthoringPanel as Panel,
@@ -27,7 +29,7 @@ import { EditableTagList, ReferenceChipPicker, displayText, editableText, isReco
 type StudioMode = "individual" | "ensemble";
 type CanvasMode = "select" | "place" | "connect" | "sketch" | "move";
 type Lens = "presence" | "story" | "social" | "combat" | "issues";
-type DockTab = "dossier" | "combat" | "interaction" | "story" | "relationships" | "health" | "pending" | "advanced";
+type DockTab = "dossier" | "combat" | "interaction" | "story" | "presence" | "relationships" | "health" | "pending" | "advanced";
 
 interface GraphNode { id: string; kind: string; entry_id: string; label: string; data: EntryRecord; metadata: EntryRecord }
 interface GraphEdge { id: string; source: string; target: string; relation: string; explicit: boolean; editable: boolean; path: string; metadata: EntryRecord }
@@ -115,6 +117,11 @@ export default function CharacterStudioPage() {
   const dirtySource = useRef(`character-studio-${id}`);
   const { setDirty } = useDirtyState();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const storyPlacement = useEntityStoryPlacement({
+    entityKind: "character",
+    entityId: displayText(packet?.character?.id),
+    entity: packet?.character,
+  });
 
   const dirty = Boolean(packet && original && stable({ packet, deletions }) !== stable({ packet: original, deletions: {} }));
   useEffect(() => { const source=dirtySource.current;setDirty(source,dirty);return()=>setDirty(source,false); }, [dirty, setDirty]);
@@ -321,13 +328,14 @@ export default function CharacterStudioPage() {
               <CharacterWeb packet={packet} lens={lens} mode={canvasMode} positions={positions} setPositions={(next) => { setPositions(next); localStorage.setItem(layoutKey(displayText(packet.character.id)), JSON.stringify(next)); }} selectedNode={selectedNode} setSelectedNode={setSelectedNode} connectSource={connectSource} onConnect={connectCharacter} />
             </section>
             <PresenceTrace packet={packet} onChange={(story_beats) => update("story_beats", story_beats)} onDelete={(beat) => deleteOwned("story_beats", beat)} />
-            <StoryPlacementPanel entityKind="character" entityId={displayText(packet.character.id)} entityLabel={displayText(packet.character.name, displayText(packet.character.id, "This character"))} entity={packet.character} enableCharacterConsequenceActions />
+            <StoryPlacementPanel entityKind="character" entityId={displayText(packet.character.id)} entityLabel={displayText(packet.character.name, displayText(packet.character.id, "This character"))} entity={packet.character} enableCharacterConsequenceActions storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} />
           </main>
-          <aside><Panel title="Context Dock"><div className="mb-3 flex flex-wrap gap-1">{(["dossier","combat","interaction","story","relationships","health","pending","advanced"] as DockTab[]).map((value) => <button key={value} className={tab === value ? active : inactive} onClick={() => setTab(value)}>{value === "story" ? "Story Profile" : value[0].toUpperCase()+value.slice(1)}</button>)}</div>
+          <aside><Panel title="Context Dock"><div className="mb-3 flex flex-wrap gap-1">{(["dossier","combat","interaction","story","presence","relationships","health","pending","advanced"] as DockTab[]).map((value) => <button key={value} className={tab === value ? active : inactive} onClick={() => setTab(value)}>{value === "story" ? "Story Profile" : value[0].toUpperCase()+value.slice(1)}</button>)}</div>
             {tab === "dossier" && <Dossier packet={packet} updateCharacter={updateCharacter} />}
             {tab === "combat" && <CombatDock packet={packet} onAdvanced={()=>setTab("advanced")} onChange={(value) => update("combat_profile", value)} onDelete={() => packet.combat_profile && deleteOwned("combat_profile", packet.combat_profile)} />}
             {tab === "interaction" && <InteractionDock packet={packet} onAdvanced={()=>setTab("advanced")} onChange={(value) => update("interaction_profile", value)} onDelete={() => packet.interaction_profile && deleteOwned("interaction_profile", packet.interaction_profile)} />}
             {tab === "story" && <StoryDock packet={packet} onChange={(value) => update("story_profile", value)} onDelete={() => packet.story_profile && deleteOwned("story_profile", packet.story_profile)} />}
+            {tab === "presence" && (storyPlacement.loading ? <div className="text-xs text-slate-500">Loading story placements...</div> : storyPlacement.error ? <Issue tone="amber">{storyPlacement.error}</Issue> : <CharacterPresenceTimeline characterId={displayText(packet.character.id)} characterLabel={displayText(packet.character.name, displayText(packet.character.id, "This character"))} characterPacket={packet as unknown as EntryRecord} storyPacket={storyPlacement.packet} storyContext={storyPlacement.context} />)}
             {tab === "relationships" && <RelationshipsDock packet={packet} selectedIds={selectedIds} onChange={(value) => update("relationships", value)} onDelete={(row) => deleteOwned("relationships", row)} />}
             {tab === "health" && <HealthDock packet={packet} />}
             {tab === "pending" && <PendingDock mutation={mutation()} deletions={deletions} />}

@@ -3,6 +3,7 @@ import {
   defaultPlacementDraft,
   buildCrossEntityConsequenceBundle,
   crossEntityConsequenceTargetOptions,
+  deriveCharacterPresenceRows,
   deriveEntityOccurrences,
   deriveStoryPlacementWarnings,
   filterBackgroundOccurrences,
@@ -373,6 +374,84 @@ describe("story placement occurrence helpers", () => {
     expect(visible.map((row) => row.id)).toEqual(["major"]);
   });
 
+  it("derives character presence rows from canonical, inferred, warning, draft, and unplaced sources", () => {
+    const occurrences = deriveEntityOccurrences({
+      packet: {
+        entity_tracks: {
+          characters: [{
+            id: "adventure-link:char-link",
+            link_id: "char-link",
+            entity_kind: "character",
+            entity_id: "char-1",
+            label: "Mira",
+            timeline_id: "timeline-1",
+            story_arc_id: "arc-1",
+            source_kind: "adventure_beat",
+            source_id: "beat-1",
+            source_label: "Mira Joins",
+            order: 1,
+            role: "cast",
+            occurrence_kind: "transition",
+            change_type: "joins",
+            importance: "major",
+          }],
+        },
+      },
+      placements: [{
+        kind: "character_story_beat",
+        entry_id: "character-beat-1",
+        label: "Mira Reacts",
+        timeline_id: "timeline-1",
+        story_arc_id: "arc-1",
+        order: 2,
+        character: { entry_id: "char-1", label: "Mira" },
+      }],
+      eventChains: [],
+      catalogsByKind,
+      localBeats: [],
+    });
+    const rows = deriveCharacterPresenceRows({
+      timelinePacket: {
+        health: {
+          warnings: [{
+            code: "character_missing_introduction_placement",
+            target_type: "character",
+            target_id: "char-1",
+            message: "Mira needs an introduction.",
+            usage_evidence: [{
+              kind: "dialogue",
+              entry_id: "dialogue-1",
+              label: "Gate Talk",
+              scope_kind: "story_arc",
+              scope_id: "arc-1",
+              order: 0,
+            }],
+          }],
+        },
+      },
+      characterId: "char-1",
+      characterLabel: "Mira",
+      occurrences,
+      localStoryBeats: [{ id: "draft-beat", title: "Draft Betrayal", beat_type: "Change", sort_order: 3 }],
+      unplacedPresence: [{ kind: "encounters", entry: { id: "encounter-1", name: "Bridge Duel" } }],
+    });
+
+    expect(rows.map((row) => row.origin)).toEqual([
+      "runtime_usage",
+      "canonical",
+      "character_story_beat",
+      "local_draft",
+      "unplaced",
+    ]);
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "Mira Joins", lifecycle: "joins", origin: "canonical" }),
+      expect.objectContaining({ label: "Mira Reacts", lifecycle: "active", origin: "character_story_beat" }),
+      expect.objectContaining({ label: "Gate Talk", lifecycle: "usage", warning: "Mira needs an introduction." }),
+      expect.objectContaining({ label: "Draft Betrayal", lifecycle: "Change", origin: "local_draft" }),
+      expect.objectContaining({ label: "Bridge Duel", lifecycle: "unplaced", origin: "unplaced" }),
+    ]));
+  });
+
   it("targets backend coherence warnings to one workspace and deduplicates messages", () => {
     const packet = {
       health: {
@@ -420,8 +499,9 @@ describe("story placement occurrence helpers", () => {
     expect(crossEntityConsequenceTargetOptions("item", catalogs, "char-1").map((row) => row.id)).toEqual(["item-1"]);
 
     const result = buildCrossEntityConsequenceBundle({
-      selectedCharacterId: "char-1",
-      selectedCharacterLabel: "Mira",
+      anchorKind: "character",
+      anchorId: "char-1",
+      anchorLabel: "Mira",
       targetDraft: defaultPlacementDraft("draft-target", "item", "", "beat-1"),
       existingLinks: [],
       makeId: () => "anchor-link",
@@ -442,8 +522,9 @@ describe("story placement occurrence helpers", () => {
     } as const;
 
     const result = buildCrossEntityConsequenceBundle({
-      selectedCharacterId: "char-1",
-      selectedCharacterLabel: "Mira",
+      anchorKind: "character",
+      anchorId: "char-1",
+      anchorLabel: "Mira",
       targetDraft,
       existingLinks: [],
       makeId: () => "anchor-link",
@@ -510,8 +591,9 @@ describe("story placement occurrence helpers", () => {
     } as const;
 
     const result = buildCrossEntityConsequenceBundle({
-      selectedCharacterId: "char-1",
-      selectedCharacterLabel: "Mira",
+      anchorKind: "character",
+      anchorId: "char-1",
+      anchorLabel: "Mira",
       targetDraft,
       existingLinks: [anchor, target],
       makeId: () => "unused-anchor",
@@ -525,6 +607,80 @@ describe("story placement occurrence helpers", () => {
         role: "state",
         change_type: "destroyed",
         expected_previous: target,
+      }),
+    ]);
+  });
+
+  it("builds dialogue and encounter anchors for explicit target consequences", () => {
+    const dialogueTarget = {
+      ...defaultPlacementDraft("dialogue-target", "faction", "faction-1", "beat-1"),
+      role: "state",
+      occurrence_kind: "consequence",
+      change_type: "changed",
+      importance: "major",
+      state_label: "Hostile",
+    } as const;
+    const encounterTarget = {
+      ...defaultPlacementDraft("encounter-target", "item", "item-1", "beat-1"),
+      role: "reward",
+      occurrence_kind: "reward",
+      change_type: "obtained",
+      importance: "major",
+    } as const;
+
+    const dialogueResult = buildCrossEntityConsequenceBundle({
+      anchorKind: "dialogue",
+      anchorId: "dialogue-1",
+      anchorLabel: "Gate Talk",
+      targetDraft: dialogueTarget,
+      existingLinks: [],
+      makeId: () => "dialogue-anchor",
+    });
+    const encounterResult = buildCrossEntityConsequenceBundle({
+      anchorKind: "encounter",
+      anchorId: "enc-1",
+      anchorLabel: "Road Ambush",
+      targetDraft: encounterTarget,
+      existingLinks: [],
+      makeId: () => "encounter-anchor",
+    });
+
+    expect(dialogueResult.bundle.adventure_beat_links).toEqual([
+      expect.objectContaining({
+        id: "dialogue-anchor",
+        target_type: "dialogue",
+        target_id: "dialogue-1",
+        role: "runtime",
+        occurrence_kind: "appearance",
+        change_type: "active",
+        importance: "major",
+      }),
+      expect.objectContaining({
+        id: "dialogue-target",
+        target_type: "faction",
+        target_id: "faction-1",
+        role: "state",
+        occurrence_kind: "consequence",
+        state_label: "Hostile",
+      }),
+    ]);
+    expect(encounterResult.bundle.adventure_beat_links).toEqual([
+      expect.objectContaining({
+        id: "encounter-anchor",
+        target_type: "encounter",
+        target_id: "enc-1",
+        role: "runtime",
+        occurrence_kind: "appearance",
+        change_type: "active",
+        importance: "major",
+      }),
+      expect.objectContaining({
+        id: "encounter-target",
+        target_type: "item",
+        target_id: "item-1",
+        role: "reward",
+        occurrence_kind: "reward",
+        change_type: "obtained",
       }),
     ]);
   });

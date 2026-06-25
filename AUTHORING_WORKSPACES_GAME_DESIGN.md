@@ -35,9 +35,9 @@ Last reviewed: 2026-06-25
 | World Builder | Implemented; foundation for the shared authoring language; selected-location story placement create/edit/remove, semantic location presets, route event bindings, travel tuning, creative briefs, route/story filters, validation, and atomic world bundle saves integrated |
 | Location Atlas | Implemented standalone map review mode for arranging and inspecting existing locations through `/author/locations/map` |
 | Location Authoring | Implemented standalone location creation route for hierarchy, ecology, map placement, POIs, routes, encounter hooks, and validation through `/author/locations/new` |
-| Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, semantic character presets, scoped introduction-coverage warnings, and cross-entity character consequence actions |
-| Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, and selected-dialogue presets |
-| Encounter Stage | Implemented MVP with participant composition, requirements, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, and selected-encounter presets |
+| Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, dedicated Character Presence Timeline in the context dock, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, semantic character presets, scoped introduction-coverage warnings, and cross-entity character consequence actions |
+| Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, selected-dialogue presets, and explicit-target character/faction/item/location consequence actions |
+| Encounter Stage | Implemented MVP with participant composition, requirements, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, selected-encounter presets, and explicit-target reward/injury/faction/location consequence actions |
 | Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, and temporary flag-state walkthrough; full mixed-content Quest Loom is future vision |
 | Item Authoring | Implemented standalone item creation route for player-facing mechanics and presentation through `/author/items/new` |
 | Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove, semantic item lifecycle presets, Item Journey source summary, acquisition-channel analysis, obtained-never-used warning, multiple-source explanation warning, and continuity/version guidance; future work can deepen fantasy, provenance, families, and progression |
@@ -119,7 +119,7 @@ When a Codex agent is asked to continue this work, start here. Do not begin from
 
 **Known boundaries:**
 
-- Semantic presets write lifecycle metadata only for the selected workspace entity. Character Studio supports explicit second-target consequence selection for characters, factions, items, and locations; other cross-entity consequence actions still need workspace-specific target selection, such as encounter rewards/location changes and dialogue changes to a specific faction or character.
+- Semantic presets write lifecycle metadata for the selected workspace entity, while Character Studio, Dialogue Scene Room, and Encounter Stage support explicit second-target consequence selection for characters, factions, items, and locations. Other cross-entity consequence actions still need workspace-specific target selection before they can save honestly.
 - Lifecycle order warnings compare only canonical order inside one story-arc, timeline-level, or unassigned lane. They do not invent order across arcs or timelines. Encounter importance remains conservatively derived from canonical state/reputation/important-item consequences because encounters have no dedicated importance field.
 - Backend `entity_tracks` expose canonical adventure-beat-link occurrences for locations, characters, quests, events, dialogues, encounters, lore entries, items, factions, and story arcs. The frontend composes those canonical tracks with separately inferred runtime-event, character-beat, and browser-local occurrences without treating inferred context as canonical data.
 
@@ -184,7 +184,7 @@ This backlog gives direction after the next action queue. Do not start here unle
 
 Add a Character Presence Timeline inside the existing context area:
 
-Current status: partially implemented through the shared `StoryPlacementPanel`, `EntityOccurrenceTrack`, `StoryContextStrip`, `PlacementTray`, and `LifecycleFields`. Character Studio can show existing character occurrences, create/edit/remove `character` links, apply selected-character lifecycle presets, warn when a character appears after dies/leaves/captured without a scoped recovery, warn when three or more deduplicated dialogue, encounter, event, quest, or character-story-beat usages in one lane lack an on-time canonical `introduced` or `joins` occurrence, and author cross-entity consequences against an explicit second character, faction, item, or location target. Usage evidence remains structured and order is compared only when both sides use `adventure_beats.sort_order`.
+Current status: implemented through the shared `StoryPlacementPanel`, `EntityOccurrenceTrack`, `StoryContextStrip`, `PlacementTray`, and `LifecycleFields`, plus a Character Presence Timeline inside the Character Studio context dock. Character Studio can show existing character occurrences, local character-story drafts, unplaced connected presence, and scoped usage evidence; create/edit/remove `character` links; apply selected-character lifecycle presets; warn when a character appears after dies/leaves/captured without a scoped recovery; warn when three or more deduplicated dialogue, encounter, event, quest, or character-story-beat usages in one lane lack an on-time canonical `introduced` or `joins` occurrence; and author cross-entity consequences against an explicit second character, faction, item, or location target. Usage evidence remains structured and order is compared only when both sides use `adventure_beats.sort_order`.
 
 - Show appearances from adventure beats, character story beats, dialogues, encounters, events, quests, and local story-planning links.
 - Highlight lifecycle states such as introduced, joins, leaves, injured, captured, dies, returns, changed, and active.
@@ -245,7 +245,7 @@ The World Builder should answer "what is happening here across the story?" while
 
 Add a Story Moment Rail beside the dialogue graph:
 
-Current status: partially implemented. Dialogue Scene Room embeds the shared story-placement panel, derives runtime occurrences, supports dialogue link create/edit/remove and selected-dialogue runtime/lore/state presets, and warns when a state-setting dialogue appears only through unplaced events. Remaining work includes consequence trays with explicit character/faction/item/location targets.
+Current status: implemented for shared story placement. Dialogue Scene Room embeds the shared story-placement panel, derives runtime occurrences, supports dialogue link create/edit/remove and selected-dialogue runtime/lore/state presets, authors explicit character/faction/item/location consequence links from dialogue context, and warns when a state-setting dialogue appears only through unplaced events.
 
 - Show the adventure beat, event, quest, and character story beat context for the current dialogue.
 - Let the author place the dialogue into a runtime tray on an adventure beat.
@@ -260,7 +260,7 @@ This keeps dialogue authoring focused on conversation while still showing why th
 
 Add encounter-as-moment controls:
 
-Current status: partially implemented. Encounter Stage embeds the shared story-placement panel, supports encounter link create/edit/remove and selected-encounter runtime/outcome presets, derives runtime event occurrences, and warns when an encounter with canonical state, reputation, or important-item consequences has no story placement. Remaining work includes aftermath preview, explicit-target lifecycle links for rewards/injuries/faction/location changes, and broader important reward journey checks.
+Current status: partially implemented. Encounter Stage embeds the shared story-placement panel, supports encounter link create/edit/remove and selected-encounter runtime/outcome presets, derives runtime event occurrences, authors explicit-target lifecycle links for rewards/injuries/faction/location changes, and warns when an encounter with canonical state, reputation, or important-item consequences has no story placement. Remaining work includes aftermath preview and broader important reward journey checks.
 
 - Show where the encounter appears in events, locations, quests, and adventure beats.
 - Let the author place the encounter into a runtime tray on an adventure beat.

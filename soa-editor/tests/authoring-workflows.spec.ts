@@ -1032,7 +1032,11 @@ test("character studio shows occurrences and places a character consequence", as
         scope_id: "arc-1",
         usage_count: 3,
         usage_counts: { dialogue: 1, encounter: 1, character_story_beat: 1 },
-        usage_evidence: [],
+        usage_evidence: [
+          { kind: "dialogue", entry_id: "dialogue-1", label: "Welcome", scope_kind: "story_arc", scope_id: "arc-1", order: 0 },
+          { kind: "encounter", entry_id: "encounter-1", label: "Road Ambush", scope_kind: "story_arc", scope_id: "arc-1", order: 0 },
+          { kind: "character_story_beat", entry_id: "beat-1", label: "Guide Welcomes The Player", scope_kind: "story_arc", scope_id: "arc-1", order: 0 },
+        ],
         message: introductionWarning,
       }],
     },
@@ -1105,6 +1109,12 @@ test("character studio shows occurrences and places a character consequence", as
   await expect(page.getByTestId("story-context-strip")).toContainText("1 warning");
   await expect(page.getByTestId("story-placement-panel")).toContainText("Main Story / The First City");
   await expect(page.getByTestId("story-placement-panel").getByRole("link", { name: "Open Timeline" })).toHaveAttribute("href", /\/author\/story-timeline/);
+  await page.locator("aside").filter({ hasText: "Context Dock" }).getByRole("button", { name: "Presence" }).click();
+  await expect(page.getByTestId("character-presence-timeline")).toContainText("Presence Summary");
+  await expect(page.getByTestId("character-presence-timeline")).toContainText("Guide Welcomes The Player");
+  await expect(page.getByTestId("character-presence-timeline")).toContainText("Welcome");
+  await expect(page.getByTestId("character-presence-timeline")).toContainText("Usage");
+  await expect(page.getByTestId("character-presence-timeline")).toContainText(introductionWarning);
   await expect(page.getByTestId("story-presets-character")).toContainText("Returns");
   await page.getByTestId("story-preset-character-dies").click();
   await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
@@ -1292,6 +1302,50 @@ test("dialogue flow places a dialogue state consequence through a semantic prese
   expect(link.change_type).toBe("changed");
   expect(link.importance).toBe("major");
   expect(link.state_label).toBe("State Set");
+});
+
+test("dialogue flow authors an explicit faction consequence as separate beat links", async ({ page }) => {
+  let saved: Record<string, unknown> | null = null;
+  await mockDialogueApi(page, undefined, async (payload, route) => {
+    saved = payload;
+    const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
+    await fulfillJson(route, {
+      result: { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] },
+      packet: storyTimelinePacket,
+    });
+  });
+  await page.goto("/author/dialogues/dialogue-1");
+
+  const consequenceTray = page.getByTestId("cross-entity-consequence");
+  await expect(consequenceTray).toBeVisible();
+  await consequenceTray.getByLabel("Target Type").selectOption("faction");
+  await consequenceTray.getByLabel("Explicit Target").selectOption("faction-1");
+  await page.getByTestId("cross-entity-preset-faction-hostile").click();
+  await consequenceTray.getByRole("button", { name: "Preview Consequence" }).click();
+  await expect(page.getByTestId("story-placement-review")).toContainText("2 created");
+  await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Consequence" }).click();
+
+  await expect.poll(() => saved).not.toBeNull();
+  const links = saved?.adventure_beat_links as Array<Record<string, unknown>>;
+  expect(links).toHaveLength(2);
+  expect(links[0]).toEqual(expect.objectContaining({
+    adventure_beat_id: "adventure-beat-1",
+    target_type: "dialogue",
+    target_id: "dialogue-1",
+    role: "runtime",
+    occurrence_kind: "appearance",
+    change_type: "active",
+  }));
+  expect(links[1]).toEqual(expect.objectContaining({
+    adventure_beat_id: "adventure-beat-1",
+    target_type: "faction",
+    target_id: "faction-1",
+    role: "state",
+    occurrence_kind: "consequence",
+    change_type: "changed",
+    state_label: "Hostile",
+    importance: "major",
+  }));
 });
 
 test("dialogue flow restores drafts and unlocks gated choices in playthrough", async ({ page }) => {
@@ -1497,6 +1551,67 @@ test("encounter stage places a decisive outcome through a semantic preset", asyn
   expect(link.importance).toBe("critical");
   expect(link.state_label).toBe("Boss Defeated");
   await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City");
+});
+
+test("encounter stage authors an explicit location consequence as separate beat links", async ({ page }) => {
+  let saved: Record<string, unknown> | null = null;
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/ui/encounters/enc-1") return fulfillJson(route, encounterPacket);
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, {
+      ...storyTimelinePacket,
+      catalogs: { ...storyTimelinePacket.catalogs, encounters: [{ id: "enc-1", name: "Road Ambush" }] },
+    });
+    if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      const links = payload.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] });
+    }
+    if (url.pathname === "/api/ui/adventure-timeline/bundle" && route.request().method() === "POST") {
+      saved = route.request().postDataJSON() as Record<string, unknown>;
+      const links = saved.adventure_beat_links as Array<Record<string, unknown>>;
+      return fulfillJson(route, {
+        result: { review: { created: links.map((link) => ({ table: "adventure_beat_links", id: link.id })), changed: [], deleted: [] }, warnings: [], blockers: [] },
+        packet: storyTimelinePacket,
+      });
+    }
+    if (url.pathname === "/api/encounters") return fulfillJson(route, encounterPacket.encounters);
+    if (url.pathname === "/api/characters") return fulfillJson(route, encounterPacket.characters.map((entry) => entry.character));
+    if (url.pathname === "/api/combat_profiles") return fulfillJson(route, []);
+    return fulfillJson(route, []);
+  });
+
+  await page.goto("/author/encounters/enc-1");
+  const consequenceTray = page.getByTestId("cross-entity-consequence");
+  await expect(consequenceTray).toBeVisible();
+  await consequenceTray.getByLabel("Target Type").selectOption("location");
+  await consequenceTray.getByLabel("Explicit Target").selectOption("location-1");
+  await page.getByTestId("cross-entity-preset-location-destroyed").click();
+  await consequenceTray.getByRole("button", { name: "Preview Consequence" }).click();
+  await expect(page.getByTestId("story-placement-review")).toContainText("2 created");
+  await page.getByTestId("story-placement-review").getByRole("button", { name: "Commit Consequence" }).click();
+
+  await expect.poll(() => saved).not.toBeNull();
+  const links = saved?.adventure_beat_links as Array<Record<string, unknown>>;
+  expect(links).toHaveLength(2);
+  expect(links[0]).toEqual(expect.objectContaining({
+    adventure_beat_id: "adventure-beat-1",
+    target_type: "encounter",
+    target_id: "enc-1",
+    role: "runtime",
+    occurrence_kind: "appearance",
+    change_type: "active",
+  }));
+  expect(links[1]).toEqual(expect.objectContaining({
+    adventure_beat_id: "adventure-beat-1",
+    target_type: "location",
+    target_id: "location-1",
+    role: "state",
+    occurrence_kind: "consequence",
+    change_type: "destroyed",
+    state_label: "Destroyed",
+    importance: "critical",
+  }));
 });
 
 test("encounter stage restores and resets local drafts", async ({ page }) => {
