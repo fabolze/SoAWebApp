@@ -6,6 +6,7 @@ import {
   type AbilityTrace,
   type SimulationDatasets,
 } from "../../simulation";
+import { buildAbilityRhythmSegments } from "../../authoring/abilityUsage";
 import { displayText, isRecord, rowLabel } from "../../authoringViews/controls";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../../styles/uiTokens";
 import type { EntryRecord } from "../../types/editorQol";
@@ -97,6 +98,7 @@ export default function AbilityLabBench({ ability, effects, statuses, profiles, 
     () => traceFor(ability, effects, statuses, profiles, scenarioId, targets, targetProfile, casterProfile),
     [ability, casterProfile, effects, profiles, scenarioId, statuses, targetProfile, targets],
   );
+  const rhythmSegments = useMemo(() => buildAbilityRhythmSegments(ability, effects, statuses), [ability, effects, statuses]);
   const undefended = useMemo(
     () => traceFor(ability, effects, statuses, profiles, scenarioId, targets, null, casterProfile),
     [ability, casterProfile, effects, profiles, scenarioId, statuses, targets],
@@ -136,6 +138,7 @@ export default function AbilityLabBench({ ability, effects, statuses, profiles, 
   const defendedApplications = trace.events.filter((event) => event.kind === "status_apply").length;
   const undefendedApplications = undefended.events.filter((event) => event.kind === "status_apply").length;
   const moveKit = strings(casterProfile?.custom_abilities);
+  const rhythmEnd = Math.max(1, ...rhythmSegments.map((segment) => segment.end));
 
   return <section className="rounded-lg border border-indigo-300 bg-white p-4 dark:border-indigo-800 dark:bg-slate-900" data-testid="ability-lab-bench">
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -161,6 +164,21 @@ export default function AbilityLabBench({ ability, effects, statuses, profiles, 
       </div>
       <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
         <div className="mb-2 flex items-center justify-between"><div className="text-xs font-semibold uppercase text-slate-500">Rhythm Timeline</div><div className="text-xs">Scrub to inspect</div></div>
+        <div className="mb-3 space-y-1">
+          {rhythmSegments.map((segment) => <button
+            key={segment.id}
+            type="button"
+            className="grid w-full grid-cols-[84px_1fr_44px] items-center gap-2 rounded bg-slate-50 px-2 py-1 text-left text-xs dark:bg-slate-950"
+            onClick={() => setTurn(Math.min(Math.max(0, Math.floor(segment.start)), Math.max(0, trace.turns - 1)))}
+          >
+            <span className="font-semibold capitalize">{segment.kind}</span>
+            <span className="relative h-2 rounded bg-slate-200 dark:bg-slate-800">
+              <span className={`absolute top-0 h-2 rounded ${rhythmColor(segment.kind)}`} style={{ left: `${Math.min(100, (segment.start / rhythmEnd) * 100)}%`, width: `${Math.max(segment.end === segment.start ? 2 : 4, ((segment.end - segment.start) / rhythmEnd) * 100)}%` }} />
+            </span>
+            <span className="text-right">T{segment.start}{segment.end !== segment.start ? `-${segment.end}` : ""}</span>
+            <span className="col-span-3 truncate text-[10px] text-slate-500">{segment.label}{segment.phase ? ` / ${segment.phase}` : ""}</span>
+          </button>)}
+        </div>
         <input aria-label="Trace Turn" className="w-full accent-indigo-600" type="range" min={0} max={Math.max(0, trace.turns - 1)} value={turn} onChange={(event) => setTurn(Number(event.target.value))} />
         <div className="mt-3 max-h-64 space-y-1 overflow-auto">{trace.events.map((event, index) => <button key={`${event.turn}-${event.kind}-${index}`} type="button" className={`grid w-full grid-cols-[48px_110px_1fr] gap-2 rounded px-2 py-1 text-left text-xs ${event.turn === turn ? "bg-indigo-100 dark:bg-indigo-950" : "bg-slate-50 dark:bg-slate-950"}`} onClick={() => { setTurn(Math.floor(event.turn)); if (event.effectId) onSelectEffect(event.effectId); }}><span>T{event.turn}</span><span className="font-semibold">{event.kind.replace(/_/g, " ")}</span><span>{event.label}{event.detail ? ` · ${event.detail}` : ""}</span></button>)}</div>
       </div>
@@ -185,4 +203,15 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
 
 function Muted({ children }: { children: ReactNode }) {
   return <div className="text-xs text-slate-500">{children}</div>;
+}
+
+function rhythmColor(kind: string): string {
+  if (kind === "cast") return "bg-blue-500";
+  if (kind === "impact") return "bg-rose-500";
+  if (kind === "status" || kind === "tick") return "bg-violet-500";
+  if (kind === "upkeep") return "bg-amber-500";
+  if (kind === "recovery") return "bg-emerald-500";
+  if (kind === "cooldown") return "bg-slate-500";
+  if (kind === "deactivate") return "bg-orange-500";
+  return "bg-fuchsia-500";
 }

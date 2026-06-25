@@ -5,6 +5,7 @@ import SchemaForm from "../components/SchemaForm";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import SimulationWorkbench from "../components/simulation/SimulationWorkbench";
 import AbilityLabBench from "../components/abilityLab/AbilityLabBench";
+import { buildAbilityUsageModel } from "../authoring/abilityUsage";
 import {
   AUTHORING_INPUT_CLASS,
   AuthoringPanel as Panel,
@@ -179,6 +180,7 @@ function health(packet: AbilityPacket): { blockers: string[]; warnings: string[]
   if (Number(ability.resource_cost || 0) > 50 && Number(ability.cooldown || 0) > 8) warnings.push("High cost and long cooldown may make the ability difficult to justify.");
   const usage = packet.usage.abilities[displayText(ability.id)] || {};
   if (Object.values(usage).flat().length === 0 && packet.assigned_combat_profile_ids.length === 0) warnings.push("Ability is unused by combat profiles, classes, and talent nodes.");
+  if (strings(ability.tags).map((tag) => tag.toLowerCase()).includes("signature") && packet.assigned_combat_profile_ids.length === 0) warnings.push("Signature ability is not assigned to any combat profile.");
   const similar = localSimilarAbilities(packet);
   if (similar.length > 0) warnings.push(`${similar.length} structurally similar ability or abilities found.`);
   return { blockers: [...new Set(blockers)], warnings: [...new Set(warnings)] };
@@ -402,11 +404,20 @@ export default function AbilitySpellcraftLabPage() {
     if (rows(packet.ability.scaling).some((row) => displayText(row.stat_id) === statId)) return;
     updateAbility({ scaling: [...rows(packet.ability.scaling), { stat_id: statId, multiplier: 1 }] });
   };
+  const toggleProfileAssignment = (profileId: string) => {
+    setPacket((current) => current ? ({
+      ...current,
+      assigned_combat_profile_ids: current.assigned_combat_profile_ids.includes(profileId)
+        ? current.assigned_combat_profile_ids.filter((entry) => entry !== profileId)
+        : [...current.assigned_combat_profile_ids, profileId],
+    }) : current);
+  };
   const handleDragEnd = (event: DragEndEvent) => {
     if (!event.over) return;
     const active = String(event.active.id);
     if (event.over.id === "payload-drop" && active.startsWith("effect:")) linkEffect(active.slice(7));
     if (event.over.id === "scaling-drop" && active.startsWith("stat:")) linkStat(active.slice(5));
+    if (active === "ability-current" && String(event.over.id).startsWith("profile:")) toggleProfileAssignment(String(event.over.id).slice(8));
   };
 
   return (
@@ -453,7 +464,7 @@ export default function AbilitySpellcraftLabPage() {
                       setPacket((current) => current ? ({ ...current, linked_statuses: mergeById(current.linked_statuses, [status]) }) : current);
                     }}
                   />
-                  <AssignmentPanel packet={packet} setPacket={setPacket} />
+                  <AssignmentPanel packet={packet} onToggleProfile={toggleProfileAssignment} />
                   <StatusDefensePanel packet={packet} setPacket={setPacket} />
                   <RelationshipPanel packet={packet} setPacket={setPacket} onCreateRelated={() => {
                     const newId = generateUlid();
@@ -563,8 +574,56 @@ function StatusEditor({ status, editable, onChange }: { status: EntryRecord; edi
   return <><div className="grid gap-2 sm:grid-cols-2"><Field label="Status Name" value={status.name} disabled={!editable} onChange={(name) => set({ name, slug: displayText(status.slug) || generateSlug(name) })} /><SelectField label="Category" value={status.category} options={["Buff", "Debuff", "Control", "DoT", "Other"]} disabled={!editable} onChange={(category) => set({ category })} /><SelectField label="Polarity" value={status.polarity || "Neutral"} options={["Beneficial", "Harmful", "Neutral"]} disabled={!editable} onChange={(polarity) => set({ polarity })} /><NumberField label="Default Duration" value={status.default_duration} disabled={!editable} emptyValue="zero" onChange={(default_duration) => set({ default_duration })} /><NumberField label="Max Stacks" value={status.max_stacks ?? 1} disabled={!editable} emptyValue="zero" onChange={(max_stacks) => set({ max_stacks, stackable: Number(max_stacks || 0) > 1 })} /><SelectField label="Reapplication" value={status.reapplication_policy || "RefreshDuration"} options={["RefreshDuration", "Replace", "Ignore", "AddStackRefresh", "AddIndependentStack"]} disabled={!editable} onChange={(reapplication_policy) => set({ reapplication_policy })} /><SelectField label="Stack Decay" value={status.stack_decay_policy || "AllAtOnce"} options={["AllAtOnce", "OnePerDuration", "Independent"]} disabled={!editable} onChange={(stack_decay_policy) => set({ stack_decay_policy })} /><CheckboxField label="Can Cleanse" value={status.can_cleanse !== false} disabled={!editable} onChange={(can_cleanse) => set({ can_cleanse })} /><CheckboxField label="Can Dispel" value={status.can_dispel !== false} disabled={!editable} onChange={(can_dispel) => set({ can_dispel })} /><TextArea className="sm:col-span-2" label="Status Description" value={status.description} disabled={!editable} onChange={(description) => set({ description })} /></div><div className="mt-3 rounded border border-violet-300 bg-white p-2 dark:border-violet-800 dark:bg-slate-900"><Caption>Local Status Lifecycle Playground</Caption><div className="mb-2 flex items-center gap-2 text-xs"><span className="rounded bg-violet-100 px-2 py-1 font-semibold dark:bg-violet-950">{displayText(status.name, "Status")} x{playStacks}</span><span>Turn {playTurn}</span><span>{playStacks > 0 ? "Active" : "Inactive"}</span></div><div className="flex flex-wrap gap-1"><button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={apply}>Apply / Reapply</button><button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => { const next = playTurn + 1; setPlayTurn(next); if (next >= Number(status.default_duration || 1)) setPlayStacks(0); }}>Advance Turn</button><button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => setPlayStacks(0)}>{status.can_cleanse === false ? "Cleanse Blocked" : "Cleanse / Dispel"}</button><button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => { setPlayStacks(0); setPlayTurn(0); }}>Reset</button></div><div className="mt-2 text-[10px] text-slate-500">Temporary test actions do not save. Lifecycle settings above are canonical.</div></div></>;
 }
 
-function AssignmentPanel({ packet, setPacket }: { packet: AbilityPacket; setPacket: React.Dispatch<React.SetStateAction<AbilityPacket | null>> }) {
-  return <Panel title="Combat Profile Assignment" subtitle="Preview and save this ability inside selected creature move kits."><ReferenceManageLink reference="combat_profiles" onCreated={(id) => setPacket((current) => current ? ({ ...current, assigned_combat_profile_ids: current.assigned_combat_profile_ids.includes(id) ? current.assigned_combat_profile_ids : [...current.assigned_combat_profile_ids, id] }) : current)} /><div className="mt-2 space-y-2">{packet.catalogs.combat_profiles.length === 0 ? <Empty>No combat profiles.</Empty> : packet.catalogs.combat_profiles.map((profile) => { const id = displayText(profile.id); const character = isRecord(profile.character) ? profile.character : {}; const checked = packet.assigned_combat_profile_ids.includes(id); return <label key={id} className="flex items-center justify-between gap-3 rounded border border-slate-200 p-2 text-sm dark:border-slate-800"><span><span className="font-semibold">{rowLabel(character, id)}</span><span className="ml-2 text-xs text-slate-500">{displayText(profile.enemy_type)} / {displayText(profile.aggression)}</span></span><input type="checkbox" checked={checked} onChange={(event) => setPacket((current) => current ? ({ ...current, assigned_combat_profile_ids: event.target.checked ? [...current.assigned_combat_profile_ids, id] : current.assigned_combat_profile_ids.filter((entry) => entry !== id) }) : current)} /></label>; })}</div></Panel>;
+function AssignmentPanel({ packet, onToggleProfile }: { packet: AbilityPacket; onToggleProfile: (profileId: string) => void }) {
+  const model = useMemo(() => buildAbilityUsageModel({
+    ability: packet.ability,
+    usage: packet.usage.abilities[displayText(packet.ability.id)] || {},
+    profiles: packet.catalogs.combat_profiles,
+    encounters: packet.catalogs.encounters,
+    assignedProfileIds: packet.assigned_combat_profile_ids,
+  }), [packet]);
+  return <Panel title="Usage & Combat Assignment" subtitle="Drop the current ability onto a profile or encounter participant context. Saving writes combat profile move kits only.">
+    <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+      <DraggableCard id="ability-current" compact>
+        <div className="text-xs font-semibold">{displayText(packet.ability.name, "Current Ability")}</div>
+        <div className="text-[10px] text-slate-500">Drag to assign / unassign from combat profiles</div>
+      </DraggableCard>
+      <div className="grid grid-cols-2 gap-2 text-center text-xs">
+        <Fact label="Persisted Uses" value={String(model.persistedUsageCount)} />
+        <Fact label="Draft Profiles" value={String(model.draftAssignmentCount)} />
+      </div>
+    </div>
+    <ReferenceManageLink reference="combat_profiles" onCreated={onToggleProfile} />
+    {model.warnings.map((warning) => <Issue key={warning} tone="amber">{warning}</Issue>)}
+    {model.classRows.length + model.talentRows.length > 0 && <div className="mb-3 rounded border border-slate-200 p-2 text-xs dark:border-slate-800">
+      <Caption>Non-profile usage</Caption>
+      {model.classRows.map((entry) => <div key={`class-${displayText(entry.id)}`}>Class: {rowLabel(entry, displayText(entry.id))}</div>)}
+      {model.talentRows.map((entry) => <div key={`talent-${displayText(entry.id)}`}>Talent: {rowLabel(entry, displayText(entry.id))}</div>)}
+    </div>}
+    <div className="mt-2 space-y-2">{model.profileRows.length === 0 ? <Empty>No combat profiles.</Empty> : model.profileRows.map((row) => <ProfileAssignmentDrop key={row.profileId} row={row} onToggle={onToggleProfile} />)}</div>
+  </Panel>;
+}
+
+function ProfileAssignmentDrop({ row, onToggle }: { row: ReturnType<typeof buildAbilityUsageModel>["profileRows"][number]; onToggle: (profileId: string) => void }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `profile:${row.profileId}` });
+  const tone = row.assigned ? "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950";
+  return <div ref={setNodeRef} className={`rounded border p-2 text-sm transition ${isOver ? "ring-2 ring-blue-400" : ""} ${tone}`}>
+    <div className="flex items-start justify-between gap-3">
+      <button type="button" className="min-w-0 text-left" onClick={() => onToggle(row.profileId)}>
+        <div className="font-semibold">{row.label}</div>
+        <div className="text-xs text-slate-500">{row.enemyType} / {row.aggression}</div>
+      </button>
+      <button type="button" className={row.assigned ? `${BUTTON_CLASSES.success} ${BUTTON_SIZES.xs}` : `${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => onToggle(row.profileId)}>
+        {row.assigned ? "Assigned" : "Assign"}
+      </button>
+    </div>
+    <div className="mt-2 flex flex-wrap gap-1 text-[10px]">
+      {row.persisted && <span className="rounded bg-slate-200 px-2 py-0.5 dark:bg-slate-800">Persisted</span>}
+      {row.changed && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-800 dark:bg-blue-950 dark:text-blue-200">Draft change</span>}
+      {row.encounterContexts.length === 0 && <span className="text-slate-500">No encounter participant context.</span>}
+      {row.encounterContexts.map((context) => <span key={`${context.encounterId}-${context.combatSide}`} className="rounded bg-indigo-100 px-2 py-0.5 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{context.encounterLabel}: {context.combatSide}</span>)}
+    </div>
+  </div>;
 }
 
 function StatusDefensePanel({ packet, setPacket }: { packet: AbilityPacket; setPacket: React.Dispatch<React.SetStateAction<AbilityPacket | null>> }) {
