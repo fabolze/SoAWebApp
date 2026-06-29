@@ -37,7 +37,7 @@ Last reviewed: 2026-06-29
 | Location Authoring | Implemented standalone location creation route for hierarchy, ecology, map placement, POIs, routes, encounter hooks, and validation through `/author/locations/new` |
 | Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, dedicated Character Presence Timeline in the context dock, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, semantic character presets, scoped introduction-coverage warnings, and cross-entity character consequence actions |
 | Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, selected-dialogue presets, and explicit-target character/faction/item/location consequence actions |
-| Encounter Stage | Implemented MVP with participant composition, requirements, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, selected-encounter presets, and explicit-target reward/injury/faction/location consequence actions |
+| Encounter Stage | Implemented MVP with participant composition, requirements, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, selected-encounter presets, explicit-target reward/injury/faction/location consequence actions, aftermath preview, and important reward item journey warnings |
 | Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, story path objective-to-beat visualization, branch path diagnostics, temporary flag-state walkthrough, arc-order flag/item coherence warnings, and runtime-event placement window warnings; full mixed-content Quest Loom is future vision |
 | Item Authoring | Implemented standalone item creation route for player-facing mechanics and presentation through `/author/items/new` |
 | Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove, semantic item lifecycle presets, Item Journey source summary, acquisition-channel analysis, obtained-never-used warning, multiple-source explanation warning, and continuity/version guidance; future work can deepen fantasy, provenance, families, and progression |
@@ -260,14 +260,14 @@ This keeps dialogue authoring focused on conversation while still showing why th
 
 Add encounter-as-moment controls:
 
-Current status: partially implemented. Encounter Stage embeds the shared story-placement panel, supports encounter link create/edit/remove and selected-encounter runtime/outcome presets, derives runtime event occurrences, authors explicit-target lifecycle links for rewards/injuries/faction/location changes, and warns when an encounter with canonical state, reputation, or important-item consequences has no story placement. Remaining work includes aftermath preview and broader important reward journey checks.
+Current status: implemented MVP. Encounter Stage embeds the shared story-placement panel, supports encounter link create/edit/remove and selected-encounter runtime/outcome presets, derives runtime event occurrences, authors explicit-target lifecycle links for rewards/injuries/faction/location changes, shows an aftermath preview from draft rewards, participants, and saved same-beat story consequences, warns when an encounter with canonical state, reputation, or important-item consequences has no story placement, and warns when a story-placed encounter rewards an important item without a matching item reward/obtained placement in the same story lane. Remaining work includes richer encounter-combination authoring, missing-role handoff, and deeper tactical aftermath modeling if future canonical encounter-phase fields are added.
 
 - Show where the encounter appears in events, locations, quests, and adventure beats.
 - Let the author place the encounter into a runtime tray on an adventure beat.
 - Let rewards, injured characters, defeated bosses, faction changes, or destroyed locations become lifecycle links from the encounter context.
-- Show aftermath preview: flags set, items granted, characters affected, and location state changes.
+- Show aftermath preview: flags set, items granted, characters affected, and location state changes. Implemented as a derived panel that separates draft encounter payoff from saved same-beat story consequences.
 - Warn when a major encounter has no story placement.
-- Warn when encounter rewards are important items but do not appear in item journey tracks.
+- Warn when encounter rewards are important items but do not appear in item journey tracks. Implemented for story-placed encounters when the important item lacks a non-background reward/obtained/restored placement in the same story lane.
 
 The Encounter Stage should answer "what changes because this fight or scene happened?"
 
@@ -670,7 +670,7 @@ The stage is not a tactical battle map. Position inside a side is visual only.
 | Place encounter at a specific POI | Set `location_pois.encounter_id` |
 | Put encounter in an event chain | Set `events.encounter_id` on an Encounter event |
 
-The implemented stage also supports local draft restore/reset, encounter health warnings, threat simulation, and peer comparison so participant composition, requirements, rewards, and placement can be reviewed before commit.
+The implemented stage also supports local draft restore/reset, encounter health warnings, threat simulation, peer comparison, story placement, and aftermath preview so participant composition, requirements, rewards, placement, and consequences can be reviewed before commit.
 
 ### Lenses
 
@@ -688,15 +688,15 @@ Show a compact player-facing sequence derived from existing data:
 1. Gate: encounter requirement.
 2. Cast: participants and contexts.
 3. Conflict: simulation and side balance.
-4. Result: rewards and flags set.
-5. Follow-up: events or world content unlocked by those flags.
+4. Result: rewards, flags set, reputation changes, and affected participants.
+5. Follow-up: saved same-beat story consequences and events or world content unlocked by those flags.
 
 This does not claim to model encounter phases. It presents the real available structure as a readable dramatic pulse.
 
 ### Living Canvas Application
 
 - **Canonical Save Gestures:** cast participants, assign sides and contexts, edit rewards and gates, and place the encounter into existing location tables, POIs, or events.
-- **Local Creative Tools:** a dramatic pulse lane derived from gate, cast, conflict, result, and follow-up; threat, reward, role, and world-placement overlays; variant comparison ghosts; hypothetical participant arrangements; missing-role slots that can start a local Creature Workshop draft.
+- **Local Creative Tools:** a dramatic pulse lane derived from gate, cast, conflict, result, and follow-up; aftermath preview; threat, reward, role, and world-placement overlays; variant comparison ghosts; hypothetical participant arrangements; missing-role slots that can start a local Creature Workshop draft.
 - **Future Canonical Expansion:** encounter phases, stakes, environment roles, escalation, turning points, alternate resolutions, and authored tactical readability.
 
 A missing-role slot expresses a design need such as "ranged pressure" or "non-combat witness." It remains local until the author creates a real character/combat bundle and places it into the encounter.
