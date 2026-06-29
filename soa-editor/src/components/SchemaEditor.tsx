@@ -116,6 +116,17 @@ function stringifyStable(value: unknown): string {
   }
 }
 
+function hasMeaningfulDraftData(entry: EntryRecord): boolean {
+  return Object.entries(entry || {}).some(([key, value]) => {
+    if (key === "id") return false;
+    if (value === null || value === undefined) return false;
+    if (typeof value === "string") return value.trim().length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    if (isRecord(value)) return Object.keys(value).length > 0;
+    return true;
+  });
+}
+
 function toSearchText(value: unknown): string {
   return String(value ?? "").toLowerCase();
 }
@@ -320,8 +331,9 @@ export default function SchemaEditor({
   }, [querySelectedId]);
 
   const handleSave = useCallback(async () => {
+    const saveData = getEntryId(data) ? data : { ...data, [idField]: generateUlid() };
     // Prevent accidental overwrites when switching to an ID that belongs to another entry.
-    const currentId = getEntryId(data);
+    const currentId = getEntryId(saveData);
     const originalId = getEntryId(originalData);
     if (currentId) {
       const conflict = entries.some((entry) => {
@@ -340,20 +352,22 @@ export default function SchemaEditor({
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify(saveData),
     });
 
     if (res.ok) {
       setToast({ type: "success", message: "Saved successfully" });
       await loadEntries();
-      rememberRecentEntry(data);
+      rememberRecentEntry(saveData);
       setReferenceOptionsVersion((v) => v + 1); // Trigger referenceOptions refresh in SchemaForm
-      setOriginalData(data);
+      setData(saveData);
+      setOriginalData(saveData);
       setIsDirty(false);
-      originalSerializedRef.current = stringifyStable(data);
+      originalSerializedRef.current = stringifyStable(saveData);
       const draftKey = `soa.draft.${schemaName}.${currentId || "new"}`;
       const lastKey = `soa.draft.last.${schemaName}`;
       localStorage.removeItem(draftKey);
+      localStorage.removeItem(`soa.draft.${schemaName}.new`);
       if (localStorage.getItem(lastKey) === draftKey) {
         localStorage.removeItem(lastKey);
       }
@@ -369,7 +383,7 @@ export default function SchemaEditor({
 
     if (toastTimeout.current) clearTimeout(toastTimeout.current);
     toastTimeout.current = setTimeout(() => setToast(null), 3000);
-  }, [apiPath, data, entries, getEntryId, loadEntries, navigate, originalData, rememberRecentEntry, returnTo, schemaName]);
+  }, [apiPath, data, entries, getEntryId, idField, loadEntries, navigate, originalData, rememberRecentEntry, returnTo, schemaName]);
 
   // Get all field names from schema for table columns.
   const fieldKeys = useMemo(() => Object.keys(schema?.properties || {}), [schema]);
@@ -433,14 +447,24 @@ export default function SchemaEditor({
 
   // Add New handler.
   const handleAddNew = useCallback(() => {
+    if (!getEntryId(data) && hasMeaningfulDraftData(data)) {
+      const newData: EntryRecord = { ...data, [idField]: generateUlid() };
+      setData(newData);
+      setOriginalData({});
+      originalSerializedRef.current = stringifyStable({});
+      setIsDirty(true);
+      setShowEditor(true);
+      return;
+    }
+
     if (!confirmDiscard()) return;
-    const newData: EntryRecord = { id: generateUlid() };
+    const newData: EntryRecord = { [idField]: generateUlid() };
     setData(newData);
     setOriginalData(newData);
     originalSerializedRef.current = stringifyStable(newData);
     setIsDirty(false);
     setShowEditor(true);
-  }, [confirmDiscard]);
+  }, [confirmDiscard, data, getEntryId, idField]);
 
   // Duplicate handler.
   const handleDuplicate = useCallback(
