@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type PointerEvent, type ReactNode, type SetStateAction } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
+import {
+  packetStoryPlacementWarningRecords,
+  parseEntityTrackOccurrences,
+  type StoryOccurrence,
+} from "../authoring/storyPlacement";
 import { apiFetch } from "../lib/api";
 import { responseErrorMessage } from "../lib/apiErrors";
 import { CommaSeparatedInput } from "../authoringViews/controls";
@@ -20,7 +25,7 @@ import {
 
 type EntryRecord = Record<string, unknown>;
 type MapMode = "select" | "sketch" | "connect" | "move";
-type LayerMode = "all" | "danger" | "story" | "issues";
+type LayerMode = "all" | "danger" | "story" | "state" | "issues";
 type StoryFilter = "all" | "main" | "side" | "branch" | "locked";
 
 const WORLD_RETURN = "/author/world";
@@ -174,9 +179,10 @@ function dangerScore(location: EntryRecord, encounterCount: number): number {
   return Math.max(numberValue(range.max), numberValue(range.min)) + encounterCount * 2;
 }
 
-function locationPointClass(location: EntryRecord, selected: boolean, layer: LayerMode, issueCount: number, story: boolean, danger: number): string {
+function locationPointClass(location: EntryRecord, selected: boolean, layer: LayerMode, issueCount: number, story: boolean, danger: number, lifecycle: string): string {
   if (selected) return "border-blue-700 bg-blue-700 text-white ring-2 ring-blue-300";
   if (layer === "issues" && issueCount > 0) return "border-red-500 bg-red-50 text-red-900 dark:border-red-400 dark:bg-red-950 dark:text-red-100";
+  if (layer === "state" && lifecycle) return locationStateClass(lifecycle);
   if (layer === "story" && story) return "border-violet-400 bg-violet-50 text-violet-900 dark:border-violet-700 dark:bg-violet-950 dark:text-violet-100";
   if (layer === "danger" && danger >= 8) return "border-amber-500 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100";
   switch (text(location.place_kind)) {
@@ -281,11 +287,64 @@ function storyBeatAllowed(beat: StoryBeat, filter: StoryFilter): boolean {
   return true;
 }
 
+function occurrenceLifecycle(occurrence: StoryOccurrence): string {
+  const stateLabel = text(occurrence.state_label).toLowerCase();
+  if (stateLabel === "occupied") return "occupied";
+  return text(occurrence.change_type, "active").toLowerCase();
+}
+
+const lifecycleRank: Record<string, number> = {
+  destroyed: 80,
+  unavailable: 70,
+  transformed: 65,
+  occupied: 60,
+  restored: 55,
+  changed: 50,
+  introduced: 40,
+  active: 30,
+  none: 10,
+};
+
+function mostImportantLifecycle(occurrences: StoryOccurrence[]): string {
+  return occurrences
+    .map(occurrenceLifecycle)
+    .sort((a, b) => (lifecycleRank[b] ?? 20) - (lifecycleRank[a] ?? 20) || a.localeCompare(b))[0] || "";
+}
+
+function locationStateClass(lifecycle: string): string {
+  switch (lifecycle) {
+    case "introduced":
+      return "border-emerald-500 bg-emerald-50 text-emerald-950 dark:border-emerald-500 dark:bg-emerald-950 dark:text-emerald-100";
+    case "destroyed":
+      return "border-red-600 bg-red-50 text-red-950 dark:border-red-500 dark:bg-red-950 dark:text-red-100";
+    case "unavailable":
+      return "border-orange-500 bg-orange-50 text-orange-950 dark:border-orange-500 dark:bg-orange-950 dark:text-orange-100";
+    case "restored":
+      return "border-cyan-500 bg-cyan-50 text-cyan-950 dark:border-cyan-500 dark:bg-cyan-950 dark:text-cyan-100";
+    case "transformed":
+      return "border-fuchsia-500 bg-fuchsia-50 text-fuchsia-950 dark:border-fuchsia-500 dark:bg-fuchsia-950 dark:text-fuchsia-100";
+    case "occupied":
+    case "changed":
+      return "border-indigo-500 bg-indigo-50 text-indigo-950 dark:border-indigo-500 dark:bg-indigo-950 dark:text-indigo-100";
+    case "active":
+      return "border-blue-500 bg-blue-50 text-blue-950 dark:border-blue-500 dark:bg-blue-950 dark:text-blue-100";
+    default:
+      return "border-slate-300 bg-slate-50 text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
+  }
+}
+
+function occurrenceMatchesStoryScope(occurrence: StoryOccurrence, timelineId: string, storyArcId: string, lifecycle: string): boolean {
+  return (!timelineId || occurrence.timeline_id === timelineId)
+    && (!storyArcId || occurrence.story_arc_id === storyArcId)
+    && (!lifecycle || occurrenceLifecycle(occurrence) === lifecycle);
+}
+
 export default function WorldBuilderPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const boardRef = useRef<HTMLDivElement | null>(null);
   const [payload, setPayload] = useState<WorldBuilderPayload | null>(null);
+  const [storyPacket, setStoryPacket] = useState<EntryRecord | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const [healthIssues, setHealthIssues] = useState<HealthIssue[]>([]);
   const [loading, setLoading] = useState(true);
@@ -307,6 +366,9 @@ export default function WorldBuilderPage() {
   const [nodeFlagFilter, setNodeFlagFilter] = useState("");
   const [layer, setLayer] = useState<LayerMode>("all");
   const [storyFilter, setStoryFilter] = useState<StoryFilter>("all");
+  const [timelineFilter, setTimelineFilter] = useState("");
+  const [storyArcFilter, setStoryArcFilter] = useState("");
+  const [lifecycleFilter, setLifecycleFilter] = useState("");
   const [showRouteLabels, setShowRouteLabels] = useState(true);
   const requestedSelectedId = searchParams.get("selected") || "";
 
@@ -322,8 +384,10 @@ export default function WorldBuilderPage() {
         apiFetch("/api/ui/world_builder"),
         buildProjectHealthSummary().catch(() => null),
       ]);
+      const storyRes = await apiFetch("/api/ui/adventure-timeline").catch(() => null);
       const data = await worldRes.json();
       if (!worldRes.ok || !isRecord(data)) throw new Error("World builder data failed to load.");
+      const storyData = storyRes && storyRes.ok ? await storyRes.json() : null;
       const nextPayload: WorldBuilderPayload = {
         locations: Array.isArray(data.locations) ? data.locations.filter(isRecord) : [],
         routes: Array.isArray(data.routes) ? data.routes.filter(isRecord) : [],
@@ -340,6 +404,7 @@ export default function WorldBuilderPage() {
         warnings: Array.isArray(data.warnings) ? data.warnings.filter(isRecord) : [],
       };
       setPayload(nextPayload);
+      setStoryPacket(isRecord(storyData) ? storyData : null);
       setHealthIssues(health?.issues.filter((issue) => issue.category === "world") ?? []);
       if (nextPayload.locations.length > 0) {
         setSelectedId((current) => {
@@ -380,6 +445,47 @@ export default function WorldBuilderPage() {
   const selectedRouteIds = useMemo(() => new Set(selectedRoutes.map(entryId)), [selectedRoutes]);
   const selectedRouteEvents = useMemo(() => (payload?.route_event_bindings ?? []).filter((binding) => selectedRouteIds.has(text(binding.route_id))), [payload, selectedRouteIds]);
   const selectedRouteBindings = useMemo(() => (payload?.route_event_bindings ?? []).filter((binding) => text(binding.route_id) === selectedRouteId), [payload, selectedRouteId]);
+  const locationOccurrences = useMemo(() => parseEntityTrackOccurrences(storyPacket).filter((occurrence) => occurrence.entity_kind === "location"), [storyPacket]);
+  const locationOccurrencesById = useMemo(() => {
+    const map = new Map<string, StoryOccurrence[]>();
+    locationOccurrences.forEach((occurrence) => {
+      map.set(occurrence.entity_id, [...(map.get(occurrence.entity_id) ?? []), occurrence]);
+    });
+    return map;
+  }, [locationOccurrences]);
+  const scopedLocationOccurrencesById = useMemo(() => {
+    const map = new Map<string, StoryOccurrence[]>();
+    locationOccurrencesById.forEach((occurrences, locationId) => {
+      const scoped = occurrences.filter((occurrence) => occurrenceMatchesStoryScope(occurrence, timelineFilter, storyArcFilter, lifecycleFilter));
+      if (scoped.length > 0) map.set(locationId, scoped);
+    });
+    return map;
+  }, [lifecycleFilter, locationOccurrencesById, storyArcFilter, timelineFilter]);
+  const locationWarningsById = useMemo(() => {
+    const map = new Map<string, EntryRecord[]>();
+    locations.forEach((location) => {
+      const locationId = entryId(location);
+      const warnings = packetStoryPlacementWarningRecords(storyPacket, "location", locationId);
+      if (warnings.length > 0) map.set(locationId, warnings);
+    });
+    return map;
+  }, [locations, storyPacket]);
+  const selectedLocationOccurrences = useMemo(() => (locationOccurrencesById.get(selectedId) ?? [])
+    .filter((occurrence) => occurrenceMatchesStoryScope(occurrence, timelineFilter, storyArcFilter, lifecycleFilter)), [lifecycleFilter, locationOccurrencesById, selectedId, storyArcFilter, timelineFilter]);
+  const selectedLocationWarnings = useMemo(() => locationWarningsById.get(selectedId) ?? [], [locationWarningsById, selectedId]);
+  const storyTimelines = useMemo(() => Array.isArray(storyPacket?.timelines) ? storyPacket.timelines.filter(isRecord) : [], [storyPacket]);
+  const storyArcs = useMemo(() => Array.isArray(storyPacket?.story_arcs) ? storyPacket.story_arcs.filter(isRecord) : [], [storyPacket]);
+  const lifecycleOptions = useMemo(() => uniqueOptions([
+    "introduced",
+    "active",
+    "changed",
+    "occupied",
+    "unavailable",
+    "destroyed",
+    "restored",
+    "transformed",
+    ...locationOccurrences.map(occurrenceLifecycle),
+  ]), [locationOccurrences]);
   const storyByLocation = useMemo(() => {
     const map = new Map<string, StoryBeat[]>();
     const add = (locationId: string, beat: StoryBeat) => {
@@ -504,6 +610,7 @@ export default function WorldBuilderPage() {
   const filteredLocations = useMemo(() => locations.filter((location) => {
     const id = entryId(location);
     const storyBeats = (storyByLocation.get(id) ?? []).filter((beat) => storyBeatAllowed(beat, storyFilter));
+    const canonicalOccurrences = scopedLocationOccurrencesById.get(id) ?? [];
     const matchesSearch = locationSearchText(location).includes(search.trim().toLowerCase());
     const matchesRegion = !regionFilter || text(location.region) === regionFilter;
     const matchesType = !typeFilter || text(location.location_type) === typeFilter;
@@ -516,9 +623,10 @@ export default function WorldBuilderPage() {
       || (nodeFlagFilter === "playable" && location.is_playable_space !== false)
       || (nodeFlagFilter === "map" && location.is_world_map_node !== false);
     const matchesLayer = (layer !== "issues" || (issueCounts.get(id) ?? 0) > 0)
-      && (layer !== "story" || storyBeats.length > 0);
+      && (layer !== "story" || storyBeats.length > 0 || canonicalOccurrences.length > 0)
+      && (layer !== "state" || canonicalOccurrences.length > 0);
     return matchesSearch && matchesRegion && matchesType && matchesPlace && matchesBiome && matchesNodeFlag && matchesLayer;
-  }), [biomeFilter, issueCounts, layer, locations, nodeFlagFilter, placeKindFilter, regionFilter, search, storyByLocation, storyFilter, typeFilter]);
+  }), [biomeFilter, issueCounts, layer, locations, nodeFlagFilter, placeKindFilter, regionFilter, scopedLocationOccurrencesById, search, storyByLocation, storyFilter, typeFilter]);
 
   const visibleLocationIds = useMemo(() => new Set(filteredLocations.map(entryId)), [filteredLocations]);
   const filteredRoutes = useMemo(() => routes.filter((route) => {
@@ -826,7 +934,7 @@ export default function WorldBuilderPage() {
                 </select>
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
-                {(["all", "danger", "story", "issues"] as LayerMode[]).map((item) => (
+                {(["all", "danger", "story", "state", "issues"] as LayerMode[]).map((item) => (
                   <button key={item} type="button" className={layer === item ? activeButton : inactiveButton} onClick={() => setLayer(item)}>
                     {item[0].toUpperCase() + item.slice(1)}
                   </button>
@@ -837,6 +945,20 @@ export default function WorldBuilderPage() {
                   <option value="side">Side/optional</option>
                   <option value="branch">Branches</option>
                   <option value="locked">Locked/reveal gated</option>
+                </select>
+                <select aria-label="Timeline Filter" className={inputClass} value={timelineFilter} onChange={(event) => { setTimelineFilter(event.target.value); setStoryArcFilter(""); }}>
+                  <option value="">All timelines</option>
+                  {storyTimelines.map((timeline) => <option key={entryId(timeline)} value={entryId(timeline)}>{label(timeline)}</option>)}
+                </select>
+                <select aria-label="Story Arc Filter" className={inputClass} value={storyArcFilter} onChange={(event) => setStoryArcFilter(event.target.value)}>
+                  <option value="">All arcs</option>
+                  {storyArcs
+                    .filter((arc) => !timelineFilter || text(arc.timeline_id) === timelineFilter)
+                    .map((arc) => <option key={entryId(arc)} value={entryId(arc)}>{label(arc)}</option>)}
+                </select>
+                <select aria-label="Lifecycle Filter" className={inputClass} value={lifecycleFilter} onChange={(event) => setLifecycleFilter(event.target.value)}>
+                  <option value="">All lifecycle</option>
+                  {lifecycleOptions.map((option) => <option key={option} value={option}>{option[0].toUpperCase() + option.slice(1)}</option>)}
                 </select>
                 <button type="button" className={showRouteLabels ? activeButton : inactiveButton} onClick={() => setShowRouteLabels((current) => !current)}>
                   Route Labels
@@ -910,22 +1032,25 @@ export default function WorldBuilderPage() {
                 const issueCount = issueCounts.get(id) ?? 0;
                 const connectedRoutes = routes.filter((route) => routeMatchesLocation(route, id));
                 const storyBeats = (storyByLocation.get(id) ?? []).filter((beat) => storyBeatAllowed(beat, storyFilter));
-                const story = hasStoryContent(id, payload, connectedRoutes) || storyBeats.length > 0;
+                const canonicalOccurrences = scopedLocationOccurrencesById.get(id) ?? [];
+                const lifecycle = mostImportantLifecycle(canonicalOccurrences);
+                const story = hasStoryContent(id, payload, connectedRoutes) || storyBeats.length > 0 || canonicalOccurrences.length > 0;
                 const danger = dangerScore(location, encounterCounts.get(id) ?? 0);
                 const encounterNames = locationEncounterNames(id, payload?.encounter_tables ?? [], encountersById).slice(0, 3);
                 return (
                   <button
                     key={id}
                     type="button"
-                    className={`absolute flex max-w-[190px] -translate-x-1/2 -translate-y-1/2 items-center gap-1 truncate rounded-full border px-2 py-1 text-xs font-semibold shadow transition ${mode === "move" ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${pendingRouteSourceId === id ? "ring-2 ring-amber-400" : ""} ${locationPointClass(location, selectedNode, layer, issueCount, story, danger)}`}
+                    className={`absolute flex max-w-[190px] -translate-x-1/2 -translate-y-1/2 items-center gap-1 truncate rounded-full border px-2 py-1 text-xs font-semibold shadow transition ${mode === "move" ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${pendingRouteSourceId === id ? "ring-2 ring-amber-400" : ""} ${locationPointClass(location, selectedNode, layer, issueCount, story, danger, lifecycle)}`}
                     style={{ left: `${coordinates.x}%`, top: `${coordinates.y}%` }}
-                    title={`${label(location)} / ${text(location.place_kind, "Unclassified")} / ${effectiveBiome(location) || "No biome"} / ${levelRangeLabel(location.level_range)}${encounterNames.length ? ` / Encounters: ${encounterNames.join(", ")}` : ""}`}
+                    title={`${label(location)} / ${text(location.place_kind, "Unclassified")} / ${effectiveBiome(location) || "No biome"} / ${levelRangeLabel(location.level_range)}${lifecycle ? ` / Story state: ${lifecycle}` : ""}${encounterNames.length ? ` / Encounters: ${encounterNames.join(", ")}` : ""}`}
                     onClick={(event) => handleNodeClick(event, location)}
                     onPointerDown={(event) => handleNodePointerDown(event, location)}
                   >
                     <span className="h-2 w-2 shrink-0 rounded-full bg-current opacity-70" />
                     <span className="truncate">{label(location)}</span>
                     {storyBeats.length > 0 && <span className="rounded bg-white/25 px-1 text-[10px]">S</span>}
+                    {canonicalOccurrences.length > 0 && <span className="rounded bg-white/25 px-1 text-[10px]">{lifecycle || canonicalOccurrences.length}</span>}
                   </button>
                 );
               })}
@@ -982,12 +1107,23 @@ export default function WorldBuilderPage() {
                   briefs={selectedBriefs}
                   issues={selectedIssues}
                   storyBeats={selectedLocationStoryBeats}
+                  storyOccurrences={selectedLocationOccurrences}
+                  storyWarnings={selectedLocationWarnings}
+                  timelines={storyTimelines}
+                  storyArcs={storyArcs}
                   onQuickSave={quickSaveLocation}
                   onSavePacket={saveWorldPacket}
                   onCreateRoute={startRouteFromSelected}
                   onCreatePoi={() => createPoiDraft(selected)}
                 />
-                <StoryPlacementPanel entityKind="location" entityId={entryId(selected)} entityLabel={label(selected)} entity={selected} />
+                <StoryPlacementPanel
+                  entityKind="location"
+                  entityId={entryId(selected)}
+                  entityLabel={label(selected)}
+                  entity={selected}
+                  storyPacket={storyPacket}
+                  onStoryPacketChange={setStoryPacket}
+                />
               </>
             ) : (
               <div className="text-sm text-slate-600 dark:text-slate-300">Select a location to inspect its world-building packet.</div>
@@ -1138,6 +1274,75 @@ function Select({ value, onChange, options, empty }: { value: string; onChange: 
       <option value="">{empty}</option>
       {options.map((option) => <option key={option} value={option}>{option}</option>)}
     </select>
+  );
+}
+
+function LocationStoryStatePanel({
+  locationId,
+  occurrences,
+  warnings,
+  timelines,
+  storyArcs,
+}: {
+  locationId: string;
+  occurrences: StoryOccurrence[];
+  warnings: EntryRecord[];
+  timelines: EntryRecord[];
+  storyArcs: EntryRecord[];
+}) {
+  const timelinesById = new Map(timelines.map((timeline) => [entryId(timeline), timeline]));
+  const arcsById = new Map(storyArcs.map((arc) => [entryId(arc), arc]));
+  const sorted = [...occurrences].sort((a, b) =>
+    (a.timeline_id || "").localeCompare(b.timeline_id || "")
+    || (a.story_arc_id || "").localeCompare(b.story_arc_id || "")
+    || a.order - b.order
+    || a.source_label.localeCompare(b.source_label)
+  );
+  return (
+    <Panel title="Story / State Overlay">
+      <div className="space-y-2" data-testid="location-story-state-panel">
+        <div className="flex flex-wrap gap-1 text-xs">
+          <Badge>{sorted.length} canonical occurrence{sorted.length === 1 ? "" : "s"}</Badge>
+          <Badge>{warnings.length} warning{warnings.length === 1 ? "" : "s"}</Badge>
+          <Link className="rounded bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-900 hover:bg-blue-200 dark:bg-blue-950 dark:text-blue-100 dark:hover:bg-blue-900" to={`/author/story-timeline?track=location&entity=${encodeURIComponent(locationId)}`}>Open Timeline</Link>
+        </div>
+        {warnings.map((warning, index) => (
+          <div key={`${text(warning.code)}-${text(warning.entry_id)}-${index}`} className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+            {text(warning.message, "Story placement needs review.")}
+          </div>
+        ))}
+        {sorted.length === 0 ? (
+          <div className="text-sm text-slate-500 dark:text-slate-400">No canonical story-state placements match the current map filters.</div>
+        ) : (
+          <div className="grid gap-2">
+            {sorted.map((occurrence) => {
+              const timeline = timelinesById.get(occurrence.timeline_id);
+              const arc = arcsById.get(occurrence.story_arc_id);
+              const lifecycle = occurrenceLifecycle(occurrence);
+              return (
+                <div key={occurrence.id} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{occurrence.source_label || "Untitled story moment"}</div>
+                      <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                        {label(timeline, "Unassigned timeline")} / {label(arc, "Unassigned arc")}
+                      </div>
+                    </div>
+                    <span className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${locationStateClass(lifecycle)}`}>{lifecycle || "active"}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
+                    {occurrence.role && <Badge>{occurrence.role}</Badge>}
+                    {occurrence.occurrence_kind && <Badge>{occurrence.occurrence_kind}</Badge>}
+                    {occurrence.importance && <Badge>{occurrence.importance}</Badge>}
+                    {occurrence.state_label && <Badge>{occurrence.state_label}</Badge>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </Panel>
   );
 }
 
@@ -1415,6 +1620,10 @@ function LocationDetails({
   briefs,
   issues,
   storyBeats,
+  storyOccurrences,
+  storyWarnings,
+  timelines,
+  storyArcs,
   onQuickSave,
   onSavePacket,
   onCreateRoute,
@@ -1431,6 +1640,10 @@ function LocationDetails({
   briefs: EntryRecord[];
   issues: HealthIssue[];
   storyBeats: StoryBeat[];
+  storyOccurrences: StoryOccurrence[];
+  storyWarnings: EntryRecord[];
+  timelines: EntryRecord[];
+  storyArcs: EntryRecord[];
   onQuickSave: (next: EntryRecord) => void;
   onSavePacket: (patch: WorldBundlePatch) => Promise<boolean>;
   onCreateRoute: () => void;
@@ -1466,6 +1679,13 @@ function LocationDetails({
         briefs={briefs}
         encountersById={encountersById}
         onSave={onSavePacket}
+      />
+      <LocationStoryStatePanel
+        locationId={id}
+        occurrences={storyOccurrences}
+        warnings={storyWarnings}
+        timelines={timelines}
+        storyArcs={storyArcs}
       />
       <StoryBeatPanel beats={storyBeats} />
 

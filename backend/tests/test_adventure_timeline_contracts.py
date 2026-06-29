@@ -1203,6 +1203,67 @@ def test_lifecycle_warnings_require_prior_location_disruption_before_restore(mon
     assert not any(row["code"] == "location_restored_without_prior_disruption" and row["target_id"] == "location-1" for row in warnings)
 
 
+def test_location_introduction_warning_tracks_scoped_event_usage(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add_all([
+        _adventure_beat("location-event-2", "Second City Visit", 1),
+        _adventure_beat("location-event-3", "Third City Visit", 2),
+        Event(
+            id="event-3",
+            slug="city-event-3",
+            title="City Event Three",
+            type=EventType.ScriptedScene,
+            location_id="location-1",
+            flags_set=[],
+            item_rewards=[],
+            tags=[],
+        ),
+        Event(
+            id="event-4",
+            slug="city-event-4",
+            title="City Event Four",
+            type=EventType.ScriptedScene,
+            location_id="location-1",
+            flags_set=[],
+            item_rewards=[],
+            tags=[],
+        ),
+    ])
+    session.flush()
+    session.add_all([
+        _adventure_link(
+            "event-link-1", "adventure-beat-1", AdventureBeatLinkTargetType.Event, "event-1",
+            AdventureBeatLinkRole.Runtime,
+        ),
+        _adventure_link(
+            "event-link-3", "location-event-2", AdventureBeatLinkTargetType.Event, "event-3",
+            AdventureBeatLinkRole.Runtime,
+        ),
+        _adventure_link(
+            "event-link-4", "location-event-3", AdventureBeatLinkTargetType.Event, "event-4",
+            AdventureBeatLinkRole.Runtime,
+        ),
+    ])
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(row["code"] == "location_missing_introduction_placement" and row["target_id"] == "location-1" for row in warnings)
+
+    session = Session()
+    session.delete(session.get(AdventureBeatLink, "adventure-link-1"))
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    location_warning = next(row for row in warnings if row["code"] == "location_missing_introduction_placement" and row["target_id"] == "location-1")
+    assert location_warning["scope_kind"] == "story_arc"
+    assert location_warning["scope_id"] == "arc-1"
+    assert location_warning["usage_count"] == 3
+
+
 def test_adventure_timeline_empty_project_has_stable_shape(monkeypatch):
     client, _ = _client(monkeypatch)
 

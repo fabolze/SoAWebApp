@@ -46,6 +46,7 @@ export const WORKSPACE_STORY_PLACEMENT_PRESETS: Partial<Record<TrackKind, StoryP
     { id: "resolves", label: "Resolves", note: "This beat resolves the quest journey.", role: "player_journey", occurrence_kind: "consequence", change_type: "changed", importance: "major", state_label: "Resolved" },
   ],
   location: [
+    { id: "introduced", label: "Introduced", note: "The story establishes this location.", role: "setting", occurrence_kind: "transition", change_type: "introduced", importance: "major", state_label: "" },
     { id: "setting", label: "Setting", note: "This beat takes place here.", role: "setting", occurrence_kind: "appearance", change_type: "active", importance: "minor", state_label: "" },
     { id: "occupied", label: "Occupied", note: "The location enters an occupied state.", role: "state", occurrence_kind: "transition", change_type: "changed", importance: "major", state_label: "Occupied" },
     { id: "destroyed", label: "Destroyed", note: "The location is destroyed as a consequence.", role: "state", occurrence_kind: "consequence", change_type: "destroyed", importance: "critical", state_label: "Destroyed" },

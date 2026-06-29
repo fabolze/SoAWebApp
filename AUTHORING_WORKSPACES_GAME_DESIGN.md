@@ -28,11 +28,11 @@ The status index is the only place that records delivery status. When a new auth
 
 ## Workspace Status
 
-Last reviewed: 2026-06-25
+Last reviewed: 2026-06-29
 
 | Workspace | Status |
 |---|---|
-| World Builder | Implemented; foundation for the shared authoring language; selected-location story placement create/edit/remove, semantic location presets, route event bindings, travel tuning, creative briefs, route/story filters, validation, and atomic world bundle saves integrated |
+| World Builder | Implemented; foundation for the shared authoring language; selected-location story placement create/edit/remove, semantic location presets including introduction/state changes, canonical location story/state overlay filters, route event bindings, travel tuning, creative briefs, route/story filters, validation, and atomic world bundle saves integrated |
 | Location Atlas | Implemented standalone map review mode for arranging and inspecting existing locations through `/author/locations/map` |
 | Location Authoring | Implemented standalone location creation route for hierarchy, ecology, map placement, POIs, routes, encounter hooks, and validation through `/author/locations/new` |
 | Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, dedicated Character Presence Timeline in the context dock, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, semantic character presets, scoped introduction-coverage warnings, and cross-entity character consequence actions |
@@ -230,7 +230,7 @@ The goal is not just to reorder objectives. The author should see whether the qu
 
 Add a Story/State Overlay for locations:
 
-Current status: partially implemented. World Builder embeds the shared story-placement panel, supports location link create/edit/remove and selected-location state presets, warns when a location is restored without prior disruption, and preserves the existing destroyed/unavailable-then-active contradiction warning inside one canonical lane. Remaining work includes map styling/filtering by lifecycle state, timeline/arc lifecycle filters, and introduction coverage warnings.
+Current status: implemented for the current story/state scope. World Builder embeds the shared story-placement panel, supports location link create/edit/remove and selected-location introduction/state presets, shows canonical location occurrences from `entity_tracks.locations`, filters the map by timeline, story arc, and lifecycle state, styles locations by scoped lifecycle state, warns when a location is restored without prior disruption, preserves the destroyed/unavailable-then-active contradiction warning inside one canonical lane, and warns when a major location is heavily used in scoped events without an on-time canonical introduction.
 
 - On a selected location, show all story occurrences and state changes from `entity_tracks.locations`.
 - Use map styling for lifecycle states: introduced, active, changed, unavailable, destroyed, restored, occupied, or transformed.

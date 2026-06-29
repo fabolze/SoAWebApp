@@ -772,6 +772,83 @@ test("targeted lifecycle warnings appear in the owning workspace and timeline is
   await expect(page.getByText(message)).toBeVisible();
 });
 
+test("world builder state layer filters canonical location lifecycle", async ({ page }) => {
+  const world = {
+    ...emptyWorld,
+    locations: [
+      {
+        id: "location-1", slug: "first-city", name: "First City", location_type: "Zone", place_kind: "Settlement",
+        coordinates: { x: 50, y: 50 }, level_range: { min: 1, max: 3 }, tags: [], environment_tags: [],
+      },
+      {
+        id: "location-2", slug: "market-road", name: "Market Road", location_type: "Zone", place_kind: "Road",
+        coordinates: { x: 70, y: 50 }, level_range: { min: 1, max: 3 }, tags: [], environment_tags: [],
+      },
+    ],
+  };
+  const message = "Location First City has 3 scoped event uses in story arc arc-1 but no canonical introduced placement in this story lane.";
+  const destroyedTrack = {
+    id: "adventure-link:location-destroyed",
+    link_id: "location-destroyed",
+    entity_kind: "location",
+    entity_id: "location-1",
+    label: "First City",
+    timeline_id: "timeline-1",
+    story_arc_id: "arc-1",
+    source_kind: "adventure_beat",
+    source_id: "adventure-beat-1",
+    source_label: "First City Falls",
+    order: 1,
+    role: "state",
+    occurrence_kind: "consequence",
+    change_type: "destroyed",
+    state_label: "Ruined",
+    importance: "critical",
+  };
+  const activeTrack = {
+    ...mockEntityTrack("location", "location-2", "Market Road"),
+    id: "adventure-link:location-active",
+    link_id: "location-active",
+    change_type: "active",
+    state_label: "",
+  };
+  const storyTimeline = {
+    ...storyTimelinePacket,
+    entity_tracks: {
+      ...storyTimelinePacket.entity_tracks,
+      locations: [destroyedTrack, activeTrack],
+    },
+    health: {
+      ...storyTimelinePacket.health,
+      warnings: [{
+        code: "location_missing_introduction_placement",
+        severity: "warning",
+        schema_name: "locations",
+        entry_id: "location-1",
+        target_type: "location",
+        target_id: "location-1",
+        scope_kind: "story_arc",
+        scope_id: "arc-1",
+        message,
+      }],
+    },
+  };
+  await mockApi(page, world, undefined, undefined, undefined, storyTimeline);
+  await page.goto("/author/world?selected=location-1");
+
+  await page.getByRole("button", { name: "State", exact: true }).click();
+  await page.getByLabel("Lifecycle Filter").selectOption("destroyed");
+
+  const firstCityMapNode = page.locator("button[title*='Story state: destroyed']");
+  await expect(firstCityMapNode).toBeVisible();
+  await expect(firstCityMapNode).toHaveAttribute("title", /First City/);
+  await expect(page.locator("button[title*='Market Road']")).toHaveCount(0);
+  await expect(page.getByTestId("location-story-state-panel")).toContainText("First City Falls");
+  await expect(page.getByTestId("location-story-state-panel")).toContainText("Ruined");
+  await expect(page.getByTestId("location-story-state-panel")).toContainText(message);
+  await expect(page.getByTestId("location-story-state-panel").getByRole("link", { name: "Open Timeline" })).toHaveAttribute("href", /track=location/);
+});
+
 const dialoguePacket = {
   dialogue: { id: "dialogue-1", slug: "dialogue-1", title: "Gate Talk", description: "", tags: [] },
   nodes: [

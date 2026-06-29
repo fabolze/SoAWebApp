@@ -10,6 +10,11 @@ ITEM_ACQUIRED_CHANGES = {"obtained", "restored"}
 ITEM_UNAVAILABLE_CHANGES = {"lost", "stolen", "consumed"}
 ITEM_USE_CHANGES = {"lost", "stolen", "consumed", "transformed", "destroyed"}
 LOCATION_DISRUPTION_CHANGES = {"destroyed", "unavailable", "changed"}
+LOCATION_INTRODUCTION_CHANGES = {"introduced"}
+LOCATION_HEAVY_USAGE_THRESHOLD = 3
+IMPORTANT_LOCATION_TYPES = {"zone"}
+IMPORTANT_LOCATION_KINDS = {"settlement", "dungeon", "landmark"}
+IMPORTANT_LOCATION_TAGS = {"story", "critical", "main", "quest"}
 QUEST_START_BEAT_TYPES = {"Hook", "Introduction"}
 QUEST_RESOLUTION_BEAT_TYPES = {"Recovery", "Payoff"}
 IMPORTANT_ITEM_TYPES = {"quest", "setpiece"}
@@ -880,6 +885,16 @@ def _important_item(item):
     )
 
 
+def _important_location(location):
+    tags = getattr(location, "tags", None) or []
+    environment_tags = getattr(location, "environment_tags", None) or []
+    return (
+        str(_enum_value(getattr(location, "location_type", ""))).lower() in IMPORTANT_LOCATION_TYPES
+        or str(_enum_value(getattr(location, "place_kind", ""))).lower() in IMPORTANT_LOCATION_KINDS
+        or any(str(tag).lower() in IMPORTANT_LOCATION_TAGS for tag in [*tags, *environment_tags])
+    )
+
+
 def _item_usage_row(row):
     return (
         row["occurrence_kind"] == "requirement"
@@ -999,6 +1014,105 @@ def _location_warnings(occurrences, locations_by_id):
     return warnings
 
 
+def _location_introduction_warnings(occurrences, events, locations_by_id):
+    warnings = []
+    usage_by_scope = defaultdict(list)
+    event_contexts = _event_scope_contexts(occurrences, events)
+    for event in events:
+        if not event.location_id:
+            continue
+        location = locations_by_id.get(event.location_id)
+        if not location or not _important_location(location):
+            continue
+        scopes = list(event_contexts[event.id].values()) or [_usage_scope("unassigned", "unassigned")]
+        for scope in scopes:
+            usage_by_scope[(event.location_id, scope["scope_kind"], scope["scope_id"])].append({
+                "kind": "event",
+                "entry_id": event.id,
+                "label": _label(event),
+                "location_id": event.location_id,
+                "paths": [f"events.{event.id}.location_id"],
+                **scope,
+            })
+
+    introductions_by_scope = defaultdict(list)
+    for row in occurrences:
+        if row["target_type"] != "location" or row["change_type"] not in LOCATION_INTRODUCTION_CHANGES:
+            continue
+        introductions_by_scope[(row["target_id"], row["scope_kind"], row["scope_id"])].append(row)
+
+    for (location_id, scope_kind, scope_id), evidence in sorted(usage_by_scope.items()):
+        if len(evidence) < LOCATION_HEAVY_USAGE_THRESHOLD:
+            continue
+        introductions = sorted(
+            introductions_by_scope[(location_id, scope_kind, scope_id)],
+            key=lambda row: (row["order"], row["link"].id),
+        )
+        comparable_usage = [
+            row for row in evidence
+            if row.get("ordering_source") == "adventure_beats.sort_order" and row.get("order") is not None
+        ]
+        earliest_usage = min(comparable_usage, key=lambda row: (row["order"], row["entry_id"])) if comparable_usage else None
+        earliest_introduction = introductions[0] if introductions else None
+        late_introduction = bool(
+            earliest_usage
+            and earliest_introduction
+            and earliest_introduction["order"] > earliest_usage["order"]
+        )
+        if introductions and not late_introduction:
+            continue
+
+        location = locations_by_id.get(location_id)
+        scope_label = f"{scope_kind.replace('_', ' ')} {scope_id}"
+        metadata = {
+            "scope_kind": scope_kind,
+            "scope_id": scope_id,
+            "usage_count": len(evidence),
+            "usage_evidence": evidence,
+            "introduction_entry_ids": [row["link"].id for row in introductions],
+            "related_entry_ids": [row["entry_id"] for row in evidence],
+        }
+        if earliest_usage:
+            metadata["earliest_comparable_usage"] = {
+                "kind": earliest_usage["kind"],
+                "entry_id": earliest_usage["entry_id"],
+                "adventure_beat_id": earliest_usage.get("adventure_beat_id"),
+                "adventure_beat_label": earliest_usage.get("adventure_beat_label"),
+                "order": earliest_usage["order"],
+                "ordering_source": earliest_usage["ordering_source"],
+            }
+
+        if late_introduction:
+            warnings.append(_warning(
+                "location_introduction_after_first_event_use",
+                "locations",
+                location_id,
+                "location",
+                location_id,
+                (
+                    f"Location {_label(location) if location else location_id} has {len(evidence)} scoped event uses "
+                    f"in {scope_label}, but its first canonical introduction at "
+                    f"{earliest_introduction['beat'].title} follows comparable usage at "
+                    f"{earliest_usage['adventure_beat_label']}."
+                ),
+                **metadata,
+            ))
+        else:
+            warnings.append(_warning(
+                "location_missing_introduction_placement",
+                "locations",
+                location_id,
+                "location",
+                location_id,
+                (
+                    f"Location {_label(location) if location else location_id} has {len(evidence)} scoped event uses "
+                    f"in {scope_label} but no canonical introduced placement in this story lane."
+                ),
+                **metadata,
+            ))
+    return warnings
+
+
 def build_adventure_timeline_coherence_warnings(
     *,
     adventure_beats,
@@ -1052,4 +1166,5 @@ def build_adventure_timeline_coherence_warnings(
         items_by_id,
     ))
     warnings.extend(_location_warnings(occurrences, locations_by_id))
+    warnings.extend(_location_introduction_warnings(occurrences, events, locations_by_id))
     return warnings

@@ -23,7 +23,7 @@ describe("workspace story placement presets", () => {
     expect(labels("character")).toEqual(["Introduced", "Joins", "Leaves", "Injured", "Captured", "Dies", "Returns"]);
     expect(labels("item")).toEqual(["Introduced", "Obtained", "Required", "Lost", "Stolen", "Consumed", "Restored", "Transformed"]);
     expect(labels("quest")).toEqual(["Starts", "Escalates", "Branches", "Resolves"]);
-    expect(labels("location")).toEqual(["Setting", "Occupied", "Destroyed", "Restored", "Unavailable", "Transformed"]);
+    expect(labels("location")).toEqual(["Introduced", "Setting", "Occupied", "Destroyed", "Restored", "Unavailable", "Transformed"]);
     expect(labels("dialogue")).toEqual(["Runtime Dialogue", "Reveals Lore", "Sets State"]);
     expect(labels("encounter")).toEqual(["Runtime Encounter", "Boss Defeated", "Encounter Resolved"]);
     expect(labels("event")).toEqual([]);
@@ -64,6 +64,13 @@ describe("workspace story placement presets", () => {
       change_type: "destroyed",
       importance: "critical",
       state_label: "Destroyed",
+    }));
+    expect(workspaceStoryPlacementPresets("location").find((preset) => preset.id === "introduced")).toEqual(expect.objectContaining({
+      role: "setting",
+      occurrence_kind: "transition",
+      change_type: "introduced",
+      importance: "major",
+      state_label: "",
     }));
   });
 
