@@ -73,6 +73,7 @@ def _canonical_occurrences(adventure_beats, adventure_beat_links):
             "scope_kind": scope_kind,
             "scope_id": scope_id,
             "order": beat.sort_order,
+            "role": _enum_value(link.role),
             "occurrence_kind": _enum_value(link.occurrence_kind),
             "change_type": _enum_value(link.change_type),
             "importance": _enum_value(link.importance),
@@ -914,6 +915,72 @@ def _encounter_is_consequential(encounter, referencing_events, items_by_id):
     return any(event.flags_set for event in referencing_events)
 
 
+def _item_reward_journey_rows(occurrences):
+    rows_by_item_scope = defaultdict(list)
+    for occurrence in occurrences:
+        if occurrence["target_type"] != "item" or occurrence["importance"] == "background":
+            continue
+        if not (
+            occurrence["role"] == "reward"
+            or occurrence["occurrence_kind"] == "reward"
+            or occurrence["change_type"] in ITEM_ACQUIRED_CHANGES
+        ):
+            continue
+        rows_by_item_scope[
+            (occurrence["target_id"], occurrence["scope_kind"], occurrence["scope_id"])
+        ].append(occurrence)
+    return rows_by_item_scope
+
+
+def _important_encounter_reward_warnings(occurrences, encounter, items_by_id):
+    rewards = encounter.rewards if isinstance(encounter.rewards, dict) else {}
+    reward_rows = [
+        (index, reward)
+        for index, reward in enumerate(rewards.get("items", []) or [])
+        if isinstance(reward, dict)
+        and reward.get("item_id") in items_by_id
+        and _important_item(items_by_id[reward["item_id"]])
+    ]
+    if not reward_rows:
+        return []
+
+    item_journey_rows = _item_reward_journey_rows(occurrences)
+    encounter_rows = [
+        row
+        for row in occurrences
+        if row["target_type"] == "encounter" and row["target_id"] == encounter.id
+    ]
+    warnings = []
+    for encounter_row in encounter_rows:
+        scope_key = (encounter_row["scope_kind"], encounter_row["scope_id"])
+        missing_by_item = defaultdict(list)
+        for index, reward in reward_rows:
+            item_id = reward["item_id"]
+            if item_journey_rows.get((item_id, *scope_key)):
+                continue
+            missing_by_item[item_id].append(index)
+        for item_id, indexes in sorted(missing_by_item.items()):
+            item = items_by_id[item_id]
+            warnings.append(_warning(
+                "encounter_important_reward_missing_item_journey",
+                "encounters",
+                encounter.id,
+                "encounter",
+                encounter.id,
+                (
+                    f"Encounter {_label(encounter)} rewards important item {_label(item)} "
+                    "but that item has no obtained or reward placement in the same story lane."
+                ),
+                scope_kind=encounter_row["scope_kind"],
+                scope_id=encounter_row["scope_id"],
+                adventure_beat_id=encounter_row["beat"].id,
+                item_id=item_id,
+                reward_indexes=indexes,
+                related_entry_ids=[encounter_row["link"].id],
+            ))
+    return warnings
+
+
 def _encounter_warnings(
     occurrences,
     encounters,
@@ -934,6 +1001,7 @@ def _encounter_warnings(
             events_by_encounter[event.encounter_id].append(event)
     warnings = []
     for encounter in encounters:
+        warnings.extend(_important_encounter_reward_warnings(occurrences, encounter, items_by_id))
         referencing_events = events_by_encounter[encounter.id]
         placed_through_event = any(event.id in placed_event_ids for event in referencing_events)
         if (

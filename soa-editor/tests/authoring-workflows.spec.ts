@@ -1492,7 +1492,7 @@ test("dialogue story beat grouping, rehearsal, and impact views are interactive"
 const encounterPacket = {
   encounter: {
     id: "enc-1", slug: "enc-1", name: "Road Ambush", description: "", encounter_type: "Combat",
-    requirements_id: "req-1", participants: [], rewards: { xp: 0, items: [], currencies: [], reputation: [], flags_set: [] }, tags: [],
+    requirements_id: "req-1", participants: [], rewards: { xp: 0, items: [{ item_id: "item-1", quantity: 1 }], currencies: [{ currency_id: "currency-1", amount: 5 }], reputation: [{ faction_id: "faction-1", amount: -2 }], flags_set: ["flag-1"] }, tags: [],
   },
   requirement: { id: "req-1", slug: "road-gate", required_flags: [], forbidden_flags: [], min_faction_reputation: [], tags: [] },
   requirement_usages: [{ schema_name: "events", entry_id: "event-1", entry_label: "Road Event", path: "requirements_id" }],
@@ -1504,7 +1504,10 @@ const encounterPacket = {
     interaction_profile: null,
   }],
   requirements: [{ id: "req-1", slug: "road-gate", required_flags: [], forbidden_flags: [], min_faction_reputation: [], tags: [] }],
-  items: [], currencies: [], factions: [], flags: [],
+  items: [{ id: "item-1", name: "Signal Key" }],
+  currencies: [{ id: "currency-1", name: "Gold" }],
+  factions: [{ id: "faction-1", name: "City Watch" }],
+  flags: [{ id: "flag-1", name: "Bridge Open" }],
   encounter_tables: [{
     id: "table-1", slug: "table-1", location_id: "loc-1", name: "Road Table", encounter_entries: [], environmental_modifiers: [], tags: [],
     location: { id: "loc-1", slug: "loc-1", name: "Old Road" },
@@ -1513,11 +1516,42 @@ const encounterPacket = {
   context: { pois: [], events: [] },
 };
 
+const encounterStageStoryPacket = {
+  ...storyTimelinePacket,
+  entity_tracks: {
+    ...storyTimelinePacket.entity_tracks,
+    encounters: [{
+      ...mockEntityTrack("encounter", "enc-1", "Road Ambush"),
+      link_id: "enc-link",
+      id: "adventure-link:enc-link",
+      role: "runtime",
+    }],
+    locations: [{
+      ...mockEntityTrack("location", "location-1", "Old Road"),
+      link_id: "loc-consequence-link",
+      id: "adventure-link:loc-consequence-link",
+      role: "state",
+      occurrence_kind: "consequence",
+      change_type: "destroyed",
+      state_label: "Destroyed",
+      importance: "critical",
+    }],
+  },
+  catalogs: {
+    ...storyTimelinePacket.catalogs,
+    encounters: [{ id: "enc-1", name: "Road Ambush" }],
+    items: [{ id: "item-1", name: "Signal Key" }],
+    factions: [{ id: "faction-1", name: "City Watch" }],
+    locations: [{ id: "location-1", name: "Old Road" }],
+  },
+};
+
 async function mockEncounterApi(page: Page, onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>) {
   await page.route("http://localhost:5000/api/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/ui/encounters/enc-1") return fulfillJson(route, encounterPacket);
     if (url.pathname === "/api/ui/encounters") return fulfillJson(route, encounterPacket);
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, encounterStageStoryPacket);
     if (url.pathname === "/api/ui/encounters/bundle" && route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as Record<string, unknown>;
       if (onBundle) return onBundle(payload, route);
@@ -1544,10 +1578,18 @@ test("encounter stage composes participants, rewards, and placement into one bun
   await page.goto("/author/encounters/enc-1");
 
   await expect(page.getByText("Shared-use impact:")).toBeVisible();
+  const aftermath = page.locator("section").filter({ has: page.getByRole("heading", { name: "Encounter Aftermath" }) });
+  await expect(aftermath).toBeVisible();
+  await expect(aftermath.getByRole("link", { name: "Signal Key" })).toBeVisible();
+  await expect(aftermath.getByText("Bridge Open")).toBeVisible();
+  await expect(aftermath.getByRole("link", { name: "City Watch" })).toBeVisible();
+  await expect(aftermath.getByRole("link", { name: "Old Road" })).toBeVisible();
   await page.getByRole("button", { name: /Profileless/ }).click();
   await page.getByRole("button", { name: "Combat !" }).click();
   await expect(page.getByText("Profileless uses Combat without a combat profile.")).toBeVisible();
+  await expect(aftermath.getByRole("link", { name: "Profileless" })).toBeVisible();
   await page.getByRole("spinbutton", { name: "XP" }).fill("40");
+  await expect(aftermath.getByText("40")).toBeVisible();
   await page.locator("section").filter({ hasText: "World Placement" }).locator("select").selectOption("table-1");
   await page.getByRole("button", { name: "Save All" }).first().click();
 

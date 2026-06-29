@@ -1,7 +1,9 @@
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { deriveEncounterAftermathRows, type EncounterAftermathRow } from "../authoring/encounterAftermath";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
+import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
@@ -171,6 +173,20 @@ export default function EncounterStagePage() {
   const originalSerialized = stable(original ? cleanPacket(original) : null);
   const dirty = original !== null && serialized !== originalSerialized;
   const issues = useMemo(() => health(packet), [packet]);
+  const storyPlacement = useEntityStoryPlacement({
+    entityKind: "encounter",
+    entityId: displayText(packet.encounter.id),
+    entity: packet.encounter,
+  });
+  const aftermathRows = useMemo(() => deriveEncounterAftermathRows({
+    encounter: packet.encounter,
+    characters: packet.characters.map((entry) => entry.character),
+    items: packet.items,
+    currencies: packet.currencies,
+    factions: packet.factions,
+    flags: packet.flags,
+    timelinePacket: storyPlacement.packet,
+  }), [packet, storyPlacement.packet]);
 
   useEffect(() => {
     const source = dirtySource.current;
@@ -268,8 +284,9 @@ export default function EncounterStagePage() {
             <IdentityPanel packet={packet} setPacket={setPacket} updateEncounter={updateEncounter} />
             <Stage packet={packet} setPacket={setPacket} selectedCharacter={selectedCharacter} setSelectedCharacter={setSelectedCharacter} />
             <RewardPanel packet={packet} updateEncounter={updateEncounter} />
+            <AftermathPanel rows={aftermathRows} loading={storyPlacement.loading} error={storyPlacement.error} />
             <PlacementPanel packet={packet} setPacket={setPacket} />
-            {!isNew && displayText(packet.encounter.id) && <StoryPlacementPanel entityKind="encounter" entityId={displayText(packet.encounter.id)} entityLabel={displayText(packet.encounter.name, displayText(packet.encounter.id))} entity={packet.encounter} enableCrossEntityConsequenceActions />}
+            {!isNew && displayText(packet.encounter.id) && <StoryPlacementPanel entityKind="encounter" entityId={displayText(packet.encounter.id)} entityLabel={displayText(packet.encounter.name, displayText(packet.encounter.id))} entity={packet.encounter} enableCrossEntityConsequenceActions storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} />}
             <SimulationComparison packet={packet} />
           </div>
           <div className="space-y-4">
@@ -418,6 +435,39 @@ function RewardPanel({ packet, updateEncounter }: { packet: EncounterPacket; upd
 function RewardRows({ title, rows: value, options, referenceKey, numberKey, onChange }: { title: string; rows: EntryRecord[]; options: EntryRecord[]; referenceKey: string; numberKey: string; onChange: (rows: EntryRecord[]) => void }) {
   const reference = ({ item_id: "items", currency_id: "currencies", faction_id: "factions" } as Record<string, string>)[referenceKey];
   return <div className="mt-3 rounded-md border border-slate-200 p-3 dark:border-slate-800"><div className="mb-2"><div className="text-xs font-semibold uppercase text-slate-500">{title}</div>{reference && <ReferenceManageLink reference={reference} onCreated={(id) => onChange([...value, { [referenceKey]: id, [numberKey]: 0 }])} />}</div><div className="space-y-2">{value.map((row, index) => <div key={index} className="grid grid-cols-[1fr_100px_auto] gap-2"><select className={inputClass} value={displayText(row[referenceKey])} onChange={(event) => onChange(value.map((entry, rowIndex) => rowIndex === index ? { ...entry, [referenceKey]: event.target.value } : entry))}><option value="">Select</option>{options.map((option) => <option key={displayText(option.id)} value={displayText(option.id)}>{rowLabel(option, displayText(option.id))}</option>)}</select><input className={inputClass} type="number" value={Number(row[numberKey] || 0)} onChange={(event) => onChange(value.map((entry, rowIndex) => rowIndex === index ? { ...entry, [numberKey]: Number(event.target.value) } : entry))} /><button className="text-xs font-semibold text-red-600" onClick={() => onChange(value.filter((_, rowIndex) => rowIndex !== index))}>Remove</button></div>)}</div><button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs} mt-2`} onClick={() => onChange([...value, { [referenceKey]: "", [numberKey]: 0 }])}>Add Row</button></div>;
+}
+
+function AftermathPanel({ rows: aftermathRows, loading, error }: { rows: EncounterAftermathRow[]; loading: boolean; error: string }) {
+  const groupLabels: Record<EncounterAftermathRow["group"], string> = {
+    payoff: "Draft Payoff",
+    participants: "Participant Impact",
+    story: "Saved Story Consequences",
+  };
+  const grouped = {
+    payoff: aftermathRows.filter((row) => row.group === "payoff"),
+    participants: aftermathRows.filter((row) => row.group === "participants"),
+    story: aftermathRows.filter((row) => row.group === "story"),
+  };
+  return <Panel title="Encounter Aftermath" subtitle="Preview what changes because this encounter happens. Draft rewards are local; story consequences are saved placements.">
+    {loading && <div className="mb-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">Loading story consequences...</div>}
+    {error && <Issue tone="amber">{error}</Issue>}
+    <div className="grid gap-3 lg:grid-cols-3">
+      {(Object.keys(grouped) as Array<EncounterAftermathRow["group"]>).map((group) => (
+        <div key={group} className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
+          <div className="mb-2 text-xs font-semibold uppercase text-slate-500">{groupLabels[group]}</div>
+          <div className="space-y-2">
+            {grouped[group].length === 0 && <div className="text-xs text-slate-500">None.</div>}
+            {grouped[group].map((row) => (
+              <div key={row.id} className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950">
+                <div className="font-semibold text-slate-900 dark:text-slate-100">{row.route ? <Link className="text-blue-700 hover:underline dark:text-blue-300" to={row.route}>{row.label}</Link> : row.label}</div>
+                <div className="mt-1 text-slate-600 dark:text-slate-400">{row.detail}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </Panel>;
 }
 
 function PlacementPanel({ packet, setPacket }: { packet: EncounterPacket; setPacket: React.Dispatch<React.SetStateAction<EncounterPacket>> }) {

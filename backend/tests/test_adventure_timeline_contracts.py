@@ -1175,6 +1175,61 @@ def test_lifecycle_warnings_find_consequential_unplaced_encounter(monkeypatch):
     assert not any(row["code"] == "major_encounter_unplaced" and row["target_id"] == "encounter-2" for row in warnings)
 
 
+def test_lifecycle_warnings_find_important_encounter_reward_without_item_journey(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add_all([
+        Item(
+            id="item-2",
+            slug="boss-relic",
+            name="Boss Relic",
+            type=ItemType.Quest,
+            rarity=Rarity.Rare,
+            base_price=1,
+            tags=[],
+        ),
+        Encounter(
+            id="encounter-2",
+            slug="boss",
+            name="Bridge Guardian",
+            encounter_type=EncounterType.Combat,
+            participants=[],
+            rewards={"items": [{"item_id": "item-2", "quantity": 1}]},
+            tags=[],
+        ),
+        _adventure_link(
+            "encounter-link-2", "adventure-beat-1", AdventureBeatLinkTargetType.Encounter, "encounter-2",
+            AdventureBeatLinkRole.Runtime,
+        ),
+    ])
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert any(
+        row["code"] == "encounter_important_reward_missing_item_journey"
+        and row["target_id"] == "encounter-2"
+        and row["item_id"] == "item-2"
+        for row in warnings
+    )
+
+    session = Session()
+    session.add(_adventure_link(
+        "item-link-encounter-reward", "adventure-beat-1", AdventureBeatLinkTargetType.Item, "item-2",
+        AdventureBeatLinkRole.Reward, AdventureOccurrenceKind.Reward, AdventureChangeType.Obtained,
+    ))
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(
+        row["code"] == "encounter_important_reward_missing_item_journey"
+        and row["target_id"] == "encounter-2"
+        for row in warnings
+    )
+
+
 def test_lifecycle_warnings_require_prior_location_disruption_before_restore(monkeypatch):
     client, Session = _client(monkeypatch)
     _seed(Session)
