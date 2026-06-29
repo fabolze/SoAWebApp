@@ -15,6 +15,7 @@ from backend.app.models.m_interaction_profiles import InteractionProfile
 from backend.app.models.m_lore_entries import LoreEntry
 from backend.app.models.m_locations import Location
 from backend.app.models.m_quests import Quest
+from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_story_arcs import StoryArc
 from backend.app.models.m_timelines import Timeline
 from backend.app.services.dependency_index import build_dependency_index
@@ -99,6 +100,7 @@ def build_adventure_timeline(db_session):
     items = sorted(db_session.query(Item).all(), key=lambda item: item.id)
     factions = sorted(db_session.query(Faction).all(), key=lambda item: item.id)
     flags = sorted(db_session.query(Flag).all(), key=lambda item: item.id)
+    requirements = sorted(db_session.query(Requirement).all(), key=lambda item: item.id)
 
     timeline_by_id = {item.id: item for item in timelines}
     arc_by_id = {item.id: item for item in arcs}
@@ -482,6 +484,8 @@ def build_adventure_timeline(db_session):
         adventure_beat_links=adventure_beat_links,
         characters=characters,
         items=items,
+        story_arcs=arcs,
+        requirements=requirements,
         quests=quests,
         dialogues=dialogues,
         dialogue_nodes=dialogue_nodes,

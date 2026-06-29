@@ -542,8 +542,235 @@ def _item_warnings(occurrences, items_by_id):
     return warnings
 
 
-def _quest_warnings(occurrences, quests):
+def _quest_required_flags(quest, requirements_by_id):
+    flags = set()
+    requirement = requirements_by_id.get(quest.requirements_id)
+    if requirement:
+        flags.update(row.flag_id for row in requirement.required_flags)
+    for objective in quest.objectives or []:
+        if not isinstance(objective, dict):
+            continue
+        requirement_id = objective.get("requirements_id") or objective.get("requirements")
+        requirement = requirements_by_id.get(requirement_id)
+        if requirement:
+            flags.update(row.flag_id for row in requirement.required_flags)
+    return flags
+
+
+def _quest_produced_flags(quest):
+    flags = set(quest.flags_set_on_completion or [])
+    for objective in quest.objectives or []:
+        if isinstance(objective, dict):
+            flags.update(objective.get("flags_set", []) or [])
+    return flags
+
+
+def _quest_reward_item_ids(quest):
+    result = set()
+    for reward in quest.item_rewards or []:
+        if isinstance(reward, dict) and reward.get("item_id"):
+            result.add(reward["item_id"])
+    return result
+
+
+def _quest_story_window(rows):
+    starts = [
+        row for row in rows
+        if _enum_value(row["beat"].beat_type) in QUEST_START_BEAT_TYPES
+        or row["change_type"] == "introduced"
+    ]
+    resolutions = [
+        row for row in rows
+        if _enum_value(row["beat"].beat_type) in QUEST_RESOLUTION_BEAT_TYPES
+        or row["occurrence_kind"] == "consequence"
+    ]
+    start = min(starts, key=lambda row: (row["order"], row["link"].id)) if starts else None
+    resolution = max(resolutions, key=lambda row: (row["order"], row["link"].id)) if resolutions else None
+    return start, resolution
+
+
+def _quest_arc_order_warnings(story_arcs, quests_by_id, requirements_by_id):
     warnings = []
+    for arc in story_arcs:
+        ordered_quests = [
+            quests_by_id[quest_id]
+            for quest_id in arc.related_quests or []
+            if quest_id in quests_by_id
+        ]
+        order_by_quest = {quest.id: index for index, quest in enumerate(ordered_quests)}
+        producers_by_flag = defaultdict(list)
+        for quest in ordered_quests:
+            for flag_id in _quest_produced_flags(quest):
+                producers_by_flag[flag_id].append(quest)
+        for quest in ordered_quests:
+            quest_order = order_by_quest[quest.id]
+            for flag_id in sorted(_quest_required_flags(quest, requirements_by_id)):
+                producers = producers_by_flag.get(flag_id, [])
+                if not producers:
+                    continue
+                earlier = [producer for producer in producers if order_by_quest[producer.id] < quest_order]
+                later = [producer for producer in producers if order_by_quest[producer.id] > quest_order]
+                if earlier or not later:
+                    continue
+                producer = later[0]
+                warnings.append(_warning(
+                    "quest_requires_later_arc_flag",
+                    "quests",
+                    quest.id,
+                    "quest",
+                    quest.id,
+                    (
+                        f"Quest {_label(quest)} requires flag {flag_id}, but the first quest in arc "
+                        f"{arc.id} that produces it is later: {_label(producer)}."
+                    ),
+                    scope_kind="story_arc",
+                    scope_id=arc.id,
+                    related_entry_ids=[producer.id],
+                    flag_ids=[flag_id],
+                ))
+    return warnings
+
+
+def _quest_item_reward_order_warnings(occurrences, story_arcs, quests_by_id, items_by_id):
+    warnings = []
+    quest_rows_by_beat = defaultdict(list)
+    for row in occurrences:
+        if row["target_type"] == "quest" and row["scope_kind"] == "story_arc":
+            quest_rows_by_beat[(row["scope_id"], row["beat"].id)].append(row)
+
+    requirement_rows_by_arc = defaultdict(list)
+    for row in occurrences:
+        if (
+            row["target_type"] == "item"
+            and row["scope_kind"] == "story_arc"
+            and row["occurrence_kind"] == "requirement"
+            and row["importance"] != "background"
+        ):
+            requirement_rows_by_arc[row["scope_id"]].append(row)
+
+    for arc in story_arcs:
+        ordered_quest_ids = [quest_id for quest_id in arc.related_quests or [] if quest_id in quests_by_id]
+        order_by_quest = {quest_id: index for index, quest_id in enumerate(ordered_quest_ids)}
+        rewards_by_item = defaultdict(list)
+        for quest_id in ordered_quest_ids:
+            quest = quests_by_id[quest_id]
+            for item_id in _quest_reward_item_ids(quest):
+                item = items_by_id.get(item_id)
+                if item and _important_item(item):
+                    rewards_by_item[item_id].append(quest)
+        for requirement_row in requirement_rows_by_arc[arc.id]:
+            item_id = requirement_row["target_id"]
+            for requiring_quest_row in quest_rows_by_beat[(arc.id, requirement_row["beat"].id)]:
+                requiring_quest_id = requiring_quest_row["target_id"]
+                requiring_order = order_by_quest.get(requiring_quest_id)
+                if requiring_order is None:
+                    continue
+                later_reward_quests = [
+                    quest for quest in rewards_by_item.get(item_id, [])
+                    if order_by_quest.get(quest.id, -1) > requiring_order
+                ]
+                if not later_reward_quests:
+                    continue
+                reward_quest = later_reward_quests[0]
+                item = items_by_id.get(item_id)
+                requiring_quest = quests_by_id.get(requiring_quest_id)
+                warnings.append(_warning(
+                    "quest_item_required_before_rewarded_in_arc",
+                    "adventure_beat_links",
+                    requirement_row["link"].id,
+                    "quest",
+                    requiring_quest_id,
+                    (
+                        f"Quest {_label(requiring_quest) if requiring_quest else requiring_quest_id} requires "
+                        f"important item {_label(item) if item else item_id} before arc quest "
+                        f"{_label(reward_quest)} rewards it."
+                    ),
+                    scope_kind="story_arc",
+                    scope_id=arc.id,
+                    adventure_beat_id=requirement_row["beat"].id,
+                    related_entry_ids=[reward_quest.id, requirement_row["link"].id],
+                    item_id=item_id,
+                ))
+    return warnings
+
+
+def _event_connected_to_quest(event, quest_required_flags, quest_produced_flags, requirements_by_id):
+    event_flags = set(event.flags_set or [])
+    requirement = requirements_by_id.get(event.requirements_id)
+    if requirement:
+        event_flags.update(row.flag_id for row in requirement.required_flags)
+        event_flags.update(row.flag_id for row in requirement.forbidden_flags)
+    return bool(event_flags & (quest_required_flags | quest_produced_flags))
+
+
+def _quest_runtime_event_window_warnings(occurrences, quests, events, requirements_by_id):
+    warnings = []
+    links_by_quest = defaultdict(list)
+    event_rows_by_scope = defaultdict(list)
+    events_by_id = {event.id: event for event in events}
+    for occurrence in occurrences:
+        if occurrence["target_type"] == "quest":
+            links_by_quest[occurrence["target_id"]].append(occurrence)
+        if occurrence["target_type"] == "event" and occurrence["scope_kind"] == "story_arc":
+            event_rows_by_scope[occurrence["scope_id"]].append(occurrence)
+
+    for quest in quests:
+        if not quest.story_arc_id:
+            continue
+        quest_rows = [
+            row for row in links_by_quest[quest.id]
+            if row["scope_kind"] == "story_arc" and row["scope_id"] == quest.story_arc_id
+        ]
+        start, resolution = _quest_story_window(quest_rows)
+        if not start or not resolution:
+            continue
+        quest_required_flags = _quest_required_flags(quest, requirements_by_id)
+        quest_produced_flags = _quest_produced_flags(quest)
+        if not quest_required_flags and not quest_produced_flags:
+            continue
+        for event_row in event_rows_by_scope[quest.story_arc_id]:
+            event = events_by_id.get(event_row["target_id"])
+            if not event or not _event_connected_to_quest(event, quest_required_flags, quest_produced_flags, requirements_by_id):
+                continue
+            if event_row["order"] < start["order"]:
+                warnings.append(_warning(
+                    "quest_runtime_event_before_start",
+                    "adventure_beat_links",
+                    event_row["link"].id,
+                    "quest",
+                    quest.id,
+                    (
+                        f"Runtime event {_label(event)} is placed before quest {_label(quest)} has a clear "
+                        "start placement in this story lane."
+                    ),
+                    scope_kind="story_arc",
+                    scope_id=quest.story_arc_id,
+                    adventure_beat_id=event_row["beat"].id,
+                    related_entry_ids=[event.id, start["link"].id],
+                ))
+            if event_row["order"] > resolution["order"]:
+                warnings.append(_warning(
+                    "quest_runtime_event_after_resolution",
+                    "adventure_beat_links",
+                    event_row["link"].id,
+                    "quest",
+                    quest.id,
+                    (
+                        f"Runtime event {_label(event)} is placed after quest {_label(quest)} is resolved "
+                        "in this story lane."
+                    ),
+                    scope_kind="story_arc",
+                    scope_id=quest.story_arc_id,
+                    adventure_beat_id=event_row["beat"].id,
+                    related_entry_ids=[event.id, resolution["link"].id],
+                ))
+    return warnings
+
+
+def _quest_warnings(occurrences, quests, story_arcs, requirements, events, items_by_id):
+    warnings = []
+    quests_by_id = {quest.id: quest for quest in quests}
+    requirements_by_id = {requirement.id: requirement for requirement in requirements}
     links_by_quest = defaultdict(list)
     for occurrence in occurrences:
         if occurrence["target_type"] == "quest":
@@ -555,17 +782,8 @@ def _quest_warnings(occurrences, quests):
             row for row in links_by_quest[quest.id]
             if row["scope_kind"] == "story_arc" and row["scope_id"] == quest.story_arc_id
         ]
-        has_start = any(
-            _enum_value(row["beat"].beat_type) in QUEST_START_BEAT_TYPES
-            or row["change_type"] == "introduced"
-            for row in rows
-        )
-        has_resolution = any(
-            _enum_value(row["beat"].beat_type) in QUEST_RESOLUTION_BEAT_TYPES
-            or row["occurrence_kind"] == "consequence"
-            for row in rows
-        )
-        if not has_start:
+        start, resolution = _quest_story_window(rows)
+        if not start:
             warnings.append(_warning(
                 "quest_missing_start_placement",
                 "quests",
@@ -577,7 +795,7 @@ def _quest_warnings(occurrences, quests):
                 scope_id=quest.story_arc_id,
                 related_entry_ids=[],
             ))
-        if not has_resolution:
+        if not resolution:
             warnings.append(_warning(
                 "quest_missing_resolution_placement",
                 "quests",
@@ -589,6 +807,9 @@ def _quest_warnings(occurrences, quests):
                 scope_id=quest.story_arc_id,
                 related_entry_ids=[],
             ))
+    warnings.extend(_quest_arc_order_warnings(story_arcs, quests_by_id, requirements_by_id))
+    warnings.extend(_quest_item_reward_order_warnings(occurrences, story_arcs, quests_by_id, items_by_id))
+    warnings.extend(_quest_runtime_event_window_warnings(occurrences, quests, events, requirements_by_id))
     return warnings
 
 
@@ -784,6 +1005,8 @@ def build_adventure_timeline_coherence_warnings(
     adventure_beat_links,
     characters,
     items,
+    story_arcs,
+    requirements,
     quests,
     dialogues,
     dialogue_nodes,
@@ -818,7 +1041,7 @@ def build_adventure_timeline_coherence_warnings(
         ),
     ))
     warnings.extend(_item_warnings(occurrences, items_by_id))
-    warnings.extend(_quest_warnings(occurrences, quests))
+    warnings.extend(_quest_warnings(occurrences, quests, story_arcs, requirements, events, items_by_id))
     warnings.extend(_dialogue_warnings(occurrences, dialogues_by_id, dialogue_nodes, events, placed_event_ids))
     warnings.extend(_encounter_warnings(
         occurrences,

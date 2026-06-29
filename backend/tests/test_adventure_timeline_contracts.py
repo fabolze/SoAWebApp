@@ -28,6 +28,7 @@ from backend.app.models.m_interaction_profiles import InteractionProfile
 from backend.app.models.m_lore_entries import LoreEntry
 from backend.app.models.m_locations import Location
 from backend.app.models.m_quests import Quest
+from backend.app.models.m_requirements import Requirement, RequirementRequiredFlag
 from backend.app.models.m_story_arcs import ArcType, StoryArc
 from backend.app.models.m_timelines import Timeline
 from backend.app.routes import r_ui_adventure_timeline
@@ -945,6 +946,179 @@ def test_lifecycle_warnings_require_quest_start_and_resolution_in_its_arc(monkey
     session.close()
     warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
     assert not any(row["code"].startswith("quest_missing_") and row.get("target_id") == "quest-1" for row in warnings)
+
+
+def test_quest_order_warnings_find_required_flag_from_later_arc_quest(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add_all([
+        Requirement(id="req-later-flag", slug="later-flag", tags=[]),
+        RequirementRequiredFlag(
+            id="req-later-flag-row",
+            requirement_id="req-later-flag",
+            flag_id="bridge-open",
+        ),
+    ])
+    session.get(Quest, "quest-1").requirements_id = "req-later-flag"
+    session.get(Quest, "quest-2").story_arc_id = "arc-1"
+    session.get(Quest, "quest-2").flags_set_on_completion = ["bridge-open"]
+    session.get(StoryArc, "arc-1").related_quests = ["quest-1", "quest-2"]
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert any(
+        row["code"] == "quest_requires_later_arc_flag"
+        and row["target_id"] == "quest-1"
+        and row["related_entry_ids"] == ["quest-2"]
+        for row in warnings
+    )
+
+    session = Session()
+    session.get(StoryArc, "arc-1").related_quests = ["quest-2", "quest-1"]
+    session.commit()
+    session.close()
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(
+        row["code"] == "quest_requires_later_arc_flag" and row["target_id"] == "quest-1"
+        for row in warnings
+    )
+
+
+def test_quest_order_warnings_find_important_item_required_before_arc_reward(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.add(Item(
+        id="item-2",
+        slug="moon-key",
+        name="Moon Key",
+        type=ItemType.Quest,
+        rarity=Rarity.Rare,
+        base_price=1,
+        tags=[],
+    ))
+    session.get(Quest, "quest-2").story_arc_id = "arc-1"
+    session.get(Quest, "quest-2").item_rewards = [{"item_id": "item-2", "quantity": 1}]
+    session.get(StoryArc, "arc-1").related_quests = ["quest-1", "quest-2"]
+    session.add_all([
+        _adventure_link(
+            "quest-link-item-requirement", "adventure-beat-1", AdventureBeatLinkTargetType.Quest,
+            "quest-1", AdventureBeatLinkRole.PlayerJourney, AdventureOccurrenceKind.Transition,
+            AdventureChangeType.Introduced,
+        ),
+        _adventure_link(
+            "item-link-quest-requirement", "adventure-beat-1", AdventureBeatLinkTargetType.Item,
+            "item-2", AdventureBeatLinkRole.Reference, AdventureOccurrenceKind.Requirement,
+        ),
+    ])
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert any(
+        row["code"] == "quest_item_required_before_rewarded_in_arc"
+        and row["target_id"] == "quest-1"
+        and row["item_id"] == "item-2"
+        for row in warnings
+    )
+
+    session = Session()
+    session.get(StoryArc, "arc-1").related_quests = ["quest-2", "quest-1"]
+    session.commit()
+    session.close()
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(
+        row["code"] == "quest_item_required_before_rewarded_in_arc" and row["target_id"] == "quest-1"
+        for row in warnings
+    )
+
+
+def test_quest_runtime_event_warnings_find_events_outside_story_window(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.get(Quest, "quest-1").flags_set_on_completion = ["quest-done"]
+    session.add_all([
+        Requirement(id="req-quest-done", slug="quest-done", tags=[]),
+        RequirementRequiredFlag(
+            id="req-quest-done-row",
+            requirement_id="req-quest-done",
+            flag_id="quest-done",
+        ),
+        Event(
+            id="event-before-quest",
+            slug="event-before-quest",
+            title="Before Quest Event",
+            type=EventType.ScriptedScene,
+            requirements_id="req-quest-done",
+            flags_set=[],
+            item_rewards=[],
+            tags=[],
+        ),
+        Event(
+            id="event-after-quest",
+            slug="event-after-quest",
+            title="After Quest Event",
+            type=EventType.ScriptedScene,
+            requirements_id="req-quest-done",
+            flags_set=[],
+            item_rewards=[],
+            tags=[],
+        ),
+        _adventure_beat("quest-start", "Arrival Starts", 1, AdventureBeatType.Introduction),
+        _adventure_beat("quest-runtime", "Arrival Runtime", 2),
+        _adventure_beat("quest-resolution", "Arrival Resolves", 3, AdventureBeatType.Payoff),
+        _adventure_beat("event-before-beat", "Too Early Runtime", 0),
+        _adventure_beat("event-after-beat", "Too Late Runtime", 4),
+    ])
+    session.flush()
+    session.add_all([
+        _adventure_link(
+            "quest-link-start-window", "quest-start", AdventureBeatLinkTargetType.Quest,
+            "quest-1", AdventureBeatLinkRole.PlayerJourney, AdventureOccurrenceKind.Transition,
+            AdventureChangeType.Introduced,
+        ),
+        _adventure_link(
+            "quest-link-resolution-window", "quest-resolution", AdventureBeatLinkTargetType.Quest,
+            "quest-1", AdventureBeatLinkRole.PlayerJourney, AdventureOccurrenceKind.Consequence,
+            AdventureChangeType.Changed,
+        ),
+        _adventure_link(
+            "event-link-before-window", "event-before-beat", AdventureBeatLinkTargetType.Event,
+            "event-before-quest", AdventureBeatLinkRole.Runtime,
+        ),
+        _adventure_link(
+            "event-link-after-window", "event-after-beat", AdventureBeatLinkTargetType.Event,
+            "event-after-quest", AdventureBeatLinkRole.Runtime,
+        ),
+    ])
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert any(
+        row["code"] == "quest_runtime_event_before_start"
+        and row["target_id"] == "quest-1"
+        and row["entry_id"] == "event-link-before-window"
+        for row in warnings
+    )
+    assert any(
+        row["code"] == "quest_runtime_event_after_resolution"
+        and row["target_id"] == "quest-1"
+        and row["entry_id"] == "event-link-after-window"
+        for row in warnings
+    )
+
+    session = Session()
+    session.get(AdventureBeatLink, "event-link-before-window").adventure_beat_id = "quest-runtime"
+    session.get(AdventureBeatLink, "event-link-after-window").adventure_beat_id = "quest-runtime"
+    session.commit()
+    session.close()
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(row["code"] == "quest_runtime_event_before_start" for row in warnings)
+    assert not any(row["code"] == "quest_runtime_event_after_resolution" for row in warnings)
 
 
 def test_lifecycle_warnings_find_stateful_dialogue_only_in_unplaced_event(monkeypatch):

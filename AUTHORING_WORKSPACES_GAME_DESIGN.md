@@ -38,7 +38,7 @@ Last reviewed: 2026-06-25
 | Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, dedicated Character Presence Timeline in the context dock, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, semantic character presets, scoped introduction-coverage warnings, and cross-entity character consequence actions |
 | Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, selected-dialogue presets, and explicit-target character/faction/item/location consequence actions |
 | Encounter Stage | Implemented MVP with participant composition, requirements, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, selected-encounter presets, and explicit-target reward/injury/faction/location consequence actions |
-| Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, and temporary flag-state walkthrough; full mixed-content Quest Loom is future vision |
+| Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, temporary flag-state walkthrough, arc-order flag/item coherence warnings, and runtime-event placement window warnings; full mixed-content Quest Loom is future vision |
 | Item Authoring | Implemented standalone item creation route for player-facing mechanics and presentation through `/author/items/new` |
 | Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove, semantic item lifecycle presets, Item Journey source summary, acquisition-channel analysis, obtained-never-used warning, multiple-source explanation warning, and continuity/version guidance; future work can deepen fantasy, provenance, families, and progression |
 | Shop Authoring | Implemented standalone merchant-facing route for creating shops and inventory together through `/author/shops/new` |
@@ -215,13 +215,13 @@ The item workspace should become the best place to answer "how does the player g
 
 Add story beat placement and state walkthrough around the existing objective flow:
 
-Current status: partially implemented. Quest Journey Board can show quest occurrences, create/edit/remove `quest` links, apply start/escalation/branch/resolution presets, show visible requirement/flag/reward trays, step through a temporary flag-state walkthrough, and warn when an arc-owned quest lacks a clear scoped start or resolution placement. Remaining work includes deeper quest-order coherence checks, item availability checks, and richer runtime event placement checks.
+Current status: partially implemented. Quest Journey Board can show quest occurrences, create/edit/remove `quest` links, apply start/escalation/branch/resolution presets, show visible requirement/flag/reward trays, step through a temporary flag-state walkthrough, warn when an arc-owned quest lacks a clear scoped start or resolution placement, warn when an earlier arc quest requires a flag produced only by a later arc quest, warn when an important item is required before a later arc quest rewards it, and warn when quest-connected runtime events fall before the quest start or after quest resolution in the same story lane. Remaining work includes richer objective-to-beat visualization and deeper optional/branching quest path checks.
 
 - Show which adventure beats start, escalate, branch, and resolve the quest.
 - Let quest cards be placed into story beats as player journey links.
 - Show requirements, flags, items, and rewards in visible trays beside the objective sequence.
 - Add a temporary walkthrough mode that steps through objectives and shows expected state changes.
-- Warn when quest order inside an arc conflicts with requirements, item availability, or runtime event placement.
+- Warn when quest order inside an arc conflicts with requirements, item availability, or runtime event placement. Implemented for scoped arc flag producers, important item reward order, and quest-connected runtime events outside the quest start/resolution window.
 - Warn when a quest belongs to an arc but has no clear starting or resolving adventure beat.
 
 The goal is not just to reorder objectives. The author should see whether the quest's playable path makes sense inside the wider story.
