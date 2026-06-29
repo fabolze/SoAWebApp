@@ -107,13 +107,13 @@ When a Codex agent is asked to continue this work, start here. Do not begin from
 
 - Shared read/derive helpers exist in `soa-editor/src/authoring/storyPlacement.ts`.
 - Shared UI components exist in `soa-editor/src/components/storyPlacement/`.
-- `StoryPlacementPanel` is embedded in Character Studio, Item Ecosystem, Quest Journey Board, Encounter Stage, Dialogue Scene Room, and World Builder.
+- `StoryPlacementPanel` is embedded in Character Studio, Item Ecosystem, Quest Journey Board, Encounter Stage, Dialogue Scene Room, World Builder, and Creature Workshop for saved creature characters.
 - The panel can show occurrences and create, edit, or remove canonical `adventure_beat_links` through `/api/ui/adventure-timeline/preview` and `/api/ui/adventure-timeline/bundle`.
 - Canonical occurrences expose edit actions; inferred runtime, character-beat, and local occurrences remain read-only.
 - Story Timeline deep links use `?track=...&entity=...` to select and focus matching occurrence groups for every canonical beat-link target type.
 - The panel exposes lifecycle fields: role, occurrence kind, change type, state label, start/end beat, continuity group, and importance.
 - `PlacementTray` exposes selected-entity semantic presets for characters, items, quests, locations, dialogues, and encounters above the unchanged generic placement roles. Presets patch the existing lifecycle fields and remain editable before preview.
-- `BundleReview` provides the shared canonical review surface for Story Timeline, Story Placement, Character Studio, Dialogue Scene Room, and Ability Spellcraft. Inline and modal shells preserve workspace context while sharing change summaries, warnings, blockers, acknowledgement gates, and retryable commit errors.
+- `BundleReview` provides the shared canonical review surface for Story Timeline, Story Placement, Character Studio, Dialogue Scene Room, Creature Workshop, and Ability Spellcraft. Inline and modal shells preserve workspace context while sharing change summaries, warnings, blockers, acknowledgement gates, and retryable commit errors.
 - Backend coherence warnings cover scoped character introduction coverage with explicit usage evidence, character terminal/recovery order, item availability before requirements, quest start/resolution coverage, stateful dialogue in unplaced events, consequential unplaced encounters, and location restoration/state contradictions. Targeted warnings appear in both the Story Timeline issue lens and the owning workspace panel.
 - The current implementation is **generic placement integration with selected-entity semantic shortcuts**. It is not yet a finished custom interaction layer for every workspace.
 
@@ -142,12 +142,12 @@ This table is the component inventory. Prefer extending these components over cr
 
 | Component | Purpose | Current Data Written Or Read | Status |
 |---|---|---|---|
-| `StoryPlacementPanel` | Show where the current entity appears in adventure beats and let the author create, edit, or remove canonical story placements | Reads `/api/ui/adventure-timeline`; writes and deletes `adventure_beat_links` through preview/commit | Implemented in `soa-editor/src/components/storyPlacement/StoryPlacementPanel.tsx`; embedded in Character Studio, Item Ecosystem, Quest Journey Board, Encounter Stage, Dialogue Scene Room, and World Builder |
+| `StoryPlacementPanel` | Show where the current entity appears in adventure beats and let the author create, edit, or remove canonical story placements | Reads `/api/ui/adventure-timeline`; writes, edits, and deletes `adventure_beat_links` through preview/commit | Implemented in `soa-editor/src/components/storyPlacement/StoryPlacementPanel.tsx`; embedded in Character Studio, Item Ecosystem, Quest Journey Board, Encounter Stage, Dialogue Scene Room, World Builder, and Creature Workshop for saved creature characters |
 | `EntityOccurrenceTrack` | Group repeated appearances and lifecycle changes for one selected entity | Reads `entity_tracks`, runtime event links, character story beats, adventure beat attachments, and local draft attachments | Implemented in `soa-editor/src/components/storyPlacement/EntityOccurrenceTrack.tsx` |
 | `PlacementTray` | Provide selected-entity semantic story actions above generic typed targets such as Setting, Cast, Runtime, State, Reward, Requirement, and Reference | Maps tray choices to `adventure_beat_links.role`, `occurrence_kind`, `change_type`, `state_label`, and `importance` | Implemented in `soa-editor/src/components/storyPlacement/PlacementTray.tsx`; data-driven presets, generic click actions, and native-drop gestures patch the panel draft before preview |
 | `LifecycleFields` | Shared compact editor for occurrence kind, change type, state label, start/end beat, continuity group, and importance | Writes lifecycle fields on `adventure_beat_links` | Implemented in `soa-editor/src/components/storyPlacement/LifecycleFields.tsx` |
 | `StoryContextStrip` | Small read-only strip showing nearest timeline, arc, beat, dependencies, warnings, and owning record links | Reads the Story Timeline packet and dependency index | Implemented in `soa-editor/src/components/storyPlacement/StoryContextStrip.tsx`; currently summarizes nearest moment, occurrence count, dependency count, warning count, Story Timeline link, and nearest beat/source link |
-| `BundleReview` | One consistent preview/commit UI for multi-record changes | Reuses rollback-only preview and atomic commit contracts, including Ability Spellcraft preview parity | Implemented in `soa-editor/src/components/authoring/BundleReview.tsx`; used by Story Timeline, Story Placement Panel, Character Studio, Dialogue Scene Room, and Ability Spellcraft with inline or modal presentation |
+| `BundleReview` | One consistent preview/commit UI for multi-record changes | Reuses rollback-only preview and atomic commit contracts, including Ability Spellcraft preview parity | Implemented in `soa-editor/src/components/authoring/BundleReview.tsx`; used by Story Timeline, Story Placement Panel, Character Studio, Dialogue Scene Room, Creature Workshop, and Ability Spellcraft with inline or modal presentation |
 
 Components should stay data-driven. Only specialize labels, presets, or warnings where the entity type genuinely needs a different authoring meaning.
 
@@ -309,12 +309,13 @@ An author view can be considered "story-placement integrated" when it satisfies 
 5. It warns about at least one meaningful coherence problem for that entity type.
 6. It does not save visual layout as canonical data unless the target model already owns a relevant field.
 
-Current acceptance status for the six integrated workspaces:
+Current acceptance status for the primary six story-placement workspaces:
 
 - Character Studio, Item Ecosystem, Quest Journey Board, Encounter Stage, Dialogue Scene Room, and World Builder satisfy criteria 1-4 through the shared panel, lifecycle fields, Story Timeline links, and preview/commit creation.
-- Criterion 5 is satisfied for all six integrated workspaces through targeted frontend hints and scoped backend coherence warnings. Faction-specific warnings and deeper inferred/runtime-path checks remain future work.
+- Criterion 5 is satisfied for these six workspace panels through targeted frontend hints and scoped backend coherence warnings. Faction-specific warnings and deeper inferred/runtime-path checks remain future work.
 - Criterion 6 is preserved. The shared story-placement work writes canonical `adventure_beat_links`; it does not save visual layout state as canonical data.
-- Canonical links can now be edited or removed from all six integrated workspace panels with preview/commit and stale-record protection for edits. Inferred occurrences remain read-only.
+- Canonical links can now be edited or removed from these six workspace panels with preview/commit and stale-record protection for edits. Inferred occurrences remain read-only.
+- Creature Workshop also embeds the shared panel for saved creature characters. It reuses the existing `character` target type, so it is treated as Character Studio story placement rather than a new story-placement target kind.
 
 ---
 
@@ -503,24 +504,25 @@ Useful starting roles include civilian, quest giver, merchant, trainer, companio
 ### Current-Model Implementation
 
 - Treat character identity, combat profile, interaction profile, and encounter appearances as one creative bundle.
+- Edit canonical character story profiles, directed character relationships, and ordered character story beats in the same staged bundle.
 - Apply starters only to empty fields so existing work is preserved.
-- Edit combat loadout, interaction role, world presence, encounter placement, and linked context together.
+- Edit combat loadout, interaction role, world presence, encounter placement, narrative records, and linked context together.
 - Compare the character with similar existing characters and run heuristic simulations.
 - Use the Advanced Form as the schema-complete escape hatch.
 
 ### Living Canvas Application
 
-- **Canonical Save Gestures:** edit the character, combat profile, interaction profile, loadout, quest links, and encounter appearances as one reviewed bundle; place the character into existing encounters and interaction roles through their real references.
+- **Canonical Save Gestures:** edit the character, combat profile, interaction profile, story profile, directed relationships, character story beats, loadout, quest links, and encounter appearances as one reviewed bundle; place the character into existing encounters and interaction roles through their real references.
 - **Local Creative Tools:** a character constellation showing locations, quests, dialogues, encounters, factions, and nearby characters inferred through shared content; role, presence, combat, and issue lenses; a presence trace following where the character appears; local relationship sketches and comparison ghosts.
-- **Canonical Narrative Expansion:** directed character relationships, structured story profiles, and ordered story beats with relationship-state changes.
+- **Future Canonical Expansion:** richer relationship-state timelines, cross-character arc comparisons, authored emotional progression, and audience/player knowledge state beyond the existing story profile, relationship, and story-beat records.
 
 The constellation must style shared-content proximity and inferred relationships as derived readings. Local relationship sketches may suggest changes to existing dialogue, quest, encounter, or placement records, but they do not create canonical relationships by themselves.
 
 ### Future Expansion
 
-- Author named character-to-character relationships and changing relationship states.
-- Track public face, private truth, motives, fears, duties, contradictions, and secrets.
-- Trace a character's entrances, changes, reactions, and exits across the story.
+- Deepen named character-to-character relationships with richer relationship-state history.
+- Extend story profiles beyond public face, private truth, want, need, fear, duty, contradiction, secret, voice, and arc summary only when new canonical fields are deliberately added.
+- Deepen traces of a character's entrances, changes, reactions, and exits across the story.
 - Create character constellations together to establish immediate social tension.
 - Compare voice, emotional arc, and player relationship over time.
 
@@ -1194,16 +1196,16 @@ Use the simulation to compare:
 
 - **Canonical Save Gestures:** compose trigger, targeting, effects, scaling, cost, cooldown, gates, and combat-profile assignment through existing ability and effect records.
 - **Local Creative Tools:** an impact field showing affected targets and effect mix; a rhythm timeline for cost, cooldown, and expected use; comparison ghosts; setup/payoff/recovery family sketches; contextual test benches against selected creatures, combat profiles, or encounters.
-- **Future Canonical Expansion:** authored intent, timing windows, counterplay, presentation identity, mastery paths, hazards, movement tests, and explicit ability-family relationships.
+- **Future Canonical Expansion:** encounter-grounded timing windows beyond the current effect phases, movement and hazard tests, mastery progression, presentation asset pipelines, and richer family semantics beyond the existing relation types.
 
-Contextual tests and rhythm timelines are interpretations of current simulation data. Related-family sketches may create suggested ability drafts, but no family relationship saves until the project models one deliberately.
+Contextual tests and rhythm timelines are interpretations of current simulation data. Related-family sketches that fit Setup, Payoff, Recovery, Upgrade, Counter, or Variant can save through `ability_relations`; richer family semantics remain draft-only until the project models them deliberately.
 
 ### Future Expansion
 
-- Author intent, opportunity, expression, impact, response, rhythm, and growth together.
+- Deepen the existing intent, counterplay, mastery, and presentation fields with opportunity, expression, impact, response, rhythm, and growth.
 - Evaluate player decisions, readability, counterplay, synergy, presentation, and mastery.
 - Test abilities inside small playable situations with movement, groups, allies, hazards, and encounter sequences.
-- Create related ability families: setup/payoff/recovery, basic/advanced/mastery, or player/enemy counter-versions.
+- Extend related ability families beyond the current Setup, Payoff, Recovery, Upgrade, Counter, and Variant relation types into basic/advanced/mastery progressions or player/enemy counter-version sets.
 - Keep visual language, sound identity, player-facing description, and mechanical result visible together.
 
 ### Health Questions
@@ -1480,14 +1482,14 @@ This follows the safety model already established by character and world-builder
 
 The following are creatively valuable but cannot become canonical with the current model:
 
-- Character motives, secrets, fears, and relationships.
+- Character psychology or relationship semantics beyond the existing story profile, relationship, and character story-beat fields.
 - Encounter phases and alternate resolutions.
 - Quest failure paths and optional mixed-content beats.
 - Explicit dramatic pacing.
 - Creature ecology rules and behavior rhythms.
 - Item ownership history and intended progression tier.
 - A canonical full-game player path.
-- Promises, payoffs, emotional shifts, and player knowledge.
+- Cross-domain promises, payoffs, emotional shifts, and player knowledge when no explicit field already exists.
 
 They may appear as prompts, inferred views, local planning notes, or generated suggestions. They should not be written into unrelated fields or encoded through fragile tag conventions. If the project later models one of these concepts deliberately, update the relevant workspace's current-model contract and remove it from this list.
 
