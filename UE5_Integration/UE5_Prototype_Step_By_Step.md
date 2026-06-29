@@ -32,13 +32,16 @@ When you reopen the project and do not remember the exact state, do this before 
 
 Do not continue into combat actors until the data service can be fetched from another Blueprint. The combat phases will depend on that habit even if the first enemy is manually placed.
 
-### Current Restart Point
-If you are "at step 3" from the recommended order near the bottom, that means:
+### How To Read The Recommended Order
+The numbered list near the bottom is a restart checklist, not a separate phase system. If you say you are "at step 5" in that list, that means:
 
-- done already: `BP_GameInstance_SoA` creates `BP_GameDataService`
-- done already or nearly done: `DT_Stats` and `DT_Attributes` cache into maps
-- next task: create `BFL_SoAHelpers.GetGameDataService`
-- after that: start Phase 3 combatants (`BP_BattleCharacter`, `BP_EnemyCharacter`, reset path)
+- done already: the data service exists, stat/attribute caches work, and `BFL_SoAHelpers.GetGameDataService(self)` works from another Blueprint
+- done already: `BP_BattleCharacter` exists and `BP_PlayerCharacter` has been reparented to it
+- current task: create and manually place one `BP_EnemyCharacter` in the arena; see Step 3.2
+- next task: add the fast reset path; see Step 3.3
+- after that: build targeting in Phase 4, then health/basic damage in Phase 5
+
+If you mean "Phase 5", start at the Phase 5 prerequisites and build the components in order: stats first, health second, resolver third, combat last. `BP_CombatComponent` depends on targeting and health already being callable.
 
 ---
 
@@ -440,6 +443,8 @@ Recommended variables:
   - `2` = enemy side
 - `DisplayName` (`Text`, default `"Combatant"`)
 - `bCanBeTargeted` (`Boolean`, default `true`)
+- `bDefaultCanBeTargeted` (`Boolean`, default `true`)
+  - restores targetability after death or arena reset
 - `InitialTransform` (`Transform`)
   - useful for arena reset later
 - `bIsDead` (`Boolean`, default `false`)
@@ -453,6 +458,7 @@ Recommended helper functions:
   - set `InitialTransform = GetActorTransform`
 - `ResetPrototypeState()`
   - set `bIsDead = false`
+  - set `bCanBeTargeted = bDefaultCanBeTargeted`
   - set actor transform to `InitialTransform`
   - later this will also reset health/cooldowns/statuses
 
@@ -471,6 +477,7 @@ Done when:
    - `TeamId = 1`
    - `DisplayName = "Player"`
    - `bCanBeTargeted = false` for now, unless enemies already need to target the player
+   - `bDefaultCanBeTargeted = false` for now, unless enemies already need to target the player
 
 After reparenting, press Play and test:
 - player still spawns
@@ -503,6 +510,7 @@ If something breaks:
    - `TeamId = 2`
    - `DisplayName = "Training Enemy"`
    - `bCanBeTargeted = true`
+   - `bDefaultCanBeTargeted = true`
 
 #### Give it a visible placeholder
 Use whichever is fastest:
@@ -751,6 +759,7 @@ Common mistakes:
   - `SetPartyFocusTarget`
   - `ClearEnemyTarget`
   - `CycleNextEnemyTarget`
+  - `CyclePreviousEnemyTarget` as a prototype wrapper, or leave previous input unbound until you need true previous order
 
 #### Create `BP_TargetingComponent`
 1. Content Browser -> `/Game/Blueprints/Systems`.
@@ -1017,9 +1026,14 @@ Example with `RecentEnemyTargetLimit = 2`:
 - Tab presses select `A`, then `B`, then `C`, then `A`
 - with four or more enemies, this still favors nearby targets instead of forcing a full long cycle before returning to the nearest enemy
 
-For `CyclePreviousEnemyTarget`, do not implement a true previous order yet unless you have a stable sorted list. For the prototype, either:
-- call the same nearest-not-recent helper as `CycleNextEnemyTarget`, or
-- leave previous targeting unimplemented until screen-angle sorting exists
+#### Implement `CyclePreviousEnemyTarget`
+Do not implement a true previous order yet unless you have a stable sorted list.
+
+Prototype node flow:
+1. Call `CycleNextEnemyTarget`.
+2. Optional: print `"CyclePreviousEnemyTarget uses prototype cycle behavior"`.
+
+This keeps `IA_TargetPrev` callable without pretending the system already has a stable previous ordering. Later, replace this wrapper with screen-angle sorting or encounter-list ordering.
 
 Do not let `SetEnemyTarget` manage `RecentEnemyTargets`. Keep cycle history inside cycle functions so manual clicks, ability targeting, and UI selection do not unexpectedly change Tab behavior.
 
@@ -1421,7 +1435,7 @@ Add these to `BP_TargetingComponent`:
 - `GetCurrentEnemyTarget() -> Target, Found`
 - `GetCurrentAllyTarget() -> Target, Found`
 - `GetPartyFocusTarget() -> Target, Found`
-  - Phase 5 combat will call this
+  - companion AI and later ability logic will call this
 
 Done when:
 - You can quickly answer "why is nothing targetable?"
@@ -1455,37 +1469,540 @@ If all are true, continue to Phase 5.
 ## Phase 5 - Combat Scaffolding (3-5 evenings)
 Goal: Basic damage works and health changes are visible.
 
-### Step 5.1 - Stats and health components
-- Add `BP_StatsComponent` and `BP_HealthComponent` to `BP_BattleCharacter` if possible, otherwise to both player and enemy.
-- Start with a very small API:
-  - `SetBaseStats`
-  - `ApplyFlatModifier` (optional)
-  - `ApplyDamage`
-- Done when:
-  - both player and enemy expose the same health API,
-  - `OnHealthChanged` fires and UI/debug prints react.
+This phase should stay prototype-simple, but the boundaries matter. The components you create here are the first real combat API that later Able abilities, items, talents, AI, and UI will call.
 
-### Step 5.2 - Combat component
-- Add `BP_CombatComponent` to `BP_BattleCharacter` or both combatant children.
-- Implement one automatic basic attack path:
-  - player combat reads `GetCurrentEnemyTarget` from `BP_TargetingComponent`
-  - validate enemy target
-  - range check against weapon/basic attack range without clearing the selected target
-  - if target is valid, in range, and attack timer/cooldown is ready, fire the basic attack
-  - if target is valid but out of range, keep the target and skip the attack or show an out-of-range state
-  - produce damage payload
-  - call resolver
-- Implement ability target resolution separately:
-  - offensive single-target ability uses `CurrentEnemyTarget`
-  - heal/shield/buff uses `CurrentAllyTarget` or self fallback if allowed
-  - ground-target ability uses confirmed `GroundTargetLocation`
-- Done when: Player automatically damages the selected enemy while in range, and ally targeting does not clear enemy targeting.
+### Before You Start Phase 5
+You need these in place:
+- Phase 4 exit test passes.
+- `BP_BattleCharacter` has `TeamId`, `DisplayName`, `bCanBeTargeted`, `bIsDead`, `IsAlive`, and reset helpers.
+- `BP_PlayerController_Prototype` has `BP_TargetingComponent`.
+- `BP_TargetingComponent.GetCurrentEnemyTarget() -> Target, Found` exists.
+- Enemy target locking does not clear just because the player moves out of attack range.
 
-### Step 5.3 - Effect resolver hook
-- Create a minimal `BP_EffectResolver` function library.
-- One function first:
-  - `ApplyDamageEffect(Source, Target, Payload)`
-- Done when: Damage no longer directly subtracts HP in random places.
+You do not need these yet:
+- Able abilities
+- full ability/effect DataTables
+- item/talent modifiers
+- enemy AI attacks
+- final health bars
+- mitigation, crits, resistances, or damage types
+
+### Combat Ownership Decision
+Use this prototype default:
+- Put `BP_StatsComponent`, `BP_HealthComponent`, and `BP_CombatComponent` on `BP_BattleCharacter`.
+- Let `BP_PlayerCharacter` and `BP_EnemyCharacter` inherit those components.
+- Put player target choice in `BP_TargetingComponent`, not in `BP_CombatComponent`.
+- Put damage application in `BP_EffectResolver`, not directly inside input, targeting, or ability graphs.
+
+Why:
+- `BP_BattleCharacter` is the shared combatant base, so both player and enemy should expose the same stat, health, and combat API.
+- `BP_TargetingComponent` answers "what does the player intend to target?"
+- `BP_CombatComponent` answers "can this actor attack that target right now?"
+- `BP_EffectResolver` answers "what actually happens when damage/healing/effects are applied?"
+- `BP_HealthComponent` owns current health and death notification.
+- After `BP_HealthComponent` exists, it is the source of truth for health/death. `BP_BattleCharacter.bIsDead` remains a simple shared flag for targeting, reset, and debug checks.
+
+Important data distinction:
+- `FStatData` from `DT_Stats` describes a stat definition: id, slug, display name, min/max, value type.
+- `BP_StatsComponent` stores this actor's current numeric stat values.
+- `BP_HealthComponent` stores current health. Do not store current health in the DataTable.
+- For the first prototype, key runtime stat values by stat slug (`Name`) because your `DT_Stats` row names are slugs and they are readable in Blueprints.
+- Later, when character/combat-profile imports are wired, you can add id-based setters that resolve `stat_id` strings through `BP_GameDataService`.
+
+Recommended prototype stat slugs:
+- `max_health`
+- `attack_power`
+- `basic_attack_range`
+- `basic_attack_cooldown`
+
+If your `DT_Stats` uses different row names, use those exact slugs. Do not invent a second name for the same stat.
+
+### Step 5.1 - Create `BP_StatsComponent`
+Create an Actor Component:
+1. Content Browser -> `/Game/Blueprints/Systems`.
+2. Create Blueprint Class -> `Actor Component`.
+3. Name it `BP_StatsComponent`.
+4. Add it to `BP_BattleCharacter`.
+
+Recommended variables:
+- `OwnerCombatant` (`BP_BattleCharacter Object Reference`)
+- `BaseStatsBySlug` (`Name -> Float` map)
+- `FlatModifiersBySlug` (`Name -> Float` map)
+- `FinalStatsBySlug` (`Name -> Float` map)
+- `bStatsInitialized` (`Boolean`, default `false`)
+- `DefaultMaxHealth` (`Float`, default `100`)
+- `DefaultAttackPower` (`Float`, default `10`)
+- `DefaultBasicAttackRange` (`Float`, default `300`)
+- `DefaultBasicAttackCooldown` (`Float`, default `1.0`)
+
+Recommended event dispatchers:
+- `OnStatsChanged`
+
+#### Initialize the stats component
+In `BP_StatsComponent.BeginPlay`:
+1. Get owner.
+2. Cast owner to `BP_BattleCharacter`.
+3. Store `OwnerCombatant`.
+4. If `bStatsInitialized` is false, call `InitializePrototypeStats`.
+
+Create function `InitializePrototypeStats`.
+
+Node flow:
+1. Clear `BaseStatsBySlug`.
+2. Add `max_health -> DefaultMaxHealth`.
+3. Add `attack_power -> DefaultAttackPower`.
+4. Add `basic_attack_range -> DefaultBasicAttackRange`.
+5. Add `basic_attack_cooldown -> DefaultBasicAttackCooldown`.
+6. Call `RecalculateFinalStats`.
+7. Set `bStatsInitialized = true`.
+
+Set different defaults on child Blueprint instances if needed:
+- `BP_PlayerCharacter`: `DefaultMaxHealth = 120`, `DefaultAttackPower = 12`
+- `BP_EnemyCharacter`: `DefaultMaxHealth = 50`, `DefaultAttackPower = 6`
+
+#### Add stat functions
+Create function `SetBaseStat`.
+
+Suggested signature:
+- Inputs:
+  - `StatSlug` (`Name`)
+  - `Value` (`Float`)
+
+Node flow:
+1. Add or update `BaseStatsBySlug[StatSlug] = Value`.
+2. Call `RecalculateFinalStats`.
+
+Create function `ApplyFlatModifier`.
+
+Suggested signature:
+- Inputs:
+  - `StatSlug` (`Name`)
+  - `Delta` (`Float`)
+
+Node flow:
+1. Find current modifier value in `FlatModifiersBySlug`.
+2. If not found, use `0`.
+3. Set `FlatModifiersBySlug[StatSlug] = Current + Delta`.
+4. Call `RecalculateFinalStats`.
+
+Create function `GetStatValue`.
+
+Suggested signature:
+- Inputs:
+  - `StatSlug` (`Name`)
+  - `FallbackValue` (`Float`, default `0`)
+- Outputs:
+  - `Found` (`Boolean`)
+  - `Value` (`Float`)
+
+Node flow:
+1. `Find` in `FinalStatsBySlug`.
+2. If found, return `Found = true` and the value.
+3. If not found, return `Found = false` and `FallbackValue`.
+
+Create function `RecalculateFinalStats`.
+
+Node flow:
+1. Clear `FinalStatsBySlug`.
+2. For each entry in `BaseStatsBySlug`:
+   - get matching flat modifier from `FlatModifiersBySlug`, or `0`
+   - set `FinalStatsBySlug[StatSlug] = BaseValue + ModifierValue`
+3. For any modifier key that does not exist in `BaseStatsBySlug`, optionally add `ModifierValue` as the final value.
+4. Broadcast `OnStatsChanged`.
+
+Keep this additive only for now. Percent modifiers, derived attributes, and scaling formulas belong later after the first damage loop works.
+
+Done when:
+- `BP_BattleCharacter` has `BP_StatsComponent`.
+- Player and enemy can have different default stat values.
+- A debug print can call `GetStatValue(max_health)` and get a number.
+- `OnStatsChanged` fires when `SetBaseStat` or `ApplyFlatModifier` changes a value.
+
+Common mistakes:
+- Treating `DT_Stats.default_value` as every character's current stat. It is a definition fallback, not character runtime state.
+- Keying one graph by slug and another by display name. Use slugs only here.
+- Recomputing health current value inside `BP_StatsComponent`. Current HP belongs to `BP_HealthComponent`.
+
+### Step 5.2 - Create `BP_HealthComponent`
+Create an Actor Component:
+1. Content Browser -> `/Game/Blueprints/Systems`.
+2. Create Blueprint Class -> `Actor Component`.
+3. Name it `BP_HealthComponent`.
+4. Add it to `BP_BattleCharacter`.
+
+Recommended variables:
+- `OwnerCombatant` (`BP_BattleCharacter Object Reference`)
+- `StatsComponent` (`BP_StatsComponent Object Reference`)
+- `CurrentHealth` (`Float`)
+- `MaxHealth` (`Float`)
+- `bIsDead` (`Boolean`, default `false`)
+  - mirrors `BP_BattleCharacter.bIsDead`; the health component drives the value after Phase 5
+
+Recommended event dispatchers:
+- `OnHealthChanged(CurrentHealth: Float, MaxHealth: Float, Delta: Float)`
+- `OnDeath(SourceActor: Actor)`
+
+#### Initialize health from stats
+In `BP_HealthComponent.BeginPlay`:
+1. Get owner.
+2. Cast owner to `BP_BattleCharacter`.
+3. Store `OwnerCombatant`.
+4. Get `BP_StatsComponent` from owner.
+5. Call `InitializeHealthFromStats`.
+
+Create function `InitializeHealthFromStats`.
+
+Node flow:
+1. If `StatsComponent` is valid:
+   - call `GetStatValue(max_health, 100)`
+   - set `MaxHealth` to returned value
+2. If `StatsComponent` is not valid:
+   - set `MaxHealth = 100`
+3. Set `CurrentHealth = MaxHealth`.
+4. Set `bIsDead = false`.
+5. If `OwnerCombatant` is valid:
+   - set `OwnerCombatant.bIsDead = false`
+   - set `OwnerCombatant.bCanBeTargeted = OwnerCombatant.bDefaultCanBeTargeted`
+6. Broadcast `OnHealthChanged(CurrentHealth, MaxHealth, 0)`.
+
+If component BeginPlay order causes health to initialize before stats, call `InitializeHealthFromStats` from `BP_BattleCharacter.BeginPlay` after stats initialization. In child Blueprints, always call parent `BeginPlay` before child-specific startup logic.
+
+#### Add health functions
+Create function `ApplyDamage`.
+
+Suggested signature:
+- Inputs:
+  - `Amount` (`Float`)
+  - `SourceActor` (`Actor Object Reference`)
+- Outputs:
+  - `AppliedDamage` (`Float`)
+  - `Killed` (`Boolean`)
+
+Node flow:
+1. If `bIsDead` is true, return `AppliedDamage = 0`, `Killed = false`.
+2. Clamp `Amount` to at least `0`.
+3. Store `OldHealth = CurrentHealth`.
+4. Set `CurrentHealth = Clamp(CurrentHealth - Amount, 0, MaxHealth)`.
+5. Set `AppliedDamage = OldHealth - CurrentHealth`.
+6. Broadcast `OnHealthChanged(CurrentHealth, MaxHealth, -AppliedDamage)`.
+7. If `CurrentHealth <= 0`:
+   - set `bIsDead = true`
+   - if `OwnerCombatant` is valid, set `OwnerCombatant.bIsDead = true`
+   - if `OwnerCombatant` is valid, set `OwnerCombatant.bCanBeTargeted = false`
+   - if `OwnerCombatant` has `SetTargetRingEnabled`, call `SetTargetRingEnabled(false)`
+   - broadcast `OnDeath(SourceActor)`
+   - return `Killed = true`
+8. Otherwise return `Killed = false`.
+
+Create function `Heal`.
+
+Suggested signature:
+- Inputs:
+  - `Amount` (`Float`)
+  - `SourceActor` (`Actor Object Reference`)
+- Outputs:
+  - `AppliedHealing` (`Float`)
+
+Node flow:
+1. If `bIsDead` is true, return `0` for now.
+2. Clamp `Amount` to at least `0`.
+3. Store `OldHealth = CurrentHealth`.
+4. Set `CurrentHealth = Clamp(CurrentHealth + Amount, 0, MaxHealth)`.
+5. Set `AppliedHealing = CurrentHealth - OldHealth`.
+6. Broadcast `OnHealthChanged(CurrentHealth, MaxHealth, AppliedHealing)`.
+
+Create function `ResetHealth`.
+
+Node flow:
+1. Call `InitializeHealthFromStats`.
+2. If `OwnerCombatant` is valid, set `OwnerCombatant.bIsDead = false`.
+
+Create function `IsAlive`.
+
+Output:
+- `Alive` (`Boolean`) = `not bIsDead and CurrentHealth > 0`
+
+Done when:
+- Player and enemy both have `BP_HealthComponent`.
+- A debug call to `ApplyDamage(10)` lowers enemy health.
+- `OnHealthChanged` prints the current/max health.
+- Death sets `bIsDead = true`, disables targetability, and removes the target ring.
+
+Common mistakes:
+- Subtracting health directly in `BP_CombatComponent`.
+- Forgetting to broadcast `OnHealthChanged` on initialization and reset.
+- Letting a dead enemy stay targetable.
+- Resetting actor transform but not resetting health.
+
+### Step 5.3 - Create the minimal `BP_EffectResolver`
+Create a Blueprint Function Library:
+1. Content Browser -> `/Game/Blueprints/Systems`.
+2. Create Blueprint Class -> `Blueprint Function Library`.
+3. Name it `BP_EffectResolver`.
+
+For now, do not create a new canonical damage struct. The integration guide already defines ability/effect data for later, and the prototype only needs a direct function call.
+
+Create function `ApplyDamageEffect`.
+
+Suggested signature:
+- Inputs:
+  - `SourceActor` (`Actor Object Reference`)
+  - `TargetActor` (`Actor Object Reference`)
+  - `RawDamage` (`Float`)
+  - `DebugReason` (`Name`, default `BasicAttack`)
+- Outputs:
+  - `Success` (`Boolean`)
+  - `AppliedDamage` (`Float`)
+  - `Killed` (`Boolean`)
+
+Node flow:
+1. Validate `TargetActor`.
+2. Get component by class from `TargetActor`: `BP_HealthComponent`.
+3. If missing:
+   - return `Success = false`, `AppliedDamage = 0`, `Killed = false`
+   - optional: print `"ApplyDamageEffect failed: target has no BP_HealthComponent"`
+4. Clamp `RawDamage` to at least `0`.
+5. Call `BP_HealthComponent.ApplyDamage(RawDamage, SourceActor)`.
+6. Return `Success = true`, plus `AppliedDamage` and `Killed` from the health component.
+
+Later expansion path:
+- Add `BP_CombatFormulaLibrary` for mitigation, crit, resistance, and scaling.
+- Add an effect-data overload that accepts `FEffectData` or ability effect row data.
+- Keep the final health change routed through `BP_HealthComponent.ApplyDamage`.
+
+Done when:
+- No combat graph directly subtracts `CurrentHealth`.
+- A debug call to `BP_EffectResolver.ApplyDamageEffect(Player, Enemy, 10)` damages the enemy.
+- Missing health components fail gracefully instead of throwing Blueprint runtime errors.
+
+### Step 5.4 - Create `BP_CombatComponent`
+Create an Actor Component:
+1. Content Browser -> `/Game/Blueprints/Systems`.
+2. Create Blueprint Class -> `Actor Component`.
+3. Name it `BP_CombatComponent`.
+4. Add it to `BP_BattleCharacter`.
+
+Recommended variables:
+- `OwnerCombatant` (`BP_BattleCharacter Object Reference`)
+- `StatsComponent` (`BP_StatsComponent Object Reference`)
+- `HealthComponent` (`BP_HealthComponent Object Reference`)
+- `CachedTargetingComponent` (`BP_TargetingComponent Object Reference`, player only)
+- `bAutoBasicAttackEnabled` (`Boolean`, default `true` on player, `false` on enemy for now)
+- `BasicAttackCheckInterval` (`Float`, default `0.1`)
+- `LastBasicAttackTime` (`Float`, default `-999`)
+- `bDebugCombat` (`Boolean`, default `true`)
+
+Recommended event dispatchers:
+- `OnBasicAttackStarted(Source: Actor, Target: Actor)`
+- `OnBasicAttackLanded(Source: Actor, Target: Actor, Damage: Float)`
+- `OnBasicAttackFailed(Reason: Name)`
+
+#### Initialize the combat component
+In `BP_CombatComponent.BeginPlay`:
+1. Get owner.
+2. Cast owner to `BP_BattleCharacter`.
+3. Store `OwnerCombatant`.
+4. Get `BP_StatsComponent` from owner and store it.
+5. Get `BP_HealthComponent` from owner and store it.
+6. If owner is player-controlled, call `FindPlayerTargetingComponent`.
+7. If `bAutoBasicAttackEnabled` is true, call `StartAutoBasicAttack`.
+
+Create function `FindPlayerTargetingComponent`.
+
+Node flow:
+1. Get owner pawn or owner actor.
+2. If it is a pawn, get controller.
+3. Cast controller to `BP_PlayerController_Prototype`.
+4. Get component by class: `BP_TargetingComponent`.
+5. Store result in `CachedTargetingComponent`.
+
+If this fails on BeginPlay because possession is not complete yet, call it again inside `TryAutoBasicAttack` when `CachedTargetingComponent` is not valid.
+
+#### Add attack control functions
+Create function `StartAutoBasicAttack`.
+
+Node flow:
+1. Set `bAutoBasicAttackEnabled = true`.
+2. Use `Set Timer by Function Name` or `Set Timer by Event`.
+3. Timer interval = `BasicAttackCheckInterval`.
+4. Looping = true.
+5. Timer calls `TryAutoBasicAttack`.
+
+Create function `StopAutoBasicAttack`.
+
+Node flow:
+1. Set `bAutoBasicAttackEnabled = false`.
+2. Clear the auto-basic timer.
+
+Create function `TryAutoBasicAttack`.
+
+Node flow:
+1. If `bAutoBasicAttackEnabled` is false, return.
+2. If `HealthComponent` is valid and `HealthComponent.IsAlive` is false, return.
+3. If `CachedTargetingComponent` is not valid, call `FindPlayerTargetingComponent`.
+4. If still not valid:
+   - broadcast `OnBasicAttackFailed(NoTargetingComponent)`
+   - return
+5. Call `CachedTargetingComponent.GetCurrentEnemyTarget`.
+6. If not found:
+   - broadcast `OnBasicAttackFailed(NoEnemyTarget)`
+   - return
+7. Call `CanBasicAttackTarget(Target)`.
+8. If false, return.
+9. Call `PerformBasicAttack(Target)`.
+
+Create function `CanBasicAttackTarget`.
+
+Suggested signature:
+- Inputs:
+  - `TargetActor` (`Actor Object Reference`)
+- Outputs:
+  - `CanAttack` (`Boolean`)
+  - `FailReason` (`Name`)
+
+Node flow:
+1. Validate `OwnerCombatant` and `TargetActor`.
+2. If target does not implement `BPI_Targetable`, return `false`, `NotTargetable`.
+3. Call `CanBeTargeted` on the target. If false, return `false`, `TargetInvalid`.
+4. Get target team through `BPI_Targetable.GetTargetTeamId`.
+5. If owner team and target team are not enemies, return `false`, `WrongTeam`.
+6. Call `IsTargetInBasicAttackRange`. If false, return `false`, `OutOfRange`.
+7. Call `IsBasicAttackCooldownReady`. If false, return `false`, `Cooldown`.
+8. Return `true`, `None`.
+
+Range rule:
+- Being out of range must not call `ClearEnemyTarget`.
+- The selected target remains selected for UI, movement, and later approach behavior.
+
+Create function `IsTargetInBasicAttackRange`.
+
+Suggested signature:
+- Inputs:
+  - `TargetActor` (`Actor Object Reference`)
+- Outputs:
+  - `InRange` (`Boolean`)
+  - `Distance` (`Float`)
+
+Node flow:
+1. Get `basic_attack_range` from `StatsComponent` with fallback `300`.
+2. Compute `Vector Distance` from owner location to target location.
+3. Return `Distance <= basic_attack_range`.
+
+Create function `IsBasicAttackCooldownReady`.
+
+Output:
+- `Ready` (`Boolean`)
+
+Node flow:
+1. Get `basic_attack_cooldown` from `StatsComponent` with fallback `1.0`.
+2. Get current game time in seconds.
+3. Return `CurrentTime - LastBasicAttackTime >= basic_attack_cooldown`.
+
+Create function `PerformBasicAttack`.
+
+Suggested signature:
+- Input:
+  - `TargetActor` (`Actor Object Reference`)
+
+Node flow:
+1. Broadcast `OnBasicAttackStarted(OwnerCombatant, TargetActor)`.
+2. Get `attack_power` from `StatsComponent` with fallback `10`.
+3. Set `RawDamage = attack_power`.
+4. Call `BP_EffectResolver.ApplyDamageEffect(OwnerCombatant, TargetActor, RawDamage, BasicAttack)`.
+5. If success:
+   - set `LastBasicAttackTime = current game time in seconds`
+   - broadcast `OnBasicAttackLanded(OwnerCombatant, TargetActor, AppliedDamage)`
+   - optional print: `"Basic attack hit <target> for <damage>"`
+6. If failed:
+   - broadcast `OnBasicAttackFailed(ResolverFailed)`
+
+Done when:
+- `BP_BattleCharacter` has `BP_CombatComponent`.
+- Player auto-basic is enabled.
+- Enemy auto-basic is disabled for now unless you intentionally add enemy attacks.
+- Player combat can read `CurrentEnemyTarget` through `BP_TargetingComponent`.
+- Moving out of range stops attacks but does not clear target selection.
+- Moving back into range resumes attacks after cooldown.
+
+Common mistakes:
+- Adding `BP_TargetingComponent` to `BP_BattleCharacter`. Keep it on the player controller for this prototype.
+- Calling `GetCurrentEnemyTarget` from the player character when the component lives on the controller, then wondering why the component is missing.
+- Clearing the target when range fails.
+- Letting the timer keep attacking after the owner dies.
+
+### Step 5.5 - Wire health, death, reset, and debug prints
+Add the first debug wiring before building UI.
+
+In `BP_BattleCharacter.BeginPlay`:
+1. Call `RememberInitialTransform`.
+2. Ensure stats are initialized.
+3. Ensure health is initialized from stats.
+4. Bind `BP_HealthComponent.OnHealthChanged` to a simple print or debug event.
+5. Bind `BP_HealthComponent.OnDeath` to `HandlePrototypeDeath`.
+
+Create function `HandlePrototypeDeath` on `BP_BattleCharacter`.
+
+Suggested signature:
+- Input:
+  - `SourceActor` (`Actor Object Reference`)
+
+Node flow:
+1. Set `bIsDead = true`.
+2. Set `bCanBeTargeted = false`.
+3. Call `SetTargetRingEnabled(false)` if the target ring function exists.
+4. Optional: stop movement.
+5. Optional: hide or ragdoll later; for now, a print is enough.
+
+Update `ResetPrototypeState` on `BP_BattleCharacter`:
+1. Set actor transform to `InitialTransform`.
+2. Set `bIsDead = false`.
+3. Set `bCanBeTargeted = bDefaultCanBeTargeted`.
+4. Call `BP_HealthComponent.ResetHealth`.
+5. Call `SetTargetRingEnabled(false)`.
+
+Update the arena reset path from Step 3.3:
+- Clear or validate current targets on `BP_TargetingComponent`.
+- Reset all placed `BP_BattleCharacter` actors.
+- Do not leave `CurrentEnemyTarget` pointing at a dead or destroyed actor.
+
+Done when:
+- Damage prints readable health values.
+- Death prints once.
+- Dead enemies stop being targetable.
+- Reset restores enemy health and targetability.
+- Reset removes stale target rings.
+
+### Step 5.6 - Ability target-resolution rules for later
+Do not implement full abilities in this phase, but keep the target rules clear now:
+- automatic basic attack uses `CurrentEnemyTarget`
+- offensive single-target ability uses `CurrentEnemyTarget`
+- heal, shield, or buff uses `CurrentAllyTarget`, or self fallback if that ability allows it
+- party-focus target is for companion AI commands, not necessarily the player's current attack target
+- ground-target ability uses confirmed `GroundTargetLocation`
+- none of these should clear the enemy target just because an ally/support target changes
+
+Phase 6 will plug Able activation into this same combat API. Do not wire Able directly into health subtraction.
+
+### Phase 5 Exit Test
+Before moving to Able:
+- Press Play.
+- Lock the placed enemy.
+- Stand in basic attack range.
+- The player damages the selected enemy every cooldown.
+- Enemy health prints as current/max.
+- Move out of range.
+- Attacks stop, but the enemy remains selected.
+- Move back into range.
+- Attacks resume.
+- Enemy reaches zero health.
+- Enemy death prints once.
+- Enemy becomes untargetable and its target ring disappears.
+- Press reset.
+- Enemy health returns to max.
+- Enemy becomes targetable again.
+- `BP_TargetingComponent` no longer holds a stale dead target.
+
+If all are true, continue to Phase 6.
 
 ---
 
