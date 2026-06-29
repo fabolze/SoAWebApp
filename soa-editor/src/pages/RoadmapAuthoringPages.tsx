@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { buildQuestJourneyAnalysis, type QuestJourneyAnalysis, type QuestStoryMilestoneKind } from "../authoring/questJourneyAnalysis";
 import { EditableTagList, ReferenceChipPicker, ReferenceManageLink, rowLabel, useReferenceOptions } from "../authoringViews/controls";
 import { buildQuestWalkthrough, type QuestWalkthroughStep } from "../authoring/questWalkthrough";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
+import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
 import type { EntryRecord } from "../types/editorQol";
@@ -222,6 +224,87 @@ function QuestWalkthroughPanel({ packet }: { packet: EntryRecord }) {
   </div>;
 }
 
+const milestoneTone: Record<QuestStoryMilestoneKind, string> = {
+  start: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+  escalation: "border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-200",
+  branch: "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200",
+  resolution: "border-purple-200 bg-purple-50 text-purple-800 dark:border-purple-900 dark:bg-purple-950 dark:text-purple-200",
+  other: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200",
+};
+
+function QuestStoryPathPanel({ analysis, flags }: { analysis: QuestJourneyAnalysis; flags: EntryRecord[] }) {
+  return <section className={`${panelClass} xl:col-span-2`} data-testid="quest-story-path-panel">
+    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 className="font-semibold">Story Path</h2>
+        <p className="text-sm text-slate-500">Objective order beside canonical quest story placements and arc branches.</p>
+      </div>
+      <div className="flex flex-wrap gap-1 text-xs">
+        {(["start", "escalation", "branch", "resolution"] as QuestStoryMilestoneKind[]).map((kind) => <span key={kind} className={`rounded-full border px-2 py-1 font-semibold capitalize ${milestoneTone[kind]}`}>{kind}</span>)}
+      </div>
+    </div>
+    <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+      <div>
+        <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Playable Steps</div>
+        <div className="space-y-2">
+          {analysis.steps.map((step, index) => <article key={step.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
+            <div className="flex items-start gap-3">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white dark:bg-slate-100 dark:text-slate-900">{index + 1}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-sm font-semibold">{step.label}</h3>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-500 dark:bg-slate-900">{step.kind}</span>
+                </div>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{step.description}</p>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {step.requirementId && <span className="rounded-full border border-amber-200 px-2 py-1 text-xs text-amber-800 dark:border-amber-900 dark:text-amber-200">Gate: {step.requirementId}</span>}
+                  {step.flagsSet.map((flag) => <span key={flag} className="rounded-full border border-emerald-200 px-2 py-1 text-xs text-emerald-800 dark:border-emerald-900 dark:text-emerald-200">Sets {labelFromOptions(flag, flags, flag)}</span>)}
+                  {!step.requirementId && step.flagsSet.length === 0 && <span className="text-xs text-slate-500">No gate or state change.</span>}
+                </div>
+              </div>
+            </div>
+          </article>)}
+        </div>
+      </div>
+      <div>
+        <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Story Milestones</div>
+        <div className="space-y-2">
+          {analysis.milestones.map((milestone) => <article key={milestone.id} className={`rounded-lg border p-3 ${milestoneTone[milestone.kind]}`}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-semibold uppercase">{milestone.kind}</div>
+                <h3 className="text-sm font-semibold">{milestone.beatLabel || milestone.label}</h3>
+              </div>
+              <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-semibold dark:bg-slate-900/70">{milestone.importance}</span>
+            </div>
+            <p className="mt-1 text-xs">Order {milestone.order} / {milestone.lifecycle}</p>
+          </article>)}
+          {analysis.milestones.length === 0 && <p className="rounded-md border border-dashed border-slate-300 p-3 text-sm text-slate-500 dark:border-slate-700">No canonical quest story placements yet.</p>}
+        </div>
+      </div>
+    </div>
+    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      <div>
+        <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Arc Branches</div>
+        <div className="space-y-2">
+          {analysis.branches.map((branch) => <div key={branch.id} className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+            <div className="font-semibold">{branch.conditionFlag ? labelFromOptions(branch.conditionFlag, flags, branch.conditionFlag) : "No condition"} -&gt; {branch.nextQuestLabel}</div>
+            <div className="mt-1 text-xs">{branch.targetOrder === null ? "Target is outside this arc order." : `Arc order ${branch.targetOrder + 1}`}</div>
+          </div>)}
+          {analysis.branches.length === 0 && <p className="rounded-md border border-dashed border-slate-300 p-3 text-sm text-slate-500 dark:border-slate-700">No branch entries originate from this quest.</p>}
+        </div>
+      </div>
+      <div>
+        <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Path Diagnostics</div>
+        <div className="space-y-2">
+          {analysis.diagnostics.map((diagnostic) => <p key={diagnostic.id} className={`rounded border px-3 py-2 text-sm ${diagnostic.severity === "warning" ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200" : "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"}`}>{diagnostic.message}</p>)}
+          {analysis.diagnostics.length === 0 && <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">No branch path issues detected.</p>}
+        </div>
+      </div>
+    </div>
+  </section>;
+}
+
 export function QuestJourneyPage() {
   const { id = "" } = useParams();
   const location = useLocation();
@@ -243,14 +326,17 @@ export function QuestJourneyPage() {
   const interactionProfiles = rows(packet.interaction_profiles).length ? rows(packet.interaction_profiles) : allInteractionProfiles;
   const hasRewards = numberValue(quest.xp_reward) !== 0 || rows(quest.item_rewards).length > 0 || rows(quest.currency_rewards).length > 0 || rows(quest.reputation_rewards).length > 0;
   const objectiveIssues = rows(quest.objectives).filter((objective) => !text(objective.objective_id) || !text(objective.description)).length;
+  const storyPlacement = useEntityStoryPlacement({ entityKind: "quest", entityId: text(quest.id), entity: quest });
+  const questAnalysis = useMemo(() => buildQuestJourneyAnalysis({ packet, storyPacket: storyPlacement.packet, questId: text(quest.id), occurrences: storyPlacement.context.occurrences }), [packet, quest, storyPlacement.context.occurrences, storyPlacement.packet]);
   const save = async () => { const response = await apiFetch("/api/ui/quests/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(packet) }); const data = await response.json(); if (response.ok) { setPacket(data); setOriginal(JSON.stringify(data)); if (isNew) navigate(`/author/quests/${encodeURIComponent(text(data.quest.id))}`, { replace: true }); } };
   return <Shell title="Quest Journey Board" subtitle="Compose invitation, ordered objectives, completion, payoff, and aftermath." dirty={dirty} onSave={save} onReset={() => setPacket(JSON.parse(original))}><div className="grid gap-4 xl:grid-cols-2">
     <section className={panelClass}><h2 className="mb-3 font-semibold">Invitation</h2><div className="space-y-3"><label className="block text-sm">Title<input className={`${inputClass} mt-1`} value={text(quest.title)} onChange={(event) => update("title", event.target.value)} /></label><label className="block text-sm">Slug<input className={`${inputClass} mt-1`} value={text(quest.slug)} onChange={(event) => update("slug", event.target.value)} /></label><label className="block text-sm">Description<textarea className={`${inputClass} mt-1 min-h-24`} value={text(quest.description)} onChange={(event) => update("description", event.target.value)} /></label><ReferenceChipPicker label="Quest Unlock Requirement" value={quest.requirements_id} reference="requirements" onChange={(requirements_id) => update("requirements_id", requirements_id)} /><MultiReferencePicker label="Quest Givers" values={packet.quest_giver_profile_ids} options={interactionProfiles} onChange={(quest_giver_profile_ids) => setPacket({ ...packet, quest_giver_profile_ids })} /><EditableTagList tags={quest.tags} onChange={(tags) => update("tags", tags)} /></div></section>
     <section className={panelClass}><div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">Journey Health</h2><span className={`rounded-full px-2 py-1 text-xs font-semibold ${rows(quest.objectives).length && !objectiveIssues ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{rows(quest.objectives).length && !objectiveIssues ? "Ready to review" : "Needs attention"}</span></div><div className="space-y-2 text-sm">{rows(quest.objectives).length === 0 && <p className="rounded border border-amber-200 p-2 text-amber-800">Add at least one objective.</p>}{objectiveIssues > 0 && <p className="rounded border border-amber-200 p-2 text-amber-800">{objectiveIssues} objective(s) need both an ID and player-facing description.</p>}{strings(quest.flags_set_on_completion).length === 0 && <p className="rounded border border-slate-200 p-2 text-slate-600">No completion flag is set, so this quest cannot directly unlock flag-gated content.</p>}{!hasRewards && <p className="rounded border border-amber-200 p-2 text-amber-800">Quest has no authored payoff.</p>}{strings(packet.quest_giver_profile_ids).length === 0 && <p className="rounded border border-slate-200 p-2 text-slate-600">No quest giver currently offers this quest.</p>}</div></section>
     <section className={`${panelClass} xl:col-span-2`}><h2 className="mb-3 font-semibold">Ordered Objectives</h2><ObjectiveBoard objectives={quest.objectives} flags={questFlags} onChange={(objectives) => update("objectives", objectives)} /></section>
+    {!isNew && text(quest.id) && <QuestStoryPathPanel analysis={questAnalysis} flags={questFlags} />}
     <section className={panelClass}><h2 className="mb-3 font-semibold">Completion & Payoff</h2><div className="space-y-4"><MultiReferencePicker label="Completion Flags" values={quest.flags_set_on_completion} options={questFlags} onChange={(flags) => update("flags_set_on_completion", flags)} /><label className="block text-xs font-semibold uppercase text-slate-500">Experience Reward<input className={`${inputClass} mt-1`} type="number" value={text(quest.xp_reward)} onChange={(event) => update("xp_reward", Number(event.target.value))} /></label><RewardRows label="Item Reward" rowsValue={quest.item_rewards} reference="items" idKey="item_id" amountKey="quantity" onChange={(value) => update("item_rewards", value)} /><RewardRows label="Currency Reward" rowsValue={quest.currency_rewards} reference="currencies" idKey="currency_id" amountKey="amount" onChange={(value) => update("currency_rewards", value)} /><RewardRows label="Reputation Reward" rowsValue={quest.reputation_rewards} reference="factions" idKey="faction_id" amountKey="amount" onChange={(value) => update("reputation_rewards", value)} /></div></section>
     <section className={panelClass}><h2 className="mb-3 font-semibold">Walkthrough & Aftermath</h2><QuestWalkthroughPanel packet={packet} /><Link className="mt-4 inline-block text-sm font-semibold text-primary" to="/author/dependencies">Open Dependency Map</Link></section>
-    {!isNew && text(quest.id) && <section className="xl:col-span-2"><StoryPlacementPanel entityKind="quest" entityId={text(quest.id)} entityLabel={text(quest.title) || text(quest.id)} entity={quest} /></section>}
+    {!isNew && text(quest.id) && <section className="xl:col-span-2"><StoryPlacementPanel entityKind="quest" entityId={text(quest.id)} entityLabel={text(quest.title) || text(quest.id)} entity={quest} storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} /></section>}
     <section className={`${panelClass} xl:col-span-2`}><details><summary className="cursor-pointer font-semibold">Advanced Arc & Branch Data</summary><div className="mt-3"><JsonEditor label="Arc selection and branches" value={packet.arc} onChange={(value) => setPacket({ ...packet, arc: value })} /></div></details></section>
   </div></Shell>;
 }
