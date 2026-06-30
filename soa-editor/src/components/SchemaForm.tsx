@@ -12,9 +12,11 @@ import useDebouncedValue from './hooks/useDebouncedValue';
 import { BUTTON_CLASSES, BUTTON_SIZES } from '../styles/uiTokens';
 import {
   getNumberPlaceholder,
+  formatNumberInputValue,
   isMissingScalarValue,
-  normalizeDecimalInput,
+  normalizeNumberInput,
   parseNumberByType,
+  type NumberInputFormat,
   resolveReferenceFromOptionsSource,
   resolveSchemaName,
   type NumberValueType,
@@ -308,14 +310,13 @@ export default function SchemaForm({ schema, schemaName = '', data, onChange, re
     onChange(updated);
   };
 
-  const getNumberInputValue = (key: string, value: unknown) => {
+  const getNumberInputValue = (key: string, value: unknown, inputFormat: NumberInputFormat = 'standard') => {
     if (numberInputs[key] !== undefined) return numberInputs[key];
-    if (value === null || value === undefined) return '';
-    return String(value);
+    return formatNumberInputValue(value, inputFormat);
   };
 
-  const handleNumberChange = (key: string, raw: string) => {
-    const normalized = normalizeDecimalInput(raw);
+  const handleNumberChange = (key: string, raw: string, inputFormat: NumberInputFormat = 'standard') => {
+    const normalized = normalizeNumberInput(raw, inputFormat);
     setNumberInputs((prev) => ({ ...prev, [key]: normalized }));
   };
 
@@ -323,9 +324,10 @@ export default function SchemaForm({ schema, schemaName = '', data, onChange, re
     key: string,
     raw: string,
     valueType: NumberValueType,
+    inputFormat: NumberInputFormat = 'standard',
     applyChange?: (val: number | '') => void
   ) => {
-    const normalized = normalizeDecimalInput(raw).trim();
+    const normalized = normalizeNumberInput(raw, inputFormat).trim();
     if (normalized === '') {
       setNumberInputs((prev) => {
         const next = { ...prev };
@@ -335,9 +337,9 @@ export default function SchemaForm({ schema, schemaName = '', data, onChange, re
       if (applyChange) applyChange('');
       return;
     }
-    const num = parseNumberByType(normalized, valueType);
+    const num = parseNumberByType(normalized, valueType, inputFormat);
     if (num !== null) {
-      setNumberInputs((prev) => ({ ...prev, [key]: normalized }));
+      setNumberInputs((prev) => ({ ...prev, [key]: formatNumberInputValue(num, inputFormat) }));
       if (applyChange) applyChange(num);
     }
   };

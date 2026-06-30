@@ -11,6 +11,7 @@ export interface SchemaFieldUiConfig extends UnknownRecord {
   disabled?: boolean;
   list_display?: boolean;
   section?: string;
+  number_format?: string;
 }
 
 export interface SchemaFieldConfig extends UnknownRecord {

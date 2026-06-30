@@ -9,6 +9,7 @@ import {
   mapReferenceOptions,
   mapSelectOptions,
   resolveReferenceFromOptionsSource,
+  type NumberInputFormat,
   type NumberValueType,
   toNumberOrNull,
 } from './helpers';
@@ -38,15 +39,16 @@ interface ArrayObjectFieldProps {
   handleCreateReference: (refType: string, onSelect: (id: string) => void) => Promise<void> | void;
   fetchReferenceById?: (refType: string, id: string) => Promise<unknown | null>;
   handleChange: (key: string, value: unknown) => void;
-  getNumberInputValue: (key: string, value: unknown) => string;
-  handleNumberChange: (key: string, raw: string) => void;
+  getNumberInputValue: (key: string, value: unknown, inputFormat?: NumberInputFormat) => string;
+  handleNumberChange: (key: string, raw: string, inputFormat?: NumberInputFormat) => void;
   handleNumberBlur: (
     key: string,
     raw: string,
     valueType: NumberValueType,
+    inputFormat?: NumberInputFormat,
     applyChange?: (val: number | '') => void
   ) => void;
-  getNumberPlaceholder: (labelText: string, keyName?: string) => string;
+  getNumberPlaceholder: (labelText: string, keyName?: string, inputFormat?: NumberInputFormat) => string;
   renderFieldLabel: (label: string, description?: string, action?: ReactNode) => ReactNode;
 }
 
@@ -584,6 +586,7 @@ export default function ArrayObjectField({
                 if (itemConfig.type === 'number' || itemConfig.type === 'integer') {
                   const itemKeyPath = `${fieldKey}.${idx}.${itemKey}`;
                   const itemNumberType: NumberValueType = itemConfig.type === 'integer' ? 'integer' : 'number';
+                  const itemNumberFormat: NumberInputFormat = itemUi.number_format === 'dragon_era_year' ? 'dragon_era_year' : 'standard';
                   return (
                     <div key={itemKey} className="form-field mb-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">{itemLabel}</label>
@@ -591,12 +594,12 @@ export default function ArrayObjectField({
                         type="text"
                         inputMode="decimal"
                         className={inputBaseClass}
-                      value={getNumberInputValue(itemKeyPath, itemValue)}
-                      onChange={(e) => handleNumberChange(itemKeyPath, e.target.value)}
+                      value={getNumberInputValue(itemKeyPath, itemValue, itemNumberFormat)}
+                      onChange={(e) => handleNumberChange(itemKeyPath, e.target.value, itemNumberFormat)}
                         onBlur={(e) =>
-                          handleNumberBlur(itemKeyPath, e.target.value, itemNumberType, (val) => updateValue(val))
+                          handleNumberBlur(itemKeyPath, e.target.value, itemNumberType, itemNumberFormat, (val) => updateValue(val))
                         }
-                        placeholder={getNumberPlaceholder(itemLabel, itemKey)}
+                        placeholder={getNumberPlaceholder(itemLabel, itemKey, itemNumberFormat)}
                       />
                     </div>
                   );

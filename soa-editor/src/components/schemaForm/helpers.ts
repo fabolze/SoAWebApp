@@ -1,6 +1,7 @@
 import { asRecord } from './types';
 
 export type NumberValueType = 'number' | 'integer';
+export type NumberInputFormat = 'standard' | 'dragon_era_year';
 
 const schemaNameOverrides: Record<string, string> = {
   'content-packs': 'content_packs',
@@ -52,7 +53,44 @@ export function normalizeDecimalInput(raw: string): string {
   return raw.replace(',', '.');
 }
 
-export function parseNumberByType(raw: string, valueType: NumberValueType): number | null {
+function groupThousands(value: string): string {
+  return value.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+export function formatDragonEraYear(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '';
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric) || !Number.isInteger(numeric)) return String(value);
+  const absolute = Math.abs(numeric);
+  const formatted = groupThousands(String(absolute));
+  if (numeric < 0) return `-${formatted} b.D.`;
+  return `${formatted} a.D.`;
+}
+
+export function parseDragonEraYear(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const eraMatch = trimmed.match(/^([+-]?)\s*([0-9][0-9.\s_]*)\s*([ab])\s*\.?\s*d\s*\.?\s*$/i);
+  const plainMatch = trimmed.match(/^([+-]?)\s*([0-9][0-9.\s_]*)\s*$/);
+  const match = eraMatch || plainMatch;
+  if (!match) return null;
+
+  const sign = match[1];
+  const digits = match[2].replace(/[.\s_]/g, '');
+  if (!/^\d+$/.test(digits)) return null;
+
+  const year = Number.parseInt(digits, 10);
+  if (!Number.isFinite(year)) return null;
+
+  const era = eraMatch ? match[3].toLowerCase() : '';
+  if (era === 'b') return -year;
+  if (era === 'a') return sign === '-' ? null : year;
+  return sign === '-' ? -year : year;
+}
+
+export function parseNumberByType(raw: string, valueType: NumberValueType, inputFormat: NumberInputFormat = 'standard'): number | null {
+  if (inputFormat === 'dragon_era_year') return parseDragonEraYear(raw);
   if (valueType === 'integer') {
     if (!/^-?\d+$/.test(raw)) return null;
     const parsedInt = parseInt(raw, 10);
@@ -62,7 +100,19 @@ export function parseNumberByType(raw: string, valueType: NumberValueType): numb
   return Number.isNaN(parsedFloat) ? null : parsedFloat;
 }
 
-export function getNumberPlaceholder(labelText: string, keyName?: string): string {
+export function formatNumberInputValue(value: unknown, inputFormat: NumberInputFormat = 'standard'): string {
+  if (value === null || value === undefined) return '';
+  if (inputFormat === 'dragon_era_year') return formatDragonEraYear(value);
+  return String(value);
+}
+
+export function normalizeNumberInput(raw: string, inputFormat: NumberInputFormat = 'standard'): string {
+  if (inputFormat === 'dragon_era_year') return raw;
+  return normalizeDecimalInput(raw);
+}
+
+export function getNumberPlaceholder(labelText: string, keyName?: string, inputFormat: NumberInputFormat = 'standard'): string {
+  if (inputFormat === 'dragon_era_year') return 'e.g. -50.000 b.D. or 10.000 a.D.';
   const lower = `${labelText} ${keyName || ''}`.toLowerCase();
   if (lower.includes('multiplier')) return 'e.g. 0.8';
   if (lower.includes('chance') || lower.includes('%')) return 'e.g. 25';

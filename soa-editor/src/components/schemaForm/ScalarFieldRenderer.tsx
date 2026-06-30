@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { NumberValueType } from './helpers';
+import type { NumberInputFormat, NumberValueType } from './helpers';
 import type { SchemaFieldUiConfig } from './types';
 
 interface ScalarFieldRendererProps {
@@ -11,15 +11,16 @@ interface ScalarFieldRendererProps {
   value: unknown;
   inputBaseClass: string;
   handleChange: (key: string, value: unknown) => void;
-  getNumberInputValue: (key: string, value: unknown) => string;
-  handleNumberChange: (key: string, raw: string) => void;
+  getNumberInputValue: (key: string, value: unknown, inputFormat?: NumberInputFormat) => string;
+  handleNumberChange: (key: string, raw: string, inputFormat?: NumberInputFormat) => void;
   handleNumberBlur: (
     key: string,
     raw: string,
     valueType: NumberValueType,
+    inputFormat?: NumberInputFormat,
     applyChange?: (val: number | '') => void
   ) => void;
-  getNumberPlaceholder: (labelText: string, keyName?: string) => string;
+  getNumberPlaceholder: (labelText: string, keyName?: string, inputFormat?: NumberInputFormat) => string;
   renderFieldLabel: (label: string, description?: string, action?: ReactNode) => ReactNode;
 }
 
@@ -56,6 +57,7 @@ export default function ScalarFieldRenderer({
   }
 
   const valueType: NumberValueType = type === 'integer' ? 'integer' : 'number';
+  const inputFormat: NumberInputFormat = ui.number_format === 'dragon_era_year' ? 'dragon_era_year' : 'standard';
   return (
     <div key={fieldKey} className="form-field">
       {renderFieldLabel(label, description)}
@@ -63,10 +65,10 @@ export default function ScalarFieldRenderer({
         type="text"
         inputMode="decimal"
         className={inputBaseClass}
-        value={getNumberInputValue(fieldKey, value)}
-        onChange={(e) => handleNumberChange(fieldKey, e.target.value)}
-        onBlur={(e) => handleNumberBlur(fieldKey, e.target.value, valueType, (val) => handleChange(fieldKey, val))}
-        placeholder={getNumberPlaceholder(label, fieldKey)}
+        value={getNumberInputValue(fieldKey, value, inputFormat)}
+        onChange={(e) => handleNumberChange(fieldKey, e.target.value, inputFormat)}
+        onBlur={(e) => handleNumberBlur(fieldKey, e.target.value, valueType, inputFormat, (val) => handleChange(fieldKey, val))}
+        placeholder={getNumberPlaceholder(label, fieldKey, inputFormat)}
       />
     </div>
   );

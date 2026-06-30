@@ -36,11 +36,19 @@
     },
     "start_year": {
       "type": "integer",
-      "description": "Optional: starting year (for chronological sorting)"
+      "description": "Optional: starting year (for chronological sorting)",
+      "ui": {
+        "number_format": "dragon_era_year",
+        "label": "Start Year"
+      }
     },
     "end_year": {
       "type": "integer",
-      "description": "Optional: ending year (null if ongoing or undefined)"
+      "description": "Optional: ending year (null if ongoing or undefined)",
+      "ui": {
+        "number_format": "dragon_era_year",
+        "label": "End Year"
+      }
     },
     "tags": {
       "type": "array",

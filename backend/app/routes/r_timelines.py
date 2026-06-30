@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import request, jsonify
 from backend.app.db.init_db import get_db_session
+from backend.app.utils.dragon_era import parse_dragon_era_year
 
 class TimelineRoute(BaseRoute):
     def __init__(self):
@@ -26,8 +27,8 @@ class TimelineRoute(BaseRoute):
         
         # Optional fields
         timeline.description = data.get("description")
-        timeline.start_year = data.get("start_year")
-        timeline.end_year = data.get("end_year")
+        timeline.start_year = parse_dragon_era_year(data.get("start_year"))
+        timeline.end_year = parse_dragon_era_year(data.get("end_year"))
         
         timeline.tags = data.get("tags", [])
 

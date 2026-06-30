@@ -381,3 +381,20 @@ def test_source_json_coercion_rejects_malformed_arrays():
         assert "effects" in str(exc)
     else:
         raise AssertionError("Malformed source JSON array should fail")
+
+
+def test_timeline_csv_coercion_accepts_dragon_era_years():
+    row = csv_tools.coerce_row_from_schema(
+        "timelines",
+        {
+            "id": "timeline-1",
+            "slug": "ancient-era",
+            "name": "Ancient Era",
+            "start_year": "-50.000 b.D.",
+            "end_year": "10.000 a.D.",
+        },
+        strict_json=True,
+    )
+
+    assert row["start_year"] == -50000
+    assert row["end_year"] == 10000

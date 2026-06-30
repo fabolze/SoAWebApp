@@ -11,6 +11,7 @@ from sqlalchemy.types import Enum as SAEnum
 from sqlalchemy.orm import object_session
 
 from backend.app.routes.base_route import ROUTE_REGISTRY
+from backend.app.utils.dragon_era import parse_dragon_era_year
 
 UE_ROW_KEY_HEADER = "Name"
 CSVExportMode = Literal["ue", "source"]
@@ -551,6 +552,13 @@ def coerce_row_from_schema(table_name: str, row: Dict[str, str], strict_json: bo
                     coerced[key] = parsed if parsed is not None else _coerce_primitive(value)
                 continue
             if field_type == "integer":
+                field_ui = field_schema.get("ui") if isinstance(field_schema.get("ui"), dict) else {}
+                if field_ui.get("number_format") == "dragon_era_year":
+                    try:
+                        coerced[key] = parse_dragon_era_year(value)
+                    except Exception:
+                        coerced[key] = _coerce_primitive(value)
+                    continue
                 try:
                     coerced[key] = int(value)
                 except Exception:

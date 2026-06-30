@@ -1,1 +1,10 @@
 Name,id,slug,name,description,start_year,end_year,tags
+tl-main-01,01KWA2F4C46NA72DM3QWMME3KZ,tl_main_01,Main Story Chapter 01,After the dark powers rituals failed some of the dark powers escaped and in that Avatars were sent out to follow those. ,10,11,"[""story"", ""main"", ""dark powers"", ""avatars""]"
+tl-lore-01,01KWC16H7932KYVJBTVGYVDTTZ,tl_lore_01,Kosmischer Ursprung,"Das Universum entsteht aus einem urknallartigen Ereignis. Licht- und Schattenpartikel breiten sich aus und bilden die Grundlage von Magie, Materie und Leben.",,,"[""lore"", ""story""]"
+tl-lore-02,01KWC2E593DEZZ7CG03YBZWYC4,tl_lore_02,Ära der Abbilder,"Bewusste Abbilder entstehen; Luminae und Umbranae bestehen bereits; Elysia, Shanoir, Caaldao und Altrail werden geformt",,,"[""lore""]"
+tl-lore-03,01KWCCR706JFE1YE04TW47H6QC,tl_lore_03,Zeitalter der Konflikte,Kriege der Abbilder; Konflikte werden auf einzelne Welten verlagert; erste große Gleichgewichtskatastrophen,-700000,-300,[]
+tl-lore-04,01KWCXSDXAWF7XQYBSSNV47TKE,tl_lore_04,Zeitalter der Dark Powers,"Erkenntnis, dass Abbilder nicht vernichtet werden können; Entwicklung und Durchführung der Bindung",-300,0,[]
+tl-lore-05,01KWCXV1WNJY41GEGX2FKN6HWM,tl_lore_05,Das Zeitalter der Drachen und Vakariels Fall,"Neuer Schattenkrieg, Aufstieg der Drachen, Vakariels Heldentaten, Auras Tod, Verbannung und jahrhundertelanges verborgenes Wirken",0,430,"[""lore""]"
+tl-lore-06,01KWCXXM9TZT0K5PWQY25911BG,tl_lore_06,Die Zeit der Brüder Roznoh und Raznah,"5
+Geburt und Aufstieg der Brüder, Raznahs Ritual, Exil, Kult der Mitternacht und spätere Haupthandlung",430,630,[]
+tl-lore-07,01KWCXZ65G595PRA2VKZN8M0GR,tl_lore_07,Spiel-Einstieg,"Abschied der Brüder, Begegnung mit dem Spielercharakter und Beginn der Haupthandlung fünfzehn Jahre später",630,645,"[""lore"", ""story""]"
