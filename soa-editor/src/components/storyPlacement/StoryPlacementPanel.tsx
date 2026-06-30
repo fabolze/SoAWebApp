@@ -284,7 +284,7 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
               </select>
             </label>
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2">
             {CROSS_ENTITY_CONSEQUENCE_PRESETS[consequenceKind].map((preset) => {
               const activePreset = storyPlacementPresetIsActive(consequenceDraft, preset);
               return <button

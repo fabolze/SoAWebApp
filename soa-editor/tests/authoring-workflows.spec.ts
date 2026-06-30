@@ -568,6 +568,72 @@ test("world packet surfaces structured bundle error paths", async ({ page }) => 
   await expect(page.getByText(/encounter_tables\[0\]\.encounter_entries\[0\]\.encounter_id/)).toBeVisible();
 });
 
+test("world builder quick edits a sketch location without opening location authoring", async ({ page }) => {
+  const world = { ...emptyWorld, locations: [] as Array<Record<string, unknown>> };
+  let savedPayload: Record<string, unknown> | null = null;
+  await mockApi(page, world, async (payload, route) => {
+    savedPayload = payload;
+    world.locations = payload.locations as Array<Record<string, unknown>>;
+    await fulfillJson(route, world);
+  });
+  await page.goto("/author/world");
+
+  await page.getByRole("button", { name: "Sketch" }).click();
+  await page.getByTestId("world-map-board").click({ position: { x: 360, y: 260 } });
+  await expect(page.getByText("Unsaved sketch location. Use Quick Edit")).toBeVisible();
+  await expect(page.getByText("Inline Location Packet")).toHaveCount(0);
+
+  await page.getByPlaceholder("Location name").fill("Glass Harbor");
+  await page.getByPlaceholder("Region").fill("North Coast");
+  await page.getByRole("button", { name: "Save Quick Edit" }).click();
+
+  await expect.poll(() => savedPayload).not.toBeNull();
+  const savedLocation = (savedPayload?.locations as Array<Record<string, unknown>>)[0];
+  expect(savedLocation.name).toBe("Glass Harbor");
+  expect(savedLocation.region).toBe("North Coast");
+  expect(savedLocation.coordinates).toEqual({ x: expect.any(Number), y: expect.any(Number) });
+  await expect(page.getByText("Location quick edit saved.")).toBeVisible();
+  await expect(page.getByText("Inline Location Packet")).toBeVisible();
+});
+
+test("world builder restores a sketch draft into quick edit on page load", async ({ page }) => {
+  const world = { ...emptyWorld, locations: [] as Array<Record<string, unknown>> };
+  let savedPayload: Record<string, unknown> | null = null;
+  await page.addInitScript(() => {
+    localStorage.setItem("soa.draft.locations.draft-location-1", JSON.stringify({
+      data: {
+        id: "draft-location-1",
+        slug: "draft-location-1",
+        name: "Restored Draft",
+        description: "",
+        location_type: "Zone",
+        place_kind: "Wilderness",
+        coordinates: { x: 42, y: 38 },
+        level_range: { min: 1, max: 5 },
+        environment_tags: [],
+        tags: ["sketch"],
+      },
+      ts: Date.now(),
+    }));
+  });
+  await mockApi(page, world, async (payload, route) => {
+    savedPayload = payload;
+    world.locations = payload.locations as Array<Record<string, unknown>>;
+    await fulfillJson(route, world);
+  });
+  await page.goto("/author/world");
+
+  await expect(page.getByText("Unsaved sketch location. Use Quick Edit")).toBeVisible();
+  await expect(page.getByPlaceholder("Location name")).toHaveValue("Restored Draft");
+  await page.getByPlaceholder("Region").fill("Recovered Coast");
+  await page.getByRole("button", { name: "Save Quick Edit" }).click();
+
+  await expect.poll(() => savedPayload).not.toBeNull();
+  const savedLocation = (savedPayload?.locations as Array<Record<string, unknown>>)[0];
+  expect(savedLocation.id).toBe("draft-location-1");
+  expect(savedLocation.region).toBe("Recovered Coast");
+});
+
 test("world builder places a selected location state through a semantic preset", async ({ page }) => {
   const world = {
     ...emptyWorld,

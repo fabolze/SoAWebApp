@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DirtyStateContext, type DirtySources } from "./DirtyStateStore";
 
 export function DirtyStateProvider({ children }: { children: React.ReactNode }) {
@@ -26,6 +26,16 @@ export function DirtyStateProvider({ children }: { children: React.ReactNode }) 
   const confirmNavigate = useCallback(() => {
     if (!isDirty) return true;
     return window.confirm("You have unsaved changes. Discard them?");
+  }, [isDirty]);
+
+  useEffect(() => {
+    const handler = (event: BeforeUnloadEvent) => {
+      if (!isDirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
   const value = useMemo(

@@ -437,11 +437,15 @@ export default function WorldBuilderPage() {
   const encountersById = useMemo(() => new Map((payload?.encounters ?? []).map((encounter) => [entryId(encounter), encounter])), [payload]);
   const questsById = useMemo(() => new Map((payload?.quests ?? []).map((quest) => [entryId(quest), quest])), [payload]);
   const selected = useMemo(() => locationsById.get(selectedId), [locationsById, selectedId]);
+  const locationDraftIds = useMemo(() => new Set(locationDrafts.map(entryId)), [locationDrafts]);
+  const selectedLocationDraft = useMemo(() => locationDrafts.find((draft) => entryId(draft) === selectedId), [locationDrafts, selectedId]);
+  const selectedLocation = selected ?? selectedLocationDraft;
+  const selectedIsDraft = Boolean(selectedLocationDraft && !selected);
   const selectedRoute = useMemo(() => routesById.get(selectedRouteId), [routesById, selectedRouteId]);
-  const selectedRoutes = useMemo(() => routes.filter((route) => routeMatchesLocation(route, selectedId)), [routes, selectedId]);
-  const selectedPois = useMemo(() => (payload?.pois ?? []).filter((poi) => text(poi.location_id) === selectedId), [payload, selectedId]);
-  const selectedEncounterTables = useMemo(() => (payload?.encounter_tables ?? []).filter((table) => text(table.location_id) === selectedId), [payload, selectedId]);
-  const selectedBriefs = useMemo(() => (payload?.creative_briefs ?? []).filter((brief) => text(brief.location_id) === selectedId), [payload, selectedId]);
+  const selectedRoutes = useMemo(() => selectedIsDraft ? [] : routes.filter((route) => routeMatchesLocation(route, selectedId)), [routes, selectedId, selectedIsDraft]);
+  const selectedPois = useMemo(() => selectedIsDraft ? [] : (payload?.pois ?? []).filter((poi) => text(poi.location_id) === selectedId), [payload, selectedId, selectedIsDraft]);
+  const selectedEncounterTables = useMemo(() => selectedIsDraft ? [] : (payload?.encounter_tables ?? []).filter((table) => text(table.location_id) === selectedId), [payload, selectedId, selectedIsDraft]);
+  const selectedBriefs = useMemo(() => selectedIsDraft ? [] : (payload?.creative_briefs ?? []).filter((brief) => text(brief.location_id) === selectedId), [payload, selectedId, selectedIsDraft]);
   const selectedRouteIds = useMemo(() => new Set(selectedRoutes.map(entryId)), [selectedRoutes]);
   const selectedRouteEvents = useMemo(() => (payload?.route_event_bindings ?? []).filter((binding) => selectedRouteIds.has(text(binding.route_id))), [payload, selectedRouteIds]);
   const selectedRouteBindings = useMemo(() => (payload?.route_event_bindings ?? []).filter((binding) => text(binding.route_id) === selectedRouteId), [payload, selectedRouteId]);
@@ -607,6 +611,18 @@ export default function WorldBuilderPage() {
   const biomes = useMemo(() => uniqueOptions(locations.map(effectiveBiome)), [locations]);
   const routeTypes = useMemo(() => uniqueOptions(routes.map((route) => text(route.route_type))), [routes]);
 
+  useEffect(() => {
+    if (loading) return;
+    if (requestedSelectedId && locationDraftIds.has(requestedSelectedId) && selectedId !== requestedSelectedId) {
+      setSelectedId(requestedSelectedId);
+      setSelectedRouteId("");
+      return;
+    }
+    if (selectedId && (locationsById.has(selectedId) || locationDraftIds.has(selectedId))) return;
+    const fallback = locations[0] ? entryId(locations[0]) : locationDrafts[0] ? entryId(locationDrafts[0]) : "";
+    if (fallback !== selectedId) setSelectedId(fallback);
+  }, [loading, locationDraftIds, locationDrafts, locations, locationsById, requestedSelectedId, selectedId]);
+
   const filteredLocations = useMemo(() => locations.filter((location) => {
     const id = entryId(location);
     const storyBeats = (storyByLocation.get(id) ?? []).filter((beat) => storyBeatAllowed(beat, storyFilter));
@@ -669,6 +685,8 @@ export default function WorldBuilderPage() {
   }, [load, locationsById]);
 
   const quickSaveLocation = useCallback(async (next: EntryRecord) => {
+    const id = entryId(next);
+    const wasDraft = locationDrafts.some((draft) => entryId(draft) === id);
     const response = await apiFetch("/api/ui/world_builder/bundle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -678,9 +696,13 @@ export default function WorldBuilderPage() {
       setNotice(`Could not save quick edit changes: ${await responseErrorMessage(response, "World bundle failed to save.")}`);
       return;
     }
+    if (wasDraft) {
+      removeDraft("locations", id);
+      refreshLocationDrafts();
+    }
     setNotice("Location quick edit saved.");
     await load();
-  }, [load]);
+  }, [load, locationDrafts, refreshLocationDrafts]);
 
   const saveWorldPacket = useCallback(async (patch: WorldBundlePatch): Promise<boolean> => {
     const response = await apiFetch("/api/ui/world_builder/bundle", {
@@ -701,6 +723,8 @@ export default function WorldBuilderPage() {
     const draft = createLocationDraftAt(coordinates);
     writeDraft("locations", draft);
     refreshLocationDrafts();
+    setSelectedId(entryId(draft));
+    setSelectedRouteId("");
     setNotice("Sketch location draft added to the map.");
   }, [refreshLocationDrafts]);
 
@@ -775,10 +799,12 @@ export default function WorldBuilderPage() {
   }, [navigate]);
 
   const discardLocationDraft = useCallback((draft: EntryRecord) => {
-    removeDraft("locations", entryId(draft));
+    const id = entryId(draft);
+    removeDraft("locations", id);
     refreshLocationDrafts();
+    if (selectedId === id) setSelectedId(locations[0] ? entryId(locations[0]) : "");
     setNotice("Sketch location draft discarded.");
-  }, [refreshLocationDrafts]);
+  }, [locations, refreshLocationDrafts, selectedId]);
 
   const handleBoardClick = (event: MouseEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget || mode !== "sketch") return;
@@ -860,7 +886,7 @@ export default function WorldBuilderPage() {
 
   return (
     <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="mx-auto max-w-7xl space-y-4">
+      <div className="w-full max-w-none space-y-4">
         <section className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -883,7 +909,7 @@ export default function WorldBuilderPage() {
           {(payload?.warnings.length ?? 0) > 0 && <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">{payload?.warnings.length} world packet warning{payload?.warnings.length === 1 ? "" : "s"} found.</div>}
         </section>
 
-        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_360px]">
+        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[240px_minmax(440px,1fr)_minmax(500px,0.75fr)]">
           <section className="rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Hierarchy</div>
             <div className="max-h-[760px] overflow-y-auto pr-1">
@@ -968,6 +994,7 @@ export default function WorldBuilderPage() {
 
             <div
               ref={boardRef}
+              data-testid="world-map-board"
               className="relative h-[680px] overflow-hidden bg-white dark:bg-slate-950"
               onClick={handleBoardClick}
               onPointerMove={handleBoardPointerMove}
@@ -1060,12 +1087,13 @@ export default function WorldBuilderPage() {
                 return (
                   <div
                     key={`draft-${id}`}
-                    className="absolute flex max-w-[190px] -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-dashed border-amber-500 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-900 shadow dark:bg-amber-950 dark:text-amber-100"
+                    className={`absolute flex max-w-[230px] -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-dashed px-2 py-1 text-xs font-semibold shadow ${selectedId === id ? "border-blue-700 bg-blue-700 text-white ring-2 ring-blue-300" : "border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100"}`}
                     style={{ left: `${coordinates.x}%`, top: `${coordinates.y}%` }}
                     title="Unsaved sketch location"
                   >
-                    <button type="button" className="min-w-0 truncate" onClick={() => openLocationDraft(draft)}>{label(draft, "Sketch Location")}</button>
-                    <button type="button" className="rounded bg-amber-200 px-1 text-[10px] text-amber-950 dark:bg-amber-800 dark:text-amber-50" onClick={() => discardLocationDraft(draft)}>Discard</button>
+                    <button type="button" className="min-w-0 truncate" onClick={() => { setSelectedId(id); setSelectedRouteId(""); }}>{label(draft, "Sketch Location")}</button>
+                    <button type="button" className="rounded bg-white/25 px-1 text-[10px]" onClick={() => openLocationDraft(draft)}>Open</button>
+                    <button type="button" className="rounded bg-white/25 px-1 text-[10px]" onClick={() => discardLocationDraft(draft)}>Discard</button>
                   </div>
                 );
               })}
@@ -1082,7 +1110,7 @@ export default function WorldBuilderPage() {
             </div>
           </section>
 
-          <section className="space-y-4 rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <section className="space-y-4 rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 xl:col-span-2 2xl:col-span-1">
             {selectedRoute ? (
               <RouteDetails
                 route={selectedRoute}
@@ -1093,10 +1121,21 @@ export default function WorldBuilderPage() {
                 storyBeats={selectedRouteStoryBeats}
                 onCreateEncounterEvent={() => createRouteEncounterEventDraft(selectedRoute)}
               />
-            ) : selected ? (
-              <>
+            ) : selectedLocation ? (
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4">
+                {!selectedIsDraft && (
+                  <StoryPlacementPanel
+                    entityKind="location"
+                    entityId={entryId(selectedLocation)}
+                    entityLabel={label(selectedLocation)}
+                    entity={selectedLocation}
+                    storyPacket={storyPacket}
+                    onStoryPacketChange={setStoryPacket}
+                  />
+                )}
                 <LocationDetails
-                  location={selected}
+                  location={selectedLocation}
+                  isDraft={selectedIsDraft}
                   routes={selectedRoutes}
                   locationsById={locationsById}
                   encountersById={encountersById}
@@ -1114,17 +1153,9 @@ export default function WorldBuilderPage() {
                   onQuickSave={quickSaveLocation}
                   onSavePacket={saveWorldPacket}
                   onCreateRoute={startRouteFromSelected}
-                  onCreatePoi={() => createPoiDraft(selected)}
+                  onCreatePoi={() => selected && createPoiDraft(selected)}
                 />
-                <StoryPlacementPanel
-                  entityKind="location"
-                  entityId={entryId(selected)}
-                  entityLabel={label(selected)}
-                  entity={selected}
-                  storyPacket={storyPacket}
-                  onStoryPacketChange={setStoryPacket}
-                />
-              </>
+              </div>
             ) : (
               <div className="text-sm text-slate-600 dark:text-slate-300">Select a location to inspect its world-building packet.</div>
             )}
@@ -1610,6 +1641,7 @@ function InlineWorldPacketEditor({
 
 function LocationDetails({
   location,
+  isDraft = false,
   routes,
   locationsById,
   encountersById,
@@ -1630,6 +1662,7 @@ function LocationDetails({
   onCreatePoi,
 }: {
   location: EntryRecord;
+  isDraft?: boolean;
   routes: EntryRecord[];
   locationsById: Map<string, EntryRecord>;
   encountersById: Map<string, EntryRecord>;
@@ -1669,17 +1702,24 @@ function LocationDetails({
           {location.is_playable_space !== false && <Badge>Playable</Badge>}
           {location.is_world_map_node !== false && <Badge>Map Node</Badge>}
         </div>
+        {isDraft && (
+          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+            Unsaved sketch location. Use Quick Edit to name and save it into the world bundle.
+          </div>
+        )}
       </div>
 
       <LocationQuickEdit location={location} onSave={onQuickSave} />
-      <InlineWorldPacketEditor
-        location={location}
-        pois={pois}
-        encounterTables={encounterTables}
-        briefs={briefs}
-        encountersById={encountersById}
-        onSave={onSavePacket}
-      />
+      {!isDraft && (
+        <InlineWorldPacketEditor
+          location={location}
+          pois={pois}
+          encounterTables={encounterTables}
+          briefs={briefs}
+          encountersById={encountersById}
+          onSave={onSavePacket}
+        />
+      )}
       <LocationStoryStatePanel
         locationId={id}
         occurrences={storyOccurrences}
@@ -1691,8 +1731,8 @@ function LocationDetails({
 
       <div className="grid gap-2 sm:grid-cols-2">
         <Link className={inactiveButton} to={withReturnTo(`/author/locations/${encodeURIComponent(id)}`)}>Edit Location</Link>
-        <button type="button" className={inactiveButton} onClick={onCreateRoute}>Create Route</button>
-        <button type="button" className={inactiveButton} onClick={onCreatePoi}>Create POI</button>
+        <button type="button" className={inactiveButton} disabled={isDraft} onClick={onCreateRoute}>Create Route</button>
+        <button type="button" className={inactiveButton} disabled={isDraft} onClick={onCreatePoi}>Create POI</button>
         <Link className={inactiveButton} to={withReturnTo("/location-creative-briefs")}>Open Briefs</Link>
       </div>
 

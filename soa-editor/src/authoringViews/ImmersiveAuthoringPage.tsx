@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   CheckIcon,
@@ -443,6 +443,7 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
             onChange={(next) => setData(next)}
             changedFieldKeys={changedFieldKeys}
             persisted={!isNewDraft}
+            isDirty={isDirty}
           />
         )}
 
@@ -542,6 +543,7 @@ function EntityAuthoringSurface({
   onChange,
   changedFieldKeys,
   persisted,
+  isDirty,
 }: {
   config: AuthoringConfig;
   schema: SchemaDefinition;
@@ -549,6 +551,7 @@ function EntityAuthoringSurface({
   onChange: (next: EntryRecord) => void;
   changedFieldKeys: string[];
   persisted: boolean;
+  isDirty: boolean;
 }) {
   if (config.kind === "shop") {
     return <ShopAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} />;
@@ -557,7 +560,7 @@ function EntityAuthoringSurface({
     return <CharacterAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} />;
   }
   if (config.kind === "location") {
-    return <LocationAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} />;
+    return <LocationAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} isDirty={isDirty} />;
   }
   return <ItemAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} />;
 }
@@ -907,7 +910,7 @@ function CharacterAuthoringSurface(props: AuthoringSurfaceProps) {
 }
 
 function LocationAuthoringSurface(props: AuthoringSurfaceProps) {
-  const { schema, data, onChange, persisted } = props;
+  const { schema, data, onChange, persisted, isDirty = false } = props;
   const biomeOptions = getOptions(schema.properties?.biome);
   const modifierOptions = getOptions(schema.properties?.biome_modifier);
   const locationTypeOptions = getOptions(schema.properties?.location_type);
@@ -970,7 +973,7 @@ function LocationAuthoringSurface(props: AuthoringSurfaceProps) {
           </div>
         </AuthoringPanel>
         <AuthoringPanel title="Routes" subtitle="Movement edges connected to this location. Routes are separate records, not embedded location fields.">
-          <LocationRoutesPanel location={data} persisted={persisted} />
+          <LocationRoutesPanel location={data} persisted={persisted} isDirty={isDirty} />
         </AuthoringPanel>
       </div>
     </div>
@@ -984,6 +987,7 @@ interface AuthoringSurfaceProps {
   onChange: (next: EntryRecord) => void;
   changedFieldKeys: string[];
   persisted: boolean;
+  isDirty?: boolean;
 }
 
 function ReferenceArrayPicker({
@@ -1038,9 +1042,11 @@ function ReferenceArrayPicker({
   );
 }
 
-function LocationRoutesPanel({ location, persisted }: { location: EntryRecord; persisted: boolean }) {
+function LocationRoutesPanel({ location, persisted, isDirty }: { location: EntryRecord; persisted: boolean; isDirty: boolean }) {
   const [routes, setRoutes] = useState<EntryRecord[]>([]);
   const [locations, setLocations] = useState<EntryRecord[]>([]);
+  const navigate = useNavigate();
+  const { confirmNavigate } = useDirtyState();
   const locationId = displayText(location.id);
 
   useEffect(() => {
@@ -1067,9 +1073,10 @@ function LocationRoutesPanel({ location, persisted }: { location: EntryRecord; p
 
   const locationsById = useMemo(() => new Map(locations.map((item) => [displayText(item.id), item])), [locations]);
   const connected = routes.filter((route) => displayText(route.from_location_id) === locationId || displayText(route.to_location_id) === locationId);
+  const createRouteDisabled = !persisted || !locationId || isDirty;
 
   const createRouteDraft = () => {
-    if (!locationId) return;
+    if (createRouteDisabled) return;
     const id = generateUlid();
     const label = `${displayText(location.name, "Location")} Route`;
     const draft = {
@@ -1089,7 +1096,11 @@ function LocationRoutesPanel({ location, persisted }: { location: EntryRecord; p
     localStorage.setItem(`soa.draft.location_routes.${id}`, JSON.stringify({ data: draft, ts: Date.now() }));
     localStorage.setItem("soa.draft.last.location_routes", `soa.draft.location_routes.${id}`);
     localStorage.setItem("soa.workspace.location_routes", JSON.stringify({ search: "", searchField: "__all__", showEditor: true, selectedEntryId: id }));
-    window.location.assign("/location-routes");
+    navigate("/location-routes");
+  };
+
+  const guardNavigation = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!confirmNavigate()) event.preventDefault();
   };
 
   return (
@@ -1098,12 +1109,14 @@ function LocationRoutesPanel({ location, persisted }: { location: EntryRecord; p
         <div className="text-sm text-slate-600 dark:text-slate-400">
           {connected.length} connected route{connected.length === 1 ? "" : "s"}
         </div>
-        <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={!persisted || !locationId} onClick={createRouteDraft}>
+        <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={createRouteDisabled} onClick={createRouteDraft}>
           Create Route From Here
         </button>
       </div>
       {!persisted ? (
         <div className="rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Save this location before creating route edges.</div>
+      ) : isDirty ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Save current location changes before creating a route edge.</div>
       ) : connected.length === 0 ? (
         <div className="rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">No route edges connect to this location yet.</div>
       ) : (
@@ -1127,8 +1140,8 @@ function LocationRoutesPanel({ location, persisted }: { location: EntryRecord; p
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {otherId && <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={`/author/locations/${encodeURIComponent(otherId)}`}>{other ? rowLabel(other, otherId) : "Open Location"}</Link>}
-                    <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={`/location-routes?selected=${encodeURIComponent(displayText(route.id))}`}>Open Route</Link>
+                    {otherId && <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={`/author/locations/${encodeURIComponent(otherId)}`} onClick={guardNavigation}>{other ? rowLabel(other, otherId) : "Open Location"}</Link>}
+                    <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={`/location-routes?selected=${encodeURIComponent(displayText(route.id))}`} onClick={guardNavigation}>Open Route</Link>
                   </div>
                 </div>
                 <div className="mt-3 grid gap-2 sm:grid-cols-3">

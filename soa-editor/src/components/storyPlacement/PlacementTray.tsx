@@ -52,7 +52,7 @@ export default function PlacementTray({ value, entityLabel, onChange }: Placemen
     </div>
     {workspacePresets.length > 0 && <div className="mt-3" data-testid={`story-presets-${value.target_type}`}>
       <div className="text-[10px] font-semibold uppercase text-slate-500">Quick Story Actions</div>
-      <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2">
         {workspacePresets.map((preset) => {
           const active = storyPlacementPresetIsActive(value, preset);
           return <button
@@ -72,7 +72,7 @@ export default function PlacementTray({ value, entityLabel, onChange }: Placemen
       </div>
     </div>}
     <div className="mt-3 text-[10px] font-semibold uppercase text-slate-500">Generic Placement Roles</div>
-    <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2">
       {GENERIC_STORY_PLACEMENT_PRESETS.map((preset) => {
         const active = storyPlacementPresetIsActive(value, preset);
         return <button

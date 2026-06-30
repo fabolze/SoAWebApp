@@ -23,7 +23,7 @@ function title(value: string): string {
 
 export default function LifecycleFields({ value, beatOptions, onChange }: LifecycleFieldsProps) {
   const patch = (patchValue: Partial<StoryPlacementDraft>) => onChange({ ...value, ...patchValue });
-  return <div className="grid gap-2 sm:grid-cols-2">
+  return <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
     <label className="block text-[10px] font-semibold uppercase text-slate-500">Role
       <select className={`${inputClass} mt-1 normal-case`} value={value.role} onChange={(event) => patch({ role: event.target.value as StoryPlacementDraft["role"] })}>
         {STORY_PLACEMENT_ROLES.map((option) => <option key={option} value={option}>{title(option)}</option>)}
@@ -44,7 +44,7 @@ export default function LifecycleFields({ value, beatOptions, onChange }: Lifecy
         {STORY_IMPORTANCE_LEVELS.map((option) => <option key={option} value={option}>{title(option)}</option>)}
       </select>
     </label>
-    <label className="block text-[10px] font-semibold uppercase text-slate-500 sm:col-span-2">State Label
+    <label className="block text-[10px] font-semibold uppercase text-slate-500 [grid-column:1/-1]">State Label
       <input className={`${inputClass} mt-1 normal-case`} value={value.state_label} onChange={(event) => patch({ state_label: event.target.value })} />
     </label>
     <label className="block text-[10px] font-semibold uppercase text-slate-500">Starts At
@@ -59,10 +59,10 @@ export default function LifecycleFields({ value, beatOptions, onChange }: Lifecy
         {beatOptions.map((beat) => <option key={text(beat.id)} value={text(beat.id)}>{label(beat)}</option>)}
       </select>
     </label>
-    <label className="block text-[10px] font-semibold uppercase text-slate-500 sm:col-span-2">Continuity Group
+    <label className="block text-[10px] font-semibold uppercase text-slate-500 [grid-column:1/-1]">Continuity Group
       <input className={`${inputClass} mt-1 normal-case`} value={value.continuity_group_id} onChange={(event) => patch({ continuity_group_id: event.target.value })} />
     </label>
-    <label className="block text-[10px] font-semibold uppercase text-slate-500 sm:col-span-2">Notes
+    <label className="block text-[10px] font-semibold uppercase text-slate-500 [grid-column:1/-1]">Notes
       <textarea className={`${inputClass} mt-1 min-h-16 normal-case`} value={value.notes} onChange={(event) => patch({ notes: event.target.value })} />
     </label>
   </div>;
