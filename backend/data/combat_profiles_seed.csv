@@ -1,1 +1,2 @@
 Name,id,character_id,enemy_type,aggression,custom_stats,custom_abilities,status_rules,loot_table,currency_rewards,reputation_rewards,xp_reward,related_quests,companion_config,tags
+beast__hostile,01KWHTYWWR17EBR89JRAETC0NA,21871977505a4388bb402f0f4301341d,beast,Hostile,[],[],[],[],[],[],1.0,[],{},"[""creature""]"
