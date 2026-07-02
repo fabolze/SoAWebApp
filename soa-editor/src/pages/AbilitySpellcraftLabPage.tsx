@@ -105,6 +105,14 @@ function cleanPacket(packet: AbilityPacket): AbilityPacket {
   };
 }
 
+function withLiveReadModels(draft: AbilityPacket, base: AbilityPacket): AbilityPacket {
+  return {
+    ...draft,
+    catalogs: base.catalogs,
+    usage: base.usage,
+  };
+}
+
 function effectMap(packet: AbilityPacket): Map<string, EntryRecord> {
   const combined = [...packet.catalogs.effects, ...packet.linked_effects];
   return new Map(combined.map((effect) => [displayText(effect.id), effect]));
@@ -113,6 +121,97 @@ function effectMap(packet: AbilityPacket): Map<string, EntryRecord> {
 function statusMap(packet: AbilityPacket): Map<string, EntryRecord> {
   const combined = [...packet.catalogs.statuses, ...packet.linked_statuses];
   return new Map(combined.map((status) => [displayText(status.id), status]));
+}
+
+function packetForAbility(packet: AbilityPacket, ability: EntryRecord): AbilityPacket {
+  const effects = effectMap(packet);
+  const statuses = statusMap(packet);
+  const linkedEffects = strings(ability.effects).map((id) => effects.get(id)).filter(isRecord);
+  const linkedStatusIds = new Set(linkedEffects.map((effect) => displayText(effect.status_id)).filter(Boolean));
+  return {
+    ...packet,
+    ability,
+    linked_effects: linkedEffects,
+    linked_statuses: Array.from(linkedStatusIds).map((id) => statuses.get(id)).filter(isRecord),
+    requirement: packet.catalogs.requirements.find((entry) => displayText(entry.id) === displayText(ability.requirements_id)) || null,
+    assigned_combat_profile_ids: [],
+    analysis: { similar_abilities: [] },
+    relations: [],
+  };
+}
+
+function cloneAbilityVariantDraft(packet: AbilityPacket): { packet: AbilityPacket; effectUpserts: EntryRecord[]; statusUpserts: EntryRecord[] } {
+  const sourceAbility = packet.ability;
+  const newAbilityId = generateUlid();
+  const effects = effectMap(packet);
+  const statuses = statusMap(packet);
+  const effectIdMap = new Map<string, string>();
+  const statusIdMap = new Map<string, EntryRecord>();
+
+  const clonedEffects: EntryRecord[] = [];
+  strings(sourceAbility.effects).forEach((effectId) => {
+    const effect = effects.get(effectId);
+    if (!effect) return;
+    const newEffectId = generateUlid();
+    effectIdMap.set(effectId, newEffectId);
+    const statusId = displayText(effect.status_id);
+    const clonedStatus = statusId ? cloneStatusReference(statusId, statuses, statusIdMap) : null;
+    clonedEffects.push({
+      ...effect,
+      id: newEffectId,
+      slug: generateSlug(`${displayText(effect.slug, displayText(effect.name, "effect"))}-variant`),
+      name: `${displayText(effect.name, "Effect")} Variant`,
+      status_id: clonedStatus ? displayText(clonedStatus.id) : effect.status_id,
+    });
+  });
+
+  const sourceAbilityId = displayText(sourceAbility.id);
+  const nextAbility = {
+    ...sourceAbility,
+    id: newAbilityId,
+    slug: generateSlug(`${displayText(sourceAbility.slug, displayText(sourceAbility.name, "ability"))}-variant`),
+    name: `${displayText(sourceAbility.name, "Ability")} Variant`,
+    effects: strings(sourceAbility.effects).map((effectId) => effectIdMap.get(effectId) || effectId),
+    effect_links: abilityEffectLinks(sourceAbility).map((link) => ({
+      ...link,
+      id: undefined,
+      effect_id: effectIdMap.get(displayText(link.effect_id)) || displayText(link.effect_id),
+    })),
+  };
+
+  return {
+    packet: {
+      ...packet,
+      ability: nextAbility,
+      linked_effects: clonedEffects,
+      linked_statuses: Array.from(statusIdMap.values()),
+      assigned_combat_profile_ids: [],
+      analysis: { similar_abilities: [] },
+      relations: sourceAbilityId ? [{
+        id: generateUlid(),
+        from_ability_id: newAbilityId,
+        to_ability_id: sourceAbilityId,
+        relation_type: "Variant",
+      }] : [],
+    },
+    effectUpserts: clonedEffects,
+    statusUpserts: Array.from(statusIdMap.values()),
+  };
+}
+
+function cloneStatusReference(statusId: string, statuses: Map<string, EntryRecord>, clones: Map<string, EntryRecord>): EntryRecord | null {
+  const existing = clones.get(statusId);
+  if (existing) return existing;
+  const status = statuses.get(statusId);
+  if (!status) return null;
+  const clone = {
+    ...status,
+    id: generateUlid(),
+    slug: generateSlug(`${displayText(status.slug, displayText(status.name, "status"))}-variant`),
+    name: `${displayText(status.name, "Status")} Variant`,
+  };
+  clones.set(statusId, clone);
+  return clone;
 }
 
 function combatSentence(packet: AbilityPacket): string {
@@ -252,7 +351,7 @@ export default function AbilitySpellcraftLabPage() {
         try {
           const draft = JSON.parse(stored);
           if (draft.packet) {
-            next = draft.packet;
+            next = withLiveReadModels(draft.packet, base);
             effects = rows(draft.effectUpserts);
             statuses = rows(draft.statusUpserts);
             setRestored(true);
@@ -362,6 +461,23 @@ export default function AbilitySpellcraftLabPage() {
     setNotice("Unsaved spellcraft changes reset.");
   };
 
+  const startVariantDraft = (sourceAbility: EntryRecord) => {
+    if (!packet) return;
+    const draft = cloneAbilityVariantDraft(packetForAbility(packet, sourceAbility));
+    localStorage.setItem(draftKey("new"), JSON.stringify({ ...draft, ts: Date.now() }));
+    setPacket(draft.packet);
+    setEffectUpserts(draft.effectUpserts);
+    setStatusUpserts(draft.statusUpserts);
+    setOriginalUpserts({ effects: [], statuses: [] });
+    setSelectedEffectId(displayText(strings(draft.packet.ability.effects)[0]));
+    setRestored(false);
+    setReview(null);
+    setPreviewMutation(null);
+    setReviewError("");
+    setNotice("Created an unsaved variant draft with copied payload records.");
+    if (!isNew) navigate("/author/abilities/new");
+  };
+
   if (loading || !packet) return <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading Ability Spellcraft Lab...</div>;
 
   const allDraftEffects = mergeById(packet.catalogs.effects, effectUpserts);
@@ -426,7 +542,7 @@ export default function AbilitySpellcraftLabPage() {
         <div className="mx-auto max-w-[1800px] space-y-4">
           <Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} advanced={advanced} setAdvanced={setAdvanced} onSave={() => void preview()} onReset={reset} />
           {(notice || restored) && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{restored ? "Restored unsaved Ability Spellcraft draft. " : ""}{notice}</div>}
-          <AbilitySelector packet={packet} />
+          <AbilitySelector packet={packet} onClone={startVariantDraft} />
           {advanced ? (
             <Panel title="Advanced Ability Form" subtitle="Schema-complete escape hatch for uncommon fields and debugging.">
               <SchemaForm schema={abilitySchema as SchemaDefinition} schemaName="abilities" data={packet.ability} onChange={(ability) => setPacket({ ...packet, ability })} />
@@ -466,12 +582,7 @@ export default function AbilitySpellcraftLabPage() {
                   />
                   <AssignmentPanel packet={packet} onToggleProfile={toggleProfileAssignment} />
                   <StatusDefensePanel packet={packet} setPacket={setPacket} />
-                  <RelationshipPanel packet={packet} setPacket={setPacket} onCreateRelated={() => {
-                    const newId = generateUlid();
-                    const next: AbilityPacket = { ...packet, ability: { ...packet.ability, id: newId, slug: generateSlug(`${displayText(packet.ability.slug, displayText(packet.ability.name))}-related`), name: `${displayText(packet.ability.name)} Related`, effect_links: abilityEffectLinks(packet.ability).map((link) => ({ ...link, id: undefined })) }, assigned_combat_profile_ids: [], relations: [{ id: generateUlid(), from_ability_id: newId, to_ability_id: displayText(packet.ability.id), relation_type: "Variant" }] };
-                    localStorage.setItem(draftKey("new"), JSON.stringify({ packet: next, effectUpserts: [], statusUpserts: [], ts: Date.now() }));
-                    navigate("/author/abilities/new");
-                  }} />
+                  <RelationshipPanel packet={packet} setPacket={setPacket} onCreateRelated={() => startVariantDraft(packet.ability)} />
                   <RequirementPanel packet={packet} setPacket={setPacket} />
                 </div>
               </div>
@@ -498,9 +609,14 @@ function Header({ packet, dirty, saving, blockers, advanced, setAdvanced, onSave
   </Panel>;
 }
 
-function AbilitySelector({ packet }: { packet: AbilityPacket }) {
+function AbilitySelector({ packet, onClone }: { packet: AbilityPacket; onClone: (ability: EntryRecord) => void }) {
   const navigate = useNavigate();
-  return <Panel title="Ability Selector" subtitle="Open an existing ability or begin a fresh spellcraft draft."><div className="flex gap-2"><select className={AUTHORING_INPUT_CLASS} value={displayText(packet.ability.id)} onChange={(event) => navigate(`/author/abilities/${encodeURIComponent(event.target.value)}`)}><option value={displayText(packet.ability.id)}>{rowLabel(packet.ability, "Current Ability")}</option>{packet.catalogs.abilities.filter((entry) => displayText(entry.id) !== displayText(packet.ability.id)).map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.id))}</option>)}</select><Link className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm} whitespace-nowrap`} to="/author/abilities/new">New Ability</Link></div></Panel>;
+  const currentId = displayText(packet.ability.id);
+  const options = useMemo(() => mergeById([packet.ability], packet.catalogs.abilities), [packet]);
+  const [selectedId, setSelectedId] = useState(currentId);
+  useEffect(() => setSelectedId(currentId), [currentId]);
+  const selectedAbility = options.find((entry) => displayText(entry.id) === selectedId) || packet.ability;
+  return <Panel title="Ability Selector" subtitle="Open an existing ability or create a copied variant draft."><div className="flex flex-wrap gap-2"><select className={`${AUTHORING_INPUT_CLASS} min-w-64 flex-1`} value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{options.map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.id))}</option>)}</select><button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm} whitespace-nowrap`} disabled={!selectedId || selectedId === currentId} onClick={() => navigate(`/author/abilities/${encodeURIComponent(selectedId)}`)}>Open</button><button type="button" className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm} whitespace-nowrap`} disabled={!selectedId} onClick={() => onClone(selectedAbility)}>Clone Variant</button><Link className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm} whitespace-nowrap`} to="/author/abilities/new">New Ability</Link></div></Panel>;
 }
 
 function IdentityPanel({ packet, updateAbility }: { packet: AbilityPacket; updateAbility: (patch: EntryRecord) => void }) {
