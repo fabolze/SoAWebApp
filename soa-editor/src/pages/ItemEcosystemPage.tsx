@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useDirtyState } from "../components/useDirtyState";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
+import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
+import { buildItemJourneyModel, type ItemJourneyModel } from "../authoring/itemJourney";
 import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
 import { getSimulationScenarioById, loadSimulationDatasets, SIMULATION_SCENARIOS, simulateEntity, type SimulationDatasets, type SimulationResult } from "../simulation";
@@ -128,6 +130,9 @@ export default function ItemEcosystemPage() {
   }, [packet.analysis, packet.item.base_price, peerResults, simulation]);
 
   const blockers = useMemo(() => validatePacket(packet), [packet]);
+  const itemId = text(packet.item.id);
+  const storyPlacement = useEntityStoryPlacement({ entityKind: "item", entityId: itemId, entity: packet.item });
+  const itemJourney = useMemo(() => buildItemJourneyModel(packet, storyPlacement.packet), [packet, storyPlacement.packet]);
   const updateItem = (patch: EntryRecord) => setPacket((current) => ({ ...current, item: { ...current.item, ...patch } }));
   const setSources = (key: string, value: unknown) => setPacket((current) => ({ ...current, sources: { ...current.sources, [key]: value } }));
   const save = async () => {
@@ -182,9 +187,9 @@ export default function ItemEcosystemPage() {
       {activePanel === "Acquisition" && <AcquisitionPanel packet={packet} setSources={setSources} />}
       {activePanel === "Power" && <PowerPanel simulation={simulation} peerResults={peerResults} scenarioId={scenarioId} setScenarioId={setScenarioId} />}
       {activePanel === "Economy" && <EconomyPanel packet={packet} updateItem={updateItem} setSources={setSources} simulation={simulation} />}
-      {activePanel === "Progression" && <div className="space-y-4"><ItemJourneySummary packet={packet} /><ProgressionPanel packet={packet} setSources={setSources} /></div>}
+      {activePanel === "Progression" && <div className="space-y-4"><ItemJourneyTrack packet={packet} model={itemJourney} storyLoading={storyPlacement.loading} storyError={storyPlacement.error} /><ProgressionPanel packet={packet} setSources={setSources} /></div>}
       {activePanel === "Issues" && <IssuesPanel blockers={blockers} warnings={clientWarnings} packet={packet} />}
-      {!isNew && text(packet.item.id) && <StoryPlacementPanel entityKind="item" entityId={text(packet.item.id)} entityLabel={text(packet.item.name, text(packet.item.id))} entity={packet.item} />}
+      {!isNew && text(packet.item.id) && <StoryPlacementPanel entityKind="item" entityId={text(packet.item.id)} entityLabel={text(packet.item.name, text(packet.item.id))} entity={packet.item} storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} />}
     </div>
   </div>;
 }
@@ -233,7 +238,7 @@ function ProgressionPanel({ packet, setSources }: { packet: ItemPacket; setSourc
   })}</div></section><section className={AUTHORING_PANEL_CLASS}><h2 className="font-semibold">Progression Shape</h2><div className="mt-3 grid gap-3 sm:grid-cols-2">{Object.entries(packet.analysis.source_counts || {}).map(([key, value]) => <Fact key={key} label={key.replace(/_/g, " ")} value={text(value)} />)}</div><p className="mt-3 text-sm text-slate-500">Rarity: {text(packet.item.rarity, "Unset")} - Requirement: {text(packet.item.requirements_id, "None")}</p></section></div>;
 }
 
-function ItemJourneySummary({ packet }: { packet: ItemPacket }) {
+function ItemJourneyTrack({ packet, model, storyLoading, storyError }: { packet: ItemPacket; model: ItemJourneyModel; storyLoading: boolean; storyError: string }) {
   const channels = rows(packet.analysis.acquisition_channels);
   const important = isImportantItem(packet.item);
   return <section className={AUTHORING_PANEL_CLASS} data-testid="item-journey-summary">
@@ -247,13 +252,52 @@ function ItemJourneySummary({ packet }: { packet: ItemPacket }) {
     <div className="mt-3 grid gap-2 sm:grid-cols-2">
       <Fact label="Acquisition Channels" value={text(packet.analysis.acquisition_channel_count, String(channels.length))} />
       <Fact label="Total Sources" value={text(packet.analysis.total_sources, "0")} />
+      <Fact label="Story Moments" value={String(model.storyOccurrenceCount)} />
+      <Fact label="Unplaced Sources" value={String(model.unplacedSourceCount)} />
     </div>
     <div className="mt-3 flex flex-wrap gap-2">
       {channels.map((channel) => <span key={text(channel.key, text(channel.label))} className="rounded-full border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">{text(channel.label)} ({text(channel.count, "0")})</span>)}
       {channels.length === 0 && <span className="text-xs text-slate-500">No acquisition channel yet.</span>}
     </div>
+    {storyLoading && <p className="mt-3 text-xs text-slate-500">Loading story context...</p>}
+    {storyError && <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">{storyError}</p>}
+    {model.warnings.length > 0 && <div className="mt-3 space-y-1">{model.warnings.map((warning) => <p key={warning} className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">{warning}</p>)}</div>}
+    <div className="mt-4 space-y-2">
+      {model.rows.map((row) => <article key={row.id} className={`grid gap-3 rounded-md border p-3 text-sm md:grid-cols-[1fr_11rem_8rem] ${journeyToneClass(row.tone)}`}>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-semibold uppercase dark:bg-slate-950/70">{row.sourceKind}</span>
+            <span className="text-[10px] font-semibold uppercase text-slate-500">{row.kind === "story" ? "Story" : "Source"}</span>
+          </div>
+          <div className="mt-1 font-semibold">{row.label}</div>
+          <div className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+            {row.route ? <Link className="font-semibold text-primary" to={row.route}>{row.ownerLabel}</Link> : row.ownerLabel}
+            {row.quantity && <span> / {row.quantity}</span>}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] font-semibold uppercase text-slate-500">Story Scope</div>
+          <div className="mt-1 text-xs font-medium">{row.scopeLabel}</div>
+          <div className="mt-1 text-[10px] text-slate-500">{row.order === null ? "No canonical order" : `Order ${row.order}`}</div>
+        </div>
+        <div>
+          <div className="text-[10px] font-semibold uppercase text-slate-500">Lifecycle</div>
+          <div className="mt-1 text-xs font-semibold">{row.lifecycle}</div>
+          {!row.placed && <div className="mt-1 text-[10px] font-semibold text-amber-800 dark:text-amber-200">Needs story context</div>}
+        </div>
+      </article>)}
+      {model.rows.length === 0 && <EmptyState>No sources or story placements yet.</EmptyState>}
+    </div>
     {important && <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">Use story placements, continuity group, state label, or notes to explain important item versions and alternate acquisition paths.</p>}
   </section>;
+}
+
+function journeyToneClass(tone: ItemJourneyModel["rows"][number]["tone"]): string {
+  if (tone === "reward") return "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900 dark:bg-emerald-950/20";
+  if (tone === "requirement") return "border-amber-200 bg-amber-50/70 dark:border-amber-900 dark:bg-amber-950/20";
+  if (tone === "state") return "border-blue-200 bg-blue-50/70 dark:border-blue-900 dark:bg-blue-950/20";
+  if (tone === "source") return "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950";
+  return "border-dashed border-amber-300 bg-white dark:border-amber-800 dark:bg-slate-900";
 }
 
 function isImportantItem(item: EntryRecord): boolean {

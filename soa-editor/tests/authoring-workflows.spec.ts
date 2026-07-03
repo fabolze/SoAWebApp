@@ -479,6 +479,10 @@ test("item ecosystem places an item lifecycle consequence through a semantic pre
   expect(link.importance).toBe("major");
   await expect(page.getByTestId("story-placement-panel")).toContainText("Enter The First City");
   await expect(page.getByTestId("story-placement-panel")).not.toContainText("Important item has no story placement.");
+  await page.getByRole("button", { name: "Progression" }).click();
+  await expect(page.getByTestId("item-journey-summary")).toContainText("Story Moments");
+  await expect(page.getByTestId("item-journey-summary")).toContainText("Enter The First City");
+  await expect(page.getByTestId("item-journey-summary")).toContainText("consumed");
 });
 
 test("new item ecosystem restores, resets, and saves the complete draft", async ({ page }) => {
