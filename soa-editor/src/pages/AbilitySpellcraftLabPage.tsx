@@ -140,7 +140,7 @@ function packetForAbility(packet: AbilityPacket, ability: EntryRecord): AbilityP
   };
 }
 
-function cloneAbilityVariantDraft(packet: AbilityPacket): { packet: AbilityPacket; effectUpserts: EntryRecord[]; statusUpserts: EntryRecord[] } {
+function cloneAbilityVariantDraft(packet: AbilityPacket, nameSuffix = "Variant"): { packet: AbilityPacket; effectUpserts: EntryRecord[]; statusUpserts: EntryRecord[] } {
   const sourceAbility = packet.ability;
   const newAbilityId = generateUlid();
   const effects = effectMap(packet);
@@ -169,8 +169,8 @@ function cloneAbilityVariantDraft(packet: AbilityPacket): { packet: AbilityPacke
   const nextAbility = {
     ...sourceAbility,
     id: newAbilityId,
-    slug: generateSlug(`${displayText(sourceAbility.slug, displayText(sourceAbility.name, "ability"))}-variant`),
-    name: `${displayText(sourceAbility.name, "Ability")} Variant`,
+    slug: generateSlug(`${displayText(sourceAbility.slug, displayText(sourceAbility.name, "ability"))}-${nameSuffix}`),
+    name: `${displayText(sourceAbility.name, "Ability")} ${nameSuffix}`,
     effects: strings(sourceAbility.effects).map((effectId) => effectIdMap.get(effectId) || effectId),
     effect_links: abilityEffectLinks(sourceAbility).map((link) => ({
       ...link,
@@ -461,9 +461,9 @@ export default function AbilitySpellcraftLabPage() {
     setNotice("Unsaved spellcraft changes reset.");
   };
 
-  const startVariantDraft = (sourceAbility: EntryRecord) => {
+  const startVariantDraft = (sourceAbility: EntryRecord, nameSuffix = "Variant") => {
     if (!packet) return;
-    const draft = cloneAbilityVariantDraft(packetForAbility(packet, sourceAbility));
+    const draft = cloneAbilityVariantDraft(packetForAbility(packet, sourceAbility), nameSuffix);
     localStorage.setItem(draftKey("new"), JSON.stringify({ ...draft, ts: Date.now() }));
     setPacket(draft.packet);
     setEffectUpserts(draft.effectUpserts);
@@ -582,7 +582,7 @@ export default function AbilitySpellcraftLabPage() {
                   />
                   <AssignmentPanel packet={packet} onToggleProfile={toggleProfileAssignment} />
                   <StatusDefensePanel packet={packet} setPacket={setPacket} />
-                  <RelationshipPanel packet={packet} setPacket={setPacket} onCreateRelated={() => startVariantDraft(packet.ability)} />
+                  <RelationshipPanel packet={packet} setPacket={setPacket} onCreateRelated={() => startVariantDraft(packet.ability, "Related")} />
                   <RequirementPanel packet={packet} setPacket={setPacket} />
                 </div>
               </div>
@@ -717,6 +717,12 @@ function AssignmentPanel({ packet, onToggleProfile }: { packet: AbilityPacket; o
       {model.talentRows.map((entry) => <div key={`talent-${displayText(entry.id)}`}>Talent: {rowLabel(entry, displayText(entry.id))}</div>)}
     </div>}
     <div className="mt-2 space-y-2">{model.profileRows.length === 0 ? <Empty>No combat profiles.</Empty> : model.profileRows.map((row) => <ProfileAssignmentDrop key={row.profileId} row={row} onToggle={onToggleProfile} />)}</div>
+    {model.encounterRoleRows.length > 0 && <div className="mt-4">
+      <Caption>Encounter Role Usage</Caption>
+      <div className="mt-2 grid gap-2">
+        {model.encounterRoleRows.map((row) => <EncounterRoleDrop key={row.id} row={row} onToggle={onToggleProfile} />)}
+      </div>
+    </div>}
   </Panel>;
 }
 
@@ -738,6 +744,41 @@ function ProfileAssignmentDrop({ row, onToggle }: { row: ReturnType<typeof build
       {row.changed && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-800 dark:bg-blue-950 dark:text-blue-200">Draft change</span>}
       {row.encounterContexts.length === 0 && <span className="text-slate-500">No encounter participant context.</span>}
       {row.encounterContexts.map((context) => <span key={`${context.encounterId}-${context.combatSide}`} className="rounded bg-indigo-100 px-2 py-0.5 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{context.encounterLabel}: {context.combatSide}</span>)}
+    </div>
+  </div>;
+}
+
+function EncounterRoleDrop({ row, onToggle }: { row: ReturnType<typeof buildAbilityUsageModel>["encounterRoleRows"][number]; onToggle: (profileId: string) => void }) {
+  const { setNodeRef, isOver } = useDroppable({ id: row.profileId ? `profile:${row.profileId}` : `encounter-role:${row.id}` });
+  const tone = row.missingProfile
+    ? "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30"
+    : row.assigned
+      ? "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
+      : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950";
+  return <div ref={setNodeRef} data-testid={`ability-encounter-role-${row.encounterId}-${row.characterId}`} className={`rounded border p-2 text-sm transition ${isOver ? "ring-2 ring-blue-400" : ""} ${tone}`}>
+    <div className="flex items-start justify-between gap-3">
+      <button type="button" className="min-w-0 text-left" disabled={row.missingProfile} onClick={() => row.profileId && onToggle(row.profileId)}>
+        <div className="font-semibold">{row.characterLabel}</div>
+        <div className="text-xs text-slate-500">{row.encounterLabel} / {row.combatSide}</div>
+      </button>
+      <button
+        type="button"
+        className={row.assigned ? `${BUTTON_CLASSES.success} ${BUTTON_SIZES.xs}` : `${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`}
+        disabled={row.missingProfile}
+        onClick={() => row.profileId && onToggle(row.profileId)}
+      >
+        {row.missingProfile ? "No Profile" : row.assigned ? "Assigned" : "Assign"}
+      </button>
+    </div>
+    <div className="mt-2 flex flex-wrap gap-1 text-[10px]">
+      {row.profileId && <span className="rounded bg-slate-200 px-2 py-0.5 dark:bg-slate-800">{row.profileLabel}</span>}
+      {row.enemyType && <span className="rounded bg-slate-200 px-2 py-0.5 dark:bg-slate-800">{row.enemyType}</span>}
+      {row.aggression && <span className="rounded bg-slate-200 px-2 py-0.5 dark:bg-slate-800">{row.aggression}</span>}
+      {row.contexts.map((context) => <span key={context} className="rounded bg-indigo-100 px-2 py-0.5 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{context}</span>)}
+      {row.persisted && <span className="rounded bg-slate-200 px-2 py-0.5 dark:bg-slate-800">Persisted</span>}
+      {row.changed && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-800 dark:bg-blue-950 dark:text-blue-200">Draft change</span>}
+      {row.bossLike && row.signatureAbility && <span className="rounded bg-rose-100 px-2 py-0.5 text-rose-800 dark:bg-rose-950 dark:text-rose-200">Signature check</span>}
+      {row.missingProfile && <span className="text-amber-800 dark:text-amber-200">Create a combat profile before this role can receive abilities.</span>}
     </div>
   </div>;
 }

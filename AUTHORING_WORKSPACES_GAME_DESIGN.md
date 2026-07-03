@@ -43,7 +43,7 @@ Last reviewed: 2026-07-03
 | Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove, semantic item lifecycle presets, Item Journey source/story track, unplaced acquisition-source warnings, same-lane requirement-before-acquisition warnings, acquisition-channel analysis, obtained-never-used warning, multiple-source explanation warning, and continuity/version guidance; future work can deepen fantasy, provenance, families, and authored transformations |
 | Shop Authoring | Implemented standalone merchant-facing route for creating shops and inventory together through `/author/shops/new` |
 | Creature Workshop | Implemented MVP as focused enemy creator over characters, combat profiles, encounter participants, location encounter tables, local draft restore/reset, stale-protected scoped placement changes, and optional character story placement |
-| Ability Spellcraft Lab | Implemented expanded lab with trace bench, lifecycle workshop, shared effect/status clone-edit flows, local status playground, variants, relationships, Create Related Draft, contextual testing, status defense rules, and shared rollback-preview/atomic-commit review |
+| Ability Spellcraft Lab | Implemented expanded lab with trace bench, rhythm timeline, lifecycle workshop, shared effect/status clone-edit flows, local status playground, variants, relationships, Create Related Draft, contextual testing, encounter-role usage through combat-profile assignment, status defense rules, and shared rollback-preview/atomic-commit review |
 | Story Timeline And Adventure Board | Interactive MVP implemented with scoped lanes, lenses, drag/drop local planning, canonical adventure beats/lifecycle-aware typed links, backend-complete tracks and query-driven focus for all ten target types, scoped lifecycle-coherence warnings, reusable frontend placement helpers, and shared preview/commit review |
 | Adventure Dependency Map | Implemented MVP with actionable health groups, issue focusing, broken-edge display, inferred unlock edges, cycle detection, node/relationship metrics, and explicit versus inferred relationship styling |
 
@@ -273,14 +273,14 @@ The Encounter Stage should answer "what changes because this fight or scene happ
 
 **Ability Spellcraft Lab**
 
-Add usage and combat-rhythm interactivity rather than story placement as the first priority:
+Current status: implemented expanded lab. Ability Spellcraft shows a combat sentence, editable trigger/reach/payload/scaling/cost chain, effect timing/rhythm timeline, usage lens, combat-profile assignment, encounter-role assignment through matched combat profiles, missing-profile role warnings, signature-unused warnings, target/effect conflict warnings, contextual test bench, status defense rules, ability-family relationships, and shared rollback-preview/atomic-commit review.
 
-- Show a phase timeline: cast, travel, impact, lingering status, tick interval, upkeep, recovery, and cooldown.
-- Show where the ability is used: characters, combat profiles, encounters, bosses, and variants.
-- Let authors drag the ability into combat profiles or encounter roles through existing relationships.
-- Warn when a signature ability is unused.
-- Warn when an ability's targeting promise conflicts with linked effects or encounter usage.
-- For story-relevant abilities, allow optional reference placement into an adventure beat, but do not force every ability into the Story Timeline.
+- Show a phase timeline: cast, travel, impact, lingering status, tick interval, upkeep, recovery, and cooldown. Implemented through the rhythm timeline and trace bench.
+- Show where the ability is used: characters, combat profiles, encounters, bosses, and variants. Implemented through usage lenses, profile rows, encounter role rows, and local variants.
+- Let authors drag the ability into combat profiles or encounter roles through existing relationships. Implemented through `custom_abilities` on combat profiles; encounter records remain read-only context.
+- Warn when a signature ability is unused. Implemented for missing draft/persisted combat-profile assignment.
+- Warn when an ability's targeting promise conflicts with linked effects or encounter usage. Implemented for ability/effect target mismatch and missing encounter-role combat profiles; deeper encounter tactical-role validation remains future work.
+- For story-relevant abilities, allow optional reference placement into an adventure beat, but do not force every ability into the Story Timeline. Future work until the story-placement target contract deliberately supports abilities.
 
 This workspace should stay about readable action design. Story placement is secondary unless the ability is narratively important.
 
@@ -1170,7 +1170,7 @@ The ability's simulation result and player-facing description remain visible whi
 | Define profile immunity or resistance | Update combat-profile `status_rules` |
 | Connect related abilities | Create an `ability_relations` row |
 
-The implemented lab includes shared effect and status clone/edit flows, a local status lifecycle playground, relationship authoring with `Create Related Draft`, contextual test-bench comparisons, and combat-profile status defense rules. Rollback preview and atomic commit use the shared `BundleReview` surface.
+The implemented lab includes shared effect and status clone/edit flows, a local status lifecycle playground, relationship authoring with `Create Related Draft`, contextual test-bench comparisons, encounter-role usage through combat-profile assignment, and combat-profile status defense rules. Rollback preview and atomic commit use the shared `BundleReview` surface.
 
 ### Lenses
 

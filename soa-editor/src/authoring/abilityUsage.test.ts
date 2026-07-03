@@ -46,6 +46,63 @@ describe("ability usage authoring helpers", () => {
     expect(model.profileRows[0].encounterContexts).toEqual([
       { encounterId: "encounter-1", encounterLabel: "Forest Ambush", combatSide: "Hostile", contexts: ["Combat"] },
     ]);
+    expect(model.encounterRoleRows[0]).toEqual(expect.objectContaining({
+      encounterId: "encounter-1",
+      encounterLabel: "Forest Ambush",
+      characterId: "char-wolf",
+      characterLabel: "Wolf",
+      profileId: "profile-wolf",
+      assigned: true,
+      missingProfile: false,
+    }));
+  });
+
+  it("flags encounter roles that cannot save through a combat profile", () => {
+    const model = buildAbilityUsageModel({
+      ability: { id: "ability-1", name: "Howl", tags: ["signature"] },
+      usage: { combat_profiles: [], characterclasses: [], talent_nodes: [] },
+      assignedProfileIds: [],
+      profiles: [],
+      encounters: [
+        {
+          id: "encounter-1",
+          name: "Forest Ambush",
+          participants: [{ character_id: "char-wolf", combat_side: "Hostile", contexts: ["Combat"] }],
+        },
+      ],
+    });
+
+    expect(model.encounterRoleRows[0]).toEqual(expect.objectContaining({
+      characterId: "char-wolf",
+      missingProfile: true,
+      profileId: "",
+      signatureAbility: true,
+    }));
+    expect(model.warnings).toContain("Some encounter participants cannot receive this ability because they have no combat profile.");
+  });
+
+  it("marks boss-like encounter roles for signature ability review", () => {
+    const model = buildAbilityUsageModel({
+      ability: { id: "ability-1", name: "Finale", tags: ["signature"] },
+      usage: { combat_profiles: [], characterclasses: [], talent_nodes: [] },
+      assignedProfileIds: ["profile-boss"],
+      profiles: [
+        { id: "profile-boss", character_id: "char-boss", character: { id: "char-boss", name: "Gate Tyrant" }, enemy_type: "boss", custom_abilities: [] },
+      ],
+      encounters: [
+        {
+          id: "encounter-1",
+          name: "Gate Duel",
+          participants: [{ character_id: "char-boss", combat_side: "Hostile", contexts: ["Boss"] }],
+        },
+      ],
+    });
+
+    expect(model.encounterRoleRows[0]).toEqual(expect.objectContaining({
+      bossLike: true,
+      signatureAbility: true,
+      assigned: true,
+    }));
   });
 
   it("warns when a signature ability has no profile assignment", () => {

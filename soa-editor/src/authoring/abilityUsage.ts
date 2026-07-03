@@ -19,8 +19,29 @@ export interface AbilityUsageProfileRow {
   encounterContexts: AbilityUsageEncounterContext[];
 }
 
+export interface AbilityUsageEncounterRoleRow {
+  id: string;
+  encounterId: string;
+  encounterLabel: string;
+  characterId: string;
+  characterLabel: string;
+  combatSide: string;
+  contexts: string[];
+  profileId: string;
+  profileLabel: string;
+  enemyType: string;
+  aggression: string;
+  persisted: boolean;
+  assigned: boolean;
+  changed: boolean;
+  missingProfile: boolean;
+  bossLike: boolean;
+  signatureAbility: boolean;
+}
+
 export interface AbilityUsageModel {
   profileRows: AbilityUsageProfileRow[];
+  encounterRoleRows: AbilityUsageEncounterRoleRow[];
   classRows: EntryRecord[];
   talentRows: EntryRecord[];
   persistedUsageCount: number;
@@ -72,6 +93,12 @@ function rowLabel(row: EntryRecord | undefined, fallback: string): string {
   return text(row?.name, text(row?.title, text(row?.slug, text(row?.id, fallback))));
 }
 
+function profileCharacter(profile: EntryRecord): EntryRecord {
+  return typeof profile.character === "object" && profile.character !== null && !Array.isArray(profile.character)
+    ? profile.character as EntryRecord
+    : {};
+}
+
 function containsId(rows: EntryRecord[], id: string): boolean {
   return rows.some((row) => text(row.id) === id);
 }
@@ -97,13 +124,19 @@ export function buildAbilityUsageModel({
 }): AbilityUsageModel {
   const abilityId = text(ability.id);
   const assigned = new Set(assignedProfileIds);
+  const signatureAbility = strings(ability.tags).map((tag) => tag.toLowerCase()).includes("signature");
   const persistedProfileIds = new Set([
     ...rows(usage.combat_profiles).map((profile) => text(profile.id)),
     ...profiles.filter((profile) => strings(profile.custom_abilities).includes(abilityId)).map((profile) => text(profile.id)),
   ].filter(Boolean));
+  const profilesByCharacterId = new Map(
+    profiles
+      .map((profile) => [text(profile.character_id), profile] as const)
+      .filter(([characterId]) => Boolean(characterId)),
+  );
   const profileRows = profiles.map((profile) => {
     const profileId = text(profile.id);
-    const character = typeof profile.character === "object" && profile.character !== null && !Array.isArray(profile.character) ? profile.character as EntryRecord : {};
+    const character = profileCharacter(profile);
     const characterId = text(profile.character_id);
     const encounterContexts = encounters.flatMap((encounter) => rows(encounter.participants)
       .filter((participant) => text(participant.character_id) === characterId)
@@ -127,15 +160,48 @@ export function buildAbilityUsageModel({
       encounterContexts,
     };
   }).sort((a, b) => a.label.localeCompare(b.label));
+  const encounterRoleRows = encounters.flatMap((encounter) => {
+    const encounterId = text(encounter.id);
+    const encounterLabel = rowLabel(encounter, encounterId || "Encounter");
+    return rows(encounter.participants).map((participant, index) => {
+      const characterId = text(participant.character_id);
+      const profile = profilesByCharacterId.get(characterId);
+      const profileId = text(profile?.id);
+      const character = profile ? profileCharacter(profile) : {};
+      const persisted = profileId ? persistedProfileIds.has(profileId) : false;
+      const isAssigned = profileId ? assigned.has(profileId) : false;
+      const enemyType = text(profile?.enemy_type, "other");
+      const combatSide = text(participant.combat_side, "Neutral");
+      return {
+        id: `${encounterId || "encounter"}:${characterId || "participant"}:${index}`,
+        encounterId,
+        encounterLabel,
+        characterId,
+        characterLabel: rowLabel(character, characterId || "Unknown participant"),
+        combatSide,
+        contexts: strings(participant.contexts),
+        profileId,
+        profileLabel: profile ? rowLabel(character, characterId || profileId) : "",
+        enemyType,
+        aggression: text(profile?.aggression, "Neutral"),
+        persisted,
+        assigned: isAssigned,
+        changed: Boolean(profileId) && persisted !== isAssigned,
+        missingProfile: !profileId,
+        bossLike: enemyType === "boss" || strings(encounter.tags).map((tag) => tag.toLowerCase()).includes("boss") || combatSide.toLowerCase() === "boss",
+        signatureAbility,
+      };
+    });
+  }).sort((a, b) => a.encounterLabel.localeCompare(b.encounterLabel) || a.characterLabel.localeCompare(b.characterLabel));
   const classRows = rows(usage.characterclasses);
   const talentRows = rows(usage.talent_nodes);
   const persistedUsageCount = persistedProfileIds.size + classRows.length + talentRows.length;
   const draftAssignmentCount = assigned.size;
   const warnings: string[] = [];
-  const tags = strings(ability.tags).map((tag) => tag.toLowerCase());
   if (persistedUsageCount === 0 && draftAssignmentCount === 0) warnings.push("Ability is unused by combat profiles, classes, and talent nodes.");
-  if (tags.includes("signature") && draftAssignmentCount === 0) warnings.push("Signature ability is not assigned to any combat profile.");
-  return { profileRows, classRows, talentRows, persistedUsageCount, draftAssignmentCount, warnings };
+  if (signatureAbility && draftAssignmentCount === 0) warnings.push("Signature ability is not assigned to any combat profile.");
+  if (encounterRoleRows.some((row) => row.missingProfile)) warnings.push("Some encounter participants cannot receive this ability because they have no combat profile.");
+  return { profileRows, encounterRoleRows, classRows, talentRows, persistedUsageCount, draftAssignmentCount, warnings };
 }
 
 export function buildAbilityRhythmSegments(ability: EntryRecord, effects: EntryRecord[], statuses: EntryRecord[]): AbilityRhythmSegment[] {

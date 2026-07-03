@@ -1838,10 +1838,17 @@ const abilityPacket = {
     statuses: [],
     stats: [{ id: "stat-1", slug: "power", name: "Power" }],
     requirements: [],
-    combat_profiles: [],
+    combat_profiles: [
+      { id: "profile-1", character_id: "char-1", character: { id: "char-1", name: "Ash Duelist" }, enemy_type: "boss", aggression: "Hostile", custom_abilities: [], status_rules: [] },
+    ],
+    encounters: [
+      { id: "encounter-1", slug: "gate-duel", name: "Gate Duel", encounter_type: "Combat", participants: [{ character_id: "char-1", combat_side: "Hostile", contexts: ["Boss"] }], tags: ["boss"] },
+      { id: "encounter-2", slug: "road-ambush", name: "Road Ambush", encounter_type: "Combat", participants: [{ character_id: "char-missing", combat_side: "Hostile", contexts: ["Combat"] }], tags: [] },
+    ],
     characterclasses: [],
     talent_nodes: [],
     items: [{ id: "item-1", name: "Shared Wand" }],
+    characters: [{ id: "char-1", name: "Ash Duelist" }],
   },
   usage: {
     abilities: { "ability-1": { combat_profiles: [], characterclasses: [], talent_nodes: [] } },
@@ -1962,4 +1969,24 @@ test("ability spellcraft creates a related local draft without changing the sour
   await expect(page.getByText("Restored unsaved Ability Spellcraft draft.")).toBeVisible();
   await expect(page.getByLabel("Name").first()).toHaveValue("Flame Pulse Related");
   await expect(page.locator("section").filter({ hasText: "Ability Family & Tactical Relationships" }).locator("select").first()).toHaveValue("Variant");
+});
+
+test("ability spellcraft assigns encounter roles through combat profiles", async ({ page }) => {
+  let previewed: Record<string, unknown> | null = null;
+  await mockAbilityApi(page, undefined, async (payload, route) => {
+    previewed = payload;
+    await fulfillJson(route, { review: { created: [], changed: [{ table: "combat_profiles", id: "profile-1" }], deleted: [] }, warnings: [], health_warnings: [], blockers: [] });
+  });
+  await page.goto("/author/abilities/ability-1");
+  const usagePanel = page.locator("section").filter({ hasText: "Usage & Combat Assignment" });
+  await expect(usagePanel).toContainText("Gate Duel");
+  await expect(usagePanel).toContainText("Road Ambush");
+  await expect(usagePanel).toContainText("Create a combat profile before this role can receive abilities.");
+  await usagePanel.getByTestId("ability-encounter-role-encounter-1-char-1").getByRole("button", { name: "Assign" }).click();
+  await expect(usagePanel.getByTestId("ability-encounter-role-encounter-1-char-1")).toContainText("Assigned");
+  await page.getByRole("button", { name: "Save All" }).first().click();
+
+  await expect.poll(() => previewed).not.toBeNull();
+  expect(previewed?.assigned_combat_profile_ids).toEqual(["profile-1"]);
+  expect((previewed?.combat_profile_upserts as Array<Record<string, unknown>>)[0].id).toBe("profile-1");
 });
