@@ -17,6 +17,29 @@ const emptyWorld = {
   warnings: [],
 };
 
+const dependencyPacket = {
+  nodes: [
+    { id: "flag:intro-done", kind: "flag", entry_id: "intro-done", label: "Intro Done", schema_name: "flags" },
+    { id: "flag:has-key", kind: "flag", entry_id: "has-key", label: "Has Key", schema_name: "flags" },
+    { id: "flag:alarm-raised", kind: "flag", entry_id: "alarm-raised", label: "Alarm Raised", schema_name: "flags" },
+    { id: "requirement:req-start", kind: "requirement", entry_id: "req-start", label: "Start Ready", schema_name: "requirements" },
+    { id: "requirement:req-key", kind: "requirement", entry_id: "req-key", label: "Key Ready", schema_name: "requirements" },
+    { id: "quests:quest-1", kind: "quests", entry_id: "quest-1", label: "Find The Key", schema_name: "quests" },
+    { id: "events:event-1", kind: "events", entry_id: "event-1", label: "Open Gate Event", schema_name: "events" },
+    { id: "events:event-2", kind: "events", entry_id: "event-2", label: "Alarm Event", schema_name: "events" },
+  ],
+  edges: [
+    { id: "flag:intro-done>required_by>requirement:req-start", source: "flag:intro-done", target: "requirement:req-start", relation: "required_by", explicit: true, path: "required_flags" },
+    { id: "requirement:req-start>gates>quests:quest-1", source: "requirement:req-start", target: "quests:quest-1", relation: "gates", explicit: true, path: "requirements_id" },
+    { id: "quests:quest-1>sets>flag:has-key", source: "quests:quest-1", target: "flag:has-key", relation: "sets", explicit: true, path: "flags_set_on_completion" },
+    { id: "flag:has-key>required_by>requirement:req-key", source: "flag:has-key", target: "requirement:req-key", relation: "required_by", explicit: true, path: "required_flags" },
+    { id: "flag:alarm-raised>forbidden_by>requirement:req-key", source: "flag:alarm-raised", target: "requirement:req-key", relation: "forbidden_by", explicit: true, path: "forbidden_flags" },
+    { id: "requirement:req-key>gates>events:event-1", source: "requirement:req-key", target: "events:event-1", relation: "gates", explicit: true, path: "requirements_id" },
+    { id: "events:event-2>sets>flag:alarm-raised", source: "events:event-2", target: "flag:alarm-raised", relation: "sets", explicit: true, path: "flags_set" },
+  ],
+  health: { dead_flags: [], unused_flags: [], contradictions: [], impossible_gates: [], cycles: [] },
+};
+
 async function fulfillJson(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
@@ -34,6 +57,7 @@ async function mockApi(
     if (url.pathname === "/api/ui/world_builder" && route.request().method() === "GET") {
       return fulfillJson(route, world);
     }
+    if (url.pathname === "/api/ui/dependencies") return fulfillJson(route, dependencyPacket);
     if (url.pathname === "/api/ui/world_builder/bundle" && route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as Record<string, unknown>;
       if (onBundle) return onBundle(payload, route);
@@ -102,6 +126,24 @@ test("roadmap authoring routes render without replacing rich item authoring", as
   await expect(page.getByRole("heading", { name: "Adventure Dependency Map" })).toBeVisible();
   await page.goto("/author/story-timeline");
   await expect(page.getByRole("heading", { name: "Story Timeline & Adventure Board" })).toBeVisible();
+});
+
+test("dependency map walks temporary state through flag-setting sources", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/author/dependencies");
+
+  const panel = page.getByTestId("dependency-walkthrough-panel");
+  await expect(panel).toContainText("State Walkthrough");
+  await expect(panel).toContainText("Find The Key");
+  await expect(panel).toContainText("Open Gate Event");
+  await panel.getByText("Initial Temporary Flags").locator("..").locator("select").selectOption("flag:intro-done");
+  await expect(panel.getByTestId("dependency-newly-available")).toContainText("Find The Key");
+  await panel.getByLabel("Trigger Existing Source").selectOption("quests:quest-1");
+  await expect(panel).toContainText("Flags Gained");
+  await expect(panel).toContainText("Has Key");
+  await expect(panel.getByTestId("dependency-newly-available")).toContainText("Open Gate Event");
+  await panel.getByRole("button", { name: "Open Gate Event" }).click();
+  await expect(page.getByLabel("Focus Node")).toHaveValue("events:event-1");
 });
 
 test("quest journey board places the quest into story as player journey", async ({ page }) => {

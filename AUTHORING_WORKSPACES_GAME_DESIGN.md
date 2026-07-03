@@ -45,7 +45,7 @@ Last reviewed: 2026-07-03
 | Creature Workshop | Implemented MVP as focused enemy creator over characters, combat profiles, encounter participants, location encounter tables, local draft restore/reset, stale-protected scoped placement changes, and optional character story placement |
 | Ability Spellcraft Lab | Implemented expanded lab with trace bench, rhythm timeline, lifecycle workshop, shared effect/status clone-edit flows, local status playground, variants, relationships, Create Related Draft, contextual testing, encounter-role usage through combat-profile assignment, status defense rules, and shared rollback-preview/atomic-commit review |
 | Story Timeline And Adventure Board | Interactive MVP implemented with scoped lanes, lenses, drag/drop local planning, canonical adventure beats/lifecycle-aware typed links, backend-complete tracks and query-driven focus for all ten target types, scoped lifecycle-coherence warnings, reusable frontend placement helpers, and shared preview/commit review |
-| Adventure Dependency Map | Implemented MVP with actionable health groups, issue focusing, broken-edge display, inferred unlock edges, cycle detection, node/relationship metrics, and explicit versus inferred relationship styling |
+| Adventure Dependency Map | Implemented MVP with actionable health groups, issue focusing, broken-edge display, inferred unlock edges, cycle detection, node/relationship metrics, explicit versus inferred relationship styling, and temporary flag-state walkthrough |
 
 The workspace descriptions below contain both current-model implementation contracts and future-facing design. A feature is not implemented merely because it appears in this document; the status table is authoritative.
 
@@ -1403,7 +1403,7 @@ The implemented map currently exposes actionable health groups, issue focusing, 
 
 Begin with an empty temporary state, trigger existing sources, and watch available content change. This provides a simple, playable model of narrative progression without creating any new canonical sequence.
 
-The full walkthrough interaction remains future work. The current MVP already supports focused dependency inspection and issue-driven navigation, but it does not yet provide a complete temporary state-playthrough UI.
+The implemented V1 walkthrough starts from selected temporary flags, triggers existing flag-setting sources, and shows flags gained, newly available gated content, and still-blocked gates without creating a canonical player path. Deeper flood-fill, path comparison, and reputation-aware walkthroughs remain future work.
 
 ### Living Canvas Application
 

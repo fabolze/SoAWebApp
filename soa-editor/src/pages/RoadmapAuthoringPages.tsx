@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { buildDependencyWalkthrough, type DependencyGateStatus, type DependencyNode, type DependencyWalkthroughModel, type DependencyWalkthroughStep } from "../authoring/dependencyWalkthrough";
 import { buildQuestJourneyAnalysis, type QuestJourneyAnalysis, type QuestStoryMilestoneKind } from "../authoring/questJourneyAnalysis";
 import { EditableTagList, ReferenceChipPicker, ReferenceManageLink, rowLabel, useReferenceOptions } from "../authoringViews/controls";
 import { buildQuestWalkthrough, type QuestWalkthroughStep } from "../authoring/questWalkthrough";
@@ -350,14 +351,151 @@ export function LegacyDependencyMapPage() {
   return <div className="space-y-5 p-5"><header><h1 className="text-2xl font-semibold">Adventure Dependency Map</h1><p className="text-sm text-slate-500">Solid relationships are stored; dashed relationships are inferred.</p></header><select className={inputClass} value={focus} onChange={(event) => setFocus(event.target.value)}><option value="">All nodes</option>{nodes.map((node) => <option key={text(node.id)} value={text(node.id)}>{text(node.kind)}: {text(node.label)}</option>)}</select><div className="grid gap-4 lg:grid-cols-3"><section className={panelClass}><h2 className="font-semibold">Health Lenses</h2><pre className="mt-3 max-h-[32rem] overflow-auto text-xs">{JSON.stringify(index.health, null, 2)}</pre></section><section className={`${panelClass} lg:col-span-2`}><h2 className="font-semibold">Focused Relationships</h2><div className="mt-3 space-y-2">{edges.map((edge) => <div key={text(edge.id)} className={`rounded-md border p-2 text-xs ${edge.explicit ? "border-solid" : "border-dashed"}`}>{text(edge.source)} → {text(edge.relation)} → {text(edge.target)}</div>)}</div></section></div></div>;
 }
 
+function DependencyFlagPicker({ flags, selected, onChange }: { flags: DependencyNode[]; selected: string[]; onChange: (values: string[]) => void }) {
+  const available = flags.filter((flag) => !selected.includes(flag.id));
+  return <div>
+    <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">Initial Temporary Flags</div>
+    <div className="flex flex-wrap gap-1">
+      {selected.map((id) => {
+        const flag = flags.find((entry) => entry.id === id);
+        return <button key={id} type="button" className="rounded-full bg-slate-900 px-2 py-1 text-xs font-medium text-white dark:bg-slate-100 dark:text-slate-900" title="Remove" onClick={() => onChange(selected.filter((value) => value !== id))}>{flag?.label || id} x</button>;
+      })}
+      {selected.length === 0 && <span className="text-xs text-slate-500">Start with no flags.</span>}
+    </div>
+    <select className={`${inputClass} mt-2`} value="" disabled={available.length === 0} onChange={(event) => event.target.value && onChange([...selected, event.target.value])}>
+      <option value="">{available.length ? "Add initial flag..." : "No more flags"}</option>
+      {available.map((flag) => <option key={flag.id} value={flag.id}>{flag.label}</option>)}
+    </select>
+  </div>;
+}
+
+function DependencyFlagList({ label, flagIds, flags, empty = "None." }: { label: string; flagIds: string[]; flags: DependencyNode[]; empty?: string }) {
+  return <div><div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">{label}</div><div className="flex flex-wrap gap-1">
+    {flagIds.length ? flagIds.map((id) => {
+      const flag = flags.find((entry) => entry.id === id);
+      return <span key={id} className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">{flag?.label || id}</span>;
+    }) : <span className="text-xs text-slate-500">{empty}</span>}
+  </div></div>;
+}
+
+function DependencyGateList({ title, gates, flags, onFocus, empty, testId }: { title: string; gates: DependencyGateStatus[]; flags: DependencyNode[]; onFocus: (id: string) => void; empty: string; testId: string }) {
+  return <div data-testid={testId}>
+    <div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-semibold">{title}</h3><span className="rounded-full bg-white px-2 py-0.5 text-xs dark:bg-slate-900">{gates.length}</span></div>
+    <div className="space-y-2">
+      {gates.map((gate) => <article key={gate.id} className={`rounded-md border p-2 text-xs ${gate.open ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30" : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30"}`}>
+        <div className="flex items-start justify-between gap-2">
+          <button type="button" className="min-w-0 text-left font-semibold text-blue-700 dark:text-blue-300" onClick={() => onFocus(gate.content.id)}>{gate.content.label}</button>
+          <button type="button" className="shrink-0 text-[10px] text-slate-500" onClick={() => onFocus(gate.requirement.id)}>Focus gate</button>
+        </div>
+        <div className="mt-1 text-slate-600 dark:text-slate-300">{gate.requirement.label}</div>
+        {!gate.open && <div className="mt-2 space-y-1">
+          {gate.missingRequiredFlags.length > 0 && <DependencyFlagList label="Missing" flagIds={gate.missingRequiredFlags} flags={flags} />}
+          {gate.presentForbiddenFlags.length > 0 && <DependencyFlagList label="Forbidden Present" flagIds={gate.presentForbiddenFlags} flags={flags} />}
+        </div>}
+      </article>)}
+      {gates.length === 0 && <p className="rounded-md border border-slate-200 p-3 text-xs text-slate-500 dark:border-slate-800">{empty}</p>}
+    </div>
+  </div>;
+}
+
+function DependencyWalkthroughPanel({ model, initialFlags, triggerIds, activeIndex, onInitialFlagsChange, onTriggerIdsChange, onActiveIndexChange, onFocus }: {
+  model: DependencyWalkthroughModel;
+  initialFlags: string[];
+  triggerIds: string[];
+  activeIndex: number;
+  onInitialFlagsChange: (values: string[]) => void;
+  onTriggerIdsChange: (values: string[]) => void;
+  onActiveIndexChange: (value: number) => void;
+  onFocus: (id: string) => void;
+}) {
+  const step: DependencyWalkthroughStep | undefined = model.steps[Math.min(activeIndex, Math.max(model.steps.length - 1, 0))];
+  const triggerById = new Map(model.triggers.map((trigger) => [trigger.id, trigger]));
+  const addTrigger = (id: string) => {
+    if (!id) return;
+    onTriggerIdsChange([...triggerIds, id]);
+    onActiveIndexChange(triggerIds.length + 1);
+  };
+  const moveTrigger = (index: number, offset: number) => {
+    const next = [...triggerIds];
+    const [trigger] = next.splice(index, 1);
+    next.splice(index + offset, 0, trigger);
+    onTriggerIdsChange(next);
+    onActiveIndexChange(Math.max(1, index + offset + 1));
+  };
+  const removeTrigger = (index: number) => {
+    onTriggerIdsChange(triggerIds.filter((_, rowIndex) => rowIndex !== index));
+    onActiveIndexChange(Math.max(0, Math.min(activeIndex, triggerIds.length - 1)));
+  };
+  return <section className={panelClass} data-testid="dependency-walkthrough-panel">
+    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+      <div><h2 className="font-semibold">State Walkthrough</h2><p className="text-xs text-slate-500">Step through temporary flag state from existing sources. Nothing here is saved.</p></div>
+      {(initialFlags.length > 0 || triggerIds.length > 0) && <button type="button" className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold" onClick={() => { onInitialFlagsChange([]); onTriggerIdsChange([]); onActiveIndexChange(0); }}>Reset Walkthrough</button>}
+    </div>
+    <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
+      <div className="space-y-4">
+        <DependencyFlagPicker flags={model.flags} selected={initialFlags} onChange={(values) => { onInitialFlagsChange(values); onActiveIndexChange(0); }} />
+        <label className="block text-xs font-semibold uppercase text-slate-500">Trigger Existing Source<select className={`${inputClass} mt-1`} value="" disabled={model.triggers.length === 0} onChange={(event) => addTrigger(event.target.value)}>
+          <option value="">{model.triggers.length ? "Add trigger..." : "No flag-setting sources"}</option>
+          {model.triggers.map((trigger) => <option key={trigger.id} value={trigger.id}>{trigger.label}</option>)}
+        </select></label>
+        <div>
+          <div className="mb-2 text-[11px] font-semibold uppercase text-slate-500">Trigger Queue</div>
+          <div className="space-y-2">
+            {triggerIds.map((id, index) => {
+              const trigger = triggerById.get(id);
+              return <div key={`${id}-${index}`} className="rounded-md border border-slate-200 p-2 text-xs dark:border-slate-800">
+                <div className="flex items-start justify-between gap-2">
+                  <button type="button" className="min-w-0 text-left font-semibold text-blue-700 dark:text-blue-300" onClick={() => onActiveIndexChange(index + 1)}>{trigger?.label || id}</button>
+                  <button type="button" className="text-red-700 dark:text-red-300" onClick={() => removeTrigger(index)}>Remove</button>
+                </div>
+                <DependencyFlagList label="Sets" flagIds={trigger?.flagsSet || []} flags={model.flags} empty="No flags." />
+                <div className="mt-2 flex gap-1">
+                  <button type="button" className="rounded border px-2 py-1 disabled:opacity-40" disabled={index === 0} onClick={() => moveTrigger(index, -1)}>Up</button>
+                  <button type="button" className="rounded border px-2 py-1 disabled:opacity-40" disabled={index === triggerIds.length - 1} onClick={() => moveTrigger(index, 1)}>Down</button>
+                  {trigger && <button type="button" className="rounded border px-2 py-1" onClick={() => onFocus(trigger.id)}>Focus</button>}
+                </div>
+              </div>;
+            })}
+            {triggerIds.length === 0 && <p className="rounded-md border border-slate-200 p-3 text-xs text-slate-500 dark:border-slate-800">Add a source to see how authored flags unlock or block content.</p>}
+          </div>
+        </div>
+      </div>
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {model.steps.map((entry, index) => <button key={entry.id} type="button" className={`rounded-md border px-3 py-1.5 text-xs font-semibold ${index === activeIndex ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 dark:border-slate-700"}`} onClick={() => onActiveIndexChange(index)}>{entry.title}</button>)}
+        </div>
+        {step && <article className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div><div className="text-[11px] font-semibold uppercase text-slate-500">{step.trigger ? "trigger" : "state"}</div><h3 className="font-semibold">{step.title}</h3></div>
+            {step.trigger && <button type="button" className="rounded border border-blue-200 px-2 py-1 text-xs font-semibold text-blue-700 dark:border-blue-900 dark:text-blue-300" onClick={() => onFocus(step.trigger!.id)}>Focus Source</button>}
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <DependencyFlagList label="Flags Before" flagIds={step.flagsBefore} flags={model.flags} empty="No flags yet." />
+            <DependencyFlagList label="Flags Gained" flagIds={step.flagsGained} flags={model.flags} empty="No new flags." />
+            <DependencyFlagList label="Flags After" flagIds={step.flagsAfter} flags={model.flags} empty="No flags yet." />
+          </div>
+        </article>}
+        {step && <div className="grid gap-4 lg:grid-cols-2">
+          <DependencyGateList title="Newly Available" gates={step.newlyOpenGates} flags={model.flags} onFocus={onFocus} empty="No new content opens at this step." testId="dependency-newly-available" />
+          <DependencyGateList title="Still Blocked" gates={step.blockedGates} flags={model.flags} onFocus={onFocus} empty="No gated content remains blocked." testId="dependency-still-blocked" />
+        </div>}
+      </div>
+    </div>
+  </section>;
+}
+
 export function DependencyMapPage() {
   const [index, setIndex] = useState<EntryRecord>({ nodes: [], edges: [], health: {} });
   const [focus, setFocus] = useState("");
   const [lens, setLens] = useState<DependencyLens>("all");
   const [search, setSearch] = useState("");
+  const [initialFlags, setInitialFlags] = useState<string[]>([]);
+  const [triggerIds, setTriggerIds] = useState<string[]>([]);
+  const [activeWalkthroughIndex, setActiveWalkthroughIndex] = useState(0);
   useEffect(() => { apiFetch("/api/ui/dependencies").then((response) => response.json()).then(setIndex); }, []);
   const nodes = useMemo(() => rows(index.nodes), [index.nodes]);
   const allEdges = useMemo(() => rows(index.edges), [index.edges]);
+  const walkthrough = useMemo(() => buildDependencyWalkthrough(index, initialFlags, triggerIds), [index, initialFlags, triggerIds]);
   const nodeById = useMemo(() => new Map(nodes.map((node) => [text(node.id), node])), [nodes]);
   const health = useMemo(() => typeof index.health === "object" && index.health !== null && !Array.isArray(index.health) ? index.health as EntryRecord : {}, [index.health]);
   const brokenEdges = useMemo(() => allEdges.filter((edge) => !nodeById.has(text(edge.source)) || !nodeById.has(text(edge.target))), [allEdges, nodeById]);
@@ -379,6 +517,7 @@ export function DependencyMapPage() {
   return <div className="space-y-5 p-5">
     <header className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-semibold">Adventure Dependency Map</h1><p className="text-sm text-slate-500">Trace prerequisites, flags, unlocks, and branches. Solid relationships are stored; dashed relationships are inferred.</p></div><div className="flex gap-2 text-xs"><span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{nodes.length} nodes</span><span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{allEdges.length} relationships</span><span className={`rounded-full px-2 py-1 ${issueNodeIds.size ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>{issueNodeIds.size} issue nodes</span></div></header>
     <section className={panelClass}><div className="grid gap-3 lg:grid-cols-2"><label className="block text-xs font-semibold uppercase text-slate-500">Focus Node<select className={`${inputClass} mt-1`} value={focus} onChange={(event) => setFocus(event.target.value)}><option value="">All nodes</option>{nodes.map((node) => <option key={text(node.id)} value={text(node.id)}>{text(node.kind)}: {text(node.label)}</option>)}</select></label><label className="block text-xs font-semibold uppercase text-slate-500">Search Relationships<input className={`${inputClass} mt-1`} value={search} placeholder="Search node, relation, or field..." onChange={(event) => setSearch(event.target.value)} /></label></div><div className="mt-3 flex flex-wrap gap-2">{dependencyLenses.map((value) => <button key={value} type="button" className={`rounded-full border px-3 py-1 text-xs font-semibold ${lens === value ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 dark:border-slate-700"}`} onClick={() => setLens(value)}>{dependencyLensLabel(value)}</button>)}{(focus || search || lens !== "all") && <button type="button" className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold" onClick={() => { setFocus(""); setSearch(""); setLens("all"); }}>Clear Filters</button>}</div></section>
+    <DependencyWalkthroughPanel model={walkthrough} initialFlags={initialFlags} triggerIds={triggerIds} activeIndex={activeWalkthroughIndex} onInitialFlagsChange={setInitialFlags} onTriggerIdsChange={setTriggerIds} onActiveIndexChange={setActiveWalkthroughIndex} onFocus={setFocus} />
     <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
       <section className={panelClass}><h2 className="font-semibold">Actionable Health</h2><p className="mt-1 text-xs text-slate-500">Select an issue to focus its relationships, then open the affected record.</p><div className="mt-3 space-y-4"><HealthIssueGroup title="Impossible Gates" description="A requirement depends on a flag that nothing currently sets." severity="error" nodes={rows(health.impossible_gates)} onFocus={setFocus} /><HealthIssueGroup title="Dead Flags" description="These flags are consumed but have no producer." severity="error" nodes={rows(health.dead_flags)} onFocus={setFocus} /><HealthIssueGroup title="Contradictions" description="A requirement both requires and forbids the same flag." severity="error" nodes={rows(health.contradictions)} onFocus={setFocus} /><CycleIssueGroup cycles={Array.isArray(health.cycles) ? health.cycles : []} nodeById={nodeById} onFocus={setFocus} /><HealthIssueGroup title="Unused Flags" description="These flags are produced but never consumed." severity="warning" nodes={rows(health.unused_flags)} onFocus={setFocus} /><BrokenEdgeGroup edges={brokenEdges} nodeById={nodeById} onFocus={setFocus} />{issueNodeIds.size === 0 && <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">No dependency health issues detected.</p>}</div></section>
       <section className={panelClass}><div className="flex items-center justify-between gap-3"><div><h2 className="font-semibold">Relationships</h2><p className="text-xs text-slate-500">{visibleEdges.length} shown. Click either endpoint to focus it.</p></div>{focus && <NodeLink node={nodeById.get(focus)} compact />}</div><div className="mt-3 space-y-2">{visibleEdges.map((edge) => <DependencyEdgeCard key={text(edge.id)} edge={edge} source={nodeById.get(text(edge.source))} target={nodeById.get(text(edge.target))} issueNodeIds={issueNodeIds} onFocus={setFocus} />)}{visibleEdges.length === 0 && <p className="rounded-md border border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800">No relationships match the current focus and lens.</p>}</div></section>
