@@ -28,7 +28,7 @@ The status index is the only place that records delivery status. When a new auth
 
 ## Workspace Status
 
-Last reviewed: 2026-06-29
+Last reviewed: 2026-07-03
 
 | Workspace | Status |
 |---|---|
@@ -40,7 +40,7 @@ Last reviewed: 2026-06-29
 | Encounter Stage | Implemented MVP with participant composition, requirements, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, selected-encounter presets, explicit-target reward/injury/faction/location consequence actions, aftermath preview, and important reward item journey warnings |
 | Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, story path objective-to-beat visualization, branch path diagnostics, temporary flag-state walkthrough, arc-order flag/item coherence warnings, and runtime-event placement window warnings; full mixed-content Quest Loom is future vision |
 | Item Authoring | Implemented standalone item creation route for player-facing mechanics and presentation through `/author/items/new` |
-| Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove, semantic item lifecycle presets, Item Journey source summary, acquisition-channel analysis, obtained-never-used warning, multiple-source explanation warning, and continuity/version guidance; future work can deepen fantasy, provenance, families, and progression |
+| Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove, semantic item lifecycle presets, Item Journey source/story track, unplaced acquisition-source warnings, same-lane requirement-before-acquisition warnings, acquisition-channel analysis, obtained-never-used warning, multiple-source explanation warning, and continuity/version guidance; future work can deepen fantasy, provenance, families, and authored transformations |
 | Shop Authoring | Implemented standalone merchant-facing route for creating shops and inventory together through `/author/shops/new` |
 | Creature Workshop | Implemented MVP as focused enemy creator over characters, combat profiles, encounter participants, location encounter tables, local draft restore/reset, stale-protected scoped placement changes, and optional character story placement |
 | Ability Spellcraft Lab | Implemented expanded lab with trace bench, lifecycle workshop, shared effect/status clone-edit flows, local status playground, variants, relationships, Create Related Draft, contextual testing, status defense rules, and shared rollback-preview/atomic-commit review |
@@ -199,13 +199,13 @@ This should make the character view answer "where is this person in the story?" 
 
 Add an Item Journey Track:
 
-Current status: substantially implemented for Item Ecosystem through the shared story-placement panel and Item Journey summary. It can show item occurrences, apply item lifecycle presets, warn when an important item is unplaced, required while unavailable, obtained but never later used in the current story lane, transformed/restored without continuity context, or spread across multiple acquisition channels without story-placement explanation, and create/edit/remove item links as reward, requirement, state, or reference. Remaining work includes richer journey visualization, deeper acquired-source ordering, and Item Forge integration if it remains separate from Item Ecosystem.
+Current status: substantially implemented for Item Ecosystem through the shared story-placement panel and Item Journey source/story track. It can show item lifecycle occurrences beside acquisition sources, mark acquisition sources whose owners lack story context, apply item lifecycle presets, warn when an important item is unplaced, required before same-lane acquisition, required while unavailable, obtained but never later used in the current story lane, transformed/restored without continuity context, or spread across multiple acquisition channels without story-placement explanation, and create/edit/remove item links as reward, requirement, state, or reference. Remaining work includes deeper estimated-source ordering from levels/gates, richer item fantasy/provenance, and Item Forge integration if it remains separate from Item Ecosystem.
 
-- Show where the item is introduced, obtained, lost, stolen, consumed, upgraded, transformed, restored, required, or rewarded.
+- Show where the item is introduced, obtained, lost, stolen, consumed, upgraded, transformed, restored, required, or rewarded. Implemented through the shared canonical item occurrence track and the Item Ecosystem journey track.
 - Distinguish ordinary economic availability from story-important appearances. Use `importance=background` for generic shop/vendor availability so the navigator does not become noisy.
 - Let the author place an item into a story beat as reward, requirement, state, or reference.
 - For quest items and legendary items, encourage explicit continuity groups so changed versions are understandable. Implemented through shared lifecycle fields plus continuity/state/notes warnings for transformed or restored important items.
-- Warn when an item is required before it can be obtained. Implemented with scoped canonical lane comparison.
+- Warn when an item is required before it can be obtained. Implemented with scoped canonical lane comparison and Item Ecosystem same-lane source/story ordering.
 - Warn when a quest item is obtained but never used or consumed. Implemented for important items with later requirement, loss, consumption, transformation, destruction, or consequence clearing the warning.
 - Warn when an important item appears in multiple acquisition sources without an intentional explanation. Implemented through Item Ecosystem acquisition-channel analysis and existing story-placement context fields.
 
@@ -952,7 +952,9 @@ Show a derived player journey:
 
 "Earliest" is inferred from location level ranges, quest/story-arc context, and gates. It must be labeled as an estimate.
 
-The implemented Item Journey summary shows acquisition channel count, total source count, source channel chips, and story-relevance guidance. Backend analysis warns when important items appear in multiple source channels without story-placement explanation. Story Timeline coherence now warns when important items are obtained without later use and when transformed or restored item versions lack continuity, state-label, or note context.
+The implemented Item Journey track shows acquisition channel count, total source count, canonical story moment count, unplaced source count, source channel chips, source/story rows, scoped lifecycle labels, owner links, and source quantities such as stock, reward quantity, or drop chance. It reuses the same story-placement packet as the shared panel, so committing an item placement updates both the placement panel and journey track without a second interpretation.
+
+The track keeps ordering honest: it orders only rows that share a known story scope and canonical order, labels source owners without story context as unplaced, and warns when a requirement appears before any same-lane acquisition is visible. Backend analysis still warns when important items appear in multiple source channels without story-placement explanation. Story Timeline coherence warns when important items are obtained without later use and when transformed or restored item versions lack continuity, state-label, or note context.
 
 ### Living Canvas Application
 
