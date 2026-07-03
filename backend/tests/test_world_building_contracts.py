@@ -7,6 +7,10 @@ from sqlalchemy.pool import StaticPool
 
 from backend.app.db.init_db import _rebuild_locations_table_for_nullable_biome
 from backend.app.models.base import Base
+from backend.app.models.m_adventure_narrative import AdventureBeat, AdventureBeatLink
+from backend.app.models.m_characterclasses import CharacterClass, ClassRole
+from backend.app.models.m_characters import Character
+from backend.app.models.m_combat_profiles import Aggression, CombatProfile, EnemyType
 from backend.app.models.m_encounters import Encounter, EncounterType
 from backend.app.models.m_events import Event, EventType
 from backend.app.models.m_location_creative_briefs import LocationCreativeBrief
@@ -23,6 +27,7 @@ from backend.app.routes import (
     r_location_pois,
     r_location_routes,
     r_locations,
+    r_encounters,
     r_export,
     r_route_event_bindings,
     r_travel_tuning,
@@ -52,6 +57,7 @@ def _app_with_session(monkeypatch):
         r_route_event_bindings,
         r_travel_tuning,
         r_location_creative_briefs,
+        r_encounters,
         r_ui_world_builder,
         base_route,
     ]:
@@ -66,6 +72,7 @@ def _app_with_session(monkeypatch):
         r_route_event_bindings.bp,
         r_travel_tuning.bp,
         r_location_creative_briefs.bp,
+        r_encounters.bp,
         r_ui_world_builder.bp,
     ]:
         app.register_blueprint(bp)
@@ -76,6 +83,8 @@ def _seed_world(Session):
     session = Session()
     try:
         session.add_all([
+            CharacterClass(id="class-1", slug="fighter", name="Fighter", role=ClassRole.Damage, base_stats=[], tags=[]),
+            Character(id="hero-1", slug="hero-1", name="Hero", level=2, class_id="class-1", tags=[]),
             Location(id="world", slug="world", name="World", biome=Biome.Plains, location_type=LocationType.World, is_safe_zone=True),
             Location(id="zone", slug="zone", name="Zone", biome=Biome.Forest, parent_location_id="world", location_type=LocationType.Zone),
             LocationRoute(id="route-1", slug="route-1", from_location_id="world", to_location_id="zone", route_type=LocationRouteType.Road),
@@ -400,6 +409,156 @@ def test_world_builder_bundle_saves_linked_world_records_atomically(monkeypatch)
     assert Session().get(RouteEventBinding, "binding-1")
     assert Session().get(TravelTuning, "tuning-1")
     assert Session().get(LocationCreativeBrief, "brief-1")
+
+
+def test_world_builder_combat_chain_creates_linked_authoring_records(monkeypatch):
+    client, Session = _app_with_session(monkeypatch)
+    _seed_world(Session)
+
+    response = client.post("/api/ui/world_builder/combat-chain", json={
+        "location_id": "zone",
+        "participant_character_id": "hero-1",
+        "encounter_name": "Market Ambush",
+        "enemy_name": "Alley Stalker",
+        "story_beat_title": "Ambush In The Market",
+        "create_poi": True,
+        "create_story_beat": True,
+    })
+
+    assert response.status_code == 200
+    body = response.get_json()
+    chain = body["chain"]
+    session = Session()
+    try:
+        encounter = session.get(Encounter, chain["encounter_id"])
+        enemy = session.get(Character, chain["enemy_id"])
+        combat = session.get(CombatProfile, chain["combat_profile_id"])
+        event = session.get(Event, chain["event_id"])
+        poi = session.get(LocationPoi, chain["poi_id"])
+        beat = session.get(AdventureBeat, chain["adventure_beat_id"])
+        links = session.query(AdventureBeatLink).filter_by(adventure_beat_id=beat.id).all()
+        table = session.get(LocationEncounterTable, chain["encounter_table_id"])
+
+        assert encounter.name == "Market Ambush"
+        assert encounter.participants == [
+            {"character_id": "hero-1", "contexts": ["Combat"], "combat_side": "Friendly"},
+            {"character_id": enemy.id, "contexts": ["Combat"], "combat_side": "Hostile"},
+        ]
+        assert enemy.home_location_id == "zone"
+        assert combat.custom_abilities == []
+        assert combat.loot_table == []
+        assert event.location_id == "zone"
+        assert event.encounter_id == encounter.id
+        assert poi.event_id == event.id
+        assert any(entry["encounter_id"] == encounter.id for entry in table.encounter_entries)
+        assert {link.target_type.value for link in links} >= {"location", "encounter", "event", "character"}
+        assert {link.target_id for link in links if link.target_type.value == "character"} == {enemy.id, "hero-1"}
+    finally:
+        session.close()
+
+
+def test_world_builder_combat_chain_can_reuse_existing_enemy(monkeypatch):
+    client, Session = _app_with_session(monkeypatch)
+    _seed_world(Session)
+    session = Session()
+    try:
+        session.add(Character(id="young-boar", slug="young-boar", name="Young Boar", level=1, class_id="class-1", tags=["creature", "enemy"]))
+        session.flush()
+        session.add(CombatProfile(
+            id="boar-combat",
+            character_id="young-boar",
+            enemy_type=EnemyType.Beast,
+            aggression=Aggression.Hostile,
+            custom_stats=[],
+            custom_abilities=[],
+            status_rules=[],
+            loot_table=[],
+            currency_rewards=[],
+            reputation_rewards=[],
+            xp_reward=3,
+            related_quests=[],
+            companion_config={},
+            tags=[],
+        ))
+        session.commit()
+    finally:
+        session.close()
+
+    response = client.post("/api/ui/world_builder/combat-chain", json={
+        "location_id": "zone",
+        "participant_character_id": "hero-1",
+        "enemy_character_id": "young-boar",
+        "encounter_name": "Boar In The Alley",
+        "story_beat_title": "Boar In The Alley",
+        "create_poi": True,
+        "create_story_beat": True,
+    })
+
+    assert response.status_code == 200
+    body = response.get_json()
+    chain = body["chain"]
+    session = Session()
+    try:
+        encounter = session.get(Encounter, chain["encounter_id"])
+        links = session.query(AdventureBeatLink).filter_by(adventure_beat_id=chain["adventure_beat_id"]).all()
+        assert chain["enemy_id"] == "young-boar"
+        assert chain["combat_profile_id"] == "boar-combat"
+        assert encounter.participants == [
+            {"character_id": "hero-1", "contexts": ["Combat"], "combat_side": "Friendly"},
+            {"character_id": "young-boar", "contexts": ["Combat"], "combat_side": "Hostile"},
+        ]
+        assert session.query(Character).filter_by(name="Young Boar").count() == 1
+        assert {link.target_id for link in links if link.target_type.value == "character"} == {"young-boar", "hero-1"}
+        assert not any(row["table"] == "characters" for row in body["review"]["created"])
+    finally:
+        session.close()
+
+
+def test_world_builder_combat_chain_rolls_back_on_missing_location(monkeypatch):
+    client, Session = _app_with_session(monkeypatch)
+    _seed_world(Session)
+
+    response = client.post("/api/ui/world_builder/combat-chain", json={
+        "location_id": "missing",
+        "encounter_name": "Bad Chain",
+    })
+
+    assert response.status_code == 400
+    assert Session().query(CombatProfile).count() == 0
+    assert Session().query(AdventureBeat).count() == 0
+
+
+def test_encounter_delete_cleans_world_and_story_references(monkeypatch):
+    client, Session = _app_with_session(monkeypatch)
+    _seed_world(Session)
+    create = client.post("/api/ui/world_builder/combat-chain", json={
+        "location_id": "zone",
+        "participant_character_id": "hero-1",
+        "encounter_name": "Delete Me",
+        "enemy_name": "Temporary Enemy",
+        "story_beat_title": "Temporary Beat",
+        "create_poi": True,
+        "create_story_beat": True,
+    })
+    assert create.status_code == 200
+    encounter_id = create.get_json()["chain"]["encounter_id"]
+
+    delete = client.delete(f"/api/encounters/{encounter_id}")
+
+    assert delete.status_code == 200
+    session = Session()
+    try:
+        assert session.get(Encounter, encounter_id) is None
+        assert session.query(Event).filter_by(encounter_id=encounter_id).count() == 0
+        assert session.query(LocationPoi).filter_by(encounter_id=encounter_id).count() == 0
+        assert session.query(AdventureBeatLink).filter_by(target_id=encounter_id).count() == 0
+        assert all(
+            not isinstance(entry, dict) or entry.get("encounter_id") != encounter_id
+            for table in session.query(LocationEncounterTable).all()
+            for entry in (table.encounter_entries or [])
+        )
+    finally:
+        session.close()
 
 
 def test_world_builder_bundle_rolls_back_and_locks_linked_record_ownership(monkeypatch):

@@ -1,12 +1,17 @@
 from flask import Blueprint, request, jsonify, abort
 from backend.app.routes.base_route import BaseRoute
+from backend.app.models.m_adventure_narrative import AdventureBeatLink, AdventureBeatLinkTargetType
 from backend.app.models.m_encounters import Encounter, EncounterType
+from backend.app.models.m_events import Event
 from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_characters import Character
 from backend.app.models.m_flags import Flag
 from backend.app.models.m_currencies import Currency
 from backend.app.models.m_factions import Faction
 from backend.app.models.m_items import Item
+from backend.app.models.m_location_encounter_tables import LocationEncounterTable
+from backend.app.models.m_location_pois import LocationPoi
+from backend.app.models.m_locations import Location
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from backend.app.db.init_db import get_db_session
@@ -131,6 +136,64 @@ class EncounterRoute(BaseRoute):
         
     def serialize_item(self, encounter: Encounter) -> Dict[str, Any]:
         return self.serialize_model(encounter)
+
+    def delete(self, item_id: str):
+        db_session = get_db_session()
+        try:
+            encounter = db_session.get(self.model, item_id)
+            if not encounter:
+                abort(404, description=f"Item {item_id} not found")
+
+            cleared_events = db_session.query(Event).filter_by(encounter_id=item_id).update(
+                {"encounter_id": None},
+                synchronize_session=False,
+            )
+            cleared_pois = db_session.query(LocationPoi).filter_by(encounter_id=item_id).update(
+                {"encounter_id": None},
+                synchronize_session=False,
+            )
+            deleted_story_links = db_session.query(AdventureBeatLink).filter_by(
+                target_type=AdventureBeatLinkTargetType.Encounter,
+                target_id=item_id,
+            ).delete(synchronize_session=False)
+
+            changed_tables = 0
+            for table in db_session.query(LocationEncounterTable).all():
+                entries = table.encounter_entries or []
+                next_entries = [
+                    entry for entry in entries
+                    if not isinstance(entry, dict) or entry.get("encounter_id") != item_id
+                ]
+                if next_entries != entries:
+                    table.encounter_entries = next_entries
+                    db_session.add(table)
+                    changed_tables += 1
+
+            changed_locations = 0
+            for location in db_session.query(Location).all():
+                encounters = location.encounters or []
+                if item_id in encounters:
+                    location.encounters = [encounter_id for encounter_id in encounters if encounter_id != item_id]
+                    db_session.add(location)
+                    changed_locations += 1
+
+            db_session.delete(encounter)
+            db_session.commit()
+            return jsonify({
+                "status": "ok",
+                "cleanup": {
+                    "events": cleared_events,
+                    "location_pois": cleared_pois,
+                    "adventure_beat_links": deleted_story_links,
+                    "location_encounter_tables": changed_tables,
+                    "locations": changed_locations,
+                },
+            })
+        except Exception as e:
+            db_session.rollback()
+            abort(400, description=f"Error deleting encounter: {str(e)}")
+        finally:
+            db_session.close()
     
     def get_all(self):
         db_session = get_db_session()

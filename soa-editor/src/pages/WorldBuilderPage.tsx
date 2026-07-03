@@ -40,6 +40,8 @@ interface WorldBuilderPayload {
   creative_briefs: EntryRecord[];
   events: EntryRecord[];
   encounters: EntryRecord[];
+  characters: EntryRecord[];
+  adventure_beats: EntryRecord[];
   quests: EntryRecord[];
   story_arcs: EntryRecord[];
   dialogues: EntryRecord[];
@@ -398,6 +400,8 @@ export default function WorldBuilderPage() {
         creative_briefs: Array.isArray(data.creative_briefs) ? data.creative_briefs.filter(isRecord) : [],
         events: Array.isArray(data.events) ? data.events.filter(isRecord) : [],
         encounters: Array.isArray(data.encounters) ? data.encounters.filter(isRecord) : [],
+        characters: Array.isArray(data.characters) ? data.characters.filter(isRecord) : [],
+        adventure_beats: Array.isArray(data.adventure_beats) ? data.adventure_beats.filter(isRecord) : [],
         quests: Array.isArray(data.quests) ? data.quests.filter(isRecord) : [],
         story_arcs: Array.isArray(data.story_arcs) ? data.story_arcs.filter(isRecord) : [],
         dialogues: Array.isArray(data.dialogues) ? data.dialogues.filter(isRecord) : [],
@@ -1139,6 +1143,8 @@ export default function WorldBuilderPage() {
                   routes={selectedRoutes}
                   locationsById={locationsById}
                   encountersById={encountersById}
+                  characters={payload?.characters ?? []}
+                  adventureBeats={payload?.adventure_beats ?? []}
                   pois={selectedPois}
                   encounterTables={selectedEncounterTables}
                   routeEvents={selectedRouteEvents}
@@ -1154,6 +1160,7 @@ export default function WorldBuilderPage() {
                   onSavePacket={saveWorldPacket}
                   onCreateRoute={startRouteFromSelected}
                   onCreatePoi={() => selected && createPoiDraft(selected)}
+                  onChainCreated={load}
                 />
               </div>
             ) : (
@@ -1639,12 +1646,153 @@ function InlineWorldPacketEditor({
   );
 }
 
+function CombatChainCreator({
+  location,
+  characters,
+  adventureBeats,
+  onCreated,
+}: {
+  location: EntryRecord;
+  characters: EntryRecord[];
+  adventureBeats: EntryRecord[];
+  onCreated: () => void;
+}) {
+  const locationId = entryId(location);
+  const locationName = label(location, "Location");
+  const [participantId, setParticipantId] = useState("");
+  const [enemyCharacterId, setEnemyCharacterId] = useState("");
+  const [encounterName, setEncounterName] = useState(`${locationName} Combat`);
+  const [enemyName, setEnemyName] = useState(`${locationName} Enemy`);
+  const [storyBeatTitle, setStoryBeatTitle] = useState(`${locationName} Combat`);
+  const [adventureBeatId, setAdventureBeatId] = useState("");
+  const [createStoryBeat, setCreateStoryBeat] = useState(true);
+  const [createPoi, setCreatePoi] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState("");
+  const enemyOptions = useMemo(() => characters.filter((character) => Boolean(character.is_enemy_candidate)), [characters]);
+  const selectedEnemy = useMemo(() => enemyOptions.find((character) => entryId(character) === enemyCharacterId), [enemyCharacterId, enemyOptions]);
+
+  useEffect(() => {
+    setParticipantId("");
+    setEnemyCharacterId("");
+    setEncounterName(`${locationName} Combat`);
+    setEnemyName(`${locationName} Enemy`);
+    setStoryBeatTitle(`${locationName} Combat`);
+    setAdventureBeatId("");
+    setCreateStoryBeat(true);
+    setCreatePoi(true);
+    setNotice("");
+  }, [locationId, locationName]);
+
+  useEffect(() => {
+    if (participantId && participantId === enemyCharacterId) setEnemyCharacterId("");
+  }, [enemyCharacterId, participantId]);
+
+  const submit = async () => {
+    setSaving(true);
+    setNotice("");
+    try {
+      const response = await apiFetch("/api/ui/world_builder/combat-chain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location_id: locationId,
+          participant_character_id: participantId,
+          enemy_character_id: enemyCharacterId,
+          encounter_name: encounterName,
+          enemy_name: enemyCharacterId ? "" : enemyName,
+          story_beat_title: storyBeatTitle,
+          adventure_beat_id: createStoryBeat ? "" : adventureBeatId,
+          create_story_beat: createStoryBeat,
+          create_poi: createPoi,
+        }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !isRecord(body)) throw new Error(isRecord(body) ? text(body.message, "Combat chain failed to save.") : "Combat chain failed to save.");
+      const chain = isRecord(body.chain) ? body.chain : {};
+      setNotice(`${enemyCharacterId ? "Reused" : "Created"} enemy ${text(chain.enemy_id)} and created encounter ${text(chain.encounter_id)}, event ${text(chain.event_id)}, and story beat ${text(chain.adventure_beat_id)}.`);
+      onCreated();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Combat chain failed to save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Panel title="Combat Chain Creator">
+      <div className="mb-3 text-xs text-slate-600 dark:text-slate-400">
+        Create a first-pass encounter package for this location: enemy, combat profile, placement, event trigger, and story links.
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">Specific Character</div>
+          <select className={inputClass} value={participantId} onChange={(event) => setParticipantId(event.target.value)}>
+            <option value="">No friendly participant</option>
+            {characters.map((character) => <option key={entryId(character)} value={entryId(character)}>{label(character, entryId(character))}</option>)}
+          </select>
+        </label>
+        <label className="block">
+          <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">Enemy</div>
+          <select className={inputClass} value={enemyCharacterId} onChange={(event) => setEnemyCharacterId(event.target.value)}>
+            <option value="">Create new enemy</option>
+            {enemyOptions.map((enemy) => {
+              const details = [text(enemy.enemy_type), text(enemy.aggression), text(enemy.home_location_id) === locationId ? "here" : ""].filter(Boolean).join(" / ");
+              return <option key={entryId(enemy)} value={entryId(enemy)} disabled={entryId(enemy) === participantId}>{label(enemy, entryId(enemy))}{details ? ` (${details})` : ""}</option>;
+            })}
+          </select>
+        </label>
+        <label className="block">
+          <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">Encounter Name</div>
+          <input className={inputClass} value={encounterName} onChange={(event) => setEncounterName(event.target.value)} />
+        </label>
+        <label className="block">
+          <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">Enemy Name</div>
+          <input className={inputClass} value={enemyCharacterId ? label(selectedEnemy, enemyCharacterId) : enemyName} disabled={Boolean(enemyCharacterId)} onChange={(event) => setEnemyName(event.target.value)} />
+        </label>
+        <label className="flex items-center gap-2 self-end text-sm text-slate-700 dark:text-slate-200">
+          <input type="checkbox" checked={createPoi} onChange={(event) => setCreatePoi(event.target.checked)} />
+          Create POI trigger
+        </label>
+      </div>
+      <div className="mt-3 rounded-md border border-slate-200 p-3 dark:border-slate-800">
+        <label className="mb-3 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+          <input type="checkbox" checked={createStoryBeat} onChange={(event) => setCreateStoryBeat(event.target.checked)} />
+          Create new story beat
+        </label>
+        {createStoryBeat ? (
+          <label className="block">
+            <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">Story Beat Title</div>
+            <input className={inputClass} value={storyBeatTitle} onChange={(event) => setStoryBeatTitle(event.target.value)} />
+          </label>
+        ) : (
+          <label className="block">
+            <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">Existing Story Beat</div>
+            <select className={inputClass} value={adventureBeatId} onChange={(event) => setAdventureBeatId(event.target.value)}>
+              <option value="">Select story beat</option>
+              {adventureBeats.map((beat) => <option key={entryId(beat)} value={entryId(beat)}>{label(beat, entryId(beat))}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button type="button" className={activeButton} disabled={saving || !encounterName.trim() || (!enemyCharacterId && !enemyName.trim()) || (!createStoryBeat && !adventureBeatId)} onClick={() => void submit()}>
+          {saving ? "Creating..." : "Create Combat Chain"}
+        </button>
+        {notice && <span className="text-xs text-slate-600 dark:text-slate-300">{notice}</span>}
+      </div>
+    </Panel>
+  );
+}
+
 function LocationDetails({
   location,
   isDraft = false,
   routes,
   locationsById,
   encountersById,
+  characters,
+  adventureBeats,
   pois,
   encounterTables,
   routeEvents,
@@ -1660,12 +1808,15 @@ function LocationDetails({
   onSavePacket,
   onCreateRoute,
   onCreatePoi,
+  onChainCreated,
 }: {
   location: EntryRecord;
   isDraft?: boolean;
   routes: EntryRecord[];
   locationsById: Map<string, EntryRecord>;
   encountersById: Map<string, EntryRecord>;
+  characters: EntryRecord[];
+  adventureBeats: EntryRecord[];
   pois: EntryRecord[];
   encounterTables: EntryRecord[];
   routeEvents: EntryRecord[];
@@ -1681,6 +1832,7 @@ function LocationDetails({
   onSavePacket: (patch: WorldBundlePatch) => Promise<boolean>;
   onCreateRoute: () => void;
   onCreatePoi: () => void;
+  onChainCreated: () => void;
 }) {
   const id = entryId(location);
   const coordinates = coordinatesFromEntry(location);
@@ -1718,6 +1870,14 @@ function LocationDetails({
           briefs={briefs}
           encountersById={encountersById}
           onSave={onSavePacket}
+        />
+      )}
+      {!isDraft && (
+        <CombatChainCreator
+          location={location}
+          characters={characters}
+          adventureBeats={adventureBeats}
+          onCreated={onChainCreated}
         />
       )}
       <LocationStoryStatePanel
