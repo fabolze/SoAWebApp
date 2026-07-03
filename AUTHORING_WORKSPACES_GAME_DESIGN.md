@@ -38,6 +38,7 @@ Last reviewed: 2026-07-03
 | Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, dedicated Character Presence Timeline in the context dock, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, semantic character presets, scoped introduction-coverage warnings, and cross-entity character consequence actions |
 | Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, selected-dialogue presets, and explicit-target character/faction/item/location consequence actions |
 | Encounter Stage | Implemented MVP with participant composition, requirements, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, selected-encounter presets, explicit-target reward/injury/faction/location consequence actions, aftermath preview, and important reward item journey warnings |
+| Progression Flow And Gate Builder | Planned linked-authoring workspace for creating events, encounters, requirements, and flags hand in hand without merging their canonical tables; MVP should start with gate building, source/outcome flag authoring, and event-chain bundle review |
 | Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, story path objective-to-beat visualization, branch path diagnostics, temporary flag-state walkthrough, arc-order flag/item coherence warnings, and runtime-event placement window warnings; full mixed-content Quest Loom is future vision |
 | Item Authoring | Implemented standalone item creation route for player-facing mechanics and presentation through `/author/items/new` |
 | Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove, semantic item lifecycle presets, Item Journey source/story track, unplaced acquisition-source warnings, same-lane requirement-before-acquisition warnings, acquisition-channel analysis, obtained-never-used warning, multiple-source explanation warning, and continuity/version guidance; future work can deepen fantasy, provenance, families, and authored transformations |
@@ -741,6 +742,118 @@ A missing-role slot expresses a design need such as "ranged pressure" or "non-co
 - Dialogue that can become combat.
 - Companion introduction.
 - Boss scene with reward and completion flag.
+
+---
+
+## Progression Flow And Gate Builder
+
+### Creative North Star
+
+The designer authors a piece of progression as one connected idea: what starts it, what content resolves it, what state changes, and what becomes available afterward.
+
+This workspace exists because events, encounters, requirements, and flags are normalized correctly for runtime but usually conceived together while authoring. The author should not have to jump between unrelated table editors, manually copy slugs, or remember whether a completion flag, gate requirement, and follow-up event were named consistently.
+
+The workspace must stay type-flexible. Dialogue into combat is only one possible chain. A flow can involve events, encounters, dialogue, lore, item rewards, teleport, scripted scenes, route events, POIs, shops, quests, or other gated content whenever the current schema has a real reference or flag/requirement relationship for it.
+
+### Canvas
+
+A progression canvas shows four families of nodes:
+
+- **Sources:** events, encounters, quests, dialogue lines, dialogue choices, POIs, route events, or other records that can start content or set state.
+- **Content:** event payloads such as encounter, dialogue, item reward, lore discovery, teleport, or scripted scene, plus linked encounters and other authored content.
+- **State:** flags and faction reputation changes that describe what became true.
+- **Gates:** requirements that consume state and unlock later content.
+
+The default view is a chain or small dependency cluster around the selected seed, not a whole-project graph. Solid edges are saved references or dependencies. Dashed edges are inferred from existing data. Dotted edges are local draft proposals that must pass bundle review before they become real records.
+
+This is not a universal graph editor. It is a focused authoring surface for relationships that already have honest save contracts.
+
+### Current-Model Implementation
+
+The current model can support a useful linked-authoring MVP without adding a new canonical "flow" table. The flow itself is an authoring draft and review surface; committed changes update the existing records.
+
+| Author Gesture | Existing Data Written |
+|---|---|
+| Start from a shared base name | Generate local draft slugs for related records; canonical writes happen only when records are created or updated through review |
+| Create a flag from a source or outcome | Create a `flags` row and add its id to the selected source's supported flag-set field |
+| Set state from an event | Update `events.flags_set` |
+| Set state from an encounter outcome | Update `encounters.rewards.flags_set` |
+| Set state from a dialogue line or choice | Update `dialogue_nodes.set_flags` or the choice `set_flags` row |
+| Build a gate from selected flags | Create or update `requirements.required_flags` and `requirements.forbidden_flags` |
+| Attach a gate to content | Set the target record's existing `requirements_id` field where the schema supports one |
+| Link an event to content | Set `events.type` and the matching payload field such as `encounter_id`, `dialogue_id`, or `lore_id` |
+| Link one event to the next event | Set `events.next_event_id` |
+| Reuse an existing flag or requirement | Reference the existing id and show current usages before committing changes |
+| Save a linked draft | Preview and atomically commit the affected events, encounters, requirements, flags, and supported payload records |
+
+The first implementation should be a **Gate Builder** embedded in this workspace and reused later by other editors:
+
+1. Choose or create required flags.
+2. Choose or create forbidden flags.
+3. Preview all existing consumers and producers of those flags.
+4. Generate or update one requirement.
+5. Attach that requirement to the selected event, encounter, dialogue, route, shop, POI, item, ability, quest, or other supported gated content.
+
+The second implementation layer should be a **Source And Outcome Composer**:
+
+1. Pick a source record or create a new event.
+2. Pick the payload or linked content it starts.
+3. Add outcome flags and rewards where the current source supports them.
+4. Create a follow-up requirement from those outcome flags.
+5. Link the next event or gated content that becomes available.
+
+### Delivery Plan
+
+1. **Gate Builder MVP:** inline flag creation, requirement creation/update from selected flags, usage preview, duplicate slug detection, and attach-to-current-content save.
+2. **Event Payload Composer:** edit event type, payload reference, outcome flags, and next event in one draft with quick creation of missing payload records.
+3. **Encounter Outcome Integration:** when an event points to an encounter, show the encounter's reward flags, requirement, and direct world context beside the event chain.
+4. **Progression Flow MVP:** draw a compact selected-seed chain from source to state to gate to consumer, with dotted local edges and shared bundle review.
+5. **Temporary Playthrough:** start from selected temporary flags, trigger a source, and watch newly opened gates and blocked content update before saving broader changes.
+
+### Lenses
+
+- **Flow:** event payloads, next-event links, and immediate content handoff.
+- **State:** flags set, flags consumed, and faction reputation requirements.
+- **Gates:** requirements, missing flags, forbidden flags, and shared requirement usage.
+- **Payload:** dialogue, encounter, reward, lore, teleport, or scripted-scene details for selected events.
+- **Issues:** broken references, impossible gates, unused flags, type/payload mismatch, and event loops.
+
+### Living Canvas Application
+
+- **Canonical Save Gestures:** create flags, create requirements, edit requirement flag rules, assign requirements to gated content, edit supported source flag-set fields, set event payload references, and connect event chains.
+- **Local Creative Tools:** shared-base-name generation, dotted proposed links, small flow clusters, gate previews, temporary state playthrough, naming consistency checks, and cross-record bundle review.
+- **Future Canonical Expansion:** explicit authored flow records, optional/failure branches, alternate resolutions, player knowledge state, pacing targets, and fully modeled mixed-content playable slices.
+
+The workspace should make related names consistent by default, but the id relationships are the source of truth. Naming helpers prevent authoring mistakes; they do not replace references.
+
+### Future Expansion
+
+- Add reusable flow templates for common shapes such as discovery unlock, checkpoint, boss payoff, vendor unlock, optional secret, route unblock, and quest handoff.
+- Support branch comparison when the project has stronger canonical branch metadata.
+- Promote local flow drafts into a future canonical flow or playable-slice model only if the project deliberately adds that concept.
+- Let other workspaces open a scoped Gate Builder without loading the full progression canvas.
+- Add richer reputation and variable-state handling if requirements grow beyond flags and faction thresholds.
+
+### Context Packet
+
+- Selected seed record and all directly connected events, encounters, requirements, and flags.
+- Event payload details and next-event chain.
+- Existing producers and consumers for each selected flag.
+- Existing usage count for each selected requirement.
+- Gated content that opens or closes under the temporary state.
+- Broken, missing, shared, and cyclic references.
+
+### Health Questions
+
+- Does every required flag have at least one known source?
+- Does every outcome flag have at least one meaningful consumer?
+- Is a requirement impossible because required and forbidden state conflict?
+- Is a shared requirement being edited in a way that affects unrelated content?
+- Does an event's type match its payload reference?
+- Does an event chain loop forever or terminate without an intentional endpoint?
+- Does a linked encounter, dialogue, reward, or lore payload actually exist?
+- Are generated names clear enough to understand the related records as one authored progression beat?
+- Can the author explain what becomes possible after the flow resolves?
 
 ---
 
@@ -1507,6 +1620,7 @@ They may appear as prompts, inferred views, local planning notes, or generated s
 | Character Studio And Character Web | Edit the identity/combat/interaction bundle, inspect world presence, compare, validate, and show character story placements |
 | Dialogue Scene Room | View/edit node graph, connect choices, trace a path, show broken links, and place the scene into story/runtime context |
 | Encounter Stage | Place participants by side/context, edit rewards, show simulation and placements, and show encounter aftermath/story placement |
+| Progression Flow And Gate Builder | Create flags and requirements together, connect sources to outcome state, attach gates to supported content, and preview small event/progression chains before atomic commit |
 | Quest Journey Board And Quest Loom | Reorder objectives, edit gates/flags/rewards, show quest givers/aftermath, and place quest beats in the story |
 | Item Authoring | Create a single item with mechanics, presentation, effects, modifiers, price, rarity, and requirements |
 | Item Ecosystem And Item Forge | Show all sources, add item to source/reward, compare price/power/scarcity, and track important item journeys |
