@@ -104,6 +104,14 @@ export const AUTHORING_MODES: readonly AuthoringModeConfig[] = [
     icon: ClipboardDocumentListIcon,
   },
   {
+    id: "progression-flow",
+    route: "/author/progression-flow",
+    label: "Progression Flow",
+    description: "Create events, encounters, requirements, and flags together as small progression chains.",
+    supportedEntities: ["events", "encounters", "requirements", "flags", "dialogues", "dialogue_nodes", "quests"],
+    icon: Squares2X2Icon,
+  },
+  {
     id: "quest-journey-board",
     route: "/author/quests",
     label: "Quest Journey Board",

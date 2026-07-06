@@ -62,6 +62,7 @@ const ShopAuthoringPage = lazy(() => import("./authoringViews/ImmersiveAuthoring
 const AbilitySpellcraftLabPage = lazy(() => import("./pages/AbilitySpellcraftLabPage"));
 const CreatureWorkshopPage = lazy(() => import("./pages/CreatureWorkshopPage"));
 const StoryTimelinePage = lazy(() => import("./pages/StoryTimelinePage"));
+const ProgressionFlowPage = lazy(() => import("./pages/ProgressionFlowPage"));
 
 const SIDEBAR_COLLAPSED_KEY = "soa.sidebar.collapsed";
 
@@ -134,6 +135,7 @@ export default function AppRoot() {
               <Route path="author/quests/new" element={<QuestJourneyPage />} />
               <Route path="author/quests/:id" element={<QuestJourneyPage />} />
               <Route path="author/dependencies" element={<DependencyMapPage />} />
+              <Route path="author/progression-flow" element={<ProgressionFlowPage />} />
               <Route path="author/story-timeline" element={<StoryTimelinePage />} />
               <Route path="author/abilities" element={<AbilitySpellcraftLabPage />} />
               <Route path="author/abilities/new" element={<AbilitySpellcraftLabPage />} />

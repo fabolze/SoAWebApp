@@ -72,5 +72,5 @@ class FlagRoute(BaseRoute):
             db_session.close()
 
 # Create the route instance
-bp = FlagRoute().bp
-
+route = FlagRoute()
+bp = route.bp
