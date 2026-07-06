@@ -2,6 +2,8 @@ import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSe
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { deriveEncounterAftermathRows, type EncounterAftermathRow } from "../authoring/encounterAftermath";
+import { emptyScopedGatePacket, type ScopedGatePacket } from "../authoring/scopedGate";
+import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
 import { useDirtyState } from "../components/useDirtyState";
@@ -167,6 +169,12 @@ export default function EncounterStagePage() {
   const [notice, setNotice] = useState("");
   const [selectedCharacter, setSelectedCharacter] = useState("");
   const [restored, setRestored] = useState(false);
+  const [gatePacket, setGatePacket] = useState<ScopedGatePacket>(emptyScopedGatePacket);
+  const [gateDraftFlags, setGateDraftFlags] = useState<EntryRecord[]>([]);
+  const [gateRequirementDraft, setGateRequirementDraft] = useState<EntryRecord | null>(null);
+  const [gateSelectedRequirementId, setGateSelectedRequirementId] = useState("");
+  const [gateTargetSchema, setGateTargetSchema] = useState("encounters");
+  const [gateTargetId, setGateTargetId] = useState("");
   const dirtySource = useRef(`encounter-stage-${id}`);
   const { setDirty } = useDirtyState();
   const serialized = stable(cleanPacket(packet));
@@ -198,9 +206,11 @@ export default function EncounterStagePage() {
     let cancelled = false;
     setLoading(true);
     const endpoint = isNew ? "/api/ui/encounters" : `/api/ui/encounters/${encodeURIComponent(id)}`;
-    apiFetch(endpoint).then(async (response) => {
+    Promise.all([apiFetch(endpoint), apiFetch("/api/ui/scoped-gates")]).then(async ([response, gateResponse]) => {
       const payload = await response.json();
+      const gatePayload = await gateResponse.json();
       if (!response.ok || !isRecord(payload)) throw new Error(formatApiError(payload, "Encounter Stage failed to load."));
+      if (!gateResponse.ok || !isRecord(gatePayload)) throw new Error(formatApiError(gatePayload, "Scoped gates failed to load."));
       const base = isNew
         ? { ...emptyPacket(), ...payload, encounter: emptyEncounter(), placements: [], requirement: null, requirement_usages: [], context: emptyContext }
         : payload as unknown as EncounterPacket;
@@ -220,6 +230,10 @@ export default function EncounterStagePage() {
       if (!cancelled) {
         setPacket(next);
         setOriginal(base as EncounterPacket);
+        setGatePacket({ ...emptyScopedGatePacket, ...gatePayload } as ScopedGatePacket);
+        setGateSelectedRequirementId(displayText(next.encounter.requirements_id));
+        setGateTargetSchema("encounters");
+        setGateTargetId(displayText(next.encounter.id));
       }
     }).catch((error) => setNotice(error instanceof Error ? error.message : "Encounter Stage failed to load."))
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -271,6 +285,27 @@ export default function EncounterStagePage() {
     setNotice("Unsaved Encounter Stage changes reset.");
   };
 
+  const applyGateCommit = (nextGatePacket: ScopedGatePacket, requirementId: string) => {
+    const requirement = nextGatePacket.requirements.find((entry) => displayText(entry.id) === requirementId) || null;
+    const requirementUsages = requirementId
+      ? (nextGatePacket.requirement_usages_by_id[requirementId] || []).filter((usage) => !(displayText(usage.schema_name) === "encounters" && displayText(usage.entry_id) === displayText(packet.encounter.id)))
+      : [];
+    const patch = (current: EncounterPacket): EncounterPacket => ({
+      ...current,
+      requirements: nextGatePacket.requirements,
+      requirement_usages_by_id: nextGatePacket.requirement_usages_by_id,
+      flags: nextGatePacket.flags,
+      encounter: { ...current.encounter, requirements_id: requirementId },
+      requirement,
+      requirement_usages: requirementUsages,
+    });
+    setGatePacket(nextGatePacket);
+    setGateSelectedRequirementId(requirementId);
+    setPacket((current) => patch(current));
+    setOriginal((current) => current ? patch(current) : current);
+    setNotice("Encounter gate committed.");
+  };
+
   if (loading) return <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading Encounter Stage...</div>;
 
   return (
@@ -281,7 +316,26 @@ export default function EncounterStagePage() {
         <EncounterSelector packet={packet} />
         <div className="grid gap-4 2xl:grid-cols-[1fr_360px]">
           <div className="space-y-4">
-            <IdentityPanel packet={packet} setPacket={setPacket} updateEncounter={updateEncounter} />
+            <IdentityPanel packet={packet} setPacket={setPacket} updateEncounter={updateEncounter} showInlineGate={isNew} />
+            {!isNew && <ScopedGateBuilder
+              packet={gatePacket}
+              baseName={displayText(packet.encounter.name, "encounter")}
+              draftFlags={gateDraftFlags}
+              setDraftFlags={setGateDraftFlags}
+              requirementDraft={gateRequirementDraft}
+              setRequirementDraft={setGateRequirementDraft}
+              selectedRequirementId={gateSelectedRequirementId}
+              setSelectedRequirementId={setGateSelectedRequirementId}
+              targetSchema={gateTargetSchema}
+              setTargetSchema={setGateTargetSchema}
+              targetId={gateTargetId}
+              setTargetId={setGateTargetId}
+              directCommit
+              title="Encounter Gate"
+              subtitle="Create or reuse flags and requirements, then attach the saved encounter gate atomically."
+              tag="encounter-stage"
+              onCommitted={(nextPacket, requirementId) => applyGateCommit(nextPacket, requirementId)}
+            />}
             <Stage packet={packet} setPacket={setPacket} selectedCharacter={selectedCharacter} setSelectedCharacter={setSelectedCharacter} />
             <RewardPanel packet={packet} updateEncounter={updateEncounter} />
             <AftermathPanel rows={aftermathRows} loading={storyPlacement.loading} error={storyPlacement.error} />
@@ -327,7 +381,7 @@ function EncounterSelector({ packet }: { packet: EncounterPacket }) {
   </Panel>;
 }
 
-function IdentityPanel({ packet, setPacket, updateEncounter }: { packet: EncounterPacket; setPacket: React.Dispatch<React.SetStateAction<EncounterPacket>>; updateEncounter: (patch: EntryRecord) => void }) {
+function IdentityPanel({ packet, setPacket, updateEncounter, showInlineGate }: { packet: EncounterPacket; setPacket: React.Dispatch<React.SetStateAction<EncounterPacket>>; updateEncounter: (patch: EntryRecord) => void; showInlineGate: boolean }) {
   const encounter = packet.encounter;
   const selectRequirement = (id: string) => {
     const requirement = packet.requirements.find((entry) => displayText(entry.id) === id) || null;
@@ -347,8 +401,8 @@ function IdentityPanel({ packet, setPacket, updateEncounter }: { packet: Encount
       <label className="block md:col-span-2"><Caption>Description</Caption><textarea className={`${inputClass} min-h-24`} value={editableText(encounter.description)} onChange={(event) => updateEncounter({ description: event.target.value })} /></label>
       <div className="md:col-span-2"><EditableTagList tags={encounter.tags} onChange={(tags) => updateEncounter({ tags })} /></div>
     </div>
-    {!packet.requirement && <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm} mt-3`} onClick={createRequirement}>Create Encounter Requirement</button>}
-    {packet.requirement && <RequirementEditor packet={packet} setPacket={setPacket} />}
+    {showInlineGate && !packet.requirement && <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm} mt-3`} onClick={createRequirement}>Create Encounter Requirement</button>}
+    {showInlineGate && packet.requirement && <RequirementEditor packet={packet} setPacket={setPacket} />}
   </Panel>;
 }
 

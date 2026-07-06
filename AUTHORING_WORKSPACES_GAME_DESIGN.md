@@ -37,8 +37,8 @@ Last reviewed: 2026-07-06
 | Location Authoring | Implemented standalone location creation route for hierarchy, ecology, map placement, POIs, routes, encounter hooks, and validation through `/author/locations/new` |
 | Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, dedicated Character Presence Timeline in the context dock, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, semantic character presets, scoped introduction-coverage warnings, and cross-entity character consequence actions |
 | Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, selected-dialogue presets, and explicit-target character/faction/item/location consequence actions |
-| Encounter Stage | Implemented MVP with participant composition, requirements, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, selected-encounter presets, explicit-target reward/injury/faction/location consequence actions, aftermath preview, and important reward item journey warnings |
-| Progression Flow And Gate Builder | Implemented MVP with linked authoring for flags, requirements, event payloads, event outcome flags, next-event links, encounter reward flags, gate attachment to supported `requirements_id` records, compact selected-seed flow preview, temporary flag-state walkthrough, dependency usage context, and rollback-preview/atomic-commit bundle review |
+| Encounter Stage | Implemented MVP with participant composition, shared scoped gate embed for saved encounters, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, selected-encounter presets, explicit-target reward/injury/faction/location consequence actions, aftermath preview, and important reward item journey warnings |
+| Progression Flow And Gate Builder | Implemented MVP with linked authoring for flags, requirements, event payloads, event outcome flags, next-event links, encounter reward flags, shared scoped gate component extraction, gate attachment to supported `requirements_id` records, compact selected-seed flow preview, temporary flag-state walkthrough, dependency usage context, and rollback-preview/atomic-commit bundle review |
 | Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, story path objective-to-beat visualization, branch path diagnostics, temporary flag-state walkthrough, arc-order flag/item coherence warnings, and runtime-event placement window warnings; full mixed-content Quest Loom is future vision |
 | Item Authoring | Implemented standalone item creation route for player-facing mechanics and presentation through `/author/items/new` |
 | Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove, semantic item lifecycle presets, Item Journey source/story track, unplaced acquisition-source warnings, same-lane requirement-before-acquisition warnings, acquisition-channel analysis, obtained-never-used warning, multiple-source explanation warning, and continuity/version guidance; future work can deepen fantasy, provenance, families, and authored transformations |
@@ -105,9 +105,9 @@ Planned reusable packets:
 
 Delivery order should be conservative:
 
-1. Extract the implemented Gate Builder behavior from Progression Flow into an embeddable scoped packet.
+1. Extract the implemented Gate Builder behavior from Progression Flow into an embeddable scoped packet. Implemented as `ScopedGateBuilder`, shared frontend helpers, and `/api/ui/scoped-gates`; first external embed is saved Encounter Stage records.
 2. Extract a shared Consequence Composer for flags, rewards, reputation, next-event links, and supported story placements.
-3. Embed those two packets first in Dialogue Scene Room, Encounter Stage, Quest Journey Board, Item Ecosystem, and World/Location authoring where the need is already visible.
+3. Continue embedding Scoped Gate Builder and the future Consequence Composer first in Dialogue Scene Room, Encounter Stage, Quest Journey Board, Item Ecosystem, and World/Location authoring where the need is already visible.
 4. Add specialized package builders only when the shared packets still leave repeated naming/linking work unresolved.
 5. Add new canonical concepts only after the current record model can no longer express the authoring need honestly.
 
@@ -191,6 +191,7 @@ This table is the component inventory. Prefer extending these components over cr
 | `LifecycleFields` | Shared compact editor for occurrence kind, change type, state label, start/end beat, continuity group, and importance | Writes lifecycle fields on `adventure_beat_links` | Implemented in `soa-editor/src/components/storyPlacement/LifecycleFields.tsx` |
 | `StoryContextStrip` | Small read-only strip showing nearest timeline, arc, beat, dependencies, warnings, and owning record links | Reads the Story Timeline packet and dependency index | Implemented in `soa-editor/src/components/storyPlacement/StoryContextStrip.tsx`; currently summarizes nearest moment, occurrence count, dependency count, warning count, Story Timeline link, and nearest beat/source link |
 | `BundleReview` | One consistent preview/commit UI for multi-record changes | Reuses rollback-only preview and atomic commit contracts, including Ability Spellcraft preview parity | Implemented in `soa-editor/src/components/authoring/BundleReview.tsx`; used by Story Timeline, Story Placement Panel, Character Studio, Dialogue Scene Room, Creature Workshop, and Ability Spellcraft with inline or modal presentation |
+| `ScopedGateBuilder` | Create/reuse flags and requirements, inspect usage, and attach one requirement to supported gated content | Reads `/api/ui/scoped-gates`; writes `flags`, `requirements`, and supported `requirements_id` attachments through preview/commit | Implemented in `soa-editor/src/components/authoring/ScopedGateBuilder.tsx`; extracted from Progression Flow, reused there, and embedded in Encounter Stage for saved encounters |
 
 Components should stay data-driven. Only specialize labels, presets, or warnings where the entity type genuinely needs a different authoring meaning.
 
@@ -303,7 +304,7 @@ This keeps dialogue authoring focused on conversation while still showing why th
 
 Add encounter-as-moment controls:
 
-Current status: implemented MVP. Encounter Stage embeds the shared story-placement panel, supports encounter link create/edit/remove and selected-encounter runtime/outcome presets, derives runtime event occurrences, authors explicit-target lifecycle links for rewards/injuries/faction/location changes, shows an aftermath preview from draft rewards, participants, and saved same-beat story consequences, warns when an encounter with canonical state, reputation, or important-item consequences has no story placement, and warns when a story-placed encounter rewards an important item without a matching item reward/obtained placement in the same story lane. Remaining work includes richer encounter-combination authoring, missing-role handoff, and deeper tactical aftermath modeling if future canonical encounter-phase fields are added.
+Current status: implemented MVP. Encounter Stage embeds the shared story-placement panel, supports encounter link create/edit/remove and selected-encounter runtime/outcome presets, derives runtime event occurrences, authors explicit-target lifecycle links for rewards/injuries/faction/location changes, embeds the shared Scoped Gate Builder for saved encounters, shows an aftermath preview from draft rewards, participants, and saved same-beat story consequences, warns when an encounter with canonical state, reputation, or important-item consequences has no story placement, and warns when a story-placed encounter rewards an important item without a matching item reward/obtained placement in the same story lane. Remaining work includes broader scoped-gate rollout to other encounter subtargets where needed, richer encounter-combination authoring, missing-role handoff, and deeper tactical aftermath modeling if future canonical encounter-phase fields are added.
 
 - Show where the encounter appears in events, locations, quests, and adventure beats.
 - Let the author place the encounter into a runtime tray on an adventure beat.
@@ -817,7 +818,7 @@ This is not a universal graph editor. It is a focused authoring surface for rela
 
 ### Current-Model Implementation
 
-The implemented MVP provides a linked-authoring workspace at `/author/progression-flow` without adding a new canonical "flow" table. The flow itself is an authoring draft and review surface; committed changes update the existing records through `/api/ui/progression-flow/preview` and `/api/ui/progression-flow/bundle`.
+The implemented MVP provides a linked-authoring workspace at `/author/progression-flow` without adding a new canonical "flow" table. The flow itself is an authoring draft and review surface; committed changes update the existing records through `/api/ui/progression-flow/preview` and `/api/ui/progression-flow/bundle`. Its gate authoring behavior has also been extracted into the shared Scoped Gate Builder, backed by `/api/ui/scoped-gates`, so other workspaces can create/reuse flags and requirements and attach supported `requirements_id` gates without duplicating Progression Flow.
 
 | Author Gesture | Existing Data Written |
 |---|---|
@@ -833,13 +834,15 @@ The implemented MVP provides a linked-authoring workspace at `/author/progressio
 | Reuse an existing flag or requirement | Reference the existing id and show current usages before committing changes |
 | Save a linked draft | Preview and atomically commit the affected events, encounters, requirements, flags, and supported payload records |
 
-The implemented **Gate Builder** supports:
+The shared **Scoped Gate Builder** supports:
 
 1. Choose or create required flags.
 2. Choose or create forbidden flags.
 3. Preview all existing consumers and producers of those flags.
 4. Generate or update one requirement.
 5. Attach that requirement to the selected event, encounter, dialogue, route, shop, POI, item, ability, quest, or other supported gated content.
+
+Progression Flow uses this shared component as its gate lane while keeping source/outcome event composition local to the progression workspace. Saved Encounter Stage records are the first external embed; new encounters still use their owning encounter bundle until a canonical encounter id exists.
 
 The implemented **Source And Outcome Composer** supports:
 
@@ -853,7 +856,7 @@ The workspace also includes a compact selected-seed flow view, local health warn
 
 ### Delivery Plan
 
-1. **Gate Builder MVP:** implemented with inline flag creation, requirement creation/update from selected flags, usage preview, duplicate slug detection, and attach-to-current-content save.
+1. **Scoped Gate Builder MVP:** implemented with shared flag creation, requirement creation/update from selected flags, usage preview, duplicate slug detection, supported `requirements_id` attachment, rollback-only preview, atomic commit, Progression Flow reuse, and first external embed in Encounter Stage.
 2. **Event Payload Composer:** implemented for event type, payload reference, event flags, selected next event, and linked encounter reward flags.
 3. **Encounter Outcome Integration:** implemented for encounters linked through event payloads, including direct editing of `encounters.rewards.flags_set`.
 4. **Progression Flow MVP:** implemented as a compact selected-seed chain from source to state to gate to follow-up, backed by shared bundle review.

@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  normalizeScopedGateRequirement,
+  scopedGateIssues,
+} from "../authoring/scopedGate";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
+import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
@@ -132,13 +137,7 @@ function normalizeEvent(event: Entry): Entry {
 }
 
 function normalizeRequirement(requirement: Entry): Entry {
-  return {
-    ...requirement,
-    required_flags: strings(requirement.required_flags),
-    forbidden_flags: strings(requirement.forbidden_flags),
-    min_faction_reputation: rows(requirement.min_faction_reputation),
-    tags: strings(requirement.tags),
-  };
+  return normalizeScopedGateRequirement(requirement);
 }
 
 function normalizeEncounter(encounter: Entry): Entry {
@@ -192,8 +191,6 @@ export default function ProgressionFlowPage() {
   const flagsById = useMemo(() => byId([...packet.flags, ...draftFlags]), [draftFlags, packet.flags]);
   const requirementsById = useMemo(() => byId(packet.requirements), [packet.requirements]);
   const selectedRequirement = requirementDraft || requirementsById.get(selectedRequirementId) || null;
-  const selectedRequirementUsage = selectedRequirement ? packet.requirement_usages_by_id[text(selectedRequirement.id)] || [] : [];
-  const targetEntries = packet.requirement_targets.find((group) => group.schema_name === targetSchema)?.entries || [];
   const attachment = selectedRequirement && targetSchema && targetId
     ? { schema_name: targetSchema, entry_id: targetId, requirements_id: text(selectedRequirement.id) }
     : null;
@@ -283,11 +280,6 @@ export default function ProgressionFlowPage() {
     setEncounterDraft(encounter ? normalizeEncounter(encounter) : null);
   };
 
-  const patchRequirement = (patch: Entry) => {
-    if (!requirementDraft) return;
-    setRequirementDraft(normalizeRequirement({ ...requirementDraft, ...patch }));
-  };
-
   const patchEncounterRewards = (flags_set: string[]) => {
     if (!encounterDraft) return;
     const rewards = typeof encounterDraft.rewards === "object" && encounterDraft.rewards !== null ? encounterDraft.rewards as Entry : {};
@@ -358,23 +350,20 @@ export default function ProgressionFlowPage() {
                 <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm} self-end`} onClick={createRequirementFromFlags}>New Gate</button>
               </div>
             </Panel>
-            <GateBuilder
+            <ScopedGateBuilder
               packet={packet}
-              flagsById={flagsById}
+              baseName={baseName}
               draftFlags={draftFlags}
               setDraftFlags={setDraftFlags}
               requirementDraft={requirementDraft}
               setRequirementDraft={setRequirementDraft}
-              selectedRequirement={selectedRequirement}
               selectedRequirementId={selectedRequirementId}
-              selectExistingRequirement={selectExistingRequirement}
-              patchRequirement={patchRequirement}
+              setSelectedRequirementId={selectExistingRequirement}
               targetSchema={targetSchema}
               setTargetSchema={setTargetSchema}
               targetId={targetId}
               setTargetId={setTargetId}
-              targetEntries={targetEntries}
-              selectedRequirementUsage={selectedRequirementUsage}
+              tag="progression-flow"
             />
             <EventComposer
               packet={packet}
@@ -419,75 +408,6 @@ function Header({ dirty, saving, issues, onPreview, onDiscard }: { dirty: boolea
         <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={saving || !dirty} onClick={onDiscard}>Discard Draft</button>
         <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || !dirty} onClick={onPreview}>{saving ? "Reviewing..." : "Review Bundle"}</button>
       </div>
-    </div>
-  </Panel>;
-}
-
-function GateBuilder(props: {
-  packet: FlowPacket;
-  flagsById: Map<string, Entry>;
-  draftFlags: Entry[];
-  setDraftFlags: (flags: Entry[]) => void;
-  requirementDraft: Entry | null;
-  setRequirementDraft: (requirement: Entry | null) => void;
-  selectedRequirement: Entry | null;
-  selectedRequirementId: string;
-  selectExistingRequirement: (id: string) => void;
-  patchRequirement: (patch: Entry) => void;
-  targetSchema: string;
-  setTargetSchema: (schema: string) => void;
-  targetId: string;
-  setTargetId: (id: string) => void;
-  targetEntries: Entry[];
-  selectedRequirementUsage: Entry[];
-}) {
-  const {
-    packet, flagsById, draftFlags, setDraftFlags, requirementDraft, setRequirementDraft, selectedRequirement, selectedRequirementId,
-    selectExistingRequirement, patchRequirement, targetSchema, setTargetSchema, targetId, setTargetId, targetEntries,
-    selectedRequirementUsage,
-  } = props;
-  const allFlags = [...packet.flags, ...draftFlags];
-  return <Panel title="Gate Builder" subtitle="Create or reuse flags, build one requirement, and attach it to supported gated content.">
-    <div className="grid gap-4 lg:grid-cols-2">
-      <div>
-        <Caption>Draft Flags</Caption>
-        <div className="space-y-2">
-          {draftFlags.map((flag, index) => <div key={text(flag.id)} className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
-            <div className="grid gap-2 md:grid-cols-2">
-              <Field label="Name" value={flag.name} onChange={(name) => setDraftFlags(draftFlags.map((entry, row) => row === index ? { ...entry, name, slug: text(entry.slug) || generateSlug(name) } : entry))} />
-              <Field label="Slug" value={flag.slug} onChange={(slug) => setDraftFlags(draftFlags.map((entry, row) => row === index ? { ...entry, slug } : entry))} />
-            </div>
-            <Field label="Description" value={flag.description} onChange={(description) => setDraftFlags(draftFlags.map((entry, row) => row === index ? { ...entry, description } : entry))} />
-          </div>)}
-          {!draftFlags.length && <Empty>No draft flags yet.</Empty>}
-        </div>
-      </div>
-      <div>
-        <Caption>Requirement</Caption>
-        <select className={`${inputClass} mb-2`} value={selectedRequirementId} onChange={(event) => selectExistingRequirement(event.target.value)}>
-          <option value="">{requirementDraft ? "Using draft requirement" : "Select existing requirement..."}</option>
-          {packet.requirements.map((requirement) => <option key={text(requirement.id)} value={text(requirement.id)}>{label(requirement, text(requirement.id))}</option>)}
-        </select>
-        {requirementDraft && <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
-          <Field label="Requirement Slug" value={requirementDraft.slug} onChange={(slug) => patchRequirement({ slug })} />
-          <FlagMultiSelect label="Required Flags" value={strings(requirementDraft.required_flags)} flags={allFlags} onChange={(required_flags) => patchRequirement({ required_flags })} />
-          <FlagMultiSelect label="Forbidden Flags" value={strings(requirementDraft.forbidden_flags)} flags={allFlags} onChange={(forbidden_flags) => patchRequirement({ forbidden_flags })} />
-        </div>}
-        {selectedRequirement && !requirementDraft && <div className="rounded-md border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-950">
-          <div className="font-semibold">{label(selectedRequirement)}</div>
-          <div className="mt-1 text-xs text-slate-500">Required: {strings(selectedRequirement.required_flags).map((id) => label(flagsById.get(id), id)).join(", ") || "none"}</div>
-          <div className="mt-1 text-xs text-slate-500">Forbidden: {strings(selectedRequirement.forbidden_flags).map((id) => label(flagsById.get(id), id)).join(", ") || "none"}</div>
-          <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs} mt-3`} onClick={() => setRequirementDraft(normalizeRequirement(selectedRequirement))}>Edit This Requirement In Bundle</button>
-        </div>}
-      </div>
-    </div>
-    <div className="mt-4 grid gap-3 lg:grid-cols-[220px_1fr]">
-      <label><Caption>Attach Gate To</Caption><select className={inputClass} value={targetSchema} onChange={(event) => { setTargetSchema(event.target.value); setTargetId(""); }}>{packet.requirement_targets.map((group) => <option key={group.schema_name} value={group.schema_name}>{group.schema_name.replace(/_/g, " ")}</option>)}</select></label>
-      <label><Caption>Target Content</Caption><select className={inputClass} value={targetId} onChange={(event) => setTargetId(event.target.value)}><option value="">Do not attach yet</option>{targetEntries.map((entry) => <option key={text(entry.id)} value={text(entry.id)}>{label(entry, text(entry.id))}</option>)}</select></label>
-    </div>
-    <div className="mt-3 grid gap-3 md:grid-cols-2">
-      <UsageList title="Requirement Usage" rows={selectedRequirementUsage} />
-      <UsageList title="Selected Flag Usage" rows={strings(selectedRequirement?.required_flags).flatMap((flagId) => [...(packet.flag_usage_by_id[flagId]?.producers || []), ...(packet.flag_usage_by_id[flagId]?.consumers || [])])} />
     </div>
   </Panel>;
 }
@@ -603,21 +523,11 @@ function UsagePanel({ packet, selectedRequirement, flags }: { packet: FlowPacket
 }
 
 function localIssues(packet: FlowPacket, bundle: ReturnType<typeof buildBundle>, flagsById: Map<string, Entry>): string[] {
-  const issues: string[] = [];
-  const allSlugs = new Map<string, string>();
-  [...packet.flags, ...bundle.flags].forEach((flag) => {
-    const slug = text(flag.slug);
-    if (!slug) issues.push(`Flag ${text(flag.id, "draft")} is missing a slug.`);
-    else if (allSlugs.has(`flag:${slug}`) && allSlugs.get(`flag:${slug}`) !== text(flag.id)) issues.push(`Duplicate flag slug: ${slug}`);
-    allSlugs.set(`flag:${slug}`, text(flag.id));
-  });
-  if (bundle.requirement) {
-    const required = strings(bundle.requirement.required_flags);
-    const forbidden = strings(bundle.requirement.forbidden_flags);
-    required.filter((id) => !flagsById.has(id)).forEach((id) => issues.push(`Requirement references missing required flag ${id}.`));
-    forbidden.filter((id) => !flagsById.has(id)).forEach((id) => issues.push(`Requirement references missing forbidden flag ${id}.`));
-    required.filter((id) => forbidden.includes(id)).forEach((id) => issues.push(`Requirement both requires and forbids ${label(flagsById.get(id), id)}.`));
-  }
+  const issues = scopedGateIssues(packet, {
+    flags: bundle.flags,
+    requirement: bundle.requirement,
+    requirement_attachments: bundle.requirement_attachments,
+  }, flagsById);
   bundle.events.forEach((event) => {
     const type = text(event.type);
     if (type === "Encounter" && !text(event.encounter_id)) issues.push("Encounter event has no encounter payload.");
