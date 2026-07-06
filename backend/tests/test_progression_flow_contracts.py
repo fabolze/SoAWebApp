@@ -171,3 +171,17 @@ def test_bundle_rejects_contradictory_requirement_and_rolls_back(monkeypatch):
     assert response.status_code == 400
     assert "require and forbid" in response.get_json()["message"]
     assert Session().get(Flag, "flag-new") is None
+
+
+def test_bundle_rejects_malformed_top_level_arrays_before_writes(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+
+    response = client.post("/api/ui/progression-flow/bundle", json={
+        **_bundle(),
+        "flags": "not-an-array",
+    })
+
+    assert response.status_code == 400
+    assert response.get_json()["message"] == "flags must be an array"
+    assert Session().get(Flag, "flag-new") is None

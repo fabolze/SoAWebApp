@@ -180,6 +180,15 @@ def _review_change(review, action, table, item_id, details=None):
     review[action].append({"table": table, "id": item_id, "details": details or {}})
 
 
+def _payload_list(payload, key):
+    value = payload.get(key, [])
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        abort(400, description=f"{key} must be an array")
+    return value
+
+
 def _upsert_with_route(db_session, route, model, data, path):
     try:
         if not isinstance(data, dict):
@@ -288,19 +297,21 @@ def _attach_requirement(db_session, attachment, path):
     return item
 
 
-def _reconcile(db_session, payload, commit):
+def _reconcile(db_session, payload):
     if not isinstance(payload, dict):
         abort(400, description="progression flow bundle must be an object")
     review = {"created": [], "changed": [], "deleted": [], "unlinked": []}
     warnings = []
 
-    for index, data in enumerate(payload.get("flags") or []):
+    for index, data in enumerate(_payload_list(payload, "flags")):
         existed = db_session.get(Flag, data.get("id")) is not None if isinstance(data, dict) else False
         flag = _upsert_with_route(db_session, flag_route, Flag, data, f"flags[{index}]")
         _review_change(review, "changed" if existed else "created", "flags", flag.id)
 
     requirement_data = payload.get("requirement")
     if requirement_data is not None:
+        if not isinstance(requirement_data, dict):
+            abort(400, description="requirement must be an object or null")
         existed = db_session.get(Requirement, requirement_data.get("id")) is not None if isinstance(requirement_data, dict) else False
         required = set(requirement_data.get("required_flags") or [])
         forbidden = set(requirement_data.get("forbidden_flags") or [])
@@ -310,17 +321,17 @@ def _reconcile(db_session, payload, commit):
         requirement = _upsert_with_route(db_session, requirement_route, Requirement, requirement_data, "requirement")
         _review_change(review, "changed" if existed else "created", "requirements", requirement.id)
 
-    for index, data in enumerate(payload.get("events") or []):
+    for index, data in enumerate(_payload_list(payload, "events")):
         existed = db_session.get(Event, data.get("id")) is not None if isinstance(data, dict) else False
         event = _upsert_event(db_session, data, f"events[{index}]")
         _review_change(review, "changed" if existed else "created", "events", event.id)
 
-    for index, data in enumerate(payload.get("encounters") or []):
+    for index, data in enumerate(_payload_list(payload, "encounters")):
         existed = db_session.get(Encounter, data.get("id")) is not None if isinstance(data, dict) else False
         encounter = _upsert_with_route(db_session, encounter_route, Encounter, data, f"encounters[{index}]")
         _review_change(review, "changed" if existed else "created", "encounters", encounter.id)
 
-    for index, attachment in enumerate(payload.get("requirement_attachments") or []):
+    for index, attachment in enumerate(_payload_list(payload, "requirement_attachments")):
         item = _attach_requirement(db_session, attachment, f"requirement_attachments[{index}]")
         _review_change(review, "changed", attachment["schema_name"], item.id, {"requirements_id": attachment.get("requirements_id")})
 
@@ -348,7 +359,7 @@ def get_progression_flow():
 def preview_progression_flow():
     db_session = get_db_session()
     try:
-        result = _reconcile(db_session, deepcopy(request.get_json(silent=True)), False)
+        result = _reconcile(db_session, deepcopy(request.get_json(silent=True)))
         db_session.rollback()
         return jsonify(result)
     except Exception as error:
@@ -364,7 +375,7 @@ def preview_progression_flow():
 def save_progression_flow():
     db_session = get_db_session()
     try:
-        _reconcile(db_session, deepcopy(request.get_json(silent=True)), True)
+        _reconcile(db_session, deepcopy(request.get_json(silent=True)))
         db_session.commit()
         return jsonify(_catalog(db_session))
     except Exception as error:

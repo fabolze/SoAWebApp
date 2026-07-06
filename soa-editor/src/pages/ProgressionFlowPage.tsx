@@ -198,7 +198,7 @@ export default function ProgressionFlowPage() {
     ? { schema_name: targetSchema, entry_id: targetId, requirements_id: text(selectedRequirement.id) }
     : null;
   const bundle = useMemo(() => buildBundle(draftFlags, requirementDraft, eventDraft, encounterDraft, attachment), [attachment, draftFlags, encounterDraft, eventDraft, requirementDraft]);
-  const serialized = stable({ baseName, bundle, temporaryFlags });
+  const serialized = stable(bundle);
   const dirty = initialSerialized !== "" && serialized !== initialSerialized;
   const graph = useMemo(() => buildFlowRows(packet, eventDraft, encounterDraft, selectedRequirement, flagsById, temporaryFlags), [encounterDraft, eventDraft, flagsById, packet, selectedRequirement, temporaryFlags]);
   const issues = useMemo(() => localIssues(packet, bundle, flagsById), [bundle, flagsById, packet]);
@@ -217,7 +217,7 @@ export default function ProgressionFlowPage() {
         const payload = await response.json();
         if (!response.ok) throw new Error(formatApiError(payload, "Progression Flow failed to load."));
         setPacket({ ...emptyPacket, ...payload });
-        setInitialSerialized(stable({ baseName, bundle: buildBundle([], null, null, null, null), temporaryFlags: [] }));
+        setInitialSerialized(stable(buildBundle([], null, null, null, null)));
       })
       .catch((error) => setNotice(error instanceof Error ? error.message : "Progression Flow failed to load."))
       .finally(() => setLoading(false));
@@ -228,8 +228,18 @@ export default function ProgressionFlowPage() {
   const addDraftFlag = (suffix: string) => {
     const flag = makeFlag(baseName, suffix);
     setDraftFlags((current) => [...current, flag]);
-    if (!requirementDraft) setRequirementDraft(makeRequirement(baseName, [text(flag.id)]));
-    else setRequirementDraft({ ...requirementDraft, required_flags: [...strings(requirementDraft.required_flags), text(flag.id)] });
+    if (requirementDraft) {
+      setRequirementDraft({ ...requirementDraft, required_flags: [...strings(requirementDraft.required_flags), text(flag.id)] });
+      return;
+    }
+    if (selectedRequirement) {
+      setRequirementDraft(normalizeRequirement({
+        ...selectedRequirement,
+        required_flags: [...strings(selectedRequirement.required_flags), text(flag.id)],
+      }));
+      return;
+    }
+    setRequirementDraft(makeRequirement(baseName, [text(flag.id)]));
   };
 
   const selectExistingRequirement = (id: string) => {
@@ -241,6 +251,18 @@ export default function ProgressionFlowPage() {
     const required = draftFlags.map((flag) => text(flag.id)).filter(Boolean);
     setRequirementDraft(makeRequirement(baseName, required));
     setSelectedRequirementId("");
+  };
+
+  const discardDraft = () => {
+    setDraftFlags([]);
+    setRequirementDraft(null);
+    setSelectedRequirementId("");
+    setTargetId("");
+    setEventDraft(null);
+    setEncounterDraft(null);
+    setReview(null);
+    setReviewError("");
+    setInitialSerialized(stable(buildBundle([], null, null, null, null)));
   };
 
   const startEventDraft = (source?: Entry) => {
@@ -310,7 +332,7 @@ export default function ProgressionFlowPage() {
       setEncounterDraft(null);
       setReview(null);
       setTemporaryFlags([]);
-      const clean = stable({ baseName, bundle: buildBundle([], null, null, null, null), temporaryFlags: [] });
+      const clean = stable(buildBundle([], null, null, null, null));
       setInitialSerialized(clean);
       setNotice("Progression flow bundle saved.");
     } catch (error) {
@@ -325,7 +347,7 @@ export default function ProgressionFlowPage() {
   return (
     <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
       <div className="mx-auto max-w-[1600px] space-y-4">
-        <Header dirty={dirty} saving={saving} issues={issues} onPreview={() => void preview()} />
+        <Header dirty={dirty} saving={saving} issues={issues} onPreview={() => void preview()} onDiscard={discardDraft} />
         {notice && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{notice}</div>}
         <div className="grid gap-4 xl:grid-cols-[1fr_420px]">
           <main className="space-y-4">
@@ -389,11 +411,14 @@ export default function ProgressionFlowPage() {
   );
 }
 
-function Header({ dirty, saving, issues, onPreview }: { dirty: boolean; saving: boolean; issues: string[]; onPreview: () => void }) {
+function Header({ dirty, saving, issues, onPreview, onDiscard }: { dirty: boolean; saving: boolean; issues: string[]; onPreview: () => void; onDiscard: () => void }) {
   return <Panel title="Progression Flow And Gate Builder" subtitle="Create events, encounters, requirements, and flags hand in hand while preserving the canonical tables.">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="text-xs text-slate-500">{dirty ? "Unsaved linked-authoring draft" : "No pending flow changes"} / {issues.length} local warning(s)</div>
-      <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || !dirty} onClick={onPreview}>{saving ? "Reviewing..." : "Review Bundle"}</button>
+      <div className="flex gap-2">
+        <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={saving || !dirty} onClick={onDiscard}>Discard Draft</button>
+        <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || !dirty} onClick={onPreview}>{saving ? "Reviewing..." : "Review Bundle"}</button>
+      </div>
     </div>
   </Panel>;
 }

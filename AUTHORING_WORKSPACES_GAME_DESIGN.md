@@ -28,7 +28,7 @@ The status index is the only place that records delivery status. When a new auth
 
 ## Workspace Status
 
-Last reviewed: 2026-07-03
+Last reviewed: 2026-07-06
 
 | Workspace | Status |
 |---|---|
@@ -38,7 +38,7 @@ Last reviewed: 2026-07-03
 | Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, dedicated Character Presence Timeline in the context dock, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, semantic character presets, scoped introduction-coverage warnings, and cross-entity character consequence actions |
 | Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, selected-dialogue presets, and explicit-target character/faction/item/location consequence actions |
 | Encounter Stage | Implemented MVP with participant composition, requirements, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, selected-encounter presets, explicit-target reward/injury/faction/location consequence actions, aftermath preview, and important reward item journey warnings |
-| Progression Flow And Gate Builder | Planned linked-authoring workspace for creating events, encounters, requirements, and flags hand in hand without merging their canonical tables; MVP should start with gate building, source/outcome flag authoring, and event-chain bundle review |
+| Progression Flow And Gate Builder | Implemented MVP with linked authoring for flags, requirements, event payloads, event outcome flags, next-event links, encounter reward flags, gate attachment to supported `requirements_id` records, compact selected-seed flow preview, temporary flag-state walkthrough, dependency usage context, and rollback-preview/atomic-commit bundle review |
 | Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, story path objective-to-beat visualization, branch path diagnostics, temporary flag-state walkthrough, arc-order flag/item coherence warnings, and runtime-event placement window warnings; full mixed-content Quest Loom is future vision |
 | Item Authoring | Implemented standalone item creation route for player-facing mechanics and presentation through `/author/items/new` |
 | Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove, semantic item lifecycle presets, Item Journey source/story track, unplaced acquisition-source warnings, same-lane requirement-before-acquisition warnings, acquisition-channel analysis, obtained-never-used warning, multiple-source explanation warning, and continuity/version guidance; future work can deepen fantasy, provenance, families, and authored transformations |
@@ -770,15 +770,15 @@ This is not a universal graph editor. It is a focused authoring surface for rela
 
 ### Current-Model Implementation
 
-The current model can support a useful linked-authoring MVP without adding a new canonical "flow" table. The flow itself is an authoring draft and review surface; committed changes update the existing records.
+The implemented MVP provides a linked-authoring workspace at `/author/progression-flow` without adding a new canonical "flow" table. The flow itself is an authoring draft and review surface; committed changes update the existing records through `/api/ui/progression-flow/preview` and `/api/ui/progression-flow/bundle`.
 
 | Author Gesture | Existing Data Written |
 |---|---|
 | Start from a shared base name | Generate local draft slugs for related records; canonical writes happen only when records are created or updated through review |
-| Create a flag from a source or outcome | Create a `flags` row and add its id to the selected source's supported flag-set field |
+| Create a flag from a source or outcome | Create a `flags` row, make it available to the draft requirement, and optionally add its id to an event or encounter outcome field |
 | Set state from an event | Update `events.flags_set` |
 | Set state from an encounter outcome | Update `encounters.rewards.flags_set` |
-| Set state from a dialogue line or choice | Update `dialogue_nodes.set_flags` or the choice `set_flags` row |
+| Set state from a dialogue line or choice | Future direct edit; current MVP reads these relationships through the dependency index but does not write dialogue-node flags from this workspace |
 | Build a gate from selected flags | Create or update `requirements.required_flags` and `requirements.forbidden_flags` |
 | Attach a gate to content | Set the target record's existing `requirements_id` field where the schema supports one |
 | Link an event to content | Set `events.type` and the matching payload field such as `encounter_id`, `dialogue_id`, or `lore_id` |
@@ -786,7 +786,7 @@ The current model can support a useful linked-authoring MVP without adding a new
 | Reuse an existing flag or requirement | Reference the existing id and show current usages before committing changes |
 | Save a linked draft | Preview and atomically commit the affected events, encounters, requirements, flags, and supported payload records |
 
-The first implementation should be a **Gate Builder** embedded in this workspace and reused later by other editors:
+The implemented **Gate Builder** supports:
 
 1. Choose or create required flags.
 2. Choose or create forbidden flags.
@@ -794,21 +794,23 @@ The first implementation should be a **Gate Builder** embedded in this workspace
 4. Generate or update one requirement.
 5. Attach that requirement to the selected event, encounter, dialogue, route, shop, POI, item, ability, quest, or other supported gated content.
 
-The second implementation layer should be a **Source And Outcome Composer**:
+The implemented **Source And Outcome Composer** supports:
 
 1. Pick a source record or create a new event.
 2. Pick the payload or linked content it starts.
-3. Add outcome flags and rewards where the current source supports them.
-4. Create a follow-up requirement from those outcome flags.
+3. Add event outcome flags and linked encounter reward flags.
+4. Create or reuse a requirement from those outcome flags.
 5. Link the next event or gated content that becomes available.
+
+The workspace also includes a compact selected-seed flow view, local health warnings, dependency-index usage context, a temporary flag-state walkthrough, and shared bundle review. Temporary state and naming helpers remain local; only reviewed record changes commit.
 
 ### Delivery Plan
 
-1. **Gate Builder MVP:** inline flag creation, requirement creation/update from selected flags, usage preview, duplicate slug detection, and attach-to-current-content save.
-2. **Event Payload Composer:** edit event type, payload reference, outcome flags, and next event in one draft with quick creation of missing payload records.
-3. **Encounter Outcome Integration:** when an event points to an encounter, show the encounter's reward flags, requirement, and direct world context beside the event chain.
-4. **Progression Flow MVP:** draw a compact selected-seed chain from source to state to gate to consumer, with dotted local edges and shared bundle review.
-5. **Temporary Playthrough:** start from selected temporary flags, trigger a source, and watch newly opened gates and blocked content update before saving broader changes.
+1. **Gate Builder MVP:** implemented with inline flag creation, requirement creation/update from selected flags, usage preview, duplicate slug detection, and attach-to-current-content save.
+2. **Event Payload Composer:** implemented for event type, payload reference, event flags, selected next event, and linked encounter reward flags.
+3. **Encounter Outcome Integration:** implemented for encounters linked through event payloads, including direct editing of `encounters.rewards.flags_set`.
+4. **Progression Flow MVP:** implemented as a compact selected-seed chain from source to state to gate to follow-up, backed by shared bundle review.
+5. **Temporary Playthrough:** implemented as local temporary flag selection with open-gate preview. Trigger sequencing and automatic source stepping remain future work.
 
 ### Lenses
 
