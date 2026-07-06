@@ -69,6 +69,48 @@ Every specialized workspace should provide:
 7. Bundle editing when one authored idea spans several records.
 8. A schema-complete escape hatch for rare fields and debugging.
 
+### Linked Authoring Packet Pattern
+
+The Progression Flow And Gate Builder proves a second reusable pattern beside story placement:
+
+> When one authoring thought naturally spans several normalized records, the editor should let the author create, name, validate, preview, and commit those records together.
+
+This pattern should be used when authors otherwise have to jump between table editors, manually copy ids or slugs, and remember that one flag, requirement, reward, event, or placement was meant to belong to another. It does not require a new canonical umbrella table by default. The packet is an authoring draft and review surface; committed changes still write the existing canonical records.
+
+Shared rules:
+
+- Keep the owning schema honest. A packet may only save relationships that already have real fields or link tables.
+- Generate related ids and names from one base name, but treat saved references as the source of truth.
+- Show existing producers, consumers, and usage counts before committing shared flags, requirements, items, rewards, and events.
+- Use rollback-only preview and atomic commit for every multi-record packet.
+- Style unsaved packet links as dotted local proposals until the bundle review succeeds.
+- Prefer small scoped packets over a universal "everything editor."
+
+Planned reusable packets:
+
+| Packet | Purpose | Current-Model Writes | Primary Hosts |
+|---|---|---|---|
+| Scoped Gate Builder | Create or reuse flags and requirements, then attach the requirement to the current gated record | `flags`, `requirements.required_flags`, `requirements.forbidden_flags`, supported `requirements_id` fields | Progression Flow, Dialogue, Encounter, Quest, Item, Ability, Location, Route, POI, Shop |
+| Consequence Composer | Describe what changes after a choice, objective, encounter, event, or story beat | Existing flag-set fields, rewards, reputation reward rows, next-event links, supported story placements | Dialogue, Encounter, Quest, Event, Character Studio, Story Timeline |
+| Reward And Acquisition Composer | Put an item, currency, or reputation payoff into a real source and show the item journey impact | Quest rewards, encounter rewards, event rewards, shop inventory, combat-profile loot, POI item placement | Item Ecosystem, Quest, Encounter, Shop, Creature Workshop, Progression Flow |
+| Quest Objective Flow Builder | Create an objective with its gate, completion flags, payoff, branch condition, and aftermath context | `quests.objectives`, objective requirements/flags, completion flags, rewards, story-arc branches | Quest Journey Board |
+| Encounter Aftermath Builder | Author the result of an encounter as victory/defeat state, reward, story consequence, and follow-up content | Encounter rewards, reward flags, requirements, event links, story placements | Encounter Stage, Progression Flow |
+| Route And POI Unlock Builder | Create a place, lock it, define what unlocks it, and preview travel/world impact | Location POIs, routes, route event bindings, requirements, event links, encounter/item/shop references | World Builder, Location Authoring, Location Atlas review |
+| Shop Access And Inventory Builder | Create a merchant packet with inventory plus unlock and progression context | `shops`, `shops_inventory`, item references, supported gates and story placements | Shop Authoring, Item Ecosystem |
+| Creature Deployment Package | Create an enemy-facing character, combat profile, move kit, spoils, encounter usage, and habitat placement together | `characters`, `combat_profiles`, ability assignments, loot, encounter participants, location encounter tables | Creature Workshop, Encounter Stage |
+| Ability Unlock And Teaching Builder | Create an ability payload and connect how the player or an enemy obtains, learns, or demonstrates it | `abilities`, effects/statuses, requirements, combat-profile assignments, ability relations | Ability Spellcraft Lab, Creature Workshop |
+| Story Beat Promotion Builder | Turn a planned beat into real dialogue, encounter, quest, event, flag, reward, and placement records where supported | `adventure_beat_links` plus owning content records and supported references | Story Timeline, Dialogue, Encounter, Quest, Progression Flow |
+| Faction And Relationship Consequence Builder | Keep social consequences together where the model has real faction, reputation, relationship, or story-presence fields | Reputation rewards, faction ids on supported rows, character story beats, adventure beat links, supported flags | Dialogue, Quest, Encounter, Character Studio |
+| Character Presence Change Builder | Author a character's entrance, exit, injury, capture, return, or allegiance shift with the content that causes it | Character story beats, adventure beat links, flags, dialogue/quest/encounter/event references | Character Studio, Dialogue, Encounter, Story Timeline |
+
+Delivery order should be conservative:
+
+1. Extract the implemented Gate Builder behavior from Progression Flow into an embeddable scoped packet.
+2. Extract a shared Consequence Composer for flags, rewards, reputation, next-event links, and supported story placements.
+3. Embed those two packets first in Dialogue Scene Room, Encounter Stage, Quest Journey Board, Item Ecosystem, and World/Location authoring where the need is already visible.
+4. Add specialized package builders only when the shared packets still leave repeated naming/linking work unresolved.
+5. Add new canonical concepts only after the current record model can no longer express the authoring need honestly.
+
 ### Living Canvas Pattern
 
 The World Builder is the reference implementation for a reusable living-canvas pattern. Other workspaces should adapt the pattern to their own creative decision rather than copying a geographic map literally.
@@ -401,6 +443,7 @@ The World Builder should remain the reference example for selection-centered con
 ### Future Expansion
 
 - Trace complete player journeys across routes, quests, encounters, discoveries, and rewards.
+- Embed a Route And POI Unlock Builder so a route, POI, event source, gate, and unlocked content can be authored as one reviewed world packet.
 - Compare pacing, novelty, danger, and content density by region or route.
 - Show how locations change across world states and story progress.
 - Author regional themes, promises, and intended player knowledge when those concepts become canonical.
@@ -482,6 +525,7 @@ Location creation should remain compatible with World Builder so a place can be 
 ### Future Expansion
 
 - Add richer starter recipes for settlement, dungeon, wilderness, route hub, safe zone, and story landmark.
+- Add a compact Route And POI Unlock Builder for first-visit locks, route gates, placed encounters, discoverable items, and follow-up event hooks.
 - Create a compact first-visit player trace that uses current POIs, encounters, routes, and story placements.
 - Compare location identity against nearby regions and repeated content patterns.
 
@@ -522,6 +566,7 @@ The constellation must style shared-content proximity and inferred relationships
 ### Future Expansion
 
 - Deepen named character-to-character relationships with richer relationship-state history.
+- Add Character Presence Change and Faction/Relationship Consequence builders so entrances, exits, injuries, allegiance shifts, reputation changes, and follow-up content can be reviewed together where current fields support them.
 - Extend story profiles beyond public face, private truth, want, need, fear, duty, contradiction, secret, voice, and arc summary only when new canonical fields are deliberately added.
 - Deepen traces of a character's entrances, changes, reactions, and exits across the story.
 - Create character constellations together to establish immediate social tension.
@@ -606,6 +651,7 @@ Preview branches and comparison paths must use dotted or translucent styling unt
 ### Future Expansion
 
 - Add speaker lanes and rehearsal views that read like an exchange rather than a graph.
+- Embed scoped Gate Builder and Consequence Composer panels for node/choice visibility, flags set, reputation changes, rewards, next content, and follow-up event links.
 - Author player intention, information revealed, emotional shifts, and relationship changes.
 - Compare character voice, vocabulary, rhythm, and recurring concerns.
 - Trace how knowledge and relationships evolve across multiple conversations.
@@ -707,6 +753,7 @@ A missing-role slot expresses a design need such as "ranged pressure" or "non-co
 ### Future Expansion
 
 - Author stakes, participant wants, dramatic roles, environment, escalation, turning points, and alternate resolutions.
+- Add an Encounter Aftermath Builder that keeps victory/defeat flags, rewards, faction impact, gated follow-up content, and next-event links together.
 - Compare normal, elite, and boss variants side by side.
 - Make threat readability, attention, and player response part of encounter evaluation.
 - Create creatures directly from a missing dramatic or tactical role in the encounter.
@@ -831,6 +878,7 @@ The workspace should make related names consistent by default, but the id relati
 ### Future Expansion
 
 - Add reusable flow templates for common shapes such as discovery unlock, checkpoint, boss payoff, vendor unlock, optional secret, route unblock, and quest handoff.
+- Extract the current Gate Builder and Source/Outcome Composer into shared embeddable packets so other workspaces can open the same workflow without loading the full progression canvas.
 - Support branch comparison when the project has stronger canonical branch metadata.
 - Promote local flow drafts into a future canonical flow or playable-slice model only if the project deliberately adds that concept.
 - Let other workspaces open a scoped Gate Builder without loading the full progression canvas.
@@ -938,6 +986,8 @@ The arc skyline may combine saved arc ordering with dashed inferred flag depende
 ### Future Expansion
 
 - Author mixed-content beats containing locations, characters, encounters, dialogue, items, and world reactions.
+- Add a Quest Objective Flow Builder so an objective, its gate, completion flag, payoff, branch condition, and unlocked aftermath can be created and previewed together.
+- Embed the shared Consequence Composer for objective completion, quest completion, and branch outcomes.
 - Express optional, hidden, fail-state, irreversible, split, and rejoining paths.
 - Compare knowledge flow, location journey, character presence, reward rhythm, and failure risk.
 - Track explicit consequences and whether important choices are acknowledged later.
@@ -1003,6 +1053,7 @@ The route should not duplicate the acquisition-source graph. It should hand off 
 ### Future Expansion
 
 - Add starter recipes for consumable, equipment, quest item, crafting material, currency-adjacent item, and legendary artifact.
+- Offer a handoff into the Reward And Acquisition Composer after creation so the item can immediately be placed into a real source, reward, gate, or story beat.
 - Compare player-facing description against effects, modifiers, rarity, and price.
 - Suggest source and story-placement needs after creation without saving invented provenance fields.
 
@@ -1082,6 +1133,7 @@ The progression horizon and earliest-source reading are estimates, not saved tie
 ### Future Expansion
 
 - Author item families, variants, sets, makers, ownership history, and transformations.
+- Add a Reward And Acquisition Composer that can create or update shop inventory, quest rewards, encounter rewards, event rewards, combat loot, POI placement, and item gates from one item-centered packet.
 - Compare the item's fantasy with its actual use and presentation.
 - Trace an item's journey from rumor or discovery through use, replacement, restoration, or corruption.
 - Show whether important items receive meaningful world reactions.
@@ -1146,6 +1198,7 @@ Shop Authoring should remain the best entry point for creating a merchant packet
 ### Future Expansion
 
 - Add starter recipes for general store, blacksmith, alchemist, rare trader, faction vendor, and quest-gated merchant.
+- Add a Shop Access And Inventory Builder that authors shop unlock state, stock, item source impact, faction/quest conditions, and story placement together where existing fields support them.
 - Compare shop inventory against nearby location level, economy, scarcity, and item power.
 - Show whether inventory accidentally leaks quest-important or late-progression items.
 
@@ -1226,6 +1279,7 @@ Behavior-rhythm sketches guide descriptions, abilities, stats, and encounter pla
 ### Future Expansion
 
 - Author ecology, silhouette, pack role, behavior rhythm, readable signals, and intended player lesson.
+- Add a Creature Deployment Package for character, combat profile, abilities, spoils, encounter participation, location encounter-table placement, and habitat context.
 - Arrange behavior as `Signal -> Threat -> Response Window -> Consequence -> Recovery`.
 - Design creature families, habitat relationships, and encounter combinations.
 - Evaluate reuse risk and whether repeated appearances remain interesting.
@@ -1320,6 +1374,7 @@ Contextual tests and rhythm timelines are interpretations of current simulation 
 ### Future Expansion
 
 - Deepen the existing intent, counterplay, mastery, and presentation fields with opportunity, expression, impact, response, rhythm, and growth.
+- Add an Ability Unlock And Teaching Builder that connects ability payload, effects/statuses, unlock gate, talent/class availability, combat-profile assignment, and demonstration encounters.
 - Evaluate player decisions, readability, counterplay, synergy, presentation, and mastery.
 - Test abilities inside small playable situations with movement, groups, allies, hazards, and encounter sequences.
 - Extend related ability families beyond the current Setup, Payoff, Recovery, Upgrade, Counter, and Variant relation types into basic/advanced/mastery progressions or player/enemy counter-version sets.
@@ -1531,6 +1586,7 @@ Hypothetical links and playable-slice framing remain dotted local planning objec
 ### Future Expansion
 
 - Arrange world journey, main story, optional discoveries, characters, encounters, rewards, knowledge, and recovery into one playable-slice view.
+- Hand focused dependency repairs to Progression Flow, scoped Gate Builder, or the owning workspace packet instead of turning the Dependency Map into a universal editor.
 - Compare first-time, completionist, and critical player paths.
 - Evaluate pacing, content density, novelty, repetition, promises, and payoffs.
 - Author a canonical cross-domain sequence only if the project deliberately models that concept.
@@ -1556,6 +1612,7 @@ Hypothetical links and playable-slice framing remain dotted local planning objec
 Every workspace should reuse the same authoring verbs:
 
 - **Sketch:** create an incomplete local draft.
+- **Compose:** create or update a small packet of related records that belong to one authoring decision.
 - **Place:** add an existing entity to an existing relationship.
 - **Place In Story:** attach an existing entity to an `adventure_beat` through a lifecycle-aware `adventure_beat_link`.
 - **Connect:** create a real reference or dependency.
