@@ -1,2 +1,3 @@
 Name,id,character_id,enemy_type,aggression,custom_stats,custom_abilities,status_rules,loot_table,currency_rewards,reputation_rewards,xp_reward,related_quests,companion_config,tags
 beast__hostile,01KWHTYWWR17EBR89JRAETC0NA,21871977505a4388bb402f0f4301341d,beast,Hostile,[],"[""01KWJ2V95A8TG19K6R1SC9RMV4""]",[],[],[],[],1.0,[],{},"[""creature""]"
+humanoid__hostile,db322ccb5c764a2789186443677fee6e,3a16d0cd24a04b3aa9f6a77bc42e1f36,humanoid,Hostile,[],"[""9f4de552867a4afea6355bf6761fc3c5""]",[],"[{""drop_chance"": 100, ""item_id"": ""f2a10c6e0dfa4196963fb36c4a653674""}]",[],[],10.0,[],{},"[""world-builder"", ""combat-chain""]"
