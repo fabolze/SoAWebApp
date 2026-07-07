@@ -5,6 +5,7 @@ import { deriveEncounterAftermathRows, type EncounterAftermathRow } from "../aut
 import { emptyScopedGatePacket, type ScopedGatePacket } from "../authoring/scopedGate";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
+import SearchableSelect from "../components/SearchableSelect";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
 import { useDirtyState } from "../components/useDirtyState";
@@ -437,7 +438,26 @@ function RequirementEditor({ packet, setPacket }: { packet: EncounterPacket; set
 
 function Stage({ packet, setPacket, selectedCharacter, setSelectedCharacter }: { packet: EncounterPacket; setPacket: React.Dispatch<React.SetStateAction<EncounterPacket>>; selectedCharacter: string; setSelectedCharacter: (id: string) => void }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const [addCharacterId, setAddCharacterId] = useState("");
+  const [addSide, setAddSide] = useState<Side>("Neutral");
   const assigned = new Set(rows(packet.encounter.participants).map((row) => displayText(row.character_id)));
+  const unassignedCharacters = packet.characters.filter((entry) => !assigned.has(characterId(entry)));
+  const characterOptions = packet.characters.map((entry) => {
+    const id = characterId(entry);
+    const assignedCharacter = assigned.has(id);
+    const labels = [
+      rowLabel(entry.character, id),
+      `Level ${Number(entry.character.level || 0)}`,
+      entry.combat_profile ? "Combat" : "No combat",
+      entry.interaction_profile ? "Interaction" : "No interaction",
+    ];
+    return {
+      value: id,
+      label: labels.join(" / "),
+      disabled: assignedCharacter,
+      disabledReason: assignedCharacter ? "Already on the stage" : undefined,
+    };
+  });
   const updateParticipants = (participants: EntryRecord[]) => setPacket((current) => ({ ...current, encounter: { ...current.encounter, participants } }));
   const move = (id: string, side: Side) => {
     const current = rows(packet.encounter.participants);
@@ -447,14 +467,49 @@ function Stage({ packet, setPacket, selectedCharacter, setSelectedCharacter }: {
       : [...current, { character_id: id, contexts: [], combat_side: side }]);
     setSelectedCharacter(id);
   };
+  const addSelected = () => {
+    if (!addCharacterId || assigned.has(addCharacterId)) return;
+    move(addCharacterId, addSide);
+    setAddCharacterId("");
+  };
   const dragEnd = (event: DragEndEvent) => {
     if (event.over && SIDES.includes(String(event.over.id) as Side)) move(String(event.active.id), String(event.over.id) as Side);
   };
-  return <Panel title="Encounter Stage" subtitle="Drag characters from the cast into a side. Position within a side is visual only.">
+  return <Panel title="Participants" subtitle="Add characters to a side, then mark whether they are used for combat, interaction, or both.">
+    <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
+      <div className="grid gap-2 lg:grid-cols-[1fr_160px_auto]">
+        <div>
+          <Caption>Add Participant</Caption>
+          <SearchableSelect
+            value={addCharacterId}
+            onChange={setAddCharacterId}
+            options={characterOptions}
+            placeholder={packet.characters.length === 0 ? "No characters available" : "Search characters..."}
+            disabled={packet.characters.length === 0}
+            valueLabel={characterOptions.find((option) => option.value === addCharacterId)?.label}
+            virtualizeThreshold={80}
+          />
+        </div>
+        <label className="block">
+          <Caption>Side</Caption>
+          <select className={inputClass} value={addSide} onChange={(event) => setAddSide(event.target.value as Side)}>
+            {SIDES.map((side) => <option key={side} value={side}>{side}</option>)}
+          </select>
+        </label>
+        <div className="flex items-end">
+          <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm} w-full lg:w-auto`} disabled={!addCharacterId || assigned.has(addCharacterId)} onClick={addSelected}>Add</button>
+        </div>
+      </div>
+      <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+        Already assigned characters remain searchable but disabled so you can see why they cannot be selected again.
+      </div>
+    </div>
     <DndContext sensors={sensors} onDragEnd={dragEnd}>
       <div className="mb-3 flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
-        {packet.characters.filter((entry) => !assigned.has(characterId(entry))).map((entry) => <CastChip key={characterId(entry)} entry={entry} onAdd={() => move(characterId(entry), "Neutral")} />)}
-        {packet.characters.length === assigned.size && <div className="text-xs text-slate-500">Every character is already on the stage.</div>}
+        <div className="basis-full text-[11px] font-semibold uppercase text-slate-500">Available Cast</div>
+        {unassignedCharacters.map((entry) => <CastChip key={characterId(entry)} entry={entry} onAdd={() => move(characterId(entry), "Neutral")} />)}
+        {packet.characters.length === 0 && <div className="text-xs text-slate-500">No characters are available yet. Create a character first, then return here to add participants.</div>}
+        {packet.characters.length > 0 && unassignedCharacters.length === 0 && <div className="text-xs text-slate-500">All available characters are already assigned. Use the side columns below to inspect, move, or remove them.</div>}
       </div>
       <div className="grid gap-3 xl:grid-cols-3">
         {SIDES.map((side) => <SideZone key={side} side={side} packet={packet} selectedCharacter={selectedCharacter} setSelectedCharacter={setSelectedCharacter} updateParticipants={updateParticipants} />)}
@@ -474,10 +529,13 @@ function SideZone({ side, packet, selectedCharacter, setSelectedCharacter, updat
   const participants = rows(packet.encounter.participants).filter((row) => displayText(row.combat_side) === side);
   const characters = new Map(packet.characters.map((entry) => [characterId(entry), entry]));
   const update = (id: string, patch: EntryRecord) => updateParticipants(rows(packet.encounter.participants).map((row) => displayText(row.character_id) === id ? { ...row, ...patch } : row));
-  const remove = (id: string) => updateParticipants(rows(packet.encounter.participants).filter((row) => displayText(row.character_id) !== id));
+  const remove = (id: string) => {
+    updateParticipants(rows(packet.encounter.participants).filter((row) => displayText(row.character_id) !== id));
+    if (selectedCharacter === id) setSelectedCharacter("");
+  };
   return <div ref={droppable.setNodeRef} className={`min-h-52 rounded-md border-2 border-dashed p-3 ${droppable.isOver ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30" : "border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-950"}`}>
     <div className="mb-2 text-sm font-semibold">{side} ({participants.length})</div>
-    <div className="space-y-2">{participants.map((participant) => {
+    <div className="space-y-2">{participants.length === 0 && <div className="rounded-md border border-dashed border-slate-300 px-3 py-6 text-center text-xs text-slate-500 dark:border-slate-700">No {side.toLowerCase()} participants yet.</div>}{participants.map((participant) => {
       const id = displayText(participant.character_id);
       const character = characters.get(id);
       return <ParticipantCard key={id} id={id} participant={participant} packet={character} selected={selectedCharacter === id} onSelect={() => setSelectedCharacter(id)} onChange={(patch) => update(id, patch)} onRemove={() => remove(id)} />;
@@ -490,8 +548,11 @@ function ParticipantCard({ id, participant, packet, selected, onSelect, onChange
   const contexts = strings(participant.contexts);
   const toggle = (context: string) => onChange({ contexts: contexts.includes(context) ? contexts.filter((item) => item !== context) : [...contexts, context] });
   return <div ref={draggable.setNodeRef} className={`rounded-md border bg-white p-3 shadow-sm dark:bg-slate-900 ${selected ? "border-blue-500" : "border-slate-200 dark:border-slate-800"}`} onClick={onSelect}>
-    <div className="flex items-start justify-between gap-2"><button {...draggable.listeners} {...draggable.attributes} className="cursor-grab text-left"><div className="text-sm font-semibold">{rowLabel(packet?.character || {}, id)}</div><div className="text-xs text-slate-500">Level {Number(packet?.character.level || 0)}</div></button><button className="text-xs font-semibold text-red-600" onClick={(event) => { event.stopPropagation(); onRemove(); }}>Remove</button></div>
-    <div className="mt-2 flex gap-1">{["Combat", "Interaction"].map((context) => <button key={context} className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${contexts.includes(context) ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 dark:border-slate-700"}`} onClick={(event) => { event.stopPropagation(); toggle(context); }}>{context}{context === "Combat" && !packet?.combat_profile ? " !" : context === "Interaction" && !packet?.interaction_profile ? " !" : ""}</button>)}</div>
+    <div className="flex items-start justify-between gap-2"><button type="button" {...draggable.listeners} {...draggable.attributes} className="cursor-grab text-left"><div className="text-sm font-semibold">{rowLabel(packet?.character || {}, id)}</div><div className="text-xs text-slate-500">Level {Number(packet?.character.level || 0)}</div></button><button type="button" className="text-xs font-semibold text-red-600" onClick={(event) => { event.stopPropagation(); onRemove(); }}>Remove</button></div>
+    <div className="mt-2">
+      <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">Used As</div>
+      <div className="flex gap-1">{["Combat", "Interaction"].map((context) => <button type="button" key={context} className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${contexts.includes(context) ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 dark:border-slate-700"}`} onClick={(event) => { event.stopPropagation(); toggle(context); }}>{context}{context === "Combat" && !packet?.combat_profile ? " !" : context === "Interaction" && !packet?.interaction_profile ? " !" : ""}</button>)}</div>
+    </div>
   </div>;
 }
 

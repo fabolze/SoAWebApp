@@ -4,6 +4,8 @@ import useDebouncedValue from './hooks/useDebouncedValue';
 export type SearchableOption = {
   value: string;
   label: string;
+  disabled?: boolean;
+  disabledReason?: string;
 };
 
 interface SearchableSelectProps {
@@ -36,7 +38,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(240);
   const debouncedInputValue = useDebouncedValue(inputValue, searchDebounceMs);
-  const rowHeight = 36;
+  const rowHeight = 44;
   const overscan = 6;
 
   useEffect(() => {
@@ -126,6 +128,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       if (showDropdown && highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
         e.preventDefault();
         const option = filteredOptions[highlightedIndex];
+        if (option.disabled) return;
         onChange(option.value);
         setInputValue(option.label);
         setShowDropdown(false);
@@ -169,15 +172,18 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                   return (
                     <div
                       key={option.value}
-                      className={`px-3 py-2 cursor-pointer text-slate-900 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800 ${highlightedIndex === absoluteIndex ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
+                      className={`px-3 py-2 text-slate-900 dark:text-slate-100 ${option.disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800'} ${highlightedIndex === absoluteIndex ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
                       style={{ height: rowHeight }}
+                      title={option.disabledReason}
                       onMouseDown={() => {
+                        if (option.disabled) return;
                         onChange(option.value);
                         setInputValue(option.label);
                         setShowDropdown(false);
                       }}
                     >
-                      {option.label}
+                      <div className="truncate">{option.label}</div>
+                      {option.disabledReason && <div className="truncate text-[11px] text-slate-500 dark:text-slate-400">{option.disabledReason}</div>}
                     </div>
                   );
                 })}
@@ -187,14 +193,17 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             visibleOptions.map((option, index) => (
               <div
                 key={option.value}
-                className={`px-3 py-2 cursor-pointer text-slate-900 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800 ${highlightedIndex === index ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
+                className={`px-3 py-2 text-slate-900 dark:text-slate-100 ${option.disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800'} ${highlightedIndex === index ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
+                title={option.disabledReason}
                 onMouseDown={() => {
+                  if (option.disabled) return;
                   onChange(option.value);
                   setInputValue(option.label);
                   setShowDropdown(false);
                 }}
               >
-                {option.label}
+                <div className="truncate">{option.label}</div>
+                {option.disabledReason && <div className="truncate text-[11px] text-slate-500 dark:text-slate-400">{option.disabledReason}</div>}
               </div>
             ))
           )}
