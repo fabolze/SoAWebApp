@@ -62,6 +62,9 @@ export function healthIssueTarget(issue: HealthIssue): string {
   if (issue.path) params.set("field", issue.path);
   if (issue.schemaName) params.set("schema", issue.schemaName);
   if (issue.category === "world") {
+    if (issue.schemaName === "locations" && issue.entryId) {
+      return `/author/locations/${encodeURIComponent(issue.entryId)}?${params.toString()}`;
+    }
     return `/author/world?${params.toString()}`;
   }
   return `/${issue.routePath}?${params.toString()}`;

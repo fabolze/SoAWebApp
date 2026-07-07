@@ -242,6 +242,18 @@ function getAuthoringPath(kind: AuthoringKind, id: string): string {
   return "/";
 }
 
+function focusedFieldClass(fieldKey: string, focusField: string): string {
+  return fieldKey === focusField
+    ? "rounded-md border border-amber-300 bg-amber-50 p-2 ring-2 ring-amber-200 dark:border-amber-700 dark:bg-amber-950/30 dark:ring-amber-900"
+    : "";
+}
+
+function focusFieldFromSearch(search: string): string {
+  const field = new URLSearchParams(search).get("field") || "";
+  const matches = field.match(/[A-Za-z0-9_]+/g);
+  return matches?.[matches.length - 1] || "";
+}
+
 export function ItemAuthoringPage() {
   return <ImmersiveAuthoringPage config={AUTHORING_CONFIGS.item} />;
 }
@@ -286,6 +298,7 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
   const missingRequiredFields = useMemo(() => requiredFields.filter((field) => isEmpty(data[field])), [data, requiredFields]);
   const formValid = missingRequiredFields.length === 0;
   const label = displayText(data.name, displayText(data.title, displayText(data.slug, id || "Untitled")));
+  const focusField = useMemo(() => focusFieldFromSearch(location.search), [location.search]);
   const returnTo = useMemo(() => {
     const value = new URLSearchParams(location.search).get("returnTo");
     return value?.startsWith("/") ? value : "";
@@ -340,6 +353,13 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
       cancelled = true;
     };
   }, [config, config.apiPath, config.schemaName, config.title, id, isNewDraft]);
+
+  useEffect(() => {
+    if (loading || mode !== "author" || !focusField) return;
+    const selector = `[data-authoring-field="${focusField}"]`;
+    const target = document.querySelector(selector);
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusField, loading, mode]);
 
   const save = useCallback(async () => {
     setSaving(true);
@@ -444,6 +464,7 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
             changedFieldKeys={changedFieldKeys}
             persisted={!isNewDraft}
             isDirty={isDirty}
+            focusField={focusField}
           />
         )}
 
@@ -544,6 +565,7 @@ function EntityAuthoringSurface({
   changedFieldKeys,
   persisted,
   isDirty,
+  focusField = "",
 }: {
   config: AuthoringConfig;
   schema: SchemaDefinition;
@@ -552,6 +574,7 @@ function EntityAuthoringSurface({
   changedFieldKeys: string[];
   persisted: boolean;
   isDirty: boolean;
+  focusField?: string;
 }) {
   if (config.kind === "shop") {
     return <ShopAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} />;
@@ -560,7 +583,7 @@ function EntityAuthoringSurface({
     return <CharacterAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} />;
   }
   if (config.kind === "location") {
-    return <LocationAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} isDirty={isDirty} />;
+    return <LocationAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} isDirty={isDirty} focusField={focusField} />;
   }
   return <ItemAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} />;
 }
@@ -910,7 +933,7 @@ function CharacterAuthoringSurface(props: AuthoringSurfaceProps) {
 }
 
 function LocationAuthoringSurface(props: AuthoringSurfaceProps) {
-  const { schema, data, onChange, persisted, isDirty = false } = props;
+  const { schema, data, onChange, persisted, isDirty = false, focusField = "" } = props;
   const biomeOptions = getOptions(schema.properties?.biome);
   const modifierOptions = getOptions(schema.properties?.biome_modifier);
   const locationTypeOptions = getOptions(schema.properties?.location_type);
@@ -956,20 +979,44 @@ function LocationAuthoringSurface(props: AuthoringSurfaceProps) {
         </AuthoringPanel>
         <AuthoringPanel title="Place And Ecology" subtitle="Classify the place separately from biome, inheritance and encounter ecology.">
           <div className="space-y-4">
-            <SelectBadgeGroup label="Location Type" value={data.location_type} options={locationTypeOptions} onChange={setLocationType} />
-            <ReferenceChipPicker label="Parent Location" value={data.parent_location_id} reference="locations" onChange={(value) => onChange({ ...data, parent_location_id: value })} />
-            <InlineField schema={schema} data={data} fieldKey="sort_order" label="Sort Order" kind="number" onChange={onChange} />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <TogglePill label="Playable Space" active={data.is_playable_space !== false} onChange={(value) => onChange({ ...data, is_playable_space: value })} />
-              <TogglePill label="World Map Node" active={data.is_world_map_node !== false} onChange={(value) => onChange({ ...data, is_world_map_node: value })} />
+            <div data-authoring-field="location_type" className={focusedFieldClass("location_type", focusField)}>
+              <SelectBadgeGroup label="Location Type" value={data.location_type} options={locationTypeOptions} onChange={setLocationType} />
             </div>
-            <SelectBadgeGroup label="Place Kind" value={data.place_kind} options={placeKindOptions} allowUnset unsetLabel="Unclassified" onChange={(value) => onChange({ ...data, place_kind: value })} />
-            <SelectBadgeGroup label="Biome Inheritance" value={data.biome_inheritance} options={biomeInheritanceOptions} allowUnset unsetLabel="Auto" onChange={(value) => onChange({ ...data, biome_inheritance: value })} />
-            <SelectBadgeGroup label="Biome" value={data.biome} options={biomeOptions} allowUnset unsetLabel="No biome" onChange={(value) => onChange({ ...data, biome: value })} />
-            <SelectBadgeGroup label="Biome Modifier" value={data.biome_modifier} options={modifierOptions} allowUnset unsetLabel="No modifier" onChange={(value) => onChange({ ...data, biome_modifier: value })} />
-            <InlineField schema={schema} data={data} fieldKey="region" label="Region" onChange={onChange} />
-            <LevelRangeEditor data={data} onChange={onChange} />
-            <ReferenceArrayPicker label="Encounters" reference="encounters" values={data.encounters} onChange={(encounters) => onChange({ ...data, encounters })} />
+            <div data-authoring-field="parent_location_id" className={focusedFieldClass("parent_location_id", focusField)}>
+              <ReferenceChipPicker label="Parent Location" value={data.parent_location_id} reference="locations" onChange={(value) => onChange({ ...data, parent_location_id: value })} />
+            </div>
+            <div data-authoring-field="sort_order" className={focusedFieldClass("sort_order", focusField)}>
+              <InlineField schema={schema} data={data} fieldKey="sort_order" label="Sort Order" kind="number" onChange={onChange} />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div data-authoring-field="is_playable_space" className={focusedFieldClass("is_playable_space", focusField)}>
+                <TogglePill label="Playable Space" active={data.is_playable_space !== false} onChange={(value) => onChange({ ...data, is_playable_space: value })} />
+              </div>
+              <div data-authoring-field="is_world_map_node" className={focusedFieldClass("is_world_map_node", focusField)}>
+                <TogglePill label="World Map Node" active={data.is_world_map_node !== false} onChange={(value) => onChange({ ...data, is_world_map_node: value })} />
+              </div>
+            </div>
+            <div data-authoring-field="place_kind" className={focusedFieldClass("place_kind", focusField)}>
+              <SelectBadgeGroup label="Place Kind" value={data.place_kind} options={placeKindOptions} allowUnset unsetLabel="Unclassified" onChange={(value) => onChange({ ...data, place_kind: value })} />
+            </div>
+            <div data-authoring-field="biome_inheritance" className={focusedFieldClass("biome_inheritance", focusField)}>
+              <SelectBadgeGroup label="Biome Inheritance" value={data.biome_inheritance} options={biomeInheritanceOptions} allowUnset unsetLabel="Auto" onChange={(value) => onChange({ ...data, biome_inheritance: value })} />
+            </div>
+            <div data-authoring-field="biome" className={focusedFieldClass("biome", focusField)}>
+              <SelectBadgeGroup label="Biome" value={data.biome} options={biomeOptions} allowUnset unsetLabel="No biome" onChange={(value) => onChange({ ...data, biome: value })} />
+            </div>
+            <div data-authoring-field="biome_modifier" className={focusedFieldClass("biome_modifier", focusField)}>
+              <SelectBadgeGroup label="Biome Modifier" value={data.biome_modifier} options={modifierOptions} allowUnset unsetLabel="No modifier" onChange={(value) => onChange({ ...data, biome_modifier: value })} />
+            </div>
+            <div data-authoring-field="region" className={focusedFieldClass("region", focusField)}>
+              <InlineField schema={schema} data={data} fieldKey="region" label="Region" onChange={onChange} />
+            </div>
+            <div data-authoring-field="level_range" className={focusedFieldClass("level_range", focusField)}>
+              <LevelRangeEditor data={data} onChange={onChange} />
+            </div>
+            <div data-authoring-field="encounters" className={focusedFieldClass("encounters", focusField)}>
+              <ReferenceArrayPicker label="Encounters" reference="encounters" values={data.encounters} onChange={(encounters) => onChange({ ...data, encounters })} />
+            </div>
           </div>
         </AuthoringPanel>
         <AuthoringPanel title="Routes" subtitle="Movement edges connected to this location. Routes are separate records, not embedded location fields.">
@@ -988,6 +1035,7 @@ interface AuthoringSurfaceProps {
   changedFieldKeys: string[];
   persisted: boolean;
   isDirty?: boolean;
+  focusField?: string;
 }
 
 function ReferenceArrayPicker({
