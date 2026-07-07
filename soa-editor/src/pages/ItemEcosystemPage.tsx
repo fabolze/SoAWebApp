@@ -254,6 +254,8 @@ function ItemJourneyTrack({ packet, model, storyLoading, storyError }: { packet:
       <Fact label="Total Sources" value={text(packet.analysis.total_sources, "0")} />
       <Fact label="Story Moments" value={String(model.storyOccurrenceCount)} />
       <Fact label="Unplaced Sources" value={String(model.unplacedSourceCount)} />
+      <Fact label="Estimated Sources" value={String(model.estimatedSourceCount)} />
+      <Fact label="Gated Sources" value={String(model.gatedSourceCount)} />
     </div>
     <div className="mt-3 flex flex-wrap gap-2">
       {channels.map((channel) => <span key={text(channel.key, text(channel.label))} className="rounded-full border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">{text(channel.label)} ({text(channel.count, "0")})</span>)}
@@ -278,7 +280,9 @@ function ItemJourneyTrack({ packet, model, storyLoading, storyError }: { packet:
         <div>
           <div className="text-[10px] font-semibold uppercase text-slate-500">Story Scope</div>
           <div className="mt-1 text-xs font-medium">{row.scopeLabel}</div>
-          <div className="mt-1 text-[10px] text-slate-500">{row.order === null ? "No canonical order" : `Order ${row.order}`}</div>
+          <div className="mt-1 text-[10px] text-slate-500">{orderLabel(row)}</div>
+          <div className="mt-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300">{row.progressionLabel}</div>
+          {row.progressionHints.length > 0 && <div className="mt-1 text-[10px] text-slate-500">{row.progressionHints.join(" / ")}</div>}
         </div>
         <div>
           <div className="text-[10px] font-semibold uppercase text-slate-500">Lifecycle</div>
@@ -298,6 +302,12 @@ function journeyToneClass(tone: ItemJourneyModel["rows"][number]["tone"]): strin
   if (tone === "state") return "border-blue-200 bg-blue-50/70 dark:border-blue-900 dark:bg-blue-950/20";
   if (tone === "source") return "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950";
   return "border-dashed border-amber-300 bg-white dark:border-amber-800 dark:bg-slate-900";
+}
+
+function orderLabel(row: ItemJourneyModel["rows"][number]): string {
+  if (row.orderKind === "canonical") return row.order === null ? "Canonical order unknown" : `Canonical order ${row.order}`;
+  if (row.orderKind === "estimated") return row.estimatedOrder === null ? "Estimated order" : `Estimated order ${row.estimatedOrder}`;
+  return "No canonical or estimated order";
 }
 
 function isImportantItem(item: EntryRecord): boolean {

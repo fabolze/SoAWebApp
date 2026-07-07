@@ -99,6 +99,14 @@ def test_item_ecosystem_packet_includes_analysis_labels_and_pricing(monkeypatch)
     client, Session = _client(monkeypatch, r_ui_item_ecosystem)
     _seed(Session)
     session = Session()
+    session.add(Requirement(id="req-1", slug="requires-flag", tags=[]))
+    session.flush()
+    location = session.get(Location, "loc-1")
+    location.sort_order = 3
+    location.level_range = {"min": 4, "max": 8}
+    shop = session.get(Shop, "shop-1")
+    shop.location_id = "loc-1"
+    shop.requirements_id = "req-1"
     session.add(ShopInventory(id="inv-1", slug="inv", shop_id="shop-1", item_id="item-1", price_multiplier=2, tags=[]))
     session.commit()
     session.close()
@@ -107,6 +115,11 @@ def test_item_ecosystem_packet_includes_analysis_labels_and_pricing(monkeypatch)
     assert payload["analysis"]["source_counts"]["quest_rewards"] == 1
     assert payload["catalogs"]["combat_profiles"][0]["label"]["name"] == "Guide"
     assert payload["catalogs"]["pois"][0]["location"]["name"] == "Location"
+    assert payload["catalogs"]["locations"][0]["level_range"] == {"min": 4, "max": 8}
+    assert payload["catalogs"]["locations"][0]["sort_order"] == 3
+    assert payload["catalogs"]["shops"][0]["location_id"] == "loc-1"
+    assert payload["catalogs"]["shops"][0]["requirements_id"] == "req-1"
+    assert payload["catalogs"]["characters"][0]["level"] == 1
     assert payload["sources"]["shop_inventory"][0]["pricing"]["buy_price"] == 7
 
 

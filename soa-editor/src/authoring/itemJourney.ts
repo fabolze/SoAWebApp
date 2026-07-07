@@ -8,6 +8,7 @@ import {
 import type { EntryRecord } from "../types/editorQol";
 
 export type ItemJourneyRowKind = "story" | "source";
+export type ItemJourneyOrderKind = "canonical" | "estimated" | "unknown";
 
 export interface ItemJourneyRow {
   id: string;
@@ -21,6 +22,11 @@ export interface ItemJourneyRow {
   storyArcId: string;
   scopeLabel: string;
   order: number | null;
+  orderKind: ItemJourneyOrderKind;
+  estimatedOrder: number | null;
+  progressionLabel: string;
+  progressionHints: string[];
+  gated: boolean;
   placed: boolean;
   route: string;
   tone: "reward" | "requirement" | "state" | "source" | "unplaced";
@@ -32,6 +38,8 @@ export interface ItemJourneyModel {
   storyOccurrenceCount: number;
   sourceCount: number;
   unplacedSourceCount: number;
+  estimatedSourceCount: number;
+  gatedSourceCount: number;
 }
 
 interface ItemPacketLike {
@@ -49,6 +57,15 @@ interface SourceCandidate {
   ownerLabel: string;
   quantity: string;
   route: string;
+  owner: EntryRecord | undefined;
+  source: EntryRecord;
+}
+
+interface ProgressionEstimate {
+  order: number | null;
+  label: string;
+  hints: string[];
+  gated: boolean;
 }
 
 function catalogById(values: EntryRecord[] | undefined): Map<string, EntryRecord> {
@@ -90,6 +107,82 @@ function quantityLabel(entry: EntryRecord): string {
   return values.join(" / ");
 }
 
+function numeric(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function requirementLabel(requirementId: string, requirements: Map<string, EntryRecord>): string {
+  return displayLabel(requirements.get(requirementId), requirementId);
+}
+
+function levelRangeMin(value: unknown): number | null {
+  const range = record(value);
+  return numeric(range.min);
+}
+
+function sourceRequirementIds(source: SourceCandidate): string[] {
+  return [
+    text(source.source.requirements_id),
+    text(source.owner?.requirements_id),
+  ].filter(Boolean);
+}
+
+function estimateProgression(source: SourceCandidate, packet: ItemPacketLike): ProgressionEstimate {
+  const catalogs = packet.catalogs || {};
+  const requirements = catalogById(catalogs.requirements);
+  const locations = catalogById(catalogs.locations);
+  const hints: string[] = [];
+  const orders: number[] = [];
+  const requirementIds = sourceRequirementIds(source);
+
+  requirementIds.forEach((requirementId) => hints.push(`Gated by ${requirementLabel(requirementId, requirements)}`));
+
+  if (source.ownerKind === "character") {
+    const level = numeric(source.owner?.level);
+    if (level !== null) {
+      orders.push(level);
+      hints.push(`Character level ${level}`);
+    }
+  } else if (source.ownerKind === "combat_profile") {
+    const level = numeric(source.owner?.level);
+    if (level !== null) {
+      orders.push(level);
+      hints.push(`Profile level ${level}`);
+    }
+  } else if (source.ownerKind === "location") {
+    const location = source.owner || locations.get(source.ownerId);
+    const level = levelRangeMin(location?.level_range);
+    const sortOrder = numeric(location?.sort_order);
+    if (level !== null) {
+      orders.push(level);
+      hints.push(`Location level ${level}`);
+    } else if (sortOrder !== null) {
+      orders.push(1000 + sortOrder);
+      hints.push(`Location order ${sortOrder}`);
+    }
+  } else if (source.ownerKind === "shop") {
+    const locationId = text(source.owner?.location_id);
+    const location = locations.get(locationId);
+    const level = levelRangeMin(location?.level_range);
+    const sortOrder = numeric(location?.sort_order);
+    if (level !== null) {
+      orders.push(level);
+      hints.push(`Shop location level ${level}`);
+    } else if (sortOrder !== null) {
+      orders.push(1000 + sortOrder);
+      hints.push(`Shop location order ${sortOrder}`);
+    }
+  }
+
+  const order = orders.length > 0 ? Math.min(...orders) : null;
+  const levelHint = hints.find((hint) => hint.includes("level "));
+  const orderHint = hints.find((hint) => hint.includes("order "));
+  const label = levelHint ? `Estimated ${levelHint.toLowerCase()}` : orderHint ? `Estimated ${orderHint.toLowerCase()}` : requirementIds.length > 0 ? "Gated source" : "No estimated order";
+  return { order, label, hints, gated: requirementIds.length > 0 };
+}
+
 function scopeKey(row: Pick<ItemJourneyRow, "timelineId" | "storyArcId">): string {
   return `${row.timelineId || "none"}:${row.storyArcId || "none"}`;
 }
@@ -119,6 +212,7 @@ function buildSources(packet: ItemPacketLike): SourceCandidate[] {
   const catalogs = packet.catalogs || {};
   const shops = catalogById(catalogs.shops);
   const combatProfiles = catalogById(catalogs.combat_profiles);
+  const characters = catalogById(catalogs.characters);
   const quests = catalogById(catalogs.quests);
   const encounters = catalogById(catalogs.encounters);
   const events = catalogById(catalogs.events);
@@ -136,12 +230,15 @@ function buildSources(packet: ItemPacketLike): SourceCandidate[] {
       ownerLabel: displayLabel(shops.get(ownerId), ownerId),
       quantity: quantityLabel(row),
       route: routeFor("shop", ownerId),
+      owner: shops.get(ownerId),
+      source: row,
     });
   });
 
   sourceRows(packet.sources.combat_loot).forEach((row, index) => {
     const owner = combatProfiles.get(row.owner_id);
     const characterId = text(owner?.character_id);
+    const character = characters.get(characterId);
     result.push({
       id: `combat:${row.owner_id}:${index}`,
       sourceKind: "Combat Loot",
@@ -151,6 +248,8 @@ function buildSources(packet: ItemPacketLike): SourceCandidate[] {
       ownerLabel: displayLabel(owner, row.owner_id),
       quantity: quantityLabel(row.entry),
       route: characterId ? routeFor("character", characterId) : "",
+      owner: character || owner,
+      source: row.entry,
     });
   });
 
@@ -164,6 +263,8 @@ function buildSources(packet: ItemPacketLike): SourceCandidate[] {
       ownerLabel: displayLabel(quests.get(row.owner_id), row.owner_id),
       quantity: quantityLabel(row.entry),
       route: routeFor("quest", row.owner_id),
+      owner: quests.get(row.owner_id),
+      source: row.entry,
     });
   });
 
@@ -177,6 +278,8 @@ function buildSources(packet: ItemPacketLike): SourceCandidate[] {
       ownerLabel: displayLabel(encounters.get(row.owner_id), row.owner_id),
       quantity: quantityLabel(row.entry),
       route: routeFor("encounter", row.owner_id),
+      owner: encounters.get(row.owner_id),
+      source: row.entry,
     });
   });
 
@@ -190,6 +293,8 @@ function buildSources(packet: ItemPacketLike): SourceCandidate[] {
       ownerLabel: displayLabel(events.get(row.owner_id), row.owner_id),
       quantity: quantityLabel(row.entry),
       route: routeFor("event", row.owner_id),
+      owner: events.get(row.owner_id),
+      source: row.entry,
     });
   });
 
@@ -206,6 +311,8 @@ function buildSources(packet: ItemPacketLike): SourceCandidate[] {
       ownerLabel: displayLabel(record(poi?.location), locationId || poiId),
       quantity: "",
       route: locationId ? routeFor("location", locationId) : "",
+      owner: record(poi?.location),
+      source: poi || {},
     });
   });
 
@@ -234,6 +341,11 @@ export function buildItemJourneyModel(packet: ItemPacketLike, storyPacket: Entry
     storyArcId: occurrence.story_arc_id,
     scopeLabel: scopeLabel({ timelineId: occurrence.timeline_id, storyArcId: occurrence.story_arc_id }, storyPacket),
     order: occurrence.order,
+    orderKind: "canonical",
+    estimatedOrder: null,
+    progressionLabel: occurrence.order === null ? "Canonical story placement" : `Canonical story order ${occurrence.order}`,
+    progressionHints: [],
+    gated: false,
     placed: true,
     route: occurrence.source_kind === "adventure_beat" ? `/author/story-timeline?track=item&entity=${encodeURIComponent(itemId)}` : "",
     tone: toneFromOccurrence(occurrence),
@@ -242,6 +354,7 @@ export function buildItemJourneyModel(packet: ItemPacketLike, storyPacket: Entry
   const sourceCandidates = buildSources(packet);
   const sourceJourneyRows = sourceCandidates.map((source) => {
     const ownerTrack = ownerOccurrences.get(`${source.ownerKind}:${source.ownerId}`)?.sort((a, b) => a.order - b.order)[0];
+    const estimate = estimateProgression(source, packet);
     const base = {
       id: `source:${source.id}`,
       kind: "source" as const,
@@ -253,6 +366,11 @@ export function buildItemJourneyModel(packet: ItemPacketLike, storyPacket: Entry
       timelineId: text(ownerTrack?.timeline_id),
       storyArcId: text(ownerTrack?.story_arc_id),
       order: ownerTrack ? ownerTrack.order : null,
+      orderKind: ownerTrack ? "canonical" as const : estimate.order !== null ? "estimated" as const : "unknown" as const,
+      estimatedOrder: ownerTrack ? null : estimate.order,
+      progressionLabel: ownerTrack ? (ownerTrack.order === null ? "Canonical story placement" : `Canonical story order ${ownerTrack.order}`) : estimate.label,
+      progressionHints: estimate.hints,
+      gated: estimate.gated,
       placed: Boolean(ownerTrack),
       route: source.route,
       tone: ownerTrack ? "source" as const : "unplaced" as const,
@@ -263,10 +381,14 @@ export function buildItemJourneyModel(packet: ItemPacketLike, storyPacket: Entry
   const allRows = [...storyRows, ...sourceJourneyRows].sort((a, b) => {
     const scope = scopeKey(a).localeCompare(scopeKey(b));
     if (scope !== 0) return scope;
-    if (a.order === null && b.order === null) return a.label.localeCompare(b.label);
-    if (a.order === null) return 1;
-    if (b.order === null) return -1;
-    return a.order - b.order || a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label);
+    const aSort = a.order ?? (a.orderKind === "estimated" ? a.estimatedOrder : null);
+    const bSort = b.order ?? (b.orderKind === "estimated" ? b.estimatedOrder : null);
+    if (aSort === null && bSort === null) return a.label.localeCompare(b.label);
+    if (aSort === null) return 1;
+    if (bSort === null) return -1;
+    if (aSort !== bSort) return aSort - bSort;
+    if (a.orderKind !== b.orderKind) return a.orderKind.localeCompare(b.orderKind);
+    return a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label);
   });
 
   const warnings: string[] = [];
@@ -274,7 +396,7 @@ export function buildItemJourneyModel(packet: ItemPacketLike, storyPacket: Entry
   if (unplacedSources.length > 0) warnings.push(`${unplacedSources.length} acquisition source(s) are not placed in story context.`);
 
   const rowsByScope = new Map<string, ItemJourneyRow[]>();
-  allRows.filter((row) => row.order !== null).forEach((row) => {
+  allRows.filter((row) => row.order !== null && row.orderKind === "canonical").forEach((row) => {
     const key = scopeKey(row);
     rowsByScope.set(key, [...(rowsByScope.get(key) || []), row]);
   });
@@ -293,5 +415,7 @@ export function buildItemJourneyModel(packet: ItemPacketLike, storyPacket: Entry
     storyOccurrenceCount: itemOccurrences.length,
     sourceCount: sourceCandidates.length,
     unplacedSourceCount: unplacedSources.length,
+    estimatedSourceCount: sourceJourneyRows.filter((row) => row.orderKind === "estimated").length,
+    gatedSourceCount: sourceJourneyRows.filter((row) => row.gated).length,
   };
 }

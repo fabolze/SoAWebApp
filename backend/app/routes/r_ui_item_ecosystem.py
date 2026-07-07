@@ -50,7 +50,22 @@ def _compact(model):
     data = _columns(model)
     return {
         key: data.get(key)
-        for key in ("id", "slug", "name", "title", "character_id", "location_id", "item_id", "type", "rarity", "level")
+        for key in (
+            "id",
+            "slug",
+            "name",
+            "title",
+            "character_id",
+            "location_id",
+            "item_id",
+            "type",
+            "rarity",
+            "level",
+            "requirements_id",
+            "story_arc_id",
+            "sort_order",
+            "level_range",
+        )
         if key in data
     }
 
@@ -207,6 +222,7 @@ def _catalogs(db_session):
     locations = {row.id: row for row in db_session.query(Location).all()}
     return {
         "items": [_compact(row) for row in db_session.query(Item).all()],
+        "characters": [_compact(row) for row in db_session.query(Character).all()],
         "shops": [_compact(row) for row in db_session.query(Shop).all()],
         "combat_profiles": [
             {**_compact(row), "label": _compact(characters.get(row.character_id)) if characters.get(row.character_id) else None}
@@ -219,6 +235,7 @@ def _catalogs(db_session):
             {**_compact(row), "location": _compact(locations.get(row.location_id)) if locations.get(row.location_id) else None}
             for row in db_session.query(LocationPoi).all()
         ],
+        "locations": [_compact(row) for row in db_session.query(Location).all()],
         "currencies": [_compact(row) for row in db_session.query(Currency).all()],
         "requirements": [requirement_route.serialize_item(row) for row in db_session.query(Requirement).all()],
     }

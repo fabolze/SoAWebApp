@@ -126,4 +126,87 @@ describe("buildItemJourneyModel", () => {
     }));
     expect(model.warnings).toContain("1 acquisition source(s) are not placed in story context.");
   });
+
+  it("estimates unplaced combat loot order from the linked character level", () => {
+    const model = buildItemJourneyModel({
+      item: { id: "item-1", name: "Signal Key", type: "Quest", rarity: "Rare", tags: [] },
+      sources: {
+        shop_inventory: [],
+        combat_loot: [{ owner_id: "combat-1", entry: { item_id: "item-1", quantity: 1, drop_chance: 40 } }],
+        quest_rewards: [],
+        encounter_rewards: [],
+        event_rewards: [],
+        poi_ids: [],
+      },
+      catalogs: {
+        combat_profiles: [{ id: "combat-1", character_id: "char-1", label: { name: "Gate Guard" } }],
+        characters: [{ id: "char-1", name: "Gate Guard", level: 7 }],
+      },
+    }, storyPacket);
+
+    const row = model.rows.find((entry) => entry.sourceKind === "Combat Loot");
+    expect(row).toEqual(expect.objectContaining({
+      placed: false,
+      orderKind: "estimated",
+      estimatedOrder: 7,
+      progressionLabel: "Estimated character level 7",
+    }));
+    expect(row?.progressionHints).toContain("Character level 7");
+    expect(model.estimatedSourceCount).toBe(1);
+  });
+
+  it("labels gated sources without treating them as ordered", () => {
+    const model = buildItemJourneyModel({
+      item: { id: "item-1", name: "Signal Key", type: "Quest", rarity: "Rare", tags: [] },
+      sources: {
+        shop_inventory: [{ shop_id: "shop-1", item_id: "item-1", requirements_id: "req-key", stock: 1 }],
+        combat_loot: [],
+        quest_rewards: [],
+        encounter_rewards: [],
+        event_rewards: [],
+        poi_ids: [],
+      },
+      catalogs: {
+        shops: [{ id: "shop-1", name: "Hidden Shop" }],
+        requirements: [{ id: "req-key", slug: "requires-key" }],
+      },
+    }, storyPacket);
+
+    const row = model.rows.find((entry) => entry.sourceKind === "Shop Inventory");
+    expect(row).toEqual(expect.objectContaining({
+      orderKind: "unknown",
+      progressionLabel: "Gated source",
+      gated: true,
+    }));
+    expect(row?.progressionHints).toContain("Gated by requires-key");
+    expect(model.gatedSourceCount).toBe(1);
+  });
+
+  it("uses canonical owner story order before estimated source order", () => {
+    const model = buildItemJourneyModel({
+      item: { id: "item-1", name: "Signal Key", type: "Quest", rarity: "Rare", tags: [] },
+      sources: {
+        shop_inventory: [],
+        combat_loot: [],
+        quest_rewards: [{ owner_id: "quest-1", entry: { item_id: "item-1", quantity: 1 } }],
+        encounter_rewards: [],
+        event_rewards: [],
+        poi_ids: [],
+      },
+      catalogs: {
+        quests: [{ id: "quest-1", title: "Find The Key", requirements_id: "req-key" }],
+        requirements: [{ id: "req-key", slug: "requires-key" }],
+      },
+    }, storyPacket);
+
+    const row = model.rows.find((entry) => entry.sourceKind === "Quest Reward");
+    expect(row).toEqual(expect.objectContaining({
+      placed: true,
+      orderKind: "canonical",
+      order: 2,
+      estimatedOrder: null,
+      progressionLabel: "Canonical story order 2",
+      gated: true,
+    }));
+  });
 });
