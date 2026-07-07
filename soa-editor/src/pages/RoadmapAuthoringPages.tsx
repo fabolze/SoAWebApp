@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { ReactFlow, Background, Controls, MiniMap, type Edge, type Node } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { buildDependencyWalkthrough, type DependencyGateStatus, type DependencyNode, type DependencyWalkthroughModel, type DependencyWalkthroughStep } from "../authoring/dependencyWalkthrough";
 import { buildQuestJourneyAnalysis, type QuestJourneyAnalysis, type QuestStoryMilestoneKind } from "../authoring/questJourneyAnalysis";
@@ -20,12 +22,14 @@ function rows(value: unknown): EntryRecord[] {
   return Array.isArray(value) ? value.filter((row): row is EntryRecord => typeof row === "object" && row !== null && !Array.isArray(row)) : [];
 }
 
-function text(value: unknown): string {
-  return value === null || value === undefined ? "" : String(value);
+function text(value: unknown, fallback = ""): string {
+  if (value === null || value === undefined) return fallback;
+  const rendered = String(value);
+  return rendered || fallback;
 }
 
 function strings(value: unknown): string[] {
-  return Array.isArray(value) ? value.map(text).filter(Boolean) : [];
+  return Array.isArray(value) ? value.map((entry) => text(entry)).filter(Boolean) : [];
 }
 
 function numberValue(value: unknown): number {
@@ -549,6 +553,120 @@ function DependencyWalkthroughPanel({ model, initialFlags, triggerIds, activeInd
   </section>;
 }
 
+function dependencyNodeTone(node: EntryRecord | undefined, issueNodeIds: Set<string>): string {
+  if (!node) return "border-red-400 bg-red-50 text-red-900";
+  if (issueNodeIds.has(text(node.id))) return "border-amber-400 bg-amber-50 text-amber-950";
+  const kind = text(node.kind);
+  if (kind === "flag") return "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-950";
+  if (kind === "requirement") return "border-amber-300 bg-amber-50 text-amber-950";
+  if (kind.includes("quest")) return "border-blue-300 bg-blue-50 text-blue-950";
+  if (kind.includes("event") || kind.includes("encounter") || kind.includes("dialogue")) return "border-violet-300 bg-violet-50 text-violet-950";
+  return "border-slate-300 bg-white text-slate-900";
+}
+
+function dependencyGraphNodes(
+  visibleEdges: EntryRecord[],
+  nodeById: Map<string, EntryRecord>,
+  issueNodeIds: Set<string>,
+): Node[] {
+  const ids = [...new Set(visibleEdges.flatMap((edge) => [text(edge.source), text(edge.target)]).filter(Boolean))];
+  const byKind = new Map<string, string[]>();
+  ids.forEach((id) => {
+    const kind = text(nodeById.get(id)?.kind, "missing");
+    byKind.set(kind, [...(byKind.get(kind) || []), id]);
+  });
+  const kindOrder = ["flag", "requirement", "quests", "events", "encounters", "dialogues", "route", "shop", "missing"];
+  const sortedKinds = [...byKind.keys()].sort((left, right) => {
+    const leftIndex = kindOrder.findIndex((value) => left.includes(value));
+    const rightIndex = kindOrder.findIndex((value) => right.includes(value));
+    return (leftIndex === -1 ? 99 : leftIndex) - (rightIndex === -1 ? 99 : rightIndex) || left.localeCompare(right);
+  });
+  const columnByKind = new Map(sortedKinds.map((kind, index) => [kind, index]));
+  const rowCounts = new Map<string, number>();
+  return ids.map((id) => {
+    const entry = nodeById.get(id);
+    const kind = text(entry?.kind, "missing");
+    const row = rowCounts.get(kind) || 0;
+    rowCounts.set(kind, row + 1);
+    return {
+      id,
+      position: { x: (columnByKind.get(kind) || 0) * 260, y: row * 100 },
+      data: {
+        label: (
+          <div className={`min-w-44 rounded-md border px-3 py-2 text-xs shadow-sm ${dependencyNodeTone(entry, issueNodeIds)}`}>
+            <div className="text-[10px] font-semibold uppercase opacity-70">{kind}</div>
+            <div className="mt-1 max-w-44 truncate font-semibold">{text(entry?.label) || text(entry?.entry_id) || id}</div>
+          </div>
+        ),
+      },
+      style: { border: "none", background: "transparent", padding: 0 },
+    };
+  });
+}
+
+function dependencyGraphEdges(visibleEdges: EntryRecord[]): Edge[] {
+  return visibleEdges.map((edge, index) => ({
+    id: text(edge.id, `edge-${index}`),
+    source: text(edge.source),
+    target: text(edge.target),
+    label: text(edge.relation),
+    animated: !edge.explicit,
+    type: "smoothstep",
+    style: {
+      stroke: edge.explicit ? "#334155" : "#7c3aed",
+      strokeDasharray: edge.explicit ? undefined : "5 5",
+      strokeWidth: 1.5,
+    },
+    labelStyle: { fontSize: 10, fill: "#475569", fontWeight: 600 },
+  }));
+}
+
+function DependencyGraphPanel({
+  visibleEdges,
+  nodeById,
+  issueNodeIds,
+  onFocus,
+}: {
+  visibleEdges: EntryRecord[];
+  nodeById: Map<string, EntryRecord>;
+  issueNodeIds: Set<string>;
+  onFocus: (id: string) => void;
+}) {
+  const graphNodes = useMemo(() => dependencyGraphNodes(visibleEdges, nodeById, issueNodeIds), [issueNodeIds, nodeById, visibleEdges]);
+  const graphEdges = useMemo(() => dependencyGraphEdges(visibleEdges), [visibleEdges]);
+  return <section className={panelClass} data-testid="dependency-graph-panel">
+    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 className="font-semibold">Focused Graph</h2>
+        <p className="text-xs text-slate-500">Read-only map of the same filtered relationships. Click a node to focus its neighborhood.</p>
+      </div>
+      <div className="flex gap-2 text-xs">
+        <span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{graphNodes.length} shown nodes</span>
+        <span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{graphEdges.length} shown edges</span>
+      </div>
+    </div>
+    <div className="h-[420px] overflow-hidden rounded-md border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
+      {graphNodes.length > 0 ? (
+        <ReactFlow
+          nodes={graphNodes}
+          edges={graphEdges}
+          fitView
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable
+          onNodeClick={(_event: MouseEvent, node: Node) => onFocus(node.id)}
+        >
+          <Background />
+          <MiniMap pannable zoomable />
+          <Controls />
+        </ReactFlow>
+      ) : (
+        <div className="grid h-full place-items-center text-sm text-slate-500">No graph relationships match the current filters.</div>
+      )}
+    </div>
+  </section>;
+}
+
 export function DependencyMapPage() {
   const [index, setIndex] = useState<EntryRecord>({ nodes: [], edges: [], health: {} });
   const [focus, setFocus] = useState("");
@@ -576,12 +694,13 @@ export function DependencyMapPage() {
     if (focus && edge.source !== focus && edge.target !== focus) return false;
     if (!dependencyLensMatches(edge, lens)) return false;
     if (!search.trim()) return true;
-    const haystack = [edge.relation, edge.path, nodeById.get(text(edge.source))?.label, nodeById.get(text(edge.target))?.label, edge.source, edge.target].map(text).join(" ").toLowerCase();
+    const haystack = [edge.relation, edge.path, nodeById.get(text(edge.source))?.label, nodeById.get(text(edge.target))?.label, edge.source, edge.target].map((entry) => text(entry)).join(" ").toLowerCase();
     return haystack.includes(search.trim().toLowerCase());
   });
   return <div className="space-y-5 p-5">
     <header className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-semibold">Adventure Dependency Map</h1><p className="text-sm text-slate-500">Trace prerequisites, flags, unlocks, and branches. Solid relationships are stored; dashed relationships are inferred.</p></div><div className="flex gap-2 text-xs"><span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{nodes.length} nodes</span><span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{allEdges.length} relationships</span><span className={`rounded-full px-2 py-1 ${issueNodeIds.size ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>{issueNodeIds.size} issue nodes</span></div></header>
     <section className={panelClass}><div className="grid gap-3 lg:grid-cols-2"><label className="block text-xs font-semibold uppercase text-slate-500">Focus Node<select className={`${inputClass} mt-1`} value={focus} onChange={(event) => setFocus(event.target.value)}><option value="">All nodes</option>{nodes.map((node) => <option key={text(node.id)} value={text(node.id)}>{text(node.kind)}: {text(node.label)}</option>)}</select></label><label className="block text-xs font-semibold uppercase text-slate-500">Search Relationships<input className={`${inputClass} mt-1`} value={search} placeholder="Search node, relation, or field..." onChange={(event) => setSearch(event.target.value)} /></label></div><div className="mt-3 flex flex-wrap gap-2">{dependencyLenses.map((value) => <button key={value} type="button" className={`rounded-full border px-3 py-1 text-xs font-semibold ${lens === value ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 dark:border-slate-700"}`} onClick={() => setLens(value)}>{dependencyLensLabel(value)}</button>)}{(focus || search || lens !== "all") && <button type="button" className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold" onClick={() => { setFocus(""); setSearch(""); setLens("all"); }}>Clear Filters</button>}</div></section>
+    <DependencyGraphPanel visibleEdges={visibleEdges} nodeById={nodeById} issueNodeIds={issueNodeIds} onFocus={setFocus} />
     <DependencyWalkthroughPanel model={walkthrough} initialFlags={initialFlags} triggerIds={triggerIds} activeIndex={activeWalkthroughIndex} onInitialFlagsChange={setInitialFlags} onTriggerIdsChange={setTriggerIds} onActiveIndexChange={setActiveWalkthroughIndex} onFocus={setFocus} />
     <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
       <section className={panelClass}><h2 className="font-semibold">Actionable Health</h2><p className="mt-1 text-xs text-slate-500">Select an issue to focus its relationships, then open the affected record.</p><div className="mt-3 space-y-4"><HealthIssueGroup title="Impossible Gates" description="A requirement depends on a flag that nothing currently sets." severity="error" nodes={rows(health.impossible_gates)} onFocus={setFocus} /><HealthIssueGroup title="Dead Flags" description="These flags are consumed but have no producer." severity="error" nodes={rows(health.dead_flags)} onFocus={setFocus} /><HealthIssueGroup title="Contradictions" description="A requirement both requires and forbids the same flag." severity="error" nodes={rows(health.contradictions)} onFocus={setFocus} /><CycleIssueGroup cycles={Array.isArray(health.cycles) ? health.cycles : []} nodeById={nodeById} onFocus={setFocus} /><HealthIssueGroup title="Unused Flags" description="These flags are produced but never consumed." severity="warning" nodes={rows(health.unused_flags)} onFocus={setFocus} /><BrokenEdgeGroup edges={brokenEdges} nodeById={nodeById} onFocus={setFocus} />{issueNodeIds.size === 0 && <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">No dependency health issues detected.</p>}</div></section>

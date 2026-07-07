@@ -8,6 +8,7 @@ import ContextSimulationPanel from "./simulation/ContextSimulationPanel";
 import AuthoringStudio from "./authoring/AuthoringStudio";
 import RelationshipPanel from "./relationships/RelationshipPanel";
 import { collectUsedSlugs, findSlugCollision, getIdentitySource, makeUniqueSlug } from "../utils/identity";
+import { recommendedNextActions } from "../navigation/draftInventory";
 import type { EntryRecord } from "../types/editorQol";
 import type { SchemaFieldConfig } from "./schemaForm/types";
 import type { EntryRelationshipSummary } from "../relationships";
@@ -229,6 +230,9 @@ export default function EntryFormPanel({
     : isDirty
       ? "Draft changed"
       : "Ready";
+  const nextActions = useMemo(() => hasExistingId
+    ? recommendedNextActions(schemaName, currentEntryId).filter((action) => action.route !== immersiveAuthorPath).slice(0, 4)
+    : [], [currentEntryId, hasExistingId, immersiveAuthorPath, schemaName]);
 
   useEffect(() => {
     latestDataRef.current = data || {};
@@ -288,6 +292,7 @@ export default function EntryFormPanel({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setCommandPaletteOpen(true);
@@ -380,6 +385,11 @@ export default function EntryFormPanel({
                     Author View
                   </Link>
                 )}
+                {nextActions.map((action) => (
+                  <Link key={`${action.label}:${action.route}`} className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} to={action.route}>
+                    {action.label}
+                  </Link>
+                ))}
                 {schemaName === "locations" && (
                   <Link
                     className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`}

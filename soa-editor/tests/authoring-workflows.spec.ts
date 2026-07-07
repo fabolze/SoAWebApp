@@ -124,8 +124,34 @@ test("roadmap authoring routes render without replacing rich item authoring", as
   await expect(page.getByRole("heading", { name: "Quest Journey Board" })).toBeVisible();
   await page.goto("/author/dependencies");
   await expect(page.getByRole("heading", { name: "Adventure Dependency Map" })).toBeVisible();
+  await expect(page.getByTestId("dependency-graph-panel")).toBeVisible();
   await page.goto("/author/story-timeline");
   await expect(page.getByRole("heading", { name: "Story Timeline & Adventure Board" })).toBeVisible();
+});
+
+test("global workspace switcher opens authoring routes", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Search Workspaces" }).click();
+  await expect(page.getByRole("heading", { name: "Workspace Switcher" })).toBeVisible();
+  await page.getByPlaceholder("Type a command...").fill("dependency map");
+  await page.keyboard.press("Enter");
+
+  await expect(page).toHaveURL(/\/author\/dependencies$/);
+  await expect(page.getByRole("heading", { name: "Adventure Dependency Map" })).toBeVisible();
+});
+
+test("draft drawer surfaces browser-local work", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("soa.draft.items.item-1", JSON.stringify({ data: { id: "item-1", name: "Unsaved Relic" }, ts: Date.now() }));
+  });
+  await mockApi(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /Drafts 1/ }).click();
+  await expect(page.getByRole("heading", { name: "Local Drafts" })).toBeVisible();
+  await expect(page.getByText("Unsaved Relic")).toBeVisible();
 });
 
 test("dependency map walks temporary state through flag-setting sources", async ({ page }) => {
@@ -208,6 +234,7 @@ test("quest journey board places the quest into story as player journey", async 
   await expect(page.getByRole("heading", { name: "Quest Journey Board" })).toBeVisible();
   await expect(page.getByTestId("story-presets-quest")).toContainText("Escalates");
   await page.getByTestId("story-preset-quest-resolves").click();
+  await page.getByRole("button", { name: "Edit Lifecycle Details" }).click();
   await expect(page.getByLabel("State Label")).toHaveValue("Resolved");
   await page.getByTestId("story-placement-create").getByRole("button", { name: "Preview Placement" }).click();
   await expect(page.getByTestId("story-placement-review")).toContainText("1 created");
@@ -861,6 +888,7 @@ test("story placement edits an existing canonical link with stale-record protect
   await panel.getByRole("button", { name: "Edit placement" }).click();
   const editor = page.getByTestId("story-placement-edit");
   await editor.getByTestId("story-preset-location-destroyed").click();
+  await editor.getByRole("button", { name: "Edit Lifecycle Details" }).click();
   await editor.getByLabel("State Label").fill("Ruined");
   await editor.getByRole("button", { name: "Preview Changes" }).click();
   await expect(page.getByTestId("story-placement-review")).toContainText("1 changed");

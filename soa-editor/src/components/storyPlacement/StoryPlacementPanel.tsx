@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   defaultPlacementDraft,
@@ -43,6 +43,7 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
   const [reviewAction, setReviewAction] = useState<ReviewMode | null>(null);
   const [mutationError, setMutationError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showLifecycleFields, setShowLifecycleFields] = useState(false);
   const { packet, setPacket, error, loading, context } = useEntityStoryPlacement({ entityKind, entityId, entity, externalPacket: storyPacket });
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
     setReview(null);
     setReviewAction(null);
     setMutationError("");
+    setShowLifecycleFields(false);
   }, [entityId, entityKind]);
 
   useEffect(() => {
@@ -174,16 +176,23 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
             <button type="button" className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold disabled:opacity-40 dark:border-slate-700" disabled={!activeDraft.adventure_beat_id || saving} onClick={() => void submitPlacement(editing ? "edit" : "create", false)}>{editing ? "Preview Changes" : "Preview Placement"}</button>
           </div>
         </div>
-        <label className="mt-3 block text-[10px] font-semibold uppercase text-slate-500">Adventure Beat
-          <select className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs normal-case dark:border-slate-700 dark:bg-slate-950" value={activeDraft.adventure_beat_id} onChange={(event) => updateActiveDraft({ ...activeDraft, adventure_beat_id: event.target.value })}>
-            {context.beatOptions.map((beat) => <option key={text(beat.id)} value={text(beat.id)}>{label(beat)}</option>)}
-          </select>
-        </label>
+        <BeatSelector
+          value={activeDraft.adventure_beat_id}
+          beatOptions={context.beatOptions}
+          timelines={context.timelines}
+          arcs={context.arcs}
+          onChange={(adventure_beat_id) => updateActiveDraft({ ...activeDraft, adventure_beat_id })}
+        />
         <div className="mt-3">
           <PlacementTray value={activeDraft} entityLabel={entityLabel} onChange={updateActiveDraft} />
         </div>
         <div className="mt-3">
-          <LifecycleFields value={activeDraft} beatOptions={context.beatOptions} onChange={updateActiveDraft} />
+          <button type="button" className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold dark:border-slate-700" onClick={() => setShowLifecycleFields((current) => !current)}>
+            {showLifecycleFields ? "Hide Lifecycle Details" : "Edit Lifecycle Details"}
+          </button>
+          {showLifecycleFields && <div className="mt-3 rounded border border-slate-200 p-3 dark:border-slate-800">
+            <LifecycleFields value={activeDraft} beatOptions={context.beatOptions} onChange={updateActiveDraft} />
+          </div>}
         </div>
         {consequenceSectionEnabled && !editing && <div className="mt-4" data-testid="cross-entity-consequence">
           <ConsequenceComposer
@@ -215,8 +224,99 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
           onCancel={clearReview}
           onCommit={() => reviewAction && void submitPlacement(reviewAction, true)}
         /></div>}
-        {context.beatOptions.length === 0 && <p className="mt-3 rounded border border-dashed border-slate-300 p-2 text-xs text-slate-500 dark:border-slate-700">Create an adventure beat in the Story Timeline before placing this record.</p>}
+        {context.beatOptions.length === 0 && <p className="mt-3 rounded border border-dashed border-slate-300 p-2 text-xs text-slate-500 dark:border-slate-700">Create or commit an adventure beat in the Story Timeline before placing this record.</p>}
       </div>
     </div>}
   </section>;
+}
+
+function BeatSelector({
+  value,
+  beatOptions,
+  timelines,
+  arcs,
+  onChange,
+}: {
+  value: string;
+  beatOptions: EntryRecord[];
+  timelines: Map<string, EntryRecord>;
+  arcs: Map<string, EntryRecord>;
+  onChange: (id: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const selectedBeat = beatOptions.find((beat) => text(beat.id) === value);
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return beatOptions
+      .filter((beat) => {
+        if (!needle) return true;
+        const arc = arcs.get(text(beat.story_arc_id));
+        const timeline = timelines.get(text(beat.timeline_id));
+        return [label(beat), label(arc, ""), label(timeline, ""), text(beat.id)]
+          .join(" ")
+          .toLowerCase()
+          .includes(needle);
+      })
+      .sort((left, right) =>
+        text(left.timeline_id).localeCompare(text(right.timeline_id))
+        || text(left.story_arc_id).localeCompare(text(right.story_arc_id))
+        || Number(left.sort_order ?? left.order ?? 0) - Number(right.sort_order ?? right.order ?? 0)
+        || label(left).localeCompare(label(right))
+      );
+  }, [arcs, beatOptions, query, timelines]);
+  const groups = useMemo(() => {
+    const map = new Map<string, { label: string; rows: EntryRecord[] }>();
+    filtered.forEach((beat) => {
+      const timeline = timelines.get(text(beat.timeline_id));
+      const arc = arcs.get(text(beat.story_arc_id));
+      const key = `${text(beat.timeline_id) || "unassigned"}:${text(beat.story_arc_id) || "unassigned"}`;
+      const group = map.get(key) || {
+        label: `${label(timeline, "Unassigned timeline")} / ${label(arc, "Unassigned arc")}`,
+        rows: [],
+      };
+      group.rows.push(beat);
+      map.set(key, group);
+    });
+    return [...map.entries()];
+  }, [arcs, filtered, timelines]);
+
+  return <div className="mt-3 rounded border border-slate-200 p-3 dark:border-slate-800" data-testid="story-beat-selector">
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <div className="text-[10px] font-semibold uppercase text-slate-500">Adventure Beat</div>
+        <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+          {selectedBeat ? label(selectedBeat) : "Choose where this record matters."}
+        </div>
+      </div>
+      <span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{filtered.length} shown</span>
+    </div>
+    <input
+      className="mt-3 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-950"
+      value={query}
+      placeholder="Search beat, timeline, or arc..."
+      onChange={(event) => setQuery(event.target.value)}
+      aria-label="Search adventure beats"
+    />
+    <div className="mt-3 max-h-52 space-y-3 overflow-auto">
+      {groups.map(([groupKey, group]) => <div key={groupKey}>
+        <div className="mb-1 text-[10px] font-semibold uppercase text-slate-500">{group.label}</div>
+        <div className="space-y-1">
+          {group.rows.map((beat) => {
+            const id = text(beat.id);
+            const selected = id === value;
+            return <button
+              key={id}
+              type="button"
+              className={`block w-full rounded border px-2 py-1.5 text-left text-xs ${selected ? "border-blue-500 bg-blue-50 text-blue-950 dark:bg-blue-950 dark:text-blue-100" : "border-slate-200 hover:border-blue-300 dark:border-slate-800"}`}
+              onClick={() => onChange(id)}
+            >
+              <span className="block font-semibold">{label(beat)}</span>
+              {text(beat.summary, text(beat.description)) && <span className="mt-0.5 block truncate text-[10px] text-slate-500">{text(beat.summary, text(beat.description))}</span>}
+            </button>;
+          })}
+        </div>
+      </div>)}
+      {filtered.length === 0 && <p className="rounded border border-dashed border-slate-300 p-3 text-xs text-slate-500 dark:border-slate-700">No beats match this search.</p>}
+    </div>
+  </div>;
 }

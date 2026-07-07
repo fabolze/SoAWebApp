@@ -65,7 +65,7 @@ export default function CommandPalette({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-800">
-          <div className={`text-sm font-semibold ${TEXT_CLASSES.body}`}>{title}</div>
+          <h2 className={`text-sm font-semibold ${TEXT_CLASSES.body}`}>{title}</h2>
           <input
             ref={inputRef}
             type="text"
