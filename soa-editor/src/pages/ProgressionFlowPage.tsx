@@ -4,6 +4,7 @@ import {
   scopedGateIssues,
 } from "../authoring/scopedGate";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
+import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
@@ -375,6 +376,18 @@ export default function ProgressionFlowPage() {
               patchEvent={patchEvent}
               patchEncounterRewards={patchEncounterRewards}
             />
+            {eventDraft && packet.events.some((entry) => text(entry.id) === text(eventDraft.id)) && <ConsequenceComposer
+              sourceKind="event"
+              source={eventDraft}
+              expectedSource={packet.events.find((entry) => text(entry.id) === text(eventDraft.id)) || eventDraft}
+              sourceLabel={label(eventDraft, text(eventDraft.id))}
+              title="Saved Event Consequences"
+              subtitle="Commit this saved event's flags, rewards, reputation, and next-event link through the shared reviewed packet."
+              onSourceCommitted={(savedEvent) => {
+                setPacket((current) => ({ ...current, events: current.events.map((entry) => text(entry.id) === text(savedEvent.id) ? savedEvent : entry) }));
+                setEventDraft(savedEvent);
+              }}
+            />}
             <FlowCanvas rows={graph} />
             <BundleReview
               result={review}

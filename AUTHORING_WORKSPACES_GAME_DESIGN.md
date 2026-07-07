@@ -28,7 +28,7 @@ The status index is the only place that records delivery status. When a new auth
 
 ## Workspace Status
 
-Last reviewed: 2026-07-06
+Last reviewed: 2026-07-07
 
 | Workspace | Status |
 |---|---|
@@ -36,10 +36,10 @@ Last reviewed: 2026-07-06
 | Location Atlas | Implemented standalone map review mode for arranging and inspecting existing locations through `/author/locations/map` |
 | Location Authoring | Implemented standalone location creation route for hierarchy, ecology, map placement, POIs, routes, encounter hooks, and validation through `/author/locations/new` |
 | Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, dedicated Character Presence Timeline in the context dock, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, semantic character presets, scoped introduction-coverage warnings, and cross-entity character consequence actions |
-| Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, selected-dialogue presets, and explicit-target character/faction/item/location consequence actions |
-| Encounter Stage | Implemented MVP with participant composition, shared scoped gate embed for saved encounters, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, selected-encounter presets, explicit-target reward/injury/faction/location consequence actions, aftermath preview, and important reward item journey warnings |
-| Progression Flow And Gate Builder | Implemented MVP with linked authoring for flags, requirements, event payloads, event outcome flags, next-event links, encounter reward flags, shared scoped gate component extraction, gate attachment to supported `requirements_id` records, compact selected-seed flow preview, temporary flag-state walkthrough, dependency usage context, and rollback-preview/atomic-commit bundle review |
-| Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, story path objective-to-beat visualization, branch path diagnostics, temporary flag-state walkthrough, arc-order flag/item coherence warnings, and runtime-event placement window warnings; full mixed-content Quest Loom is future vision |
+| Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, selected-dialogue presets, shared node/choice flag Consequence Composer, and explicit-target character/faction/item/location consequence actions |
+| Encounter Stage | Implemented MVP with participant composition, shared scoped gate embed for saved encounters, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, selected-encounter presets, shared encounter aftermath Consequence Composer, explicit-target reward/injury/faction/location consequence actions, aftermath preview, and important reward item journey warnings |
+| Progression Flow And Gate Builder | Implemented MVP with linked authoring for flags, requirements, event payloads, event outcome flags, next-event links, encounter reward flags, shared Consequence Composer for saved event outcomes, shared scoped gate component extraction, gate attachment to supported `requirements_id` records, compact selected-seed flow preview, temporary flag-state walkthrough, dependency usage context, and rollback-preview/atomic-commit bundle review |
+| Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, shared quest completion Consequence Composer, story path objective-to-beat visualization, branch path diagnostics, temporary flag-state walkthrough, arc-order flag/item coherence warnings, and runtime-event placement window warnings; full mixed-content Quest Loom is future vision |
 | Item Authoring | Implemented standalone item creation route for player-facing mechanics and presentation through `/author/items/new` |
 | Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove, semantic item lifecycle presets, Item Journey source/story track, unplaced acquisition-source warnings, same-lane requirement-before-acquisition warnings, acquisition-channel analysis, obtained-never-used warning, multiple-source explanation warning, and continuity/version guidance; future work can deepen fantasy, provenance, families, and authored transformations |
 | Shop Authoring | Implemented standalone merchant-facing route for creating shops and inventory together through `/author/shops/new` |
@@ -106,8 +106,8 @@ Planned reusable packets:
 Delivery order should be conservative:
 
 1. Extract the implemented Gate Builder behavior from Progression Flow into an embeddable scoped packet. Implemented as `ScopedGateBuilder`, shared frontend helpers, and `/api/ui/scoped-gates`; first external embed is saved Encounter Stage records.
-2. Extract a shared Consequence Composer for flags, rewards, reputation, next-event links, and supported story placements.
-3. Continue embedding Scoped Gate Builder and the future Consequence Composer first in Dialogue Scene Room, Encounter Stage, Quest Journey Board, Item Ecosystem, and World/Location authoring where the need is already visible.
+2. Extract a shared Consequence Composer for flags, rewards, reputation, next-event links, and supported story placements. Implemented as `ConsequenceComposer`, shared frontend helpers, and `/api/ui/consequences`; first embeds are Dialogue Scene Room node/choice flags, Encounter Stage aftermath, Quest Journey Board completion payoff, Progression Flow saved event outcomes, and Story Placement cross-entity consequences.
+3. Continue embedding Scoped Gate Builder and Consequence Composer first in Dialogue Scene Room, Encounter Stage, Quest Journey Board, Item Ecosystem, and World/Location authoring where the need is already visible.
 4. Add specialized package builders only when the shared packets still leave repeated naming/linking work unresolved.
 5. Add new canonical concepts only after the current record model can no longer express the authoring need honestly.
 
@@ -192,6 +192,7 @@ This table is the component inventory. Prefer extending these components over cr
 | `StoryContextStrip` | Small read-only strip showing nearest timeline, arc, beat, dependencies, warnings, and owning record links | Reads the Story Timeline packet and dependency index | Implemented in `soa-editor/src/components/storyPlacement/StoryContextStrip.tsx`; currently summarizes nearest moment, occurrence count, dependency count, warning count, Story Timeline link, and nearest beat/source link |
 | `BundleReview` | One consistent preview/commit UI for multi-record changes | Reuses rollback-only preview and atomic commit contracts, including Ability Spellcraft preview parity | Implemented in `soa-editor/src/components/authoring/BundleReview.tsx`; used by Story Timeline, Story Placement Panel, Character Studio, Dialogue Scene Room, Creature Workshop, and Ability Spellcraft with inline or modal presentation |
 | `ScopedGateBuilder` | Create/reuse flags and requirements, inspect usage, and attach one requirement to supported gated content | Reads `/api/ui/scoped-gates`; writes `flags`, `requirements`, and supported `requirements_id` attachments through preview/commit | Implemented in `soa-editor/src/components/authoring/ScopedGateBuilder.tsx`; extracted from Progression Flow, reused there, and embedded in Encounter Stage for saved encounters |
+| `ConsequenceComposer` | Commit outcome state, rewards, reputation, next-event links, node/choice flags, and explicit story consequences through one reviewed packet | Reads `/api/ui/consequences`; writes supported `events`, `encounters`, `quests`, `dialogue_nodes`, and `adventure_beat_links` rows through preview/commit | Implemented in `soa-editor/src/components/authoring/ConsequenceComposer.tsx`; embedded in Dialogue Scene Room, Encounter Stage, Quest Journey Board, Progression Flow, and shared Story Placement cross-entity consequence actions |
 
 Components should stay data-driven. Only specialize labels, presets, or warnings where the entity type genuinely needs a different authoring meaning.
 
@@ -259,7 +260,7 @@ The item workspace should become the best place to answer "how does the player g
 
 Add story beat placement and state walkthrough around the existing objective flow:
 
-Current status: implemented MVP. Quest Journey Board can show quest occurrences, create/edit/remove `quest` links, apply start/escalation/branch/resolution presets, show visible requirement/flag/reward trays, render a Story Path panel that places ordered quest steps beside canonical quest story milestones, show arc branch rows, step through a temporary flag-state walkthrough, warn when an arc-owned quest lacks a clear scoped start or resolution placement, warn when an earlier arc quest requires a flag produced only by a later arc quest, warn when an important item is required before a later arc quest rewards it, warn when quest-connected runtime events fall before the quest start or after quest resolution in the same story lane, and locally diagnose branch targets that are missing, self/backward, outside arc order, or gated by flags first produced later. Remaining full Quest Loom work includes mixed-content beats, optional/failure paths, and deeper branch acknowledgement checks.
+Current status: implemented MVP. Quest Journey Board can show quest occurrences, create/edit/remove `quest` links, apply start/escalation/branch/resolution presets, show visible requirement/flag/reward trays, commit quest completion flags/payoff through the shared Consequence Composer, render a Story Path panel that places ordered quest steps beside canonical quest story milestones, show arc branch rows, step through a temporary flag-state walkthrough, warn when an arc-owned quest lacks a clear scoped start or resolution placement, warn when an earlier arc quest requires a flag produced only by a later arc quest, warn when an important item is required before a later arc quest rewards it, warn when quest-connected runtime events fall before the quest start or after quest resolution in the same story lane, and locally diagnose branch targets that are missing, self/backward, outside arc order, or gated by flags first produced later. Remaining full Quest Loom work includes mixed-content beats, optional/failure paths, objective-level Consequence Composer rollout, and deeper branch acknowledgement checks.
 
 - Show which adventure beats start, escalate, branch, and resolve the quest. Implemented through the Story Path panel and shared quest story placement occurrences.
 - Let quest cards be placed into story beats as player journey links.
@@ -289,7 +290,7 @@ The World Builder should answer "what is happening here across the story?" while
 
 Add a Story Moment Rail beside the dialogue graph:
 
-Current status: implemented for shared story placement. Dialogue Scene Room embeds the shared story-placement panel, derives runtime occurrences, supports dialogue link create/edit/remove and selected-dialogue runtime/lore/state presets, authors explicit character/faction/item/location consequence links from dialogue context, and warns when a state-setting dialogue appears only through unplaced events.
+Current status: implemented for shared story placement and node/choice consequences. Dialogue Scene Room embeds the shared story-placement panel, derives runtime occurrences, supports dialogue link create/edit/remove and selected-dialogue runtime/lore/state presets, authors explicit character/faction/item/location consequence links through the shared Consequence Composer, commits selected saved node and choice `set_flags` through the shared Consequence Composer, and warns when a state-setting dialogue appears only through unplaced events.
 
 - Show the adventure beat, event, quest, and character story beat context for the current dialogue.
 - Let the author place the dialogue into a runtime tray on an adventure beat.
@@ -304,7 +305,7 @@ This keeps dialogue authoring focused on conversation while still showing why th
 
 Add encounter-as-moment controls:
 
-Current status: implemented MVP. Encounter Stage embeds the shared story-placement panel, supports encounter link create/edit/remove and selected-encounter runtime/outcome presets, derives runtime event occurrences, authors explicit-target lifecycle links for rewards/injuries/faction/location changes, embeds the shared Scoped Gate Builder for saved encounters, shows an aftermath preview from draft rewards, participants, and saved same-beat story consequences, warns when an encounter with canonical state, reputation, or important-item consequences has no story placement, and warns when a story-placed encounter rewards an important item without a matching item reward/obtained placement in the same story lane. Remaining work includes broader scoped-gate rollout to other encounter subtargets where needed, richer encounter-combination authoring, missing-role handoff, and deeper tactical aftermath modeling if future canonical encounter-phase fields are added.
+Current status: implemented MVP. Encounter Stage embeds the shared story-placement panel, supports encounter link create/edit/remove and selected-encounter runtime/outcome presets, derives runtime event occurrences, authors explicit-target lifecycle links for rewards/injuries/faction/location changes through the shared Consequence Composer, embeds the shared Scoped Gate Builder for saved encounters, commits saved encounter reward/flag/reputation aftermath through the shared Consequence Composer, shows an aftermath preview from draft rewards, participants, and saved same-beat story consequences, warns when an encounter with canonical state, reputation, or important-item consequences has no story placement, and warns when a story-placed encounter rewards an important item without a matching item reward/obtained placement in the same story lane. Remaining work includes broader scoped-gate rollout to other encounter subtargets where needed, richer encounter-combination authoring, missing-role handoff, and deeper tactical aftermath modeling if future canonical encounter-phase fields are added.
 
 - Show where the encounter appears in events, locations, quests, and adventure beats.
 - Let the author place the encounter into a runtime tray on an adventure beat.
@@ -604,7 +605,7 @@ A directed conversation map:
 
 ### Current-Model Implementation
 
-The implemented MVP is available at `/author/dialogues`, `/author/dialogues/new`, and `/author/dialogues/:id`. It reads and writes only existing canonical records through `/api/ui/dialogues`, rollback-only `/api/ui/dialogues/preview`, and atomic `/api/ui/dialogues/bundle`.
+The implemented MVP is available at `/author/dialogues`, `/author/dialogues/new`, and `/author/dialogues/:id`. It reads and writes only existing canonical records through `/api/ui/dialogues`, rollback-only `/api/ui/dialogues/preview`, atomic `/api/ui/dialogues/bundle`, and the shared `/api/ui/consequences` contract for selected saved node/choice flags and explicit story consequences.
 
 | Author Gesture | Existing Data Written |
 |---|---|
@@ -615,6 +616,7 @@ The implemented MVP is available at `/author/dialogues`, `/author/dialogues/new`
 | Drop a requirement on a connection | Set choice `requirements_id` |
 | Drop a flag on a node | Append to node `set_flags` |
 | Drop a flag on a connection | Append to choice `set_flags` |
+| Commit selected line or choice consequences | Update saved `dialogue_nodes.set_flags` and choice `set_flags` through shared Consequence Composer preview/commit |
 | Assign the conversation to a person or place | Set dialogue `character_id` or `location_id` |
 | Create or edit a participant story beat | Create/update `character_story_beats` with `dialogue_id` |
 | Remove a story beat from the scene | Clear the beat's `dialogue_id` without deleting the beat |
@@ -652,7 +654,7 @@ Preview branches and comparison paths must use dotted or translucent styling unt
 ### Future Expansion
 
 - Add speaker lanes and rehearsal views that read like an exchange rather than a graph.
-- Embed scoped Gate Builder and Consequence Composer panels for node/choice visibility, flags set, reputation changes, rewards, next content, and follow-up event links.
+- Continue scoped Gate Builder rollout for node/choice visibility and expand Consequence Composer only where current dialogue schemas can honestly save more than node/choice flags and story links.
 - Author player intention, information revealed, emotional shifts, and relationship changes.
 - Compare character voice, vocabulary, rhythm, and recurring concerns.
 - Trace how knowledge and relationships evolve across multiple conversations.
@@ -715,12 +717,13 @@ The stage is not a tactical battle map. Position inside a side is visual only.
 | Toggle Combat or Interaction on a character | Update participant `contexts` |
 | Move a character between sides | Update participant `combat_side` |
 | Drop a reward into the reward chest | Update encounter `rewards` |
+| Commit encounter aftermath consequences | Update saved encounter rewards, reward flags, reputation rows, and supported story consequences through shared Consequence Composer preview/commit |
 | Add an entry lock | Set encounter `requirements_id` |
 | Place encounter into a location deck | Add/update a `location_encounter_tables.encounter_entries` row |
 | Place encounter at a specific POI | Set `location_pois.encounter_id` |
 | Put encounter in an event chain | Set `events.encounter_id` on an Encounter event |
 
-The implemented stage also supports local draft restore/reset, encounter health warnings, threat simulation, peer comparison, story placement, and aftermath preview so participant composition, requirements, rewards, placement, and consequences can be reviewed before commit.
+The implemented stage also supports local draft restore/reset, encounter health warnings, threat simulation, peer comparison, story placement, shared Consequence Composer commits, and aftermath preview so participant composition, requirements, rewards, placement, and consequences can be reviewed before commit.
 
 ### Lenses
 
@@ -754,7 +757,7 @@ A missing-role slot expresses a design need such as "ranged pressure" or "non-co
 ### Future Expansion
 
 - Author stakes, participant wants, dramatic roles, environment, escalation, turning points, and alternate resolutions.
-- Add an Encounter Aftermath Builder that keeps victory/defeat flags, rewards, faction impact, gated follow-up content, and next-event links together.
+- Continue from the shared Consequence Composer toward a fuller Encounter Aftermath Builder only if future canonical encounter outcome fields make victory/defeat state and alternate resolutions honest to save.
 - Compare normal, elite, and boss variants side by side.
 - Make threat readability, attention, and player response part of encounter evaluation.
 - Create creatures directly from a missing dramatic or tactical role in the encounter.
@@ -818,7 +821,7 @@ This is not a universal graph editor. It is a focused authoring surface for rela
 
 ### Current-Model Implementation
 
-The implemented MVP provides a linked-authoring workspace at `/author/progression-flow` without adding a new canonical "flow" table. The flow itself is an authoring draft and review surface; committed changes update the existing records through `/api/ui/progression-flow/preview` and `/api/ui/progression-flow/bundle`. Its gate authoring behavior has also been extracted into the shared Scoped Gate Builder, backed by `/api/ui/scoped-gates`, so other workspaces can create/reuse flags and requirements and attach supported `requirements_id` gates without duplicating Progression Flow.
+The implemented MVP provides a linked-authoring workspace at `/author/progression-flow` without adding a new canonical "flow" table. The flow itself is an authoring draft and review surface; committed changes update the existing records through `/api/ui/progression-flow/preview` and `/api/ui/progression-flow/bundle`. Its gate authoring behavior has also been extracted into the shared Scoped Gate Builder, backed by `/api/ui/scoped-gates`, so other workspaces can create/reuse flags and requirements and attach supported `requirements_id` gates without duplicating Progression Flow. Saved event outcome edits can also be committed through the shared Consequence Composer backed by `/api/ui/consequences`.
 
 | Author Gesture | Existing Data Written |
 |---|---|
@@ -852,6 +855,8 @@ The implemented **Source And Outcome Composer** supports:
 4. Create or reuse a requirement from those outcome flags.
 5. Link the next event or gated content that becomes available.
 
+For already-saved events, the shared **Consequence Composer** can commit event flags, rewards, reputation rows, and `next_event_id` through the same reviewed consequence packet used by other workspaces.
+
 The workspace also includes a compact selected-seed flow view, local health warnings, dependency-index usage context, a temporary flag-state walkthrough, and shared bundle review. Temporary state and naming helpers remain local; only reviewed record changes commit.
 
 ### Delivery Plan
@@ -860,7 +865,8 @@ The workspace also includes a compact selected-seed flow view, local health warn
 2. **Event Payload Composer:** implemented for event type, payload reference, event flags, selected next event, and linked encounter reward flags.
 3. **Encounter Outcome Integration:** implemented for encounters linked through event payloads, including direct editing of `encounters.rewards.flags_set`.
 4. **Progression Flow MVP:** implemented as a compact selected-seed chain from source to state to gate to follow-up, backed by shared bundle review.
-5. **Temporary Playthrough:** implemented as local temporary flag selection with open-gate preview. Trigger sequencing and automatic source stepping remain future work.
+5. **Shared Consequence Composer:** implemented for saved event outcomes while the larger local source/gate draft remains in the Progression Flow bundle.
+6. **Temporary Playthrough:** implemented as local temporary flag selection with open-gate preview. Trigger sequencing and automatic source stepping remain future work.
 
 ### Lenses
 
@@ -942,6 +948,7 @@ Story-arc context appears above the journey. Real story-arc branch relationships
 | Drop a flag onto an objective | Append objective `flags_set` |
 | Drop a flag onto completion | Append `flags_set_on_completion` |
 | Drop an item/currency/faction into payoff | Update existing reward arrays |
+| Commit completion consequences | Update completion flags, XP, item rewards, currency rewards, and reputation rewards through shared Consequence Composer preview/commit |
 | Put quest into an arc | Set `story_arc_id`; optionally append to arc `related_quests` |
 | Reorder quests in an arc lane | Reorder `story_arcs.related_quests` |
 | Create a real branch | Add `story_arcs.branching` entry with condition flag and next quest |
@@ -990,7 +997,7 @@ The arc skyline may combine saved arc ordering with dashed inferred flag depende
 
 - Author mixed-content beats containing locations, characters, encounters, dialogue, items, and world reactions.
 - Add a Quest Objective Flow Builder so an objective, its gate, completion flag, payoff, branch condition, and unlocked aftermath can be created and previewed together.
-- Embed the shared Consequence Composer for objective completion, quest completion, and branch outcomes.
+- Continue Consequence Composer rollout to objective completion and branch outcomes where the current model has honest save fields; quest completion payoff is implemented.
 - Express optional, hidden, fail-state, irreversible, split, and rejoining paths.
 - Compare knowledge flow, location journey, character presence, reward rhythm, and failure risk.
 - Track explicit consequences and whether important choices are acknowledged later.

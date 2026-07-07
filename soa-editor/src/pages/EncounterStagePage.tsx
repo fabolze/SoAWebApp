@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { deriveEncounterAftermathRows, type EncounterAftermathRow } from "../authoring/encounterAftermath";
 import { emptyScopedGatePacket, type ScopedGatePacket } from "../authoring/scopedGate";
+import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
@@ -339,6 +340,23 @@ export default function EncounterStagePage() {
             <Stage packet={packet} setPacket={setPacket} selectedCharacter={selectedCharacter} setSelectedCharacter={setSelectedCharacter} />
             <RewardPanel packet={packet} updateEncounter={updateEncounter} />
             <AftermathPanel rows={aftermathRows} loading={storyPlacement.loading} error={storyPlacement.error} />
+            {!isNew && displayText(packet.encounter.id) && <ConsequenceComposer
+              sourceKind="encounter"
+              source={packet.encounter}
+              expectedSource={original?.encounter || packet.encounter}
+              sourceLabel={displayText(packet.encounter.name, displayText(packet.encounter.id))}
+              title="Atomic Encounter Consequences"
+              subtitle="Commit aftermath flags, rewards, reputation, and explicit story consequences through one reviewed packet."
+              enableStoryConsequences
+              storyAnchorKind="encounter"
+              storyAnchorId={displayText(packet.encounter.id)}
+              storyAnchorLabel={displayText(packet.encounter.name, displayText(packet.encounter.id))}
+              onStoryPacketChange={storyPlacement.setPacket}
+              onSourceCommitted={(encounter) => {
+                setPacket((current) => ({ ...current, encounter }));
+                setOriginal((current) => current ? { ...current, encounter } : current);
+              }}
+            />}
             <PlacementPanel packet={packet} setPacket={setPacket} />
             {!isNew && displayText(packet.encounter.id) && <StoryPlacementPanel entityKind="encounter" entityId={displayText(packet.encounter.id)} entityLabel={displayText(packet.encounter.name, displayText(packet.encounter.id))} entity={packet.encounter} enableCrossEntityConsequenceActions storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} />}
             <SimulationComparison packet={packet} />

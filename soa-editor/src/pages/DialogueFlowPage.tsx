@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { EditableTagList, ReferenceChipPicker, displayText, isRecord } from "../authoringViews/controls";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
+import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
@@ -341,6 +342,8 @@ export default function DialogueFlowPage() {
   const currentId = text(packet.dialogue.id);
   const activeNodes = useMemo(() => packet.nodes.filter((node) => !deletions.includes(text(node.id))), [deletions, packet.nodes]);
   const selectedNode = packet.nodes.find((node) => text(node.id) === selectedNodeId);
+  const selectedConsequenceNode = selectedNode || (selectedChoice ? packet.nodes.find((node) => text(node.id) === selectedChoice.nodeId) : undefined);
+  const originalConsequenceNode = original?.nodes.find((node) => text(node.id) === text(selectedConsequenceNode?.id));
   const selectedChoiceRow = selectedChoice ? rows(packet.nodes.find((node) => text(node.id) === selectedChoice.nodeId)?.choices)[selectedChoice.index] : undefined;
   const selectedBeat = packet.story_beats.find((beat) => text(beat.id) === selectedBeatId);
   const health = useMemo(() => analyze(activeNodes, packet, groups), [activeNodes, groups, packet]);
@@ -602,6 +605,20 @@ export default function DialogueFlowPage() {
           {tab === "edit" && selectedChoice && selectedChoiceRow ? <ChoiceEditor choice={selectedChoiceRow} nodes={packet.nodes} deletions={deletions} onChange={(patch) => updateChoice(selectedChoice.nodeId, selectedChoice.index, patch)} onRemove={() => { const node = packet.nodes.find((entry) => text(entry.id) === selectedChoice.nodeId); updateNode(selectedChoice.nodeId, { choices: rows(node?.choices).filter((_, index) => index !== selectedChoice.index) }); setSelectedChoice(null); }} />
             : tab === "edit" && selectedNode ? <NodeEditor node={selectedNode} packet={packet} groupedBeatId={groups[text(selectedNode.id)] || ""} selectedBeatId={selectedBeatId} onChange={(patch) => updateNode(text(selectedNode.id), patch)} onGroup={(beatId) => { const next = { ...groups, [text(selectedNode.id)]: beatId }; if (!beatId) delete next[text(selectedNode.id)]; setGroups(next); localStorage.setItem(groupKey(currentId), JSON.stringify(next)); }} onDelete={() => selectedNode.__new ? setPacket((current) => ({ ...current, nodes: current.nodes.filter((entry) => text(entry.id) !== text(selectedNode.id)) })) : setDeletions((current) => [...new Set([...current, text(selectedNode.id)])])} />
               : tab === "edit" ? <DialogueEditor dialogue={packet.dialogue} onChange={updateDialogue} /> : null}
+          {tab === "edit" && selectedConsequenceNode && !selectedConsequenceNode.__new && <div className="mt-3">
+            <ConsequenceComposer
+              sourceKind="dialogue_node"
+              source={selectedConsequenceNode}
+              expectedSource={originalConsequenceNode || selectedConsequenceNode}
+              sourceLabel={label(selectedConsequenceNode, text(selectedConsequenceNode.text, "Selected line"))}
+              title="Line Consequences"
+              subtitle="Commit node and choice flags through the shared reviewed consequence packet."
+              onSourceCommitted={(savedNode) => {
+                setPacket((current) => ({ ...current, nodes: current.nodes.map((node) => text(node.id) === text(savedNode.id) ? savedNode : node) }));
+                setOriginal((current) => current ? { ...current, nodes: current.nodes.map((node) => text(node.id) === text(savedNode.id) ? savedNode : node) } : current);
+              }}
+            />
+          </div>}
           {tab === "beat" && selectedBeat ? <BeatEditor beat={selectedBeat} packet={packet} coverage={packet.beat_coverage[text(selectedBeat.id)]} onChange={(patch) => updateBeat(text(selectedBeat.id), patch)} onUnlink={() => unlinkBeat(selectedBeat)} /> : tab === "beat" ? <Empty>Select or create a story beat.</Empty> : null}
           {tab === "health" && <HealthPanel health={health} onSelect={(nodeId) => { setSelectedNodeId(nodeId); setView("flow"); }} />}
           {tab === "context" && <ContextPanel packet={packet} />}

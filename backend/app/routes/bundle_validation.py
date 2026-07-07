@@ -24,7 +24,7 @@ def infer_error_path(message: str) -> str:
         "encounter_tables", "route_event_bindings", "travel_tuning", "creative_briefs", "dialogue", "nodes", "deletions",
         "encounter", "requirement", "placements", "item", "sources", "quest", "arc",
         "quest_giver_profile_ids", "assignment", "source_flags",
-        "adventure_beats", "adventure_beat_links",
+        "adventure_beats", "adventure_beat_links", "events", "encounters", "quests", "dialogue_nodes",
     }
     rooted = [candidate for candidate in candidates if candidate.split(".", 1)[0].split("[", 1)[0] in bundle_roots]
     if rooted:
