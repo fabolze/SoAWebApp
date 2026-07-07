@@ -98,7 +98,7 @@ def _seed(Session):
             slug="quest-1",
             title="Quest",
             description="Quest.",
-            objectives=[],
+            objectives=[{"objective_id": "find-key", "description": "Find the key.", "requirements_id": "", "flags_set": []}],
             flags_set_on_completion=[],
             item_rewards=[],
             currency_rewards=[],
@@ -261,6 +261,89 @@ def test_bundle_saves_consequences_atomically(monkeypatch):
     assert session.get(Quest, "quest-1").flags_set_on_completion == ["flag-1"]
     assert session.get(DialogueNode, "node-1").set_flags == ["flag-1"]
     assert session.get(AdventureBeatLink, "link-item").target_id == "item-1"
+    session.close()
+
+
+def test_preview_rolls_back_objective_consequence_flags(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    quest = session.get(Quest, "quest-1")
+    payload = {
+        "quests": [{
+            **_columns(quest),
+            "objectives": [{
+                "objective_id": "find-key",
+                "description": "Find the key.",
+                "requirements_id": "",
+                "flags_set": ["flag-1"],
+            }],
+            "expected_previous": _columns(quest),
+        }],
+    }
+    session.close()
+
+    response = client.post("/api/ui/consequences/preview", json=payload)
+
+    assert response.status_code == 200, response.get_json()
+    assert response.get_json()["review"]["changed"] == [{"table": "quests", "id": "quest-1", "details": {}}]
+    session = Session()
+    assert session.get(Quest, "quest-1").objectives[0]["flags_set"] == []
+    session.close()
+
+
+def test_bundle_saves_objective_consequence_flags_atomically(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    quest = session.get(Quest, "quest-1")
+    payload = {
+        "quests": [{
+            **_columns(quest),
+            "objectives": [{
+                "objective_id": "find-key",
+                "description": "Find the key.",
+                "requirements_id": "",
+                "flags_set": ["flag-1"],
+            }],
+            "expected_previous": _columns(quest),
+        }],
+    }
+    session.close()
+
+    response = client.post("/api/ui/consequences/bundle", json=payload)
+
+    assert response.status_code == 200, response.get_json()
+    session = Session()
+    assert session.get(Quest, "quest-1").objectives[0]["flags_set"] == ["flag-1"]
+    session.close()
+
+
+def test_bundle_rejects_unknown_objective_flag_without_partial_writes(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    quest = session.get(Quest, "quest-1")
+    payload = {
+        "quests": [{
+            **_columns(quest),
+            "objectives": [{
+                "objective_id": "find-key",
+                "description": "Find the key.",
+                "requirements_id": "",
+                "flags_set": ["missing-flag"],
+            }],
+            "expected_previous": _columns(quest),
+        }],
+    }
+    session.close()
+
+    response = client.post("/api/ui/consequences/bundle", json=payload)
+
+    assert response.status_code == 400
+    assert "Invalid flag_id in objective" in response.get_json()["message"]
+    session = Session()
+    assert session.get(Quest, "quest-1").objectives[0]["flags_set"] == []
     session.close()
 
 

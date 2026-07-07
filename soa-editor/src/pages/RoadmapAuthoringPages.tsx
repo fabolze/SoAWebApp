@@ -86,7 +86,14 @@ function MultiReferencePicker({ label, values, options, onChange, emptyText = "N
   </div>;
 }
 
-function ObjectiveBoard({ objectives, flags, onChange }: { objectives: unknown; flags: EntryRecord[]; onChange: (objectives: EntryRecord[]) => void }) {
+function ObjectiveBoard({ objectives, flags, selectedObjectiveId = "", canReviewConsequences = false, onChange, onReviewConsequence }: {
+  objectives: unknown;
+  flags: EntryRecord[];
+  selectedObjectiveId?: string;
+  canReviewConsequences?: boolean;
+  onChange: (objectives: EntryRecord[]) => void;
+  onReviewConsequence?: (objectiveId: string) => void;
+}) {
   const objectiveRows = rows(objectives);
   const update = (index: number, patch: EntryRecord) => onChange(objectiveRows.map((objective, rowIndex) => rowIndex === index ? { ...objective, ...patch } : objective));
   const move = (index: number, offset: number) => {
@@ -100,6 +107,7 @@ function ObjectiveBoard({ objectives, flags, onChange }: { objectives: unknown; 
       <div className="mb-3 flex items-center justify-between gap-2">
         <div><div className="text-xs font-semibold uppercase text-slate-500">Objective {index + 1}</div><div className="text-sm font-medium">{text(objective.description) || "Describe what the player must accomplish."}</div></div>
         <div className="flex gap-1">
+          {canReviewConsequences && onReviewConsequence && <button type="button" className={`rounded border px-2 py-1 text-xs ${selectedObjectiveId === text(objective.objective_id) ? "border-blue-600 bg-blue-600 text-white" : "border-blue-300 text-blue-700 dark:border-blue-800 dark:text-blue-300"}`} disabled={!text(objective.objective_id)} onClick={() => onReviewConsequence(text(objective.objective_id))}>Review Consequence</button>}
           <button type="button" className="rounded border px-2 py-1 text-xs disabled:opacity-40" disabled={index === 0} onClick={() => move(index, -1)}>Up</button>
           <button type="button" className="rounded border px-2 py-1 text-xs disabled:opacity-40" disabled={index === objectiveRows.length - 1} onClick={() => move(index, 1)}>Down</button>
           <button type="button" className="rounded border border-red-300 px-2 py-1 text-xs text-red-700" onClick={() => onChange(objectiveRows.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>
@@ -317,6 +325,7 @@ export function QuestJourneyPage() {
   const empty = useMemo(() => ({ quest: { id: generatedId, slug: generateSlug(`new-quest-${generatedId.slice(-6)}`), title: "New Quest", description: "", objectives: [], flags_set_on_completion: [], item_rewards: [], currency_rewards: [], reputation_rewards: [], tags: [] }, requirements: [], arc: { story_arc_id: "", related_quests: [generatedId], branches: [] }, quest_giver_profile_ids: [] }) as EntryRecord, [generatedId]);
   const [packet, setPacket] = useDraft<EntryRecord>(`soa.quest-journey.${isNew ? "new" : id}`, empty);
   const [original, setOriginal] = useState(JSON.stringify(empty));
+  const [selectedObjectiveConsequenceId, setSelectedObjectiveConsequenceId] = useState("");
   const originalPacket = useMemo(() => {
     try { return JSON.parse(original) as EntryRecord; } catch { return empty; }
   }, [empty, original]);
@@ -332,13 +341,52 @@ export function QuestJourneyPage() {
   const interactionProfiles = rows(packet.interaction_profiles).length ? rows(packet.interaction_profiles) : allInteractionProfiles;
   const hasRewards = numberValue(quest.xp_reward) !== 0 || rows(quest.item_rewards).length > 0 || rows(quest.currency_rewards).length > 0 || rows(quest.reputation_rewards).length > 0;
   const objectiveIssues = rows(quest.objectives).filter((objective) => !text(objective.objective_id) || !text(objective.description)).length;
+  const savedQuest = record(originalPacket.quest);
+  const savedObjectives = rows(savedQuest.objectives);
+  const savedObjectiveIds = new Set(savedObjectives.map((objective) => text(objective.objective_id)).filter(Boolean));
+  const selectedCurrentObjective = rows(quest.objectives).find((objective) => text(objective.objective_id) === selectedObjectiveConsequenceId);
+  const objectiveConsequenceSource = selectedObjectiveConsequenceId && savedObjectiveIds.has(selectedObjectiveConsequenceId) ? {
+    ...savedQuest,
+    consequence_objective_id: selectedObjectiveConsequenceId,
+    objectives: savedObjectives.map((objective) => text(objective.objective_id) === selectedObjectiveConsequenceId
+      ? { ...objective, flags_set: strings(selectedCurrentObjective?.flags_set ?? objective.flags_set) }
+      : objective),
+  } : null;
   const storyPlacement = useEntityStoryPlacement({ entityKind: "quest", entityId: text(quest.id), entity: quest });
   const questAnalysis = useMemo(() => buildQuestJourneyAnalysis({ packet, storyPacket: storyPlacement.packet, questId: text(quest.id), occurrences: storyPlacement.context.occurrences }), [packet, quest, storyPlacement.context.occurrences, storyPlacement.packet]);
   const save = async () => { const response = await apiFetch("/api/ui/quests/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(packet) }); const data = await response.json(); if (response.ok) { setPacket(data); setOriginal(JSON.stringify(data)); if (isNew) navigate(`/author/quests/${encodeURIComponent(text(data.quest.id))}`, { replace: true }); } };
   return <Shell title="Quest Journey Board" subtitle="Compose invitation, ordered objectives, completion, payoff, and aftermath." dirty={dirty} onSave={save} onReset={() => setPacket(JSON.parse(original))}><div className="grid gap-4 xl:grid-cols-2">
     <section className={panelClass}><h2 className="mb-3 font-semibold">Invitation</h2><div className="space-y-3"><label className="block text-sm">Title<input className={`${inputClass} mt-1`} value={text(quest.title)} onChange={(event) => update("title", event.target.value)} /></label><label className="block text-sm">Slug<input className={`${inputClass} mt-1`} value={text(quest.slug)} onChange={(event) => update("slug", event.target.value)} /></label><label className="block text-sm">Description<textarea className={`${inputClass} mt-1 min-h-24`} value={text(quest.description)} onChange={(event) => update("description", event.target.value)} /></label><ReferenceChipPicker label="Quest Unlock Requirement" value={quest.requirements_id} reference="requirements" onChange={(requirements_id) => update("requirements_id", requirements_id)} /><MultiReferencePicker label="Quest Givers" values={packet.quest_giver_profile_ids} options={interactionProfiles} onChange={(quest_giver_profile_ids) => setPacket({ ...packet, quest_giver_profile_ids })} /><EditableTagList tags={quest.tags} onChange={(tags) => update("tags", tags)} /></div></section>
     <section className={panelClass}><div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">Journey Health</h2><span className={`rounded-full px-2 py-1 text-xs font-semibold ${rows(quest.objectives).length && !objectiveIssues ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{rows(quest.objectives).length && !objectiveIssues ? "Ready to review" : "Needs attention"}</span></div><div className="space-y-2 text-sm">{rows(quest.objectives).length === 0 && <p className="rounded border border-amber-200 p-2 text-amber-800">Add at least one objective.</p>}{objectiveIssues > 0 && <p className="rounded border border-amber-200 p-2 text-amber-800">{objectiveIssues} objective(s) need both an ID and player-facing description.</p>}{strings(quest.flags_set_on_completion).length === 0 && <p className="rounded border border-slate-200 p-2 text-slate-600">No completion flag is set, so this quest cannot directly unlock flag-gated content.</p>}{!hasRewards && <p className="rounded border border-amber-200 p-2 text-amber-800">Quest has no authored payoff.</p>}{strings(packet.quest_giver_profile_ids).length === 0 && <p className="rounded border border-slate-200 p-2 text-slate-600">No quest giver currently offers this quest.</p>}</div></section>
-    <section className={`${panelClass} xl:col-span-2`}><h2 className="mb-3 font-semibold">Ordered Objectives</h2><ObjectiveBoard objectives={quest.objectives} flags={questFlags} onChange={(objectives) => update("objectives", objectives)} /></section>
+    <section className={`${panelClass} xl:col-span-2`}><h2 className="mb-3 font-semibold">Ordered Objectives</h2><ObjectiveBoard objectives={quest.objectives} flags={questFlags} selectedObjectiveId={selectedObjectiveConsequenceId} canReviewConsequences={!isNew && text(quest.id) !== ""} onReviewConsequence={setSelectedObjectiveConsequenceId} onChange={(objectives) => update("objectives", objectives)} />
+      {!isNew && selectedObjectiveConsequenceId && !objectiveConsequenceSource && <p className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Save this objective before reviewing its consequence packet.</p>}
+      {!isNew && objectiveConsequenceSource && <div className="mt-4">
+        <ConsequenceComposer
+          sourceKind="quest_objective"
+          source={objectiveConsequenceSource}
+          expectedSource={{ ...savedQuest, consequence_objective_id: selectedObjectiveConsequenceId }}
+          sourceLabel={text(selectedCurrentObjective?.description) || selectedObjectiveConsequenceId}
+          title="Atomic Objective Consequence"
+          subtitle="Commit objective completion flags through the shared reviewed consequence packet."
+          onSourceCommitted={(savedQuestFromComposer) => {
+            const savedObjective = rows(savedQuestFromComposer.objectives).find((objective) => text(objective.objective_id) === selectedObjectiveConsequenceId);
+            setPacket((current) => {
+              const currentQuest = record(current.quest);
+              return {
+                ...current,
+                quest: {
+                  ...currentQuest,
+                  objectives: rows(currentQuest.objectives).map((objective) => text(objective.objective_id) === selectedObjectiveConsequenceId && savedObjective
+                    ? { ...objective, flags_set: strings(savedObjective.flags_set) }
+                    : objective),
+                },
+              };
+            });
+            setOriginal(JSON.stringify({ ...originalPacket, quest: savedQuestFromComposer }));
+          }}
+        />
+      </div>}
+    </section>
     {!isNew && text(quest.id) && <QuestStoryPathPanel analysis={questAnalysis} flags={questFlags} />}
     <section className={panelClass}><h2 className="mb-3 font-semibold">Completion & Payoff</h2><div className="space-y-4"><MultiReferencePicker label="Completion Flags" values={quest.flags_set_on_completion} options={questFlags} onChange={(flags) => update("flags_set_on_completion", flags)} /><label className="block text-xs font-semibold uppercase text-slate-500">Experience Reward<input className={`${inputClass} mt-1`} type="number" value={text(quest.xp_reward)} onChange={(event) => update("xp_reward", Number(event.target.value))} /></label><RewardRows label="Item Reward" rowsValue={quest.item_rewards} reference="items" idKey="item_id" amountKey="quantity" onChange={(value) => update("item_rewards", value)} /><RewardRows label="Currency Reward" rowsValue={quest.currency_rewards} reference="currencies" idKey="currency_id" amountKey="amount" onChange={(value) => update("currency_rewards", value)} /><RewardRows label="Reputation Reward" rowsValue={quest.reputation_rewards} reference="factions" idKey="faction_id" amountKey="amount" onChange={(value) => update("reputation_rewards", value)} /></div></section>
     {!isNew && text(quest.id) && <section className={panelClass}><ConsequenceComposer

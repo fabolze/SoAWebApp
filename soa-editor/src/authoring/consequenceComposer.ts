@@ -9,7 +9,7 @@ import {
 import type { EntryRecord } from "../types/editorQol";
 import { generateUlid } from "../utils/generateId";
 
-export type ConsequenceSourceKind = "event" | "encounter" | "quest" | "dialogue_node";
+export type ConsequenceSourceKind = "event" | "encounter" | "quest" | "quest_objective" | "dialogue_node";
 
 export interface ConsequencePacket {
   events: EntryRecord[];
@@ -57,6 +57,7 @@ const sourceKeyByKind: Record<ConsequenceSourceKind, keyof ConsequenceBundle> = 
   event: "events",
   encounter: "encounters",
   quest: "quests",
+  quest_objective: "quests",
   dialogue_node: "dialogue_nodes",
 };
 
@@ -132,9 +133,10 @@ export function normalizeConsequenceSource(kind: ConsequenceSourceKind, source: 
       tags: consequenceStrings(source.tags),
     };
   }
-  if (kind === "quest") {
+  if (kind === "quest" || kind === "quest_objective") {
     return {
       ...source,
+      consequence_objective_id: kind === "quest_objective" ? consequenceText(source.consequence_objective_id) : undefined,
       story_arc_id: consequenceText(source.story_arc_id),
       requirements_id: consequenceText(source.requirements_id),
       objectives: rows(source.objectives),
@@ -176,9 +178,13 @@ export function buildConsequenceComposerBundle({
   };
   if (sourceKind && sourceDraft) {
     const key = sourceKeyByKind[sourceKind];
+    const normalizedSource = normalizeConsequenceSource(sourceKind, sourceDraft);
+    const { consequence_objective_id: _sourceObjectiveId, ...sourcePayload } = normalizedSource;
+    const normalizedExpected = expectedSource ? normalizeConsequenceSource(sourceKind, expectedSource) : null;
+    const { consequence_objective_id: _expectedObjectiveId, ...expectedPayload } = normalizedExpected || {};
     bundle[key] = [{
-      ...normalizeConsequenceSource(sourceKind, sourceDraft),
-      ...(expectedSource ? { expected_previous: expectedSource } : {}),
+      ...sourcePayload,
+      ...(normalizedExpected ? { expected_previous: expectedPayload } : {}),
     }];
   }
   return bundle;

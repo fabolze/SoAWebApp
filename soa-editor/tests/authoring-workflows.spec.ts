@@ -291,6 +291,92 @@ test("quest journey board walks temporary state through objectives and payoff", 
   await expect(panel).toContainText("Next Quest");
 });
 
+test("quest journey board commits objective flags through the consequence composer", async ({ page }) => {
+  const questPacket = {
+    quest: {
+      id: "quest-1", slug: "gate", title: "Open The Gate", description: "Reach the gate.",
+      requirements_id: "",
+      objectives: [
+        { objective_id: "find-key", description: "Find the key.", requirements_id: "", flags_set: [] },
+      ],
+      flags_set_on_completion: [],
+      xp_reward: 0,
+      item_rewards: [],
+      currency_rewards: [],
+      reputation_rewards: [],
+      tags: [],
+    },
+    requirements: [],
+    arc: { story_arc_id: "arc-1", related_quests: ["quest-1"], branches: [] },
+    quest_giver_profile_ids: [],
+    flags: [
+      { id: "has-key", slug: "has-key", name: "Has Key" },
+      { id: "gate-open", slug: "gate-open", name: "Gate Open" },
+    ],
+    items: [],
+    currencies: [],
+    factions: [],
+    interaction_profiles: [],
+    dependency_context: { prerequisites: [], aftermath: [], nodes: [] },
+    quests: [{ id: "quest-1", title: "Open The Gate" }],
+    story_arcs: [{ id: "arc-1", title: "The Gate" }],
+  };
+  const consequencePacket = {
+    events: [],
+    encounters: [],
+    quests: [questPacket.quest],
+    dialogue_nodes: [],
+    adventure_beats: [],
+    adventure_beat_links: [],
+    flags: questPacket.flags,
+    items: [],
+    currencies: [],
+    factions: [],
+    characters: [],
+    locations: [],
+    dependency_index: { nodes: [], edges: [] },
+    story_packet: storyTimelinePacket,
+  };
+  let previewed: Record<string, unknown> | null = null;
+  let saved: Record<string, unknown> | null = null;
+  await page.route("http://localhost:5000/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/ui/quests/quest-1") return fulfillJson(route, questPacket);
+    if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimelinePacket);
+    if (url.pathname === "/api/ui/consequences" && route.request().method() === "GET") return fulfillJson(route, consequencePacket);
+    if (url.pathname === "/api/ui/consequences/preview" && route.request().method() === "POST") {
+      previewed = route.request().postDataJSON() as Record<string, unknown>;
+      return fulfillJson(route, { review: { created: [], changed: [{ table: "quests", id: "quest-1" }], deleted: [] }, warnings: [], blockers: [] });
+    }
+    if (url.pathname === "/api/ui/consequences/bundle" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      saved = payload;
+      const savedQuest = ((payload.quests as Array<Record<string, unknown>>)[0]);
+      return fulfillJson(route, {
+        result: { review: { created: [], changed: [{ table: "quests", id: "quest-1" }], deleted: [] }, warnings: [], blockers: [] },
+        packet: { ...consequencePacket, quests: [savedQuest] },
+      });
+    }
+    return fulfillJson(route, []);
+  });
+
+  await page.goto("/author/quests/quest-1");
+  await expect(page.getByRole("heading", { name: "Quest Journey Board" })).toBeVisible();
+  await page.locator("article").filter({ hasText: "Find the key." }).getByRole("button", { name: "Review Consequence" }).click();
+  const composer = page.getByTestId("consequence-composer").filter({ hasText: "Atomic Objective Consequence" });
+  await expect(composer).toBeVisible();
+  await composer.getByLabel("Objective Flags Set").selectOption(["has-key"]);
+  await composer.getByRole("button", { name: "Review Consequence" }).click();
+  await expect(page.getByTestId("consequence-review")).toContainText("1 changed");
+  await expect.poll(() => previewed).not.toBeNull();
+  expect(((previewed?.quests as Array<Record<string, unknown>>)[0].objectives as Array<Record<string, unknown>>)[0].flags_set).toEqual(["has-key"]);
+  expect((previewed?.quests as Array<Record<string, unknown>>)[0]).not.toHaveProperty("consequence_objective_id");
+  await page.getByTestId("consequence-review").getByRole("button", { name: "Commit Consequence" }).click();
+  await expect.poll(() => saved).not.toBeNull();
+  expect(((saved?.quests as Array<Record<string, unknown>>)[0].objectives as Array<Record<string, unknown>>)[0].flags_set).toEqual(["has-key"]);
+  await expect(page.getByTestId("quest-story-path-panel")).toContainText("Has Key");
+});
+
 test("story timeline sketches and restores local planning beats through drag and drop", async ({ page }) => {
   await mockStoryTimelineApi(page);
   await page.goto("/author/story-timeline");

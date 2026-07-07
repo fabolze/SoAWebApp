@@ -71,6 +71,40 @@ describe("consequence composer helpers", () => {
     }));
   });
 
+  it("builds objective consequence quest bundles without leaking local metadata", () => {
+    const bundle = buildConsequenceComposerBundle({
+      sourceKind: "quest_objective",
+      sourceDraft: {
+        id: "quest-1",
+        slug: "quest",
+        title: "Quest",
+        description: "Quest.",
+        consequence_objective_id: "find-key",
+        objectives: [{ objective_id: "find-key", description: "Find the key.", flags_set: ["flag-1"] }],
+        flags_set_on_completion: [],
+      },
+      expectedSource: {
+        id: "quest-1",
+        slug: "quest",
+        title: "Quest",
+        description: "Quest.",
+        consequence_objective_id: "find-key",
+        objectives: [{ objective_id: "find-key", description: "Find the key.", flags_set: [] }],
+        flags_set_on_completion: [],
+      },
+    });
+
+    expect(bundle.quests).toEqual([expect.objectContaining({
+      id: "quest-1",
+      objectives: [{ objective_id: "find-key", description: "Find the key.", flags_set: ["flag-1"] }],
+      expected_previous: expect.objectContaining({
+        objectives: [{ objective_id: "find-key", description: "Find the key.", flags_set: [] }],
+      }),
+    })]);
+    expect(bundle.quests[0]).not.toHaveProperty("consequence_objective_id");
+    expect(bundle.quests[0].expected_previous).not.toHaveProperty("consequence_objective_id");
+  });
+
   it("builds story consequence links for explicit targets", () => {
     const targetDraft = {
       ...defaultPlacementDraft("target-link", "item", "item-1", "beat-1"),

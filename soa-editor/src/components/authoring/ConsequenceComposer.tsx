@@ -302,6 +302,22 @@ function SourceOutcomeEditor({ sourceKind, source, packet, sourceLabel, onPatch,
     </Panel>;
   }
 
+  if (sourceKind === "quest_objective") {
+    const objectiveId = consequenceText(source.consequence_objective_id);
+    const objectives = consequenceRows(source.objectives);
+    const objective = objectives.find((entry) => consequenceText(entry.objective_id) === objectiveId);
+    if (!objective) {
+      return <Issue>Choose a saved objective before reviewing objective consequences.</Issue>;
+    }
+    return <Panel title="Objective Completion Outcome" subtitle={`${sourceLabel} saves completion flags for this objective.`}>
+      <FlagMultiSelect label="Objective Flags Set" values={consequenceStrings(objective.flags_set)} flags={packet.flags} onChange={(flags_set) => {
+        onPatch({
+          objectives: objectives.map((entry) => consequenceText(entry.objective_id) === objectiveId ? { ...entry, flags_set } : entry),
+        });
+      }} />
+    </Panel>;
+  }
+
   if (sourceKind === "encounter") {
     const rewards = record(source.rewards);
     return <Panel title="Encounter Outcome" subtitle={`${sourceLabel} saves aftermath through encounter rewards.`}>
