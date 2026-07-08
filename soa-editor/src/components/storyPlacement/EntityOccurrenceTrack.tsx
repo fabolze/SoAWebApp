@@ -37,9 +37,17 @@ function occurrenceTone(occurrence: StoryOccurrence): string {
   return toneByChange[occurrence.change_type || ""] || "border-slate-200 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100";
 }
 
+function emptyMessage(entityKind: string): string {
+  const label = entityKind.replace(/_/g, " ");
+  if (entityKind === "encounter") {
+    return "No story placement yet. That is fine while drafting; add one when you want the timeline, warnings, or aftermath to know when this encounter happens.";
+  }
+  return `No story placement yet. Add one when this ${label} needs story order, continuity warnings, or consequences.`;
+}
+
 export default function EntityOccurrenceTrack({ occurrences, timelines, arcs, entityKind, onEditCanonicalLink }: EntityOccurrenceTrackProps) {
   if (occurrences.length === 0) {
-    return <p className="rounded border border-dashed border-slate-300 p-3 text-xs text-slate-500 dark:border-slate-700">No story placements found for this {entityKind.replace(/_/g, " ")} yet.</p>;
+    return <p className="rounded border border-dashed border-slate-300 p-3 text-xs text-slate-500 dark:border-slate-700">{emptyMessage(entityKind)}</p>;
   }
 
   return <div className="space-y-2" data-testid="entity-occurrence-track">

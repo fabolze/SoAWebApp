@@ -25,6 +25,20 @@ function nodeKey(kind: TrackKind, id: string): string {
   return `${kind}:${id}`;
 }
 
+function formatKind(kind: TrackKind): string {
+  return kind.replace(/_/g, " ");
+}
+
+function emptyContextLabel(kind: TrackKind): string {
+  if (kind === "encounter") return "This encounter is not on the story timeline yet";
+  return `This ${formatKind(kind)} is not on the story timeline yet`;
+}
+
+function emptyContextHint(kind: TrackKind): string {
+  if (kind === "encounter") return "Choose an adventure beat below when you want the story timeline to know when this encounter happens.";
+  return "Choose an adventure beat below when this record needs story order, continuity warnings, or consequences.";
+}
+
 export default function StoryContextStrip({ packet, entityKind, entityId, occurrences, warnings }: StoryContextStripProps) {
   const nearest = occurrences[0];
   const timelines = new Map(rows(packet?.timelines).map((entry) => [text(entry.id), entry]));
@@ -41,8 +55,8 @@ export default function StoryContextStrip({ packet, entityKind, entityId, occurr
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="min-w-0">
         <div className="text-[10px] font-semibold uppercase text-slate-500">Story Context</div>
-        <div className="truncate font-semibold">{nearest ? nearest.source_label || "Untitled story moment" : "No placed story moment"}</div>
-        <div className="mt-0.5 text-[10px] text-slate-500">{label(timeline, "Unassigned timeline")} / {label(arc, "Unassigned arc")}</div>
+        <div className="truncate font-semibold">{nearest ? nearest.source_label || "Untitled story moment" : emptyContextLabel(entityKind)}</div>
+        <div className="mt-0.5 text-[10px] text-slate-500">{nearest ? `${label(timeline, "Unassigned timeline")} / ${label(arc, "Unassigned arc")}` : emptyContextHint(entityKind)}</div>
       </div>
       <div className="flex flex-wrap gap-1">
         <span className="rounded bg-white px-2 py-1 text-[10px] font-semibold dark:bg-slate-900">{occurrences.length} occurrence{occurrences.length === 1 ? "" : "s"}</span>
@@ -51,7 +65,14 @@ export default function StoryContextStrip({ packet, entityKind, entityId, occurr
       </div>
     </div>
     <div className="mt-2 flex flex-wrap gap-2">
-      <Link className="font-semibold text-blue-700 dark:text-blue-300" to={`/author/story-timeline?track=${encodeURIComponent(entityKind)}&entity=${encodeURIComponent(entityId)}`}>Open full timeline</Link>
+      <Link
+        className="font-semibold text-blue-700 dark:text-blue-300"
+        to={`/author/story-timeline?track=${encodeURIComponent(entityKind)}&entity=${encodeURIComponent(entityId)}`}
+        target="_blank"
+        rel="noreferrer"
+      >
+        Open full timeline in new tab
+      </Link>
       {sourceRoute && <Link className="font-semibold text-blue-700 dark:text-blue-300" to={sourceRoute}>Open nearest beat</Link>}
     </div>
   </section>;

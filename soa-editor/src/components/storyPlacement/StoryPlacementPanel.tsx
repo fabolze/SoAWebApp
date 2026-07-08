@@ -35,6 +35,23 @@ interface StoryPlacementPanelProps {
 type PlacementAction = "create" | "edit" | "remove";
 type ReviewMode = PlacementAction;
 
+function formatKind(kind: TrackKind): string {
+  return kind.replace(/_/g, " ");
+}
+
+function placementSubtitle(entityKind: TrackKind, entityLabel: string): string {
+  if (entityKind === "encounter") {
+    return `Optional: choose when ${entityLabel} happens in the adventure timeline. This feeds timeline order, warnings, and aftermath links; participants, rewards, and world placement stay editable here.`;
+  }
+  return `Optional: choose where ${entityLabel} matters in the adventure timeline. This creates a reviewed story link without leaving this workspace.`;
+}
+
+function placementActionSubtitle(entityKind: TrackKind, editing: boolean): string {
+  if (editing) return "Update this saved story link without changing the linked record.";
+  if (entityKind === "encounter") return "Pick a story beat, then choose whether this encounter plays there or marks a result such as resolved or boss defeated.";
+  return "Pick a story beat, then choose the role this record has at that point in the story.";
+}
+
 export default function StoryPlacementPanel({ entityKind, entityId, entityLabel, entity, enableCharacterConsequenceActions = false, enableCrossEntityConsequenceActions = false, storyPacket, onStoryPacketChange }: StoryPlacementPanelProps) {
   const [createDraft, setCreateDraft] = useState<StoryPlacementDraft>(() => defaultPlacementDraft(generateUlid(), entityKind, entityId));
   const [editDraft, setEditDraft] = useState<StoryPlacementDraft | null>(null);
@@ -155,9 +172,16 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h2 className="font-semibold">Story Placement</h2>
-        <p className="text-xs text-slate-500">{entityLabel} across adventure beats, runtime events, and character beats.</p>
+        <p className="max-w-3xl text-xs text-slate-500">{placementSubtitle(entityKind, entityLabel)}</p>
       </div>
-      <Link className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold dark:border-slate-700" to={`/author/story-timeline?track=${encodeURIComponent(entityKind)}&entity=${encodeURIComponent(entityId)}`}>Open Timeline</Link>
+      <Link
+        className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold dark:border-slate-700"
+        to={`/author/story-timeline?track=${encodeURIComponent(entityKind)}&entity=${encodeURIComponent(entityId)}`}
+        target="_blank"
+        rel="noreferrer"
+      >
+        Open Timeline in New Tab
+      </Link>
     </div>
     {loading && <p className="mt-3 text-xs text-slate-500">Loading story placements...</p>}
     {error && <p className="mt-3 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">{error}</p>}
@@ -169,7 +193,7 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <h3 className="text-sm font-semibold">{editing ? "Edit Story Placement" : "Place In Story"}</h3>
-            <p className="text-xs text-slate-500">{editing ? "Update this canonical beat link without changing the linked record." : "Attach this record to an existing adventure beat with lifecycle metadata."}</p>
+            <p className="max-w-2xl text-xs text-slate-500">{placementActionSubtitle(entityKind, editing)}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {editing && <button type="button" className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold disabled:opacity-40 dark:border-slate-700" disabled={saving} onClick={cancelEditing}>Cancel Editing</button>}
@@ -181,6 +205,7 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
           beatOptions={context.beatOptions}
           timelines={context.timelines}
           arcs={context.arcs}
+          entityKind={entityKind}
           onChange={(adventure_beat_id) => updateActiveDraft({ ...activeDraft, adventure_beat_id })}
         />
         <div className="mt-3">
@@ -224,7 +249,7 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
           onCancel={clearReview}
           onCommit={() => reviewAction && void submitPlacement(reviewAction, true)}
         /></div>}
-        {context.beatOptions.length === 0 && <p className="mt-3 rounded border border-dashed border-slate-300 p-2 text-xs text-slate-500 dark:border-slate-700">Create or commit an adventure beat in the Story Timeline before placing this record.</p>}
+        {context.beatOptions.length === 0 && <p className="mt-3 rounded border border-dashed border-slate-300 p-2 text-xs text-slate-500 dark:border-slate-700">Create or commit an adventure beat in the Story Timeline before placing this {formatKind(entityKind)}.</p>}
       </div>
     </div>}
   </section>;
@@ -235,12 +260,14 @@ function BeatSelector({
   beatOptions,
   timelines,
   arcs,
+  entityKind,
   onChange,
 }: {
   value: string;
   beatOptions: EntryRecord[];
   timelines: Map<string, EntryRecord>;
   arcs: Map<string, EntryRecord>;
+  entityKind: TrackKind;
   onChange: (id: string) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -283,9 +310,9 @@ function BeatSelector({
   return <div className="mt-3 rounded border border-slate-200 p-3 dark:border-slate-800" data-testid="story-beat-selector">
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
-        <div className="text-[10px] font-semibold uppercase text-slate-500">Adventure Beat</div>
+        <div className="text-[10px] font-semibold uppercase text-slate-500">Step 1: Adventure Beat</div>
         <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-          {selectedBeat ? label(selectedBeat) : "Choose where this record matters."}
+          {selectedBeat ? label(selectedBeat) : `Choose where this ${formatKind(entityKind)} belongs in the story.`}
         </div>
       </div>
       <span className="rounded bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{filtered.length} shown</span>

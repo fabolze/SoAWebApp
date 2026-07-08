@@ -60,7 +60,7 @@ export const WORKSPACE_STORY_PLACEMENT_PRESETS: Partial<Record<TrackKind, StoryP
     { id: "sets-state", label: "Sets State", note: "The dialogue changes story state.", role: "state", occurrence_kind: "consequence", change_type: "changed", importance: "major", state_label: "State Set" },
   ],
   encounter: [
-    { id: "runtime-encounter", label: "Runtime Encounter", note: "This encounter plays at the beat.", role: "runtime", occurrence_kind: "appearance", change_type: "active", importance: "major", state_label: "" },
+    { id: "runtime-encounter", label: "Runtime Encounter", note: "The playable encounter happens at this beat.", role: "runtime", occurrence_kind: "appearance", change_type: "active", importance: "major", state_label: "" },
     { id: "boss-defeated", label: "Boss Defeated", note: "The encounter ends in a decisive boss defeat.", role: "state", occurrence_kind: "consequence", change_type: "changed", importance: "critical", state_label: "Boss Defeated" },
     { id: "resolved", label: "Encounter Resolved", note: "The encounter is resolved at this beat.", role: "state", occurrence_kind: "consequence", change_type: "changed", importance: "major", state_label: "Resolved" },
   ],
