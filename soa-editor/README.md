@@ -2,6 +2,8 @@
 
 React 19 + TypeScript + Vite frontend for the SoAWebApp local RPG content editor.
 
+For authoring UX standards, cleanup backlog, full-width layout rules, collapsible panel expectations, helper affordances, and shared frontend assets, see `../AUTHORING_UX_FRONTEND_PLAN.md`.
+
 ## Run
 
 ```powershell

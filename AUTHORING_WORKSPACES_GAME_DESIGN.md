@@ -13,6 +13,8 @@ The goal is to make authors feel that they are arranging adventures, staging con
 
 > Preserve the ambition. Save only what the current model can represent honestly.
 
+UX and frontend implementation standards now live in `AUTHORING_UX_FRONTEND_PLAN.md`. Keep creative goals, current-model save contracts, and workspace status here; put layout cleanup, ambiguous wording, collapsible panels, helper affordances, navigation preservation, and shared visual standards in the UX/frontend plan.
+
 ## Maintenance Contract
 
 Every workspace must have one row in the status index and one catalog entry containing these concerns:

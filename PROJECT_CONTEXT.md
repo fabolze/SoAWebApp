@@ -32,6 +32,7 @@ The core entities cover gameplay, economy, world, narrative, encounters, and pro
 - `PROJECT_CONTEXT.md`: current architecture, handoff notes, system status, and next work.
 - `soa-editor/README.md`: frontend systems, authoring modes, status, and validation.
 - `AUTHORING_WORKSPACES_GAME_DESIGN.md`: canonical interactive-authoring vision, current-model implementation guide, and workspace status.
+- `AUTHORING_UX_FRONTEND_PLAN.md`: authoring UX/frontend cleanup plan, including full-width layout, collapsible panels, helper affordances, copy standards, navigation preservation, and shared visual standards.
 - `backend/data/IMPORT_ORDER_GUIDE.txt`: source CSV import order, complete-set preflight, foreign-key, and cascade rules.
 - `UE5_Integration_Plan.md`: canonical UE5 direction, currently the Real-Time Top-Down Able prototype.
 - `UE5_Integration/UE5_Prototype_Step_By_Step.md`: concrete implementation sequence for the canonical Real-Time Able prototype, including the restart checklist and detailed Blueprint tutorial steps for `BP_GameDataService`, Phase 3 combatants, and Phase 4 targeting.
