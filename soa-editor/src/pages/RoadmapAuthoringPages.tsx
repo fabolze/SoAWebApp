@@ -72,13 +72,15 @@ function Shell({ title, subtitle, dirty, onSave, onReset, children }: { title: s
 
 function MultiReferencePicker({ label, values, options, onChange, emptyText = "None selected." }: { label: string; values: unknown; options: EntryRecord[]; onChange: (values: string[]) => void; emptyText?: string }) {
   const selected = strings(values);
-  const available = options.filter((option) => !selected.includes(text(option.id)));
   const reference = label.includes("Flag") ? "flags" : label.includes("Quest Giver") ? "interaction_profiles" : "";
+  const liveOptions = useReferenceOptions(reference, options);
+  const resolvedOptions = reference ? liveOptions : options;
+  const available = resolvedOptions.filter((option) => !selected.includes(text(option.id)));
   return <div>
     <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">{label}</div>{reference && <ReferenceManageLink reference={reference} onCreated={(id) => onChange(selected.includes(id) ? selected : [...selected, id])} />}
     <div className="flex flex-wrap gap-1">
       {selected.map((id) => {
-        const option = options.find((entry) => text(entry.id) === id);
+        const option = resolvedOptions.find((entry) => text(entry.id) === id);
         return <button key={id} type="button" className="rounded-full bg-slate-900 px-2 py-1 text-xs font-medium text-white dark:bg-slate-100 dark:text-slate-900" title="Remove" onClick={() => onChange(selected.filter((value) => value !== id))}>{option ? rowLabel(option, id) : id} x</button>;
       })}
       {selected.length === 0 && <span className="text-xs text-slate-500">{emptyText}</span>}

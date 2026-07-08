@@ -15,7 +15,7 @@ import { DEFAULT_SIMULATION_SCENARIO_ID, getSimulationScenarioById, loadSimulati
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import type { EntryRecord } from "../types/editorQol";
 import { generateSlug, generateUlid } from "../utils/generateId";
-import { EditableTagList, ReferenceManageLink, displayText, editableText, isRecord, rowLabel } from "../authoringViews/controls";
+import { EditableTagList, ReferenceManageLink, displayText, editableText, isRecord, mergeReferenceOptions, rowLabel, useReferenceOptions } from "../authoringViews/controls";
 
 type Side = "Friendly" | "Neutral" | "Hostile";
 type CharacterPacket = { character: EntryRecord; combat_profile: EntryRecord | null; interaction_profile: EntryRecord | null };
@@ -163,7 +163,7 @@ export default function EncounterStagePage() {
   const { id = "" } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const isNew = id === "new" || location.pathname.endsWith("/new");
+  const isNew = !id || id === "new" || location.pathname.endsWith("/new");
   const [packet, setPacket] = useState<EncounterPacket>(emptyPacket);
   const [original, setOriginal] = useState<EncounterPacket | null>(null);
   const [loading, setLoading] = useState(true);
@@ -241,6 +241,19 @@ export default function EncounterStagePage() {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [id, isNew]);
+
+  useEffect(() => {
+    const refreshCatalog = (event: Event) => {
+      const detail = (event as CustomEvent<{ reference?: string; data?: EntryRecord }>).detail;
+      if (!detail?.reference || !detail.data || !isRecord(detail.data)) return;
+      const catalogKey = detail.reference === "location_encounter_tables" ? "encounter_tables" : detail.reference;
+      if (!["items", "currencies", "factions", "flags", "encounter_tables"].includes(catalogKey)) return;
+      setPacket((current) => ({ ...current, [catalogKey]: mergeReferenceOptions((current as unknown as Record<string, EntryRecord[]>)[catalogKey] || [], [detail.data as EntryRecord]) }));
+      setOriginal((current) => current ? ({ ...current, [catalogKey]: mergeReferenceOptions((current as unknown as Record<string, EntryRecord[]>)[catalogKey] || [], [detail.data as EntryRecord]) }) : current);
+    };
+    window.addEventListener("soa:reference-created", refreshCatalog as EventListener);
+    return () => window.removeEventListener("soa:reference-created", refreshCatalog as EventListener);
+  }, []);
 
   useEffect(() => {
     if (!dirty || !original) return;
@@ -427,12 +440,14 @@ function IdentityPanel({ packet, setPacket, updateEncounter, showInlineGate }: {
 
 function RequirementEditor({ packet, setPacket }: { packet: EncounterPacket; setPacket: React.Dispatch<React.SetStateAction<EncounterPacket>> }) {
   const requirement = packet.requirement as EntryRecord;
+  const flags = useReferenceOptions("flags", packet.flags);
+  const factions = useReferenceOptions("factions", packet.factions);
   const update = (patch: EntryRecord) => setPacket((current) => ({ ...current, requirement: { ...(current.requirement || {}), ...patch } }));
   return <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
     <div className="mb-3 flex flex-wrap justify-between gap-2"><div><div className="text-sm font-semibold">Linked Requirement</div><div className="text-xs text-slate-600 dark:text-slate-400">Editing this record is included in the atomic save.</div></div><button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => setPacket((current) => ({ ...current, encounter: { ...current.encounter, requirements_id: "" }, requirement: null, requirement_usages: [] }))}>Clear Link</button></div>
     {packet.requirement_usages.length > 0 && <div className="mb-3 rounded border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/40 dark:text-amber-100">Shared-use impact: {packet.requirement_usages.map((usage) => `${displayText(usage.schema_name)} / ${displayText(usage.entry_label)} / ${displayText(usage.path)}`).join("; ")}</div>}
-    <div className="grid gap-3 md:grid-cols-2"><Field label="Requirement Slug" value={requirement.slug} onChange={(slug) => update({ slug })} /><div><EditableTagList label="Requirement Tags" tags={requirement.tags} onChange={(tags) => update({ tags })} /></div><MultiSelect label="Required Flags" values={strings(requirement.required_flags)} options={packet.flags} onChange={(required_flags) => update({ required_flags })} /><MultiSelect label="Forbidden Flags" values={strings(requirement.forbidden_flags)} options={packet.flags} onChange={(forbidden_flags) => update({ forbidden_flags })} /></div>
-    <RewardRows title="Minimum Faction Reputation" rows={rows(requirement.min_faction_reputation)} options={packet.factions} referenceKey="faction_id" numberKey="min" onChange={(min_faction_reputation) => update({ min_faction_reputation })} />
+    <div className="grid gap-3 md:grid-cols-2"><Field label="Requirement Slug" value={requirement.slug} onChange={(slug) => update({ slug })} /><div><EditableTagList label="Requirement Tags" tags={requirement.tags} onChange={(tags) => update({ tags })} /></div><MultiSelect label="Required Flags" values={strings(requirement.required_flags)} options={flags} onChange={(required_flags) => update({ required_flags })} /><MultiSelect label="Forbidden Flags" values={strings(requirement.forbidden_flags)} options={flags} onChange={(forbidden_flags) => update({ forbidden_flags })} /></div>
+    <RewardRows title="Minimum Faction Reputation" rows={rows(requirement.min_faction_reputation)} options={factions} referenceKey="faction_id" numberKey="min" onChange={(min_faction_reputation) => update({ min_faction_reputation })} />
   </div>;
 }
 
@@ -558,10 +573,14 @@ function ParticipantCard({ id, participant, packet, selected, onSelect, onChange
 
 function RewardPanel({ packet, updateEncounter }: { packet: EncounterPacket; updateEncounter: (patch: EntryRecord) => void }) {
   const rewards = rewardObject(packet.encounter);
+  const flags = useReferenceOptions("flags", packet.flags);
+  const items = useReferenceOptions("items", packet.items);
+  const currencies = useReferenceOptions("currencies", packet.currencies);
+  const factions = useReferenceOptions("factions", packet.factions);
   const update = (patch: EntryRecord) => updateEncounter({ rewards: { ...rewards, ...patch } });
   return <Panel title="Rewards" subtitle="Shape the payoff and progression consequences.">
-    <div className="grid gap-3 md:grid-cols-2"><NumberField label="XP" value={rewards.xp} onChange={(xp) => update({ xp })} /><MultiSelect label="Flags Set" values={strings(rewards.flags_set)} options={packet.flags} onChange={(flags_set) => update({ flags_set })} /></div>
-    <div className="grid gap-3 xl:grid-cols-3"><RewardRows title="Item Rewards" rows={rows(rewards.items)} options={packet.items} referenceKey="item_id" numberKey="quantity" onChange={(items) => update({ items })} /><RewardRows title="Currency Rewards" rows={rows(rewards.currencies)} options={packet.currencies} referenceKey="currency_id" numberKey="amount" onChange={(currencies) => update({ currencies })} /><RewardRows title="Reputation Rewards" rows={rows(rewards.reputation)} options={packet.factions} referenceKey="faction_id" numberKey="amount" onChange={(reputation) => update({ reputation })} /></div>
+    <div className="grid gap-3 md:grid-cols-2"><NumberField label="XP" value={rewards.xp} onChange={(xp) => update({ xp })} /><MultiSelect label="Flags Set" values={strings(rewards.flags_set)} options={flags} onChange={(flags_set) => update({ flags_set })} /></div>
+    <div className="grid gap-3 xl:grid-cols-3"><RewardRows title="Item Rewards" rows={rows(rewards.items)} options={items} referenceKey="item_id" numberKey="quantity" onChange={(items) => update({ items })} /><RewardRows title="Currency Rewards" rows={rows(rewards.currencies)} options={currencies} referenceKey="currency_id" numberKey="amount" onChange={(currencies) => update({ currencies })} /><RewardRows title="Reputation Rewards" rows={rows(rewards.reputation)} options={factions} referenceKey="faction_id" numberKey="amount" onChange={(reputation) => update({ reputation })} /></div>
   </Panel>;
 }
 
@@ -604,16 +623,17 @@ function AftermathPanel({ rows: aftermathRows, loading, error }: { rows: Encount
 }
 
 function PlacementPanel({ packet, setPacket }: { packet: EncounterPacket; setPacket: React.Dispatch<React.SetStateAction<EncounterPacket>> }) {
+  const encounterTables = useReferenceOptions("location_encounter_tables", packet.encounter_tables);
   const placed = new Set(packet.placements.map((placement) => placement.table_id));
   const add = (tableId: string) => setPacket((current) => ({ ...current, placements: [...current.placements, { table_id: tableId, entry: { encounter_id: current.encounter.id, weight: 1, spawn_group: "", min_count: 1, max_count: 1, spawn_notes: "" } }] }));
   const update = (index: number, patch: EntryRecord) => setPacket((current) => ({ ...current, placements: current.placements.map((placement, rowIndex) => rowIndex === index ? { ...placement, entry: { ...placement.entry, ...patch } } : placement) }));
   return <Panel title="World Placement" subtitle="Place this encounter into existing location encounter tables.">
     <div className="space-y-3">{packet.placements.map((placement, index) => {
-      const table = packet.encounter_tables.find((entry) => displayText(entry.id) === placement.table_id);
+      const table = encounterTables.find((entry) => displayText(entry.id) === placement.table_id);
       const location = isRecord(table?.location) ? table.location : {};
       return <div key={placement.table_id} className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950"><div className="mb-2 flex justify-between gap-2"><div><div className="text-sm font-semibold">{rowLabel(table || {}, placement.table_id)}</div><div className="text-xs text-slate-500">{rowLabel(location, displayText(table?.location_id))}</div></div><button className="text-xs font-semibold text-red-600" onClick={() => setPacket((current) => ({ ...current, placements: current.placements.filter((_, rowIndex) => rowIndex !== index) }))}>Remove</button></div><div className="grid gap-2 md:grid-cols-4"><NumberField label="Weight" value={placement.entry.weight} onChange={(weight) => update(index, { weight })} /><NumberField label="Min Count" value={placement.entry.min_count} onChange={(min_count) => update(index, { min_count })} /><NumberField label="Max Count" value={placement.entry.max_count} onChange={(max_count) => update(index, { max_count })} /><Field label="Spawn Group" value={placement.entry.spawn_group} onChange={(spawn_group) => update(index, { spawn_group })} /><label className="block md:col-span-4"><Caption>Spawn Notes</Caption><textarea className={`${inputClass} min-h-16`} value={editableText(placement.entry.spawn_notes)} onChange={(event) => update(index, { spawn_notes: event.target.value })} /></label></div></div>;
     })}</div>
-    <select className={`${inputClass} mt-3`} value="" onChange={(event) => event.target.value && add(event.target.value)}><option value="">Add existing encounter table...</option>{packet.encounter_tables.filter((table) => !placed.has(displayText(table.id))).map((table) => <option key={displayText(table.id)} value={displayText(table.id)}>{rowLabel(table, displayText(table.id))}</option>)}</select><ReferenceManageLink reference="location_encounter_tables" onCreated={add} />
+    <select className={`${inputClass} mt-3`} value="" onChange={(event) => event.target.value && add(event.target.value)}><option value="">Add existing encounter table...</option>{encounterTables.filter((table) => !placed.has(displayText(table.id))).map((table) => <option key={displayText(table.id)} value={displayText(table.id)}>{rowLabel(table, displayText(table.id))}</option>)}</select><ReferenceManageLink reference="location_encounter_tables" onCreated={add} />
   </Panel>;
 }
 

@@ -429,8 +429,26 @@ export function rowLabel(row: EntryRecord, fallback: string): string {
   return displayText(row.name, displayText(row.title, displayText(row.slug, displayText(row.id, fallback))));
 }
 
-export function useReferenceOptions(reference: string): EntryRecord[] {
-  const [options, setOptions] = useState<EntryRecord[]>([]);
+const EMPTY_REFERENCE_OPTIONS: EntryRecord[] = [];
+
+export function mergeReferenceOptions(base: EntryRecord[], updates: EntryRecord[]): EntryRecord[] {
+  const merged = new Map<string, EntryRecord>();
+  [...base, ...updates].forEach((entry) => {
+    const id = displayText(entry.id);
+    if (id) merged.set(id, entry);
+  });
+  return Array.from(merged.values());
+}
+
+export function useReferenceOptions(reference: string, initialOptions: EntryRecord[] = EMPTY_REFERENCE_OPTIONS): EntryRecord[] {
+  const [options, setOptions] = useState<EntryRecord[]>(() => mergeReferenceOptions([], initialOptions));
+  const initialSignature = useMemo(() => initialOptions.map((option) => displayText(option.id)).join("|"), [initialOptions]);
+
+  useEffect(() => {
+    setOptions((current) => mergeReferenceOptions(current, initialOptions));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSignature]);
+
   useEffect(() => {
     if (!reference) {
       setOptions([]);
@@ -441,22 +459,30 @@ export function useReferenceOptions(reference: string): EntryRecord[] {
       apiFetch(`/api/${reference}`)
         .then((res) => res.json())
         .then((payload) => {
-          if (!cancelled && Array.isArray(payload)) setOptions(payload.filter(isRecord));
+          if (!cancelled && Array.isArray(payload)) {
+            setOptions((current) => mergeReferenceOptions(current, payload.filter(isRecord)));
+          }
         })
         .catch(() => {
-          if (!cancelled) setOptions([]);
+          if (!cancelled) setOptions((current) => mergeReferenceOptions(current, initialOptions));
         });
     };
     load();
     const refresh = (event: Event) => {
-      if ((event as CustomEvent<{ reference?: string }>).detail?.reference === reference) load();
+      const detail = (event as CustomEvent<{ reference?: string; data?: EntryRecord }>).detail;
+      if (detail?.reference !== reference) return;
+      if (detail.data && isRecord(detail.data)) {
+        setOptions((current) => mergeReferenceOptions(current, [detail.data as EntryRecord]));
+      }
+      load();
     };
     window.addEventListener("soa:reference-created", refresh as EventListener);
     return () => {
       cancelled = true;
       window.removeEventListener("soa:reference-created", refresh as EventListener);
     };
-  }, [reference]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSignature, reference]);
   return options;
 }
 

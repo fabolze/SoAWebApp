@@ -1828,6 +1828,68 @@ test("encounter stage composes participants, rewards, and placement into one bun
   expect((saved?.placements as Array<Record<string, unknown>>)[0].table_id).toBe("table-1");
 });
 
+test("encounter stage shows newly created reward references immediately", async ({ page }) => {
+  const apiItems = [...encounterPacket.items];
+  const apiFactions = [...encounterPacket.factions];
+  let createdItemId = "";
+  let createdFactionId = "";
+  await mockEncounterApi(page);
+  await page.route("http://localhost:5000/api/items**", async (route) => {
+    if (route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      createdItemId = String(payload.id || "");
+      apiItems.push(payload);
+      return fulfillJson(route, payload);
+    }
+    return fulfillJson(route, apiItems);
+  });
+  await page.route("http://localhost:5000/api/factions**", async (route) => {
+    if (route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      createdFactionId = String(payload.id || "");
+      apiFactions.push(payload);
+      return fulfillJson(route, payload);
+    }
+    return fulfillJson(route, apiFactions);
+  });
+
+  await page.goto("/author/encounters/new");
+  const rewards = page.locator("section").filter({ has: page.getByRole("heading", { name: "Rewards" }) });
+
+  await rewards.getByRole("button", { name: "Create new items entry" }).click();
+  await page.getByPlaceholder("Enter id/slug...").fill("fresh-potion");
+  await page.getByPlaceholder("Enter item name...").fill("Fresh Potion");
+  await page.getByPlaceholder("Select Item Type").fill("Consumable");
+  await page.keyboard.press("Enter");
+  const basePrice = page.getByPlaceholder("e.g. 1.0").first();
+  await basePrice.fill("12");
+  await basePrice.blur();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect.poll(() => createdItemId).not.toBe("");
+
+  await expect.poll(async () =>
+    rewards.locator("select").evaluateAll((selects, id) => {
+      const match = selects.find((select) => (select as HTMLSelectElement).value === id) as HTMLSelectElement | undefined;
+      return match?.selectedOptions[0]?.textContent || "";
+    }, createdItemId)
+  ).toBe("Fresh Potion");
+
+  await rewards.getByRole("button", { name: "Create new factions entry" }).click();
+  await page.getByPlaceholder("Enter id/slug...").fill("river-guild");
+  await page.getByPlaceholder("Enter faction name...").fill("River Guild");
+  await page.getByPlaceholder("Select Default Alignment").fill("Friendly");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect.poll(() => createdFactionId).not.toBe("");
+
+  await expect.poll(async () =>
+    rewards.locator("select").evaluateAll((selects, id) => {
+      const match = selects.find((select) => (select as HTMLSelectElement).value === id) as HTMLSelectElement | undefined;
+      return match?.selectedOptions[0]?.textContent || "";
+    }, createdFactionId)
+  ).toBe("River Guild");
+});
+
 test("encounter stage places a decisive outcome through a semantic preset", async ({ page }) => {
   let saved: Record<string, unknown> | null = null;
   await page.route("http://localhost:5000/api/**", async (route) => {

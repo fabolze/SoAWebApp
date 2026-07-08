@@ -18,7 +18,7 @@ import {
   TextField as Field,
 } from "../components/authoringUi";
 import { useDirtyState } from "../components/useDirtyState";
-import { EditableTagList, ReferenceManageLink, displayText, isRecord, rowLabel } from "../authoringViews/controls";
+import { EditableTagList, ReferenceManageLink, displayText, isRecord, mergeReferenceOptions, rowLabel } from "../authoringViews/controls";
 import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
@@ -379,6 +379,31 @@ export default function AbilitySpellcraftLabPage() {
     }, 300);
     return () => window.clearTimeout(timer);
   }, [dirty, effectUpserts, id, isNew, packet, statusUpserts]);
+
+  useEffect(() => {
+    const refreshCatalog = (event: Event) => {
+      const detail = (event as CustomEvent<{ reference?: string; data?: EntryRecord }>).detail;
+      if (!detail?.reference || !detail.data || !isRecord(detail.data)) return;
+      if (!["stats", "combat_profiles", "abilities", "requirements"].includes(detail.reference)) return;
+      const catalogKey = detail.reference as keyof AbilityPacket["catalogs"];
+      setPacket((current) => current ? ({
+        ...current,
+        catalogs: {
+          ...current.catalogs,
+          [catalogKey]: mergeReferenceOptions(current.catalogs[catalogKey] || [], [detail.data as EntryRecord]),
+        },
+      }) : current);
+      setOriginal((current) => current ? ({
+        ...current,
+        catalogs: {
+          ...current.catalogs,
+          [catalogKey]: mergeReferenceOptions(current.catalogs[catalogKey] || [], [detail.data as EntryRecord]),
+        },
+      }) : current);
+    };
+    window.addEventListener("soa:reference-created", refreshCatalog as EventListener);
+    return () => window.removeEventListener("soa:reference-created", refreshCatalog as EventListener);
+  }, []);
 
   const updateAbility = (patch: EntryRecord) => setPacket((current) => current ? ({ ...current, ability: { ...current.ability, ...patch } }) : current);
 

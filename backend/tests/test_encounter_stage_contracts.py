@@ -142,6 +142,18 @@ def test_packet_includes_profiles_catalogs_placements_and_requirement_usage(monk
     assert body["requirement_usages"][0]["schema_name"] == "events"
 
 
+def test_selector_accepts_missing_id_collection_request_with_trailing_slash(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+
+    response = client.get("/api/ui/encounters/")
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["encounters"][0]["id"] == "enc-other"
+    assert body["encounter_tables"][0]["location"]["name"] == "Road"
+
+
 def test_bundle_saves_profileless_encounter_requirement_and_placements_atomically(monkeypatch):
     client, Session = _client(monkeypatch)
     _seed(Session)

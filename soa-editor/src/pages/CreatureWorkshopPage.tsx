@@ -17,7 +17,7 @@ import { formatApiError } from "../lib/apiErrors";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import type { EntryRecord } from "../types/editorQol";
 import { generateSlug, generateUlid } from "../utils/generateId";
-import { EditableTagList, ReferenceManageLink, displayText, isRecord, rowLabel } from "../authoringViews/controls";
+import { EditableTagList, ReferenceManageLink, displayText, isRecord, mergeReferenceOptions, rowLabel } from "../authoringViews/controls";
 
 type CreaturePacket = {
   navigator: EntryRecord[];
@@ -170,6 +170,30 @@ export default function CreatureWorkshopPage() {
     const timer = window.setTimeout(() => localStorage.setItem(draftKey(creatureId), JSON.stringify({ packet, ts: Date.now() })), 300);
     return () => window.clearTimeout(timer);
   }, [creatureId, dirty, original, packet]);
+
+  useEffect(() => {
+    const refreshCatalog = (event: Event) => {
+      const detail = (event as CustomEvent<{ reference?: string; data?: EntryRecord }>).detail;
+      if (!detail?.reference || !detail.data || !isRecord(detail.data)) return;
+      const catalogKey = detail.reference === "location_encounter_tables" ? "encounter_tables" : detail.reference;
+      setPacket((current) => ({
+        ...current,
+        catalogs: {
+          ...current.catalogs,
+          [catalogKey]: mergeReferenceOptions(rows(current.catalogs[catalogKey]), [detail.data as EntryRecord]),
+        },
+      }));
+      setOriginal((current) => current ? ({
+        ...current,
+        catalogs: {
+          ...current.catalogs,
+          [catalogKey]: mergeReferenceOptions(rows(current.catalogs[catalogKey]), [detail.data as EntryRecord]),
+        },
+      }) : current);
+    };
+    window.addEventListener("soa:reference-created", refreshCatalog as EventListener);
+    return () => window.removeEventListener("soa:reference-created", refreshCatalog as EventListener);
+  }, []);
 
   const updateCreature = (patch: EntryRecord) => setPacket((current) => ({ ...current, creature: { ...current.creature, ...patch } }));
   const updateCombat = (patch: EntryRecord) => setPacket((current) => {

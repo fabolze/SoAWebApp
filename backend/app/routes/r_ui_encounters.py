@@ -211,7 +211,7 @@ def _save_placements(db_session, encounter_id, placements):
         _upsert_with_route(db_session, encounter_table_route, LocationEncounterTable, data, f"placements[{table.id}]")
 
 
-@bp.route("/api/ui/encounters", methods=["GET"])
+@bp.route("/api/ui/encounters", methods=["GET"], strict_slashes=False)
 def get_encounter_selector():
     db_session = get_db_session()
     try:
