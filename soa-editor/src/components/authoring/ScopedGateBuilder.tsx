@@ -16,6 +16,7 @@ import { apiFetch } from "../../lib/api";
 import { formatApiError } from "../../lib/apiErrors";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../../styles/uiTokens";
 import type { EntryRecord } from "../../types/editorQol";
+import { AuthoringPanel, AuthoringStatusChip, EmptyState, StatusNotice } from "../authoringUi";
 import type { BundleReviewResult } from "./BundleReview";
 import BundleReview from "./BundleReview";
 
@@ -140,7 +141,12 @@ export default function ScopedGateBuilder({
     }
   };
 
-  return <Panel title={title} subtitle={subtitle}>
+  return <AuthoringPanel
+    title={title}
+    subtitle={subtitle}
+    help="Use this to make or reuse an unlock requirement for one piece of content. Draft flags describe player state, the requirement decides which flags are needed or forbidden, and the attachment chooses the content that uses it. Shared-use sections show what else may be affected before you commit."
+    status={issues.length > 0 ? <AuthoringStatusChip tone="warning">{issues.length} issue{issues.length === 1 ? "" : "s"}</AuthoringStatusChip> : undefined}
+  >
     <div className="mb-3 flex flex-wrap gap-2">
       <button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => addDraftFlag("done")}>Add Done Flag</button>
       <button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => addDraftFlag("available")}>Add Available Flag</button>
@@ -157,7 +163,7 @@ export default function ScopedGateBuilder({
             </div>
             <Field label="Description" value={flag.description} onChange={(description) => { setDraftFlags(draftFlags.map((entry, row) => row === index ? { ...entry, description } : entry)); clearReview(); }} />
           </div>)}
-          {!draftFlags.length && <Empty>No draft flags yet.</Empty>}
+          {!draftFlags.length && <EmptyState variant="compact" title="No draft flags yet.">Add a flag when this requirement needs new saved player state; otherwise reuse an existing requirement.</EmptyState>}
         </div>
       </div>
       <div>
@@ -187,7 +193,7 @@ export default function ScopedGateBuilder({
       <UsageList title="Requirement Usage" rows={selectedRequirementUsage} />
       <UsageList title="Selected Flag Usage" rows={gateStrings(selectedRequirement?.required_flags).flatMap((flagId) => [...(packet.flag_usage_by_id[flagId]?.producers || []), ...(packet.flag_usage_by_id[flagId]?.consumers || [])])} />
     </div>
-    {issues.length > 0 && <div className="mt-3 space-y-1">{issues.map((issue) => <p key={issue} className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">{issue}</p>)}</div>}
+    {issues.length > 0 && <div className="mt-3 space-y-1">{issues.map((issue) => <StatusNotice key={issue} tone="warning">{issue}</StatusNotice>)}</div>}
     {directCommit && <div className="mt-3 flex justify-end">
       <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || issues.length > 0 || (!requirementDraft && !draftFlags.length && !attachment)} onClick={() => void submit(false)}>{saving ? "Reviewing..." : "Review Gate"}</button>
     </div>}
@@ -203,25 +209,11 @@ export default function ScopedGateBuilder({
       onCancel={() => { setReview(null); setReviewError(""); }}
       onCommit={() => void submit(true)}
     /></div>}
-  </Panel>;
-}
-
-function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
-  return <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-    <div className="mb-3">
-      <h2 className="font-semibold">{title}</h2>
-      {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
-    </div>
-    {children}
-  </section>;
+  </AuthoringPanel>;
 }
 
 function Caption({ children }: { children: ReactNode }) {
   return <div className="mb-1 text-[10px] font-semibold uppercase text-slate-500">{children}</div>;
-}
-
-function Empty({ children }: { children: ReactNode }) {
-  return <p className="rounded border border-dashed border-slate-300 p-3 text-xs text-slate-500 dark:border-slate-700">{children}</p>;
 }
 
 function Field({ label, value, onChange }: { label: string; value: unknown; onChange: (value: string) => void }) {

@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../../styles/uiTokens";
+import { AuthoringStatusChip, StatusNotice } from "../authoringUi";
 import { BUNDLE_REVIEW_CHANGE_KINDS, normalizeBundleReview, type BundleReviewResult } from "./bundleReviewModel";
 export type { BundleReviewResult } from "./bundleReviewModel";
 
@@ -76,9 +77,9 @@ export default function BundleReview({
     </div>
 
     {result && <div className="mt-4 flex flex-wrap gap-2 text-xs">
-      {BUNDLE_REVIEW_CHANGE_KINDS.filter((kind) => kind !== "unlinked" || normalized.changes.unlinked.length > 0).map((kind) => <span key={kind} className="rounded border border-slate-200 px-2 py-1 dark:border-slate-700"><strong>{normalized.changes[kind].length}</strong> {kind}</span>)}
-      <span className={`rounded border px-2 py-1 ${advisoryWarnings.length || requiredWarnings.length ? "border-amber-300 text-amber-800 dark:border-amber-900 dark:text-amber-200" : "border-slate-200 dark:border-slate-700"}`}><strong>{advisoryWarnings.length + requiredWarnings.length}</strong> warnings</span>
-      <span className={`rounded border px-2 py-1 ${blockers.length ? "border-red-300 text-red-800 dark:border-red-900 dark:text-red-200" : "border-slate-200 dark:border-slate-700"}`}><strong>{blockers.length}</strong> blockers</span>
+      {BUNDLE_REVIEW_CHANGE_KINDS.filter((kind) => kind !== "unlinked" || normalized.changes.unlinked.length > 0).map((kind) => <AuthoringStatusChip key={kind} tone="neutral"><strong>{normalized.changes[kind].length}</strong> {kind}</AuthoringStatusChip>)}
+      <AuthoringStatusChip tone={advisoryWarnings.length || requiredWarnings.length ? "warning" : "neutral"}><strong>{advisoryWarnings.length + requiredWarnings.length}</strong> warnings</AuthoringStatusChip>
+      <AuthoringStatusChip tone={blockers.length ? "error" : "neutral"}><strong>{blockers.length}</strong> blockers</AuthoringStatusChip>
     </div>}
 
     {result && BUNDLE_REVIEW_CHANGE_KINDS.map((kind) => normalized.changes[kind].length > 0 && <details key={kind} className="mt-3 rounded border border-slate-200 p-2 dark:border-slate-700">
@@ -92,13 +93,13 @@ export default function BundleReview({
     </details>)}
 
     {(advisoryWarnings.length > 0 || requiredWarnings.length > 0 || blockers.length > 0 || error) && <div className="mt-4 space-y-2">
-      {advisoryWarnings.map((warning, index) => <div key={`advisory:${index}:${warning}`} className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">{warning}</div>)}
+      {advisoryWarnings.map((warning, index) => <StatusNotice key={`advisory:${index}:${warning}`} tone="warning">{warning}</StatusNotice>)}
       {requiredWarnings.map((warning) => <label key={warning.id} className="flex gap-2 rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
         <input type="checkbox" checked={acceptedWarningIds.includes(warning.id)} onChange={(event) => setAcceptedWarningIds((current) => event.target.checked ? [...current, warning.id] : current.filter((id) => id !== warning.id))} />
         <span>{warning.message}</span>
       </label>)}
-      {blockers.map((blocker, index) => <div key={`blocker:${index}:${blocker}`} className="rounded border border-red-300 bg-red-50 p-2 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100">{blocker}</div>)}
-      {error && <div className="rounded border border-red-300 bg-red-50 p-2 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100">{error}</div>}
+      {blockers.map((blocker, index) => <StatusNotice key={`blocker:${index}:${blocker}`} tone="error">{blocker}</StatusNotice>)}
+      {error && <StatusNotice tone="error">{error}</StatusNotice>}
     </div>}
 
     <div className="mt-4 flex justify-end">

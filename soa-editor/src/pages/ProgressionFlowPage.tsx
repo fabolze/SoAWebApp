@@ -6,6 +6,7 @@ import {
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
+import { AuthoringPageShell } from "../components/authoringUi";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
@@ -338,8 +339,8 @@ export default function ProgressionFlowPage() {
   if (loading) return <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading Progression Flow...</div>;
 
   return (
-    <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="mx-auto max-w-[1600px] space-y-4">
+    <AuthoringPageShell>
+      <div className="w-full space-y-4">
         <Header dirty={dirty} saving={saving} issues={issues} onPreview={() => void preview()} onDiscard={discardDraft} />
         {notice && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{notice}</div>}
         <div className="grid gap-4 xl:grid-cols-[1fr_420px]">
@@ -409,7 +410,7 @@ export default function ProgressionFlowPage() {
           </aside>
         </div>
       </div>
-    </div>
+    </AuthoringPageShell>
   );
 }
 

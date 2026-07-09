@@ -29,17 +29,17 @@ Last reviewed: 2026-07-09
 | Area | Status | Notes |
 |---|---|---|
 | Documentation split | Done | This file is the dedicated UX/frontend companion to the game-design document. |
-| Authoring view full-width audit | In Progress | `ImmersiveAuthoringPage`, `LocationAtlasPage`, and bundled `CharacterCreatorPage` now use full-width route containers. Continue auditing all other `/author/*` routes for remaining `max-w-*` shells. |
+| Authoring view full-width audit | In Progress | `ImmersiveAuthoringPage`, `LocationAtlasPage`, bundled `CharacterCreatorPage`, `EncounterStagePage`, `ProgressionFlowPage`, `AbilitySpellcraftLabPage`, and `CreatureWorkshopPage` now use full-width route containers. Continue auditing dialogue, character studio, item ecosystem/inspector, quest/dependency, and generic editor routes for remaining route-level `max-w-*` shells. |
 | Collapsible authoring panels | In Progress | Shared `AuthoringPanel` now supports collapse/expand, persistent localStorage state, status chips, and collapsed summaries. Item, shop, character, and location immersive panels have initial coverage. |
 | Local section navigation | In Progress | Item, shop, character, and location immersive authoring views now have a sticky wide-screen section rail with anchors. Other long authoring workspaces still need this pattern. |
-| Contextual help affordance | In Progress | Shared `AuthoringPanel` now supports a `?` helper with accessible labels and plain-language help. Initial panel help is added to item/shop/character/location immersive views and Advanced Details. |
-| Wording and vocabulary cleanup | In Progress | Story Placement was the first visible example. Immersive authoring now uses "Advanced Details", "unlock requirement", "default value", and explicit inspect/review labels. Continue with lifecycle, gates, consequences, bundle review, and advanced schema terms. |
+| Contextual help affordance | In Progress | Shared `AuthoringPanel` now supports a `?` helper with accessible labels, hover/focus/click tooltip behavior, and plain-language help. Initial panel help is added to item/shop/character/location immersive views, Advanced Details, Story Placement, Scoped Gate Builder, and Consequence Composer. |
+| Wording and vocabulary cleanup | In Progress | Story Placement, Scoped Gate Builder, Consequence Composer, and immersive authoring now use plainer "story link", "unlock requirement", "affected thing", "default value", and explicit inspect/review labels. Continue with lifecycle detail fields, bundle review detail rows, and remaining generic schema terms. |
 | Navigation preservation | In Progress | Immersive authoring links now avoid generic "Open" labels and use explicit inspect/edit/review wording. Dirty-state protection remains in existing guarded route links; new-tab/return-path behavior still needs broader audit. |
-| Shared frontend assets and controls | In Progress | `AuthoringPageShell`, `AuthoringPanel`, `AuthoringStatusChip`, and `EmptyState` centralize shell, panel, chip, and empty-state behavior in `soa-editor/src/components/authoringUi`. Buttons still come from `uiTokens`; more surfaces need migration. |
+| Shared frontend assets and controls | In Progress | `AuthoringPageShell`, `AuthoringPanel`, `AuthoringStatusChip`, `StatusNotice`, and `EmptyState` centralize shell, panel, chip, issue, and empty-state behavior in `soa-editor/src/components/authoringUi`. Story Placement, Scoped Gate Builder, Consequence Composer, and Bundle Review now use more of these shared primitives. Buttons still come from `uiTokens`; more surfaces need migration. |
 | Scroll and density cleanup | In Progress | Low-frequency immersive panels such as modifiers, pricing, role links, atlas placement, and place/ecology can collapse with compact summaries. Broader workspace density cleanup remains. |
 | Responsive behavior | In Progress | New local navigation is hidden below wide desktop and authoring surfaces remain grid-based. A full responsive visual pass is still needed. |
 | Accessibility and keyboard use | In Progress | Panel help buttons, section links, and collapse buttons have accessible labels/focus styles. A full accessibility pass across icon-only buttons and custom controls remains. |
-| Empty/error/loading states | In Progress | Shared `EmptyState` now supports structured title/body/action copy. Item modifiers, shop inventory, location routes, location atlas filters, and character encounter placement have initial clearer empty-state copy. |
+| Empty/error/loading states | In Progress | Shared `EmptyState` now supports structured title/body/action copy. Item modifiers, shop inventory, location routes, location atlas filters, character encounter placement, Story Placement beat selection, Scoped Gate drafts, and Consequence Composer payoff/target states have clearer empty-state copy. |
 
 ## Core UX Principles
 
@@ -73,7 +73,8 @@ Implementation note, 2026-07-09:
 - `ImmersiveAuthoringPage` now removes the centered `max-w-7xl` shell and uses the shared full-width route container.
 - Item, shop, character, and location immersive authoring views now render beside a sticky local section rail on wide screens.
 - `LocationAtlasPage` and bundled `CharacterCreatorPage` also use the shared route shell and available route width.
-- Remaining work: apply the reusable shell to other long `/author/*` routes and complete the max-width audit outside the immersive/creator/atlas routes.
+- `EncounterStagePage`, `ProgressionFlowPage`, `AbilitySpellcraftLabPage`, and `CreatureWorkshopPage` now use the shared full-width route shell.
+- Remaining work: apply the reusable shell to Dialogue Flow, Character Studio, Item Ecosystem/Inspector, Quest Journey/Dependency Map, and appropriate generic editor routes; keep intentionally constrained modals, inspectors, and reading surfaces capped.
 
 ### Collapsible Authoring Panel
 
@@ -94,6 +95,7 @@ Panel collapse should hide detail without hiding critical blockers. If a collaps
 Implementation note, 2026-07-09:
 
 - `soa-editor/src/components/authoringUi/index.tsx` now exposes a shared `AuthoringPanel` with `help`, `status`, `collapsible`, `defaultCollapsed`, `collapsedSummary`, `storageKey`, and `id` props.
+- `AuthoringPanel` help now opens visible helper text on click and keyboard focus while retaining accessible labels and title text.
 - `AuthoringStatusChip` provides shared neutral/success/warning/error/info chip styling for panel headers.
 - Collapsed state persists per supplied `storageKey` in `localStorage`.
 - The immersive item/shop/character/location panels use the shared panel instead of a local duplicate.
@@ -124,8 +126,8 @@ Example for Story Placement:
 Implementation note, 2026-07-09:
 
 - Panel-level help is now supported by the shared `AuthoringPanel`.
-- Initial help copy was added for Item Card, Economy And Access, Mechanics, Modifiers, Merchant Front, Pricing Rules, Inventory Counter, Character Sheet, Role And World Links, Location Card, Atlas Placement, Place And Ecology, Routes, and Advanced Details.
-- Remaining work: add comparable helpers to Story Placement, Scoped Gate Builder, Consequence Composer, Bundle Review, Encounter Stage, Story Timeline, and other long specialized workspaces.
+- Initial help copy was added for Item Card, Economy And Access, Mechanics, Modifiers, Merchant Front, Pricing Rules, Inventory Counter, Character Sheet, Role And World Links, Location Card, Atlas Placement, Place And Ecology, Routes, Advanced Details, Story Placement, Scoped Gate Builder, and Consequence Composer.
+- Remaining work: add comparable helpers to Bundle Review detail groups, Encounter Stage local panels, Story Timeline, Dialogue Flow, Progression subpanels, and other long specialized workspaces.
 
 ### Vocabulary And Copy Rules
 
@@ -160,6 +162,8 @@ Implementation note, 2026-07-09:
 - Immersive authoring now labels the technical fallback as "Advanced Details" instead of "Advanced Form".
 - Item economy copy now uses "default value" instead of "canonical value".
 - "gate" copy in the immersive item/shop panels was revised toward "unlock requirement".
+- Scoped Gate Builder help now explains flags as player state and requirements as unlock rules before schema attachment details.
+- Consequence Composer help now distinguishes source outcomes from explicit story consequences for another affected thing.
 
 ### Navigation Rules
 
@@ -193,6 +197,7 @@ Implementation note, 2026-07-09:
 
 - Panel and chip behavior is now centralized in `soa-editor/src/components/authoringUi/index.tsx`.
 - Full-width authoring page shell and structured empty-state behavior are now centralized in `soa-editor/src/components/authoringUi/index.tsx`.
+- Bundle Review summary chips and warning/blocker notices now use shared status primitives.
 - Existing button variants remain centralized in `soa-editor/src/styles/uiTokens.ts`.
 - Added unit coverage for shared panel rendering, collapse summaries, page shell rendering, and structured empty states in `soa-editor/src/components/authoringUi/authoringUi.test.ts`.
 
@@ -215,7 +220,8 @@ Implementation note, 2026-07-09:
 
 - `EmptyState` in `soa-editor/src/components/authoringUi/index.tsx` now supports optional title and action slots so empty states can consistently explain what is missing and what to do next.
 - Initial clearer empty states were added for item modifiers, shop inventory, location routes, location atlas filter results, and character encounter placement.
-- Remaining work: migrate specialized workspaces such as Story Timeline, Progression Flow, Encounter Stage, Dialogue Flow, and generic schema lists away from terse `None`/`No ... yet` text where authors need next-action guidance.
+- Additional clearer empty states were added for Story Placement beat availability/search, Scoped Gate draft flags, Consequence Composer targets, terminal dialogue choices, and payoff rows.
+- Remaining work: migrate specialized workspaces such as Story Timeline, Progression Flow subpanels, Encounter Stage local panels, Dialogue Flow, and generic schema lists away from terse `None`/`No ... yet` text where authors need next-action guidance.
 
 ## Audit: Game-Design Content That Also Belongs Here
 
@@ -239,7 +245,7 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 
 ### P0: Make Authoring Views Navigable
 
-- Started: audit all `/author/*` route containers for width usage, max-width caps, and wasted side margins. `ImmersiveAuthoringPage` and `LocationAtlasPage` are updated; other routes remain.
+- Started: audit all `/author/*` route containers for width usage, max-width caps, and wasted side margins. `ImmersiveAuthoringPage`, `LocationAtlasPage`, `CharacterCreatorPage`, `EncounterStagePage`, `ProgressionFlowPage`, `AbilitySpellcraftLabPage`, and `CreatureWorkshopPage` are updated; other routes remain.
 - Done for shared primitive: create or standardize the shared authoring page shell.
 - Done for shared primitive: create or standardize collapsible authoring panels.
 - Started: add local section navigation to long workspaces. Initial coverage exists for item/shop/character/location immersive authoring.
@@ -248,15 +254,15 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 
 ### P0: Make Ambiguous Concepts Understandable
 
-- Done for shared primitive: add panel-level `?` helper affordances.
-- Started: start with Story Placement, Scoped Gate Builder, Consequence Composer, Bundle Review, Lifecycle Details, Story Context, Encounter Aftermath, World Placement, and Advanced Form. Advanced Form is now "Advanced Details"; the listed specialized panels still need direct pass-through.
+- Done for shared primitive: add panel-level `?` helper affordances with accessible labels and visible hover/focus/click help.
+- Started: start with Story Placement, Scoped Gate Builder, Consequence Composer, Bundle Review, Lifecycle Details, Story Context, Encounter Aftermath, World Placement, and Advanced Form. Advanced Form is now "Advanced Details"; Story Placement, Scoped Gate Builder, and Consequence Composer now have direct helper pass-through.
 - Started: rewrite primary copy to describe authoring intent instead of schema shape.
 - Started: move technical metadata into "Advanced Details" sections.
 - Add examples to abstract helpers where a label alone is not enough.
 
 ### P0: Standardize Controls And Visual Assets
 
-- Started: centralize button, input, badge, issue, panel, shell, empty-state, and compact-card classes. Panels/chips/shell/empty states now have shared primitives; buttons/inputs already have partial shared tokens; issue/card standards remain.
+- Started: centralize button, input, badge, issue, panel, shell, empty-state, and compact-card classes. Panels/chips/shell/empty states/status notices now have shared primitives; Bundle Review uses shared chips/notices; buttons/inputs already have partial shared tokens; card standards remain.
 - Pick one icon source for common actions and use it consistently.
 - Started: replace ad hoc action links with standard button/link variants.
 - Standardize issue colors and wording across health panels, context strips, review panels, and empty states.
@@ -273,7 +279,7 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 ### P1: Empty, Loading, And Error States
 
 - Done for shared primitive: add a reusable structured empty-state component with title/body/action slots.
-- Started: replace terse empty text in high-traffic immersive/creator views with copy that explains whether the missing content is okay and what action helps next.
+- Started: replace terse empty text in high-traffic immersive/creator views and specialized Story Placement/Scoped Gate/Consequence surfaces with copy that explains whether the missing content is okay and what action helps next.
 - Audit loading and error states for retry guidance and missing-reference guidance.
 - Migrate terse specialized workspace text such as `None`, `No flow focus yet`, and `No linked beats` into structured empty states where the author needs context.
 

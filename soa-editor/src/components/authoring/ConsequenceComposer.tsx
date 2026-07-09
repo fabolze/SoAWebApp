@@ -27,6 +27,7 @@ import { apiFetch } from "../../lib/api";
 import { formatApiError } from "../../lib/apiErrors";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../../styles/uiTokens";
 import type { EntryRecord } from "../../types/editorQol";
+import { AuthoringPanel, AuthoringStatusChip, EmptyState, StatusNotice } from "../authoringUi";
 import BundleReview, { type BundleReviewResult } from "./BundleReview";
 import LifecycleFields from "../storyPlacement/LifecycleFields";
 
@@ -204,14 +205,16 @@ export default function ConsequenceComposer({
     }
   };
 
-  return <section className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900" data-testid="consequence-composer">
-    <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-      <div>
-        <h2 className="text-sm font-semibold text-slate-950 dark:text-slate-100">{title}</h2>
-        <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
-      </div>
+  return <AuthoringPanel
+    title={title}
+    subtitle={subtitle}
+    help="Use this to review outcomes before they are saved. Source outcomes change the current quest, event, dialogue, or encounter. Explicit story consequences create a separate story link for another affected thing. Preview shows both before commit."
+    status={reviewError ? <AuthoringStatusChip tone="error">review error</AuthoringStatusChip> : undefined}
+    actions={
       <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || loading || (!canSaveSource && !canSaveStory)} onClick={() => void submit(false)}>{saving ? "Reviewing..." : "Review Consequence"}</button>
-    </div>
+    }
+    testId="consequence-composer"
+  >
     {loading && <p className="text-xs text-slate-500">Loading consequence context...</p>}
     {loadError && <Issue>{loadError}</Issue>}
     {!loading && !loadError && <div className="space-y-4">
@@ -257,7 +260,7 @@ export default function ConsequenceComposer({
         <div className="mt-3">
           <LifecycleFields value={targetDraft} beatOptions={packet.adventure_beats} onChange={(value) => { setTargetDraft(value); clearReview(); }} />
         </div>
-        {targets.length === 0 && <p className="mt-3 text-xs text-amber-900 dark:text-amber-100">No valid targets are available for this consequence type.</p>}
+        {targets.length === 0 && <EmptyState variant="compact" className="mt-3" title="No valid targets are available.">Choose a different affected thing type or create the target record first.</EmptyState>}
       </div>}
       {(review || reviewError) && <BundleReview
         result={review}
@@ -272,7 +275,7 @@ export default function ConsequenceComposer({
         onCommit={() => void submit(true)}
       />}
     </div>}
-  </section>;
+  </AuthoringPanel>;
 }
 
 function SourceOutcomeEditor({ sourceKind, source, packet, sourceLabel, onPatch, onPatchRewards, onClearReview }: {
@@ -297,7 +300,7 @@ function SourceOutcomeEditor({ sourceKind, source, packet, sourceLabel, onPatch,
             onClearReview();
           }} />
         </div>)}
-        {choices.length === 0 && <p className="text-xs text-slate-500">This node has no choices.</p>}
+        {choices.length === 0 && <EmptyState variant="compact" title="No choices on this node.">That is fine for a terminal line; add choices before assigning choice-level flags.</EmptyState>}
       </div>
     </Panel>;
   }
@@ -354,7 +357,7 @@ function RewardRowEditor({ label, rows: value, options, referenceKey, numberKey,
         <input className={inputClass} type="number" value={Number(row[numberKey] || 0)} onChange={(event) => update(index, { [numberKey]: Number(event.target.value) })} />
         <button type="button" className="text-xs font-semibold text-red-600" onClick={() => onChange(value.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>
       </div>)}
-      {value.length === 0 && <p className="text-xs text-slate-500">No rows.</p>}
+      {value.length === 0 && <EmptyState variant="compact" title={`No ${label.toLowerCase()} yet.`}>Add a row only when this outcome should grant this payoff.</EmptyState>}
     </div>
     <button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs} mt-2`} onClick={() => onChange([...value, { [referenceKey]: "", [numberKey]: numberKey === "quantity" ? 1 : 0 }])}>Add Row</button>
   </div>;
@@ -382,5 +385,5 @@ function Panel({ title, subtitle, children }: { title: string; subtitle?: string
 }
 
 function Issue({ children }: { children: ReactNode }) {
-  return <p className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">{children}</p>;
+  return <StatusNotice tone="warning">{children}</StatusNotice>;
 }

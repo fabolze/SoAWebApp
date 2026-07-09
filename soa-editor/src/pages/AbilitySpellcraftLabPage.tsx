@@ -8,6 +8,7 @@ import AbilityLabBench from "../components/abilityLab/AbilityLabBench";
 import { buildAbilityUsageModel } from "../authoring/abilityUsage";
 import {
   AUTHORING_INPUT_CLASS,
+  AuthoringPageShell,
   AuthoringPanel as Panel,
   CheckboxField,
   EmptyState as Empty,
@@ -563,8 +564,8 @@ export default function AbilitySpellcraftLabPage() {
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-        <div className="mx-auto max-w-[1800px] space-y-4">
+      <AuthoringPageShell>
+        <div className="w-full space-y-4">
           <Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} advanced={advanced} setAdvanced={setAdvanced} onSave={() => void preview()} onReset={reset} />
           {(notice || restored) && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{restored ? "Restored unsaved Ability Spellcraft draft. " : ""}{notice}</div>}
           <AbilitySelector packet={packet} onClone={startVariantDraft} />
@@ -620,7 +621,7 @@ export default function AbilitySpellcraftLabPage() {
           </div>
           {review && <BundleReview result={review} title="Ability Bundle Review" description="Preview validates the complete canonical change before it commits atomically." variant="modal" commitLabel="Commit Bundle" saving={saving} error={reviewError} additionalWarnings={issues.warnings} additionalBlockers={issues.blockers} onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={() => void save()} />}
         </div>
-      </div>
+      </AuthoringPageShell>
     </DndContext>
   );
 }

@@ -60,6 +60,7 @@ export function AuthoringPanel({
   defaultCollapsed = false,
   storageKey,
   id,
+  testId,
   className = "",
   children,
 }: {
@@ -73,10 +74,12 @@ export function AuthoringPanel({
   defaultCollapsed?: boolean;
   storageKey?: string;
   id?: string;
+  testId?: string;
   className?: string;
   children?: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(() => readPanelCollapsedState(storageKey, defaultCollapsed));
+  const [helpOpen, setHelpOpen] = useState(false);
   const helpText = useMemo(() => reactNodeToText(help), [help]);
 
   useEffect(() => {
@@ -89,20 +92,34 @@ export function AuthoringPanel({
   }, [collapsed, storageKey]);
 
   return (
-    <section id={id} className={`${AUTHORING_PANEL_CLASS} scroll-mt-4 ${className}`.trim()}>
+    <section id={id} data-testid={testId} className={`${AUTHORING_PANEL_CLASS} scroll-mt-4 ${className}`.trim()}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-semibold text-slate-950 dark:text-slate-100">{title}</h2>
             {help && (
-              <button
-                type="button"
-                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-[11px] font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-200"
-                aria-label={`Help for ${helpLabel(title)}`}
-                title={helpText}
-              >
-                ?
-              </button>
+              <span className="relative inline-flex">
+                <button
+                  type="button"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-[11px] font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-200"
+                  aria-label={`Help for ${helpLabel(title)}`}
+                  aria-expanded={helpOpen}
+                  title={helpText}
+                  onClick={() => setHelpOpen((value) => !value)}
+                  onFocus={() => setHelpOpen(true)}
+                  onBlur={() => setHelpOpen(false)}
+                >
+                  ?
+                </button>
+                {helpOpen && (
+                  <span
+                    role="tooltip"
+                    className="absolute left-0 top-6 z-20 w-72 rounded-md border border-slate-200 bg-white p-3 text-xs font-normal leading-5 text-slate-600 shadow-lg dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                  >
+                    {help}
+                  </span>
+                )}
+              </span>
             )}
             {status && <div className="flex flex-wrap items-center gap-1">{status}</div>}
           </div>

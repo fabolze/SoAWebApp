@@ -15,6 +15,7 @@ import type { EntryRecord } from "../../types/editorQol";
 import { generateUlid } from "../../utils/generateId";
 import BundleReview, { type BundleReviewResult } from "../authoring/BundleReview";
 import ConsequenceComposer from "../authoring/ConsequenceComposer";
+import { AuthoringPanel, AuthoringStatusChip, EmptyState, StatusNotice } from "../authoringUi";
 import EntityOccurrenceTrack from "./EntityOccurrenceTrack";
 import LifecycleFields from "./LifecycleFields";
 import PlacementTray from "./PlacementTray";
@@ -168,12 +169,12 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
   const consequenceSectionEnabled = (enableCrossEntityConsequenceActions || (enableCharacterConsequenceActions && entityKind === "character"))
     && (entityKind === "character" || entityKind === "dialogue" || entityKind === "encounter");
 
-  return <section className="rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900" data-testid="story-placement-panel">
-    <div className="flex flex-wrap items-start justify-between gap-2">
-      <div>
-        <h2 className="font-semibold">Story Placement</h2>
-        <p className="max-w-3xl text-xs text-slate-500">{placementSubtitle(entityKind, entityLabel)}</p>
-      </div>
+  return <AuthoringPanel
+    title="Story Placement"
+    subtitle={placementSubtitle(entityKind, entityLabel)}
+    help={`Use this when the timeline needs to know when ${entityLabel} matters. It creates or updates a reviewed story link used by timeline order, warnings, and aftermath. It does not change participants, rewards, or the source record fields outside this panel.`}
+    status={context.warnings.length > 0 ? <AuthoringStatusChip tone="warning">{context.warnings.length} warning{context.warnings.length === 1 ? "" : "s"}</AuthoringStatusChip> : undefined}
+    actions={
       <Link
         className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold dark:border-slate-700"
         to={`/author/story-timeline?track=${encodeURIComponent(entityKind)}&entity=${encodeURIComponent(entityId)}`}
@@ -182,12 +183,14 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
       >
         Open Timeline in New Tab
       </Link>
-    </div>
+    }
+    testId="story-placement-panel"
+  >
     {loading && <p className="mt-3 text-xs text-slate-500">Loading story placements...</p>}
-    {error && <p className="mt-3 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">{error}</p>}
-    {!loading && !error && <div className="mt-3 space-y-2">
+    {error && <StatusNotice tone="warning" className="mt-3">{error}</StatusNotice>}
+    {!loading && !error && <div className="space-y-2">
       <StoryContextStrip packet={packet} entityKind={entityKind} entityId={entityId} occurrences={context.occurrences} warnings={context.warnings} />
-      {context.warnings.map((warning) => <p key={warning.id} className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">{warning.message}</p>)}
+      {context.warnings.map((warning) => <StatusNotice key={warning.id} tone="warning">{warning.message}</StatusNotice>)}
       <EntityOccurrenceTrack occurrences={context.occurrences} timelines={context.timelines} arcs={context.arcs} entityKind={entityKind} onEditCanonicalLink={beginEditing} />
       <div className="mt-4 rounded border border-slate-200 p-3 dark:border-slate-800" data-testid={editing ? "story-placement-edit" : "story-placement-create"}>
         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -249,10 +252,10 @@ export default function StoryPlacementPanel({ entityKind, entityId, entityLabel,
           onCancel={clearReview}
           onCommit={() => reviewAction && void submitPlacement(reviewAction, true)}
         /></div>}
-        {context.beatOptions.length === 0 && <p className="mt-3 rounded border border-dashed border-slate-300 p-2 text-xs text-slate-500 dark:border-slate-700">Create or commit an adventure beat in the Story Timeline before placing this {formatKind(entityKind)}.</p>}
+        {context.beatOptions.length === 0 && <EmptyState className="mt-3" variant="compact" title="No adventure beats are available.">Create or commit an adventure beat in the Story Timeline before placing this {formatKind(entityKind)}.</EmptyState>}
       </div>
     </div>}
-  </section>;
+  </AuthoringPanel>;
 }
 
 function BeatSelector({
@@ -343,7 +346,7 @@ function BeatSelector({
           })}
         </div>
       </div>)}
-      {filtered.length === 0 && <p className="rounded border border-dashed border-slate-300 p-3 text-xs text-slate-500 dark:border-slate-700">No beats match this search.</p>}
+      {filtered.length === 0 && <EmptyState variant="compact" title="No matching beats.">Try a different beat, timeline, or arc search.</EmptyState>}
     </div>
   </div>;
 }

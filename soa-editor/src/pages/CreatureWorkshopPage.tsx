@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import {
   AUTHORING_INPUT_CLASS,
+  AuthoringPageShell,
   AuthoringPanel as Panel,
   FieldCaption as Caption,
   NumberField,
@@ -287,8 +288,8 @@ export default function CreatureWorkshopPage() {
   if (loading) return <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading Creature Workshop...</div>;
 
   return (
-    <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="mx-auto max-w-[1600px] space-y-4">
+    <AuthoringPageShell>
+      <div className="w-full space-y-4">
         <Panel
           title={displayText(packet.creature.name, "Creature Workshop")}
           subtitle={`${displayText(packet.combat_profile?.enemy_type, "untyped")} / ${currentAppearances.length} encounters / ${currentHabitats.length} habitats`}
@@ -326,7 +327,7 @@ export default function CreatureWorkshopPage() {
           </div>
         </div>
       </div>
-    </div>
+    </AuthoringPageShell>
   );
 }
 

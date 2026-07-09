@@ -5,6 +5,7 @@ import { deriveEncounterAftermathRows, type EncounterAftermathRow } from "../aut
 import { emptyScopedGatePacket, type ScopedGatePacket } from "../authoring/scopedGate";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
+import { AuthoringPageShell } from "../components/authoringUi";
 import SearchableSelect from "../components/SearchableSelect";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
@@ -324,8 +325,8 @@ export default function EncounterStagePage() {
   if (loading) return <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading Encounter Stage...</div>;
 
   return (
-    <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="mx-auto max-w-[1600px] space-y-4">
+    <AuthoringPageShell>
+      <div className="w-full space-y-4">
         <Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} onSave={() => void save()} onReset={reset} />
         {(notice || restored) && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{restored ? "Restored unsaved Encounter Stage draft. " : ""}{notice}</div>}
         <EncounterSelector packet={packet} />
@@ -387,7 +388,7 @@ export default function EncounterStagePage() {
           <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || issues.blockers.length > 0} onClick={() => void save()}>{saving ? "Saving..." : "Save All"}</button>
         </div>
       </div>
-    </div>
+    </AuthoringPageShell>
   );
 }
 
