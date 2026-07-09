@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 export const AUTHORING_INPUT_CLASS =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
@@ -37,27 +37,119 @@ export function AuthoringPanel({
   title,
   subtitle,
   actions,
+  help,
+  status,
+  collapsedSummary,
+  collapsible = false,
+  defaultCollapsed = false,
+  storageKey,
+  id,
   className = "",
   children,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
+  help?: ReactNode;
+  status?: ReactNode;
+  collapsedSummary?: ReactNode;
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
+  storageKey?: string;
+  id?: string;
   className?: string;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
+  const [collapsed, setCollapsed] = useState(() => readPanelCollapsedState(storageKey, defaultCollapsed));
+  const helpText = useMemo(() => reactNodeToText(help), [help]);
+
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      window.localStorage.setItem(storageKey, collapsed ? "1" : "0");
+    } catch {
+      // Ignore storage failures; collapse still works for the current session.
+    }
+  }, [collapsed, storageKey]);
+
   return (
-    <section className={`${AUTHORING_PANEL_CLASS} ${className}`.trim()}>
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="font-semibold text-slate-950 dark:text-slate-100">{title}</h2>
+    <section id={id} className={`${AUTHORING_PANEL_CLASS} scroll-mt-4 ${className}`.trim()}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-semibold text-slate-950 dark:text-slate-100">{title}</h2>
+            {help && (
+              <button
+                type="button"
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-[11px] font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-200"
+                aria-label={`Help for ${helpLabel(title)}`}
+                title={helpText}
+              >
+                ?
+              </button>
+            )}
+            {status && <div className="flex flex-wrap items-center gap-1">{status}</div>}
+          </div>
           {subtitle && <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{subtitle}</div>}
+          {collapsed && collapsedSummary && <div className="mt-2 text-xs text-slate-600 dark:text-slate-300">{collapsedSummary}</div>}
+          {help && <div className="sr-only">{help}</div>}
         </div>
-        {actions}
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {actions}
+          {collapsible && (
+            <button
+              type="button"
+              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              aria-expanded={!collapsed}
+              onClick={() => setCollapsed((value) => !value)}
+            >
+              {collapsed ? "Expand" : "Collapse"}
+            </button>
+          )}
+        </div>
       </div>
-      {children}
+      {!collapsed && <div className="mt-3">{children}</div>}
     </section>
   );
+}
+
+function readPanelCollapsedState(storageKey: string | undefined, fallback: boolean): boolean {
+  if (!storageKey) return fallback;
+  try {
+    const value = window.localStorage.getItem(storageKey);
+    if (value === "1") return true;
+    if (value === "0") return false;
+  } catch {
+    return fallback;
+  }
+  return fallback;
+}
+
+function helpLabel(value: ReactNode): string {
+  return reactNodeToText(value) || "this panel";
+}
+
+function reactNodeToText(value: ReactNode): string {
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (Array.isArray(value)) return value.map(reactNodeToText).filter(Boolean).join(" ");
+  return "";
+}
+
+export function AuthoringStatusChip({
+  tone = "neutral",
+  children,
+}: {
+  tone?: "neutral" | "success" | "warning" | "error" | "info";
+  children?: ReactNode;
+}) {
+  const classes = {
+    neutral: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+    success: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200",
+    warning: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200",
+    error: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200",
+    info: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200",
+  }[tone];
+  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${classes}`}>{children}</span>;
 }
 
 export function FieldCaption({ label, children, description }: { label?: ReactNode; children?: ReactNode; description?: ReactNode }) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   CheckIcon,
@@ -6,6 +6,7 @@ import {
   MapPinIcon,
 } from "@heroicons/react/24/outline";
 import SchemaForm from "../components/SchemaForm";
+import { AuthoringPanel, AuthoringStatusChip } from "../components/authoringUi";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch, buildApiUrl } from "../lib/api";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
@@ -420,7 +421,7 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
 
   return (
     <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="mx-auto max-w-7xl space-y-4">
+      <div className="w-full space-y-4">
         <AuthoringHeader
           config={config}
           data={data}
@@ -446,7 +447,12 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
         )}
 
         {mode === "advanced" ? (
-          <AuthoringPanel title="Advanced Form" subtitle="Full schema fallback for technical or rarely used fields.">
+          <AuthoringPanel
+            title="Advanced Details"
+            subtitle="Complete technical fallback for fields that do not yet have a focused authoring control."
+            help="Use this when a field is missing from the main authoring workflow. Changes here save to the same record as the focused authoring view."
+            status={<AuthoringStatusChip tone={changedFieldKeys.length > 0 ? "warning" : "success"}>{changedFieldKeys.length} changed</AuthoringStatusChip>}
+          >
             <SchemaForm
               schema={schema}
               schemaName={config.schemaName}
@@ -456,16 +462,19 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
             />
           </AuthoringPanel>
         ) : (
-          <EntityAuthoringSurface
-            config={config}
-            schema={schema}
-            data={data}
-            onChange={(next) => setData(next)}
-            changedFieldKeys={changedFieldKeys}
-            persisted={!isNewDraft}
-            isDirty={isDirty}
-            focusField={focusField}
-          />
+          <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+            <AuthoringSectionNav sections={sectionNavForKind(config.kind)} />
+            <EntityAuthoringSurface
+              config={config}
+              schema={schema}
+              data={data}
+              onChange={(next) => setData(next)}
+              changedFieldKeys={changedFieldKeys}
+              persisted={!isNewDraft}
+              isDirty={isDirty}
+              focusField={focusField}
+            />
+          </div>
         )}
 
         <AuthoringSaveBar
@@ -541,7 +550,7 @@ function AuthoringHeader({
                 className={`rounded px-3 py-1.5 text-sm font-medium ${mode === nextMode ? "bg-white text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-300" : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"}`}
                 onClick={() => setMode(nextMode)}
               >
-                {nextMode === "author" ? "Author Mode" : "Advanced Form"}
+                {nextMode === "author" ? "Author Mode" : "Advanced Details"}
               </button>
             ))}
           </div>
@@ -586,6 +595,58 @@ function EntityAuthoringSurface({
     return <LocationAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} isDirty={isDirty} focusField={focusField} />;
   }
   return <ItemAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} />;
+}
+
+function sectionNavForKind(kind: AuthoringKind): Array<{ id: string; label: string; summary: string }> {
+  if (kind === "shop") {
+    return [
+      { id: "merchant-front", label: "Merchant Front", summary: "Identity and world context" },
+      { id: "pricing-rules", label: "Pricing Rules", summary: "Shop-wide price behavior" },
+      { id: "inventory-counter", label: "Inventory", summary: "Stock and item overrides" },
+    ];
+  }
+  if (kind === "character") {
+    return [
+      { id: "character-sheet", label: "Character Sheet", summary: "Identity and notes" },
+      { id: "role-world-links", label: "Role Links", summary: "Class, faction, home" },
+    ];
+  }
+  if (kind === "location") {
+    return [
+      { id: "location-card", label: "Location Card", summary: "Description and image" },
+      { id: "atlas-placement", label: "Atlas Placement", summary: "Map coordinates" },
+      { id: "place-ecology", label: "Place And Ecology", summary: "Type, biome, flags" },
+      { id: "routes", label: "Routes", summary: "Connected movement records" },
+    ];
+  }
+  return [
+    { id: "item-card", label: "Item Card", summary: "Identity and preview" },
+    { id: "economy-access", label: "Economy And Access", summary: "Value and unlocks" },
+    { id: "mechanics", label: "Mechanics", summary: "Equipment and effects" },
+    { id: "modifiers", label: "Modifiers", summary: "Stat and attribute bonuses" },
+  ];
+}
+
+function AuthoringSectionNav({ sections }: { sections: Array<{ id: string; label: string; summary: string }> }) {
+  return (
+    <nav className="hidden xl:block">
+      <div className="sticky top-4 rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <div className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">Workspace Sections</div>
+        <div className="mt-2 space-y-1">
+          {sections.map((section) => (
+            <a
+              key={section.id}
+              className="block rounded-md px-2 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-200"
+              href={`#${section.id}`}
+            >
+              <span className="block font-medium">{section.label}</span>
+              <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{section.summary}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </nav>
+  );
 }
 
 function setRow(rows: EntryRecord[], index: number, patch: EntryRecord): EntryRecord[] {
@@ -641,7 +702,7 @@ function ItemAuthoringSurface(props: AuthoringSurfaceProps) {
           className={`${BUTTON_CLASSES.neutral} ${BUTTON_SIZES.sm}`}
           to={`/author/items/${encodeURIComponent(displayText(data.id))}/ecosystem`}
         >
-          Open Acquisition Ecosystem
+          Review Acquisition Ecosystem
         </Link>}
         {!persisted && (
           <Link className={`ml-2 ${BUTTON_CLASSES.neutral} ${BUTTON_SIZES.sm}`} to="/author/items/new/ecosystem">
@@ -649,7 +710,7 @@ function ItemAuthoringSurface(props: AuthoringSurfaceProps) {
           </Link>
         )}
       </div>
-      <AuthoringPanel title="Item Card" subtitle="Edit the player-facing identity exactly where it is previewed.">
+      <AuthoringPanel id="item-card" title="Item Card" subtitle="Edit the player-facing identity exactly where it is previewed." help="Use this panel for the item name, type, rarity, icon, tags, and description authors see in previews. It saves the item record, not shop inventory or reward placement." status={<AuthoringStatusChip tone={displayText(data.name) ? "success" : "warning"}>{displayText(data.name) ? "named" : "needs name"}</AuthoringStatusChip>}>
         <RpgItemPreview data={data} />
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
           <Fact label="Value" value={`${formatNumber(data.base_price)} ${itemCurrencyLabel(data)}`} />
@@ -673,10 +734,10 @@ function ItemAuthoringSurface(props: AuthoringSurfaceProps) {
         </div>
       </AuthoringPanel>
       <div className="space-y-4">
-        <AuthoringPanel title="Economy And Access" subtitle="Baseline value, currency and unlock gate.">
+        <AuthoringPanel id="economy-access" title="Economy And Access" subtitle="Baseline value, currency and unlock requirement." help="Use this when the item needs a default value or player-facing unlock condition. Shops and rewards can still override how the item is granted." status={<AuthoringStatusChip tone={displayText(data.requirements_id) ? "info" : "neutral"}>{displayText(data.requirements_id) ? "locked" : "open"}</AuthoringStatusChip>} collapsible collapsedSummary={`${formatNumber(data.base_price)} ${itemCurrencyLabel(data)}${displayText(data.requirements_id) ? ", unlock required" : ""}`} storageKey={`authoring:${displayText(data.id, "new")}:economy-access`}>
           <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
             <div className="font-semibold">{formatNumber(data.base_price)} {itemCurrencyLabel(data)}</div>
-            <div className="mt-1 text-xs opacity-80">This is the canonical value shops and rewards build from.</div>
+            <div className="mt-1 text-xs opacity-80">This is the default value shops and rewards build from.</div>
           </div>
           <InlineFieldGrid>
             <InlineField schema={schema} data={data} fieldKey="base_price" label="Base Price" kind="number" onChange={onChange} />
@@ -686,7 +747,7 @@ function ItemAuthoringSurface(props: AuthoringSurfaceProps) {
             <EditableRequirementBlock value={data.requirements_id} onChange={(value) => onChange({ ...data, requirements_id: value })} />
           </div>
         </AuthoringPanel>
-        <AuthoringPanel title="Mechanics" subtitle="Weapon, equipment and effect behavior.">
+        <AuthoringPanel id="mechanics" title="Mechanics" subtitle="Weapon, equipment and effect behavior." help="Use this panel for gameplay behavior attached directly to the item. It does not place the item in shops, quests, or encounters." status={<AuthoringStatusChip tone={effectCount > 0 ? "info" : "neutral"}>{effectCount} effects</AuthoringStatusChip>} collapsible collapsedSummary={`${displayText(data.type, "Item")} with ${effectCount} effect${effectCount === 1 ? "" : "s"}`} storageKey={`authoring:${displayText(data.id, "new")}:mechanics`}>
           {showEquipment ? (
             <div className="space-y-4">
               <SelectBadgeGroup label="Equipment Slot" value={data.equipment_slot} options={slotOptions} onChange={(value) => onChange({ ...data, equipment_slot: value })} />
@@ -710,7 +771,7 @@ function ItemAuthoringSurface(props: AuthoringSurfaceProps) {
             <ReferenceArrayPicker label="Effects" reference="effects" values={data.effects} onChange={(effects) => onChange({ ...data, effects })} />
           </div>
         </AuthoringPanel>
-        <AuthoringPanel title="Modifiers" subtitle="Build equipment-style stat and attribute bonuses without opening the generic form.">
+        <AuthoringPanel id="modifiers" title="Modifiers" subtitle="Build equipment-style stat and attribute bonuses without opening Advanced Details." help="Use this for bonuses that apply through equipped or carried item behavior. Add effects instead when the item should trigger an action or status." status={<AuthoringStatusChip tone={statCount + attributeCount > 0 ? "info" : "neutral"}>{statCount + attributeCount} modifiers</AuthoringStatusChip>} collapsible defaultCollapsed={statCount + attributeCount === 0} collapsedSummary={`${statCount} stat and ${attributeCount} attribute modifiers`} storageKey={`authoring:${displayText(data.id, "new")}:modifiers`}>
           <ModifierEditor
             title="Stat Modifiers"
             rows={getRows(data.stat_modifiers)}
@@ -758,7 +819,7 @@ function ShopAuthoringSurface(props: AuthoringSurfaceProps) {
   return (
     <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
       <div className="space-y-4">
-        <AuthoringPanel title="Merchant Front" subtitle="Edit the shop identity and world context.">
+        <AuthoringPanel id="merchant-front" title="Merchant Front" subtitle="Edit the shop identity and world context." help="Use this for the shop's name, description, shopkeeper, location, default currency, and unlock requirement. Inventory stock is edited separately." status={<AuthoringStatusChip tone={displayText(data.name) ? "success" : "warning"}>{displayText(data.name) ? "named" : "needs name"}</AuthoringStatusChip>}>
           <MerchantPreview data={data} />
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <Fact label="Inventory" value={`${inventoryRows.length} row${inventoryRows.length === 1 ? "" : "s"}`} />
@@ -780,7 +841,7 @@ function ShopAuthoringSurface(props: AuthoringSurfaceProps) {
             <EditableRequirementBlock value={data.requirements_id} onChange={(value) => onChange({ ...data, requirements_id: value })} />
           </div>
         </AuthoringPanel>
-        <AuthoringPanel title="Pricing Rules" subtitle="Shop-level rules apply before inventory row overrides.">
+        <AuthoringPanel id="pricing-rules" title="Pricing Rules" subtitle="Shop-level rules apply before inventory item overrides." help="Use this panel to set broad markup, discount, or override behavior for the whole shop. Individual inventory rows can still set their own price." collapsible collapsedSummary={shopPricingSummary(data)} storageKey={`authoring:${displayText(data.id, "new")}:pricing-rules`}>
           <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
             <div className="font-semibold">{shopPricingSummary(data)}</div>
             <div className="mt-1 text-xs opacity-80">Every inventory row starts with item base value, then applies this shop layer, then its own row layer.</div>
@@ -791,11 +852,11 @@ function ShopAuthoringSurface(props: AuthoringSurfaceProps) {
             <InlineField schema={schema} data={data} fieldKey="price_override" label="Global Override" kind="number" onChange={onChange} />
           </InlineFieldGrid>
           <div className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
-            Dynamic price rules are still available in Advanced Form until they receive a dedicated rule builder.
+            Dynamic price rules are still available in Advanced Details until they receive a dedicated rule builder.
           </div>
         </AuthoringPanel>
       </div>
-      <AuthoringPanel title="Inventory Counter" subtitle="Add, remove and tune stock directly in the shop surface.">
+      <AuthoringPanel id="inventory-counter" title="Inventory Counter" subtitle="Add, remove and tune stock directly in the shop surface." help="Use this for what the merchant sells and any stock-specific price or quantity rules. It saves inventory entries inside the shop record." status={<AuthoringStatusChip tone={inventoryRows.length > 0 ? "info" : "warning"}>{inventoryRows.length} items</AuthoringStatusChip>}>
         <ShopInventoryEditor
           rows={inventoryRows}
           items={items}
@@ -857,7 +918,7 @@ function CharacterAuthoringSurface(props: AuthoringSurfaceProps) {
   const homeLocation = controlIsRecord(characterContext?.home_location) ? characterContext.home_location : null;
   return (
     <div className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
-      <AuthoringPanel title="Character Sheet" subtitle="Core identity, portrait and table-facing notes.">
+      <AuthoringPanel id="character-sheet" title="Character Sheet" subtitle="Core identity, portrait and table-facing notes." help="Use this for the character identity authors and players recognize. Combat profiles, dialogue, and story beats are managed from their own workspaces." status={<AuthoringStatusChip tone={displayText(data.name) ? "success" : "warning"}>{displayText(data.name) ? "named" : "needs name"}</AuthoringStatusChip>}>
         <CharacterPreview data={data} />
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
           <Fact label="Level" value={formatNumber(data.level || 1)} />
@@ -876,7 +937,7 @@ function CharacterAuthoringSurface(props: AuthoringSurfaceProps) {
           <EditableTagList tags={data.tags} onChange={(tags) => onChange({ ...data, tags })} />
         </div>
       </AuthoringPanel>
-      <AuthoringPanel title="Role And World Links" subtitle="Class, faction and home location drive later combat and interaction views.">
+      <AuthoringPanel id="role-world-links" title="Role And World Links" subtitle="Class, faction and home location drive later combat and interaction views." help="Use this panel to connect the character to the systems that reference them. These links do not create dialogue, quests, or combat behavior by themselves." collapsible collapsedSummary={[data.class_id, data.faction_id, data.home_location_id].map((value) => displayText(value)).filter(Boolean).join(", ") || "No role links yet"} storageKey={`authoring:${displayText(data.id, "new")}:role-world-links`}>
         <CharacterStatStrip data={data} />
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
           <Fact label="Resolved Class" value={classTemplate ? rowLabel(classTemplate, displayText(data.class_id)) : "No class linked"} />
@@ -950,7 +1011,7 @@ function LocationAuthoringSurface(props: AuthoringSurfaceProps) {
   };
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-      <AuthoringPanel title="Location Card" subtitle="Edit the place description and visual identity.">
+      <AuthoringPanel id="location-card" title="Location Card" subtitle="Edit the place description and visual identity." help="Use this for what the place is called and how authors recognize it. Map position, travel routes, and encounter placement are edited in the other panels." status={<AuthoringStatusChip tone={displayText(data.name) ? "success" : "warning"}>{displayText(data.name) ? "named" : "needs name"}</AuthoringStatusChip>}>
         <LocationPreview data={data} />
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
           <Fact label="Region" value={displayText(data.region, "No region")} />
@@ -969,7 +1030,7 @@ function LocationAuthoringSurface(props: AuthoringSurfaceProps) {
         </div>
       </AuthoringPanel>
       <div className="space-y-4">
-        <AuthoringPanel title="Atlas Placement" subtitle="Click the map to update coordinates.">
+        <AuthoringPanel id="atlas-placement" title="Atlas Placement" subtitle="Click the map to update coordinates." help="Use this to position the location on the atlas view. It changes map coordinates only; it does not create travel routes." collapsible collapsedSummary={`x ${formatNumber((controlIsRecord(data.coordinates) ? data.coordinates : {}).x ?? 50)} / y ${formatNumber((controlIsRecord(data.coordinates) ? data.coordinates : {}).y ?? 50)}`} storageKey={`authoring:${displayText(data.id, "new")}:atlas-placement`}>
           <LocationCoordinateEditor data={data} onChange={onChange} />
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <TogglePill label="Safe Zone" active={Boolean(data.is_safe_zone)} onChange={(value) => onChange({ ...data, is_safe_zone: value })} />
@@ -977,7 +1038,7 @@ function LocationAuthoringSurface(props: AuthoringSurfaceProps) {
             <TogglePill label="Respawn" active={Boolean(data.has_respawn_point)} onChange={(value) => onChange({ ...data, has_respawn_point: value })} />
           </div>
         </AuthoringPanel>
-        <AuthoringPanel title="Place And Ecology" subtitle="Classify the place separately from biome, inheritance and encounter ecology.">
+        <AuthoringPanel id="place-ecology" title="Place And Ecology" subtitle="Classify the place separately from biome, inheritance and encounter ecology." help="Use this to describe what kind of place it is, what biome rules it follows, and which gameplay flags apply. Encounter tables and routes remain separate records." collapsible collapsedSummary={`${displayText(data.place_kind, "Unclassified")} / ${displayText(data.biome, "no biome")}`} storageKey={`authoring:${displayText(data.id, "new")}:place-ecology`}>
           <div className="space-y-4">
             <div data-authoring-field="location_type" className={focusedFieldClass("location_type", focusField)}>
               <SelectBadgeGroup label="Location Type" value={data.location_type} options={locationTypeOptions} onChange={setLocationType} />
@@ -1019,7 +1080,7 @@ function LocationAuthoringSurface(props: AuthoringSurfaceProps) {
             </div>
           </div>
         </AuthoringPanel>
-        <AuthoringPanel title="Routes" subtitle="Movement edges connected to this location. Routes are separate records, not embedded location fields.">
+        <AuthoringPanel id="routes" title="Routes" subtitle="Movement links connected to this location. Routes are separate records, not embedded location fields." help="Use this to inspect or create travel connections. Opening a route leaves this draft, so save first when you have unsaved location changes." status={<AuthoringStatusChip tone={isDirty ? "warning" : "neutral"}>{isDirty ? "save before route edits" : "ready"}</AuthoringStatusChip>}>
           <LocationRoutesPanel location={data} persisted={persisted} isDirty={isDirty} />
         </AuthoringPanel>
       </div>
@@ -1188,8 +1249,8 @@ function LocationRoutesPanel({ location, persisted, isDirty }: { location: Entry
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {otherId && <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={`/author/locations/${encodeURIComponent(otherId)}`} onClick={guardNavigation}>{other ? rowLabel(other, otherId) : "Open Location"}</Link>}
-                    <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={`/location-routes?selected=${encodeURIComponent(displayText(route.id))}`} onClick={guardNavigation}>Open Route</Link>
+                    {otherId && <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={`/author/locations/${encodeURIComponent(otherId)}`} onClick={guardNavigation}>{other ? `Edit ${rowLabel(other, otherId)}` : "Edit Connected Location"}</Link>}
+                    <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={`/location-routes?selected=${encodeURIComponent(displayText(route.id))}`} onClick={guardNavigation}>Inspect Route Record</Link>
                   </div>
                 </div>
                 <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -1315,20 +1376,6 @@ function ModifierEditor({
   );
 }
 
-function AuthoringPanel({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
-  return (
-    <section className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold uppercase text-slate-600 dark:text-slate-300">{title}</h2>
-          {subtitle && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>}
-        </div>
-      </div>
-      <div className="mt-3">{children}</div>
-    </section>
-  );
-}
-
 function AuthoringSaveBar({
   isDirty,
   saving,
@@ -1357,7 +1404,7 @@ function AuthoringSaveBar({
         </div>
         <div className="flex flex-wrap gap-2">
           <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} to={listPath}>
-            Advanced Editor
+            Inspect In Generic Editor
           </Link>
           <button type="button" className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!isDirty || saving} onClick={onReset}>
             Reset
@@ -1500,7 +1547,7 @@ function ProfileCard({
           </div>
         </div>
         {editorPath ? (
-          <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={editorPath}>Open</Link>
+          <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={editorPath}>Inspect Source Record</Link>
         ) : onCreate ? (
           <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.xs}`} onClick={onCreate}>{createLabel}</button>
         ) : (
@@ -1833,7 +1880,7 @@ function LocationAtlasPage() {
 
   return (
     <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="mx-auto max-w-7xl space-y-4">
+      <div className="w-full space-y-4">
         <section className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
