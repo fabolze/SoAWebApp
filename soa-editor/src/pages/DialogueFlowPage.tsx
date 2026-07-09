@@ -18,6 +18,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { EditableTagList, ReferenceChipPicker, displayText, isRecord } from "../authoringViews/controls";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
+import { AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
@@ -554,27 +555,35 @@ export default function DialogueFlowPage() {
     setSelectedBeatId("");
   };
 
-  if (loading) return <div className="p-6 text-sm text-slate-600">Loading Dialogue Scene Room...</div>;
+  if (loading) return <AuthoringPageShell><StatusNotice>Loading Dialogue Scene Room...</StatusNotice></AuthoringPageShell>;
 
-  return <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-    <div className="mx-auto max-w-[1900px] space-y-4">
-      <header className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+  return <AuthoringPageShell>
+    <div className="space-y-4">
+      <AuthoringPanel
+        title={label(packet.dialogue)}
+        subtitle={`${activeNodes.length} lines / ${packet.story_beats.length} beats / ${health.blockers.length} blockers / ${health.warnings.length} warnings / ${dirty ? "Unsaved" : "Saved"}`}
+        help="Use this workspace to write a dialogue graph, rehearse choices, connect story beats, and review the saved bundle. Editing here drafts dialogue lines and beat links until you preview and commit."
+        actions={<div className="flex flex-wrap gap-2"><Link className={inactive} to="/dialogues">Inspect In Generic Editor</Link><button className={inactive} disabled={!dirty || saving} onClick={reset}>Reset Draft</button><button className={active} disabled={saving || saveBlocked || !dirty} onClick={() => void preview()}>{saving ? "Reviewing..." : "Review Dialogue Bundle"}</button></div>}
+      >
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><div className="text-xs font-semibold uppercase text-violet-600">Dialogue Scene Room</div><h1 className="text-2xl font-semibold">{label(packet.dialogue)}</h1><div className="mt-1 text-xs text-slate-500">{activeNodes.length} lines / {packet.story_beats.length} beats / {health.blockers.length} blockers / {health.warnings.length} warnings / {dirty ? "Unsaved" : "Saved"}</div></div>
-          <div className="flex flex-wrap gap-2"><Link className={inactive} to="/dialogues">Advanced Dialogues</Link><button className={inactive} disabled={!dirty || saving} onClick={reset}>Reset</button><button className={active} disabled={saving || saveBlocked || !dirty} onClick={() => void preview()}>{saving ? "Reviewing..." : "Save Flow"}</button></div>
+          <div><div className="text-xs font-semibold uppercase text-violet-600">Dialogue Scene Room</div><h1 className="sr-only">{label(packet.dialogue)}</h1></div>
         </div>
         {notice && <Notice>{notice}</Notice>}
         {deletions.length > 0 && <div className="mt-3 flex items-center justify-between rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950"><span>{deletions.length} line(s) queued for deletion.</span><button className={inactive} onClick={() => setDeletions([])}>Undo Line Deletions</button></div>}
-      </header>
+      </AuthoringPanel>
 
       <SceneBrief packet={packet} onChange={updateDialogue} onRecipe={applyRecipe} />
       <BeatTrack packet={packet} selectedBeatId={selectedBeatId} setSelectedBeatId={(beatId) => { setSelectedBeatId(beatId); setTab("beat"); }} onCreate={createBeat} />
       {!isNew && currentId && <StoryPlacementPanel entityKind="dialogue" entityId={currentId} entityLabel={label(packet.dialogue)} entity={{ ...packet.dialogue, nodes: packet.nodes }} enableCrossEntityConsequenceActions />}
 
       <div className="grid gap-4 xl:grid-cols-[235px_minmax(760px,1fr)_390px]">
-        <Panel title="Dialogue Library">
+        <Panel
+          title="Dialogue Library"
+          subtitle="Switch scenes without leaving the dialogue authoring workspace."
+          help="Use this to move between saved dialogues. Dirty-state protection still applies through the app shell, so review or reset drafts before switching when needed."
+        >
           <Link className={`${active} mb-3 block text-center`} to="/author/dialogues/new">New Dialogue</Link>
-          <div className="max-h-[760px] space-y-1 overflow-y-auto">{dialogues.map((dialogue) => <Link key={text(dialogue.id)} to={`/author/dialogues/${encodeURIComponent(text(dialogue.id))}`} className={`block rounded border px-3 py-2 text-sm ${text(dialogue.id) === currentId ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-slate-200 dark:border-slate-800"}`}>{label(dialogue)}</Link>)}</div>
+          <div className="max-h-[760px] space-y-1 overflow-y-auto">{dialogues.map((dialogue) => <Link key={text(dialogue.id)} to={`/author/dialogues/${encodeURIComponent(text(dialogue.id))}`} className={`block rounded border px-3 py-2 text-sm ${text(dialogue.id) === currentId ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-slate-200 dark:border-slate-800"}`}>{label(dialogue)}</Link>)}{!dialogues.length && <Empty title="No saved dialogues loaded.">Create a new dialogue or retry after the dialogue list is available.</Empty>}</div>
         </Panel>
 
         <section className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -600,7 +609,11 @@ export default function DialogueFlowPage() {
           {view === "impact" && <ImpactView packet={packet} selectedNodeId={selectedNodeId || selectedChoice?.nodeId || ""} />}
         </section>
 
-        <Panel title="Context Dock">
+        <Panel
+          title="Context Dock"
+          subtitle="Edit the selected line, story beat, health issue, or scene context."
+          help="The dock changes with the selected tab. Edit works on the selected node or choice, Beat edits story milestones, Health explains blockers and warnings, and Context shows linked world records."
+        >
           <div className="mb-3 flex flex-wrap gap-1">{(["edit", "beat", "health", "context"] as InspectorTab[]).map((item) => <button key={item} className={tab === item ? active : inactive} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>
           {tab === "edit" && selectedChoice && selectedChoiceRow ? <ChoiceEditor choice={selectedChoiceRow} nodes={packet.nodes} deletions={deletions} onChange={(patch) => updateChoice(selectedChoice.nodeId, selectedChoice.index, patch)} onRemove={() => { const node = packet.nodes.find((entry) => text(entry.id) === selectedChoice.nodeId); updateNode(selectedChoice.nodeId, { choices: rows(node?.choices).filter((_, index) => index !== selectedChoice.index) }); setSelectedChoice(null); }} />
             : tab === "edit" && selectedNode ? <NodeEditor node={selectedNode} packet={packet} groupedBeatId={groups[text(selectedNode.id)] || ""} selectedBeatId={selectedBeatId} onChange={(patch) => updateNode(text(selectedNode.id), patch)} onGroup={(beatId) => { const next = { ...groups, [text(selectedNode.id)]: beatId }; if (!beatId) delete next[text(selectedNode.id)]; setGroups(next); localStorage.setItem(groupKey(currentId), JSON.stringify(next)); }} onDelete={() => selectedNode.__new ? setPacket((current) => ({ ...current, nodes: current.nodes.filter((entry) => text(entry.id) !== text(selectedNode.id)) })) : setDeletions((current) => [...new Set([...current, text(selectedNode.id)])])} />
@@ -619,23 +632,23 @@ export default function DialogueFlowPage() {
               }}
             />
           </div>}
-          {tab === "beat" && selectedBeat ? <BeatEditor beat={selectedBeat} packet={packet} coverage={packet.beat_coverage[text(selectedBeat.id)]} onChange={(patch) => updateBeat(text(selectedBeat.id), patch)} onUnlink={() => unlinkBeat(selectedBeat)} /> : tab === "beat" ? <Empty>Select or create a story beat.</Empty> : null}
+          {tab === "beat" && selectedBeat ? <BeatEditor beat={selectedBeat} packet={packet} coverage={packet.beat_coverage[text(selectedBeat.id)]} onChange={(patch) => updateBeat(text(selectedBeat.id), patch)} onUnlink={() => unlinkBeat(selectedBeat)} /> : tab === "beat" ? <Empty title="No story beat selected.">Select an existing beat or add one from the Story Beat Track to edit its milestone details.</Empty> : null}
           {tab === "health" && <HealthPanel health={health} onSelect={(nodeId) => { setSelectedNodeId(nodeId); setView("flow"); }} />}
           {tab === "context" && <ContextPanel packet={packet} />}
         </Panel>
       </div>
     </div>
     {review && <BundleReview result={review} title="Dialogue Scene Bundle Review" description="Dialogue, lines, and story beats will commit atomically." variant="modal" commitLabel="Commit Bundle" saving={saving} error={reviewError} warningAcknowledgement="required" onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={(acceptedWarningIds) => void commit(acceptedWarningIds)} />}
-  </div>;
+  </AuthoringPageShell>;
 }
 
 function SceneBrief({ packet, onChange, onRecipe }: { packet: DialoguePacket; onChange: (patch: EntryRecord) => void; onRecipe: (recipe: string) => void }) {
   const participants = sceneParticipants(packet);
   const owner = packet.characters.find((entry) => text(entry.id) === text(packet.dialogue.character_id)) || packet.context.character;
-  return <Panel title="Scene Brief" subtitle="Why this conversation happens, who is present, and where it sits in the world.">
+  return <Panel title="Scene Brief" subtitle="Why this conversation happens, who is present, and where it sits in the world." help="Use this before writing lines. It sets the dialogue title, owner, location, entry requirement, and optional starter graph. Recipes only stage a draft and never save automatically.">
     <div className="grid gap-3 lg:grid-cols-[1.3fr_1fr_1fr]">
       <div><Field label="Scene Title" value={packet.dialogue.title} onChange={(title) => onChange({ title, slug: text(packet.dialogue.slug) || generateSlug(title) })} /><div className="mt-2"><Field label="Scene Direction" value={packet.dialogue.description} textarea onChange={(description) => onChange({ description })} /></div></div>
-      <div className="rounded border border-slate-200 p-3 text-sm dark:border-slate-800"><Caption>Scene Anchors</Caption><div>Owner: {owner ? label(owner) : "Unassigned"}</div><div>Location: {packet.context.location ? label(packet.context.location) : "Unassigned"}</div><div>Entry gate: {text(packet.dialogue.requirements_id, "None")}</div><div className="mt-2 flex flex-wrap gap-1">{participants.map((entry) => <Chip key={text(entry.id)}>{label(entry)}</Chip>)}</div></div>
+      <div className="rounded border border-slate-200 p-3 text-sm dark:border-slate-800"><Caption>Scene Anchors</Caption><div>Owner: {owner ? label(owner) : "Unassigned"}</div><div>Location: {packet.context.location ? label(packet.context.location) : "Unassigned"}</div><div>Entry requirement: {text(packet.dialogue.requirements_id, "No entry requirement")}</div><div className="mt-2 flex flex-wrap gap-1">{participants.map((entry) => <Chip key={text(entry.id)}>{label(entry)}</Chip>)}{!participants.length && <span className="text-xs text-slate-500">No participants linked yet.</span>}</div></div>
       <div><Caption>Starter Recipes</Caption><div className="flex flex-wrap gap-1">{["Greeting", "Quest Briefing", "Negotiation", "Post-Encounter Reaction"].map((recipe) => <button key={recipe} className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => onRecipe(recipe)}>{recipe}</button>)}</div><p className="mt-2 text-xs text-slate-500">Recipes stage a complete local graph and never save automatically.</p></div>
     </div>
   </Panel>;
@@ -645,9 +658,9 @@ function BeatTrack({ packet, selectedBeatId, setSelectedBeatId, onCreate }: { pa
   const [owner, setOwner] = useState("");
   const participants = sceneParticipants(packet);
   const lanes = participants.map((participant) => ({ participant, beats: packet.story_beats.filter((beat) => text(beat.character_id) === text(participant.id)).sort((a, b) => Number(a.sort_order) - Number(b.sort_order)) }));
-  return <Panel title="Story Beat Track" subtitle="Canonical character milestones linked to this dialogue. Node grouping is local to this room.">
+  return <Panel title="Story Beat Track" subtitle="Character milestones linked to this dialogue. Node grouping is local to this room." help="Use story beats to describe what changes for a participant across the conversation. Grouping dialogue lines to a beat is local authoring context until the bundle is reviewed and committed.">
     <div className="mb-3 flex flex-wrap items-end gap-2"><label className="text-xs font-semibold uppercase text-slate-500">Beat Owner<select aria-label="Beat Owner" className={`${inputClass} mt-1 normal-case`} value={owner} onChange={(event) => setOwner(event.target.value)}><option value="">Choose participant</option>{participants.map((entry) => <option key={text(entry.id)} value={text(entry.id)}>{label(entry)}</option>)}</select></label><button className={active} disabled={!owner} onClick={() => onCreate(owner)}>Add Story Beat</button></div>
-    <div className="space-y-2">{lanes.map(({ participant, beats }) => <div key={text(participant.id)} className="grid gap-2 rounded border border-slate-200 p-2 dark:border-slate-800 md:grid-cols-[150px_1fr]"><div className="text-xs font-semibold">{label(participant)}<div className="font-normal text-slate-500">{beats.length} dialogue beats</div></div><div className="flex gap-2 overflow-x-auto">{beats.map((beat) => <button key={text(beat.id)} className={`min-w-48 rounded border p-2 text-left text-xs ${selectedBeatId === text(beat.id) ? "border-violet-600 bg-violet-50 ring-2 ring-violet-200 dark:bg-violet-950" : "border-slate-300 dark:border-slate-700"}`} onClick={() => setSelectedBeatId(text(beat.id))}><div className="text-[10px] uppercase text-violet-600">{text(beat.beat_type)} / Arc #{Number(beat.sort_order) + 1}</div><div className="mt-1 font-semibold">{label(beat)}</div><div className="mt-1 text-slate-500">{strings(beat.required_flags).length + strings(beat.forbidden_flags).length} inputs → {strings(beat.expected_output_flags).length} outputs</div></button>)}{beats.length === 0 && <Empty>No linked beats.</Empty>}</div></div>)}</div>
+    <div className="space-y-2">{lanes.map(({ participant, beats }) => <div key={text(participant.id)} className="grid gap-2 rounded border border-slate-200 p-2 dark:border-slate-800 md:grid-cols-[150px_1fr]"><div className="text-xs font-semibold">{label(participant)}<div className="font-normal text-slate-500">{beats.length} dialogue beats</div></div><div className="flex gap-2 overflow-x-auto">{beats.map((beat) => <button key={text(beat.id)} className={`min-w-48 rounded border p-2 text-left text-xs ${selectedBeatId === text(beat.id) ? "border-violet-600 bg-violet-50 ring-2 ring-violet-200 dark:bg-violet-950" : "border-slate-300 dark:border-slate-700"}`} onClick={() => setSelectedBeatId(text(beat.id))}><div className="text-[10px] uppercase text-violet-600">{text(beat.beat_type)} / Arc #{Number(beat.sort_order) + 1}</div><div className="mt-1 font-semibold">{label(beat)}</div><div className="mt-1 text-slate-500">{strings(beat.required_flags).length + strings(beat.forbidden_flags).length} inputs → {strings(beat.expected_output_flags).length} outputs</div></button>)}{beats.length === 0 && <Empty title="No beats for this participant yet.">Add a story beat when this conversation should change what the character knows, wants, or does next.</Empty>}</div></div>)}{!lanes.length && <Empty title="No participants available.">Assign an owner, speaker, or participant before adding character story beats.</Empty>}</div>
   </Panel>;
 }
 
@@ -686,10 +699,10 @@ function Rehearsal({ packet, health, groups, selectedBeatId, onBeat }: { packet:
     const beatId = groups[text(current.id)] || "";
     if (beatId && beatId !== selectedBeatId) onBeat(beatId);
   }, [current, dialogueGate.available, groups, nodeGate.available, onBeat, selectedBeatId]);
-  if (!current) return <div className="p-6"><Empty>Create a line before rehearsing.</Empty></div>;
+  if (!current) return <div className="p-6"><Empty title="No dialogue line to rehearse.">Create a line or apply a starter recipe before using rehearsal.</Empty></div>;
   return <div className="grid min-h-[760px] gap-4 bg-slate-50 p-4 dark:bg-slate-950 lg:grid-cols-[1fr_330px]">
     <div className="flex flex-col justify-center"><div className="mx-auto w-full max-w-3xl rounded-xl border border-slate-300 bg-white p-6 shadow-lg dark:border-slate-700 dark:bg-slate-900"><div className="text-xs font-semibold uppercase text-violet-600">{speakerLabel(current, packet.characters)}</div>{!dialogueGate.available ? <Issue tone="amber">Dialogue locked: {dialogueGate.reason}</Issue> : !nodeGate.available ? <Issue tone="amber">Line locked: {nodeGate.reason}</Issue> : <><div className="mt-3 whitespace-pre-wrap text-lg">{text(current.text)}</div><div className="mt-6 grid gap-2">{rows(current.choices).map((choice, index) => { const state = requirementState(choice.requirements_id, packet.requirements, flags, reputation); return <button key={index} disabled={!state.available} className="rounded border border-blue-300 p-3 text-left text-sm hover:bg-blue-50 disabled:opacity-40 dark:hover:bg-blue-950" onClick={() => { setTranscript((value) => [...value, { speaker: speakerLabel(current, packet.characters), line: current.text, choice: text(choice.choice_text, "Continue") }]); setFlags((value) => new Set([...value, ...strings(choice.set_flags)])); setCurrentId(text(choice.next_node_id)); }}>{text(choice.choice_text, "Continue")}{!state.available && <span className="block text-xs text-amber-700">{state.reason}</span>}</button>; })}{rows(current.choices).length === 0 && <div className="rounded bg-slate-100 p-3 text-sm dark:bg-slate-800">End of conversation.</div>}</div></>}</div></div>
-    <aside className="space-y-3"><Panel title="Rehearsal Controls"><div className="flex gap-2"><button className={inactive} onClick={restart}>Restart</button><button className={inactive} onClick={() => setSnapshots((value) => [...value, transcript])}>Snapshot Path</button></div><details className="mt-3"><summary className="cursor-pointer text-sm font-semibold">Temporary Player State</summary><div className="mt-2"><FlagPicker value={[...flags]} options={packet.flags} onChange={(next) => setFlags(new Set(next))} />{packet.factions.map((faction) => <label key={text(faction.id)} className="mt-2 block text-xs">{label(faction)}<input className={inputClass} type="number" value={reputation[text(faction.id)] || 0} onChange={(event) => setReputation((value) => ({ ...value, [text(faction.id)]: Number(event.target.value) }))} /></label>)}</div></details></Panel><Panel title="Transcript">{transcript.map((row, index) => <div key={index} className="mb-2 rounded border border-slate-200 p-2 text-xs dark:border-slate-800"><b>{text(row.speaker)}</b>: {text(row.line)}<div className="mt-1 text-blue-700">→ {text(row.choice)}</div></div>)}{!transcript.length && <Empty>Choices appear here as you rehearse.</Empty>}</Panel>{snapshots.length > 0 && <Panel title="Path Comparison">{snapshots.map((path, index) => <div key={index} className="mb-2 rounded border p-2 text-xs">Path {index + 1}: {path.map((row) => text(row.choice)).join(" → ") || "Start"}</div>)}</Panel>}</aside>
+    <aside className="space-y-3"><Panel title="Rehearsal Controls" help="Rehearsal uses temporary player state only. It does not save flags or reputation; it just shows which requirements would allow each line or choice."><div className="flex gap-2"><button className={inactive} onClick={restart}>Restart</button><button className={inactive} onClick={() => setSnapshots((value) => [...value, transcript])}>Snapshot Path</button></div><details className="mt-3"><summary className="cursor-pointer text-sm font-semibold">Temporary Player State</summary><div className="mt-2"><FlagPicker value={[...flags]} options={packet.flags} onChange={(next) => setFlags(new Set(next))} />{packet.factions.map((faction) => <label key={text(faction.id)} className="mt-2 block text-xs">{label(faction)}<input className={inputClass} type="number" value={reputation[text(faction.id)] || 0} onChange={(event) => setReputation((value) => ({ ...value, [text(faction.id)]: Number(event.target.value) }))} /></label>)}</div></details></Panel><Panel title="Transcript">{transcript.map((row, index) => <div key={index} className="mb-2 rounded border border-slate-200 p-2 text-xs dark:border-slate-800"><b>{text(row.speaker)}</b>: {text(row.line)}<div className="mt-1 text-blue-700">→ {text(row.choice)}</div></div>)}{!transcript.length && <Empty title="No rehearsal choices yet.">Choices appear here as you play through the scene.</Empty>}</Panel>{snapshots.length > 0 && <Panel title="Path Comparison">{snapshots.map((path, index) => <div key={index} className="mb-2 rounded border p-2 text-xs">Path {index + 1}: {path.map((row) => text(row.choice)).join(" → ") || "Start"}</div>)}</Panel>}</aside>
   </div>;
 }
 
@@ -697,7 +710,7 @@ function ImpactView({ packet, selectedNodeId }: { packet: DialoguePacket; select
   const source = selectedNodeId ? `dialogue_nodes:${selectedNodeId}` : "";
   const flags = source ? packet.world_echo.produced_flags.filter((entry) => text(entry.source_id) === source) : packet.world_echo.produced_flags;
   const consumers = source ? packet.world_echo.consumers.filter((entry) => text(entry.source_id) === source) : packet.world_echo.consumers;
-  return <div className="min-h-[760px] bg-slate-50 p-5 dark:bg-slate-950"><div className="mx-auto max-w-5xl"><h2 className="text-xl font-semibold">World Echo</h2><p className="mt-1 text-sm text-slate-500">{selectedNodeId ? "Impact produced by the selected line and its choices." : "All downstream impact produced by this conversation."}</p><div className="mt-5 grid gap-4 md:grid-cols-2"><Panel title="Produced State">{flags.map((entry) => <Link key={`${text(entry.id)}:${text(entry.path)}`} to={text(entry.route)} className="mb-2 block rounded border border-fuchsia-300 bg-fuchsia-50 p-3 text-sm dark:bg-fuchsia-950"><div className="font-semibold">{text(entry.label, text(entry.entry_id))}</div><div className="text-xs text-slate-500">{text(entry.path)}</div></Link>)}{!flags.length && <Empty>No flags produced from this focus.</Empty>}</Panel><Panel title="Downstream World">{consumers.map((entry) => <Link key={`${text(entry.id)}:${text(entry.path)}`} to={text(entry.route)} className="mb-2 block rounded border border-violet-300 bg-violet-50 p-3 text-sm dark:bg-violet-950"><div className="text-[10px] uppercase text-violet-600">{text(entry.kind)}</div><div className="font-semibold">{text(entry.label, text(entry.entry_id))}</div><div className="text-xs text-slate-500">Unlocked through {text(entry.path)}</div></Link>)}{!consumers.length && <Empty>No known downstream consumers from this focus.</Empty>}</Panel></div></div></div>;
+  return <div className="min-h-[760px] bg-slate-50 p-5 dark:bg-slate-950"><div className="mx-auto max-w-5xl"><h2 className="text-xl font-semibold">World Echo</h2><p className="mt-1 text-sm text-slate-500">{selectedNodeId ? "Impact produced by the selected line and its choices." : "All downstream impact produced by this conversation."}</p><div className="mt-5 grid gap-4 md:grid-cols-2"><Panel title="Produced State" help="Flags shown here are produced by the selected line or by the whole conversation if nothing is selected.">{flags.map((entry) => <Link key={`${text(entry.id)}:${text(entry.path)}`} to={text(entry.route)} className="mb-2 block rounded border border-fuchsia-300 bg-fuchsia-50 p-3 text-sm dark:bg-fuchsia-950"><div className="font-semibold">{text(entry.label, text(entry.entry_id))}</div><div className="text-xs text-slate-500">{text(entry.path)}</div></Link>)}{!flags.length && <Empty title="No produced state from this focus.">Add line or choice flags when this conversation should change player state.</Empty>}</Panel><Panel title="Downstream World" help="These records depend on state produced by the dialogue. Use this to check whether a line unlocks later content.">{consumers.map((entry) => <Link key={`${text(entry.id)}:${text(entry.path)}`} to={text(entry.route)} className="mb-2 block rounded border border-violet-300 bg-violet-50 p-3 text-sm dark:bg-violet-950"><div className="text-[10px] uppercase text-violet-600">{text(entry.kind)}</div><div className="font-semibold">{text(entry.label, text(entry.entry_id))}</div><div className="text-xs text-slate-500">Unlocked through {text(entry.path)}</div></Link>)}{!consumers.length && <Empty title="No known downstream consumers from this focus.">That is fine for flavor dialogue. Add requirements elsewhere when this conversation should unlock future content.</Empty>}</Panel></div></div></div>;
 }
 
 function HealthPanel({ health, onSelect }: { health: Health; onSelect: (id: string) => void }) {
@@ -709,7 +722,7 @@ function ContextPanel({ packet }: { packet: DialoguePacket }) {
 }
 
 function ContextList({ title, entries, route }: { title: string; entries: EntryRecord[]; route: (entry: EntryRecord) => string }) {
-  return <div><Caption>{title}</Caption>{entries.map((entry) => <Link key={text(entry.id)} className="mb-1 block rounded border border-slate-200 p-2 text-sm text-blue-700 dark:border-slate-800" to={route(entry)}>{label(entry)}</Link>)}{!entries.length && <Empty>None.</Empty>}</div>;
+  return <div><Caption>{title}</Caption>{entries.map((entry) => <Link key={text(entry.id)} className="mb-1 block rounded border border-slate-200 p-2 text-sm text-blue-700 dark:border-slate-800" to={route(entry)}>{label(entry)}</Link>)}{!entries.length && <Empty title={`No ${title.toLowerCase()} linked.`}>Link related records when the conversation needs more world context.</Empty>}</div>;
 }
 
 function FlagPicker({ value, options, label: pickerLabel = "Flags Set", onChange }: { value: unknown; options: EntryRecord[]; label?: string; onChange: (flags: string[]) => void }) {
@@ -738,9 +751,9 @@ function FlagPicker({ value, options, label: pickerLabel = "Flags Set", onChange
 function Field({ label: fieldLabel, value, textarea, onChange }: { label: string; value: unknown; textarea?: boolean; onChange: (value: string) => void }) {
   return <label className="block text-xs font-semibold uppercase text-slate-500">{fieldLabel}{textarea ? <textarea aria-label={fieldLabel} className={`${inputClass} mt-1 min-h-24 normal-case`} value={value == null ? "" : String(value)} onChange={(event) => onChange(event.target.value)} /> : <input aria-label={fieldLabel} className={`${inputClass} mt-1 normal-case`} value={value == null ? "" : String(value)} onChange={(event) => onChange(event.target.value)} />}</label>;
 }
-function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) { return <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"><h2 className="text-sm font-semibold">{title}</h2>{subtitle && <p className="mb-3 mt-1 text-xs text-slate-500">{subtitle}</p>}{!subtitle && <div className="mb-3" />}{children}</section>; }
-function Notice({ children }: { children: ReactNode }) { return <div className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950">{children}</div>; }
-function Empty({ children }: { children: ReactNode }) { return <div className="text-xs text-slate-500">{children}</div>; }
+function Panel({ title, subtitle, help, children }: { title: string; subtitle?: string; help?: ReactNode; children: ReactNode }) { return <AuthoringPanel title={title} subtitle={subtitle} help={help}>{children}</AuthoringPanel>; }
+function Notice({ children }: { children: ReactNode }) { return <div className="mt-3"><StatusNotice>{children}</StatusNotice></div>; }
+function Empty({ title, children }: { title?: ReactNode; children: ReactNode }) { return <EmptyState variant="compact" title={title}>{children}</EmptyState>; }
 function Caption({ children }: { children: ReactNode }) { return <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{children}</div>; }
 function Chip({ children }: { children: ReactNode }) { return <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-semibold text-violet-800 dark:bg-violet-950 dark:text-violet-200">{children}</span>; }
 function Issue({ children, tone }: { children: ReactNode; tone: "red" | "amber" | "green" }) { const style = tone === "red" ? "border-red-300 bg-red-50 text-red-800 dark:bg-red-950" : tone === "amber" ? "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950" : "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950"; return <div className={`mb-2 rounded border p-2 text-xs ${style}`}>{children}</div>; }

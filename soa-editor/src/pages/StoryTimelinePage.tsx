@@ -9,7 +9,7 @@ import {
   type DragEndEvent,
   type CollisionDetection,
 } from "@dnd-kit/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   deriveEntityOccurrences,
@@ -25,11 +25,12 @@ import {
   type TrackKind,
 } from "../authoring/storyPlacement";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
+import { AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, EmptyState, StatusNotice } from "../components/authoringUi";
 import { apiFetch } from "../lib/api";
+import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import type { EntryRecord } from "../types/editorQol";
 import { generateSlug, generateUlid } from "../utils/generateId";
 
-const panelClass = "rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900";
 const inputClass = "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950";
 const PLAN_STORAGE_KEY = "soa.story-timeline.local-plan.v1";
 const preferBeatCollision: CollisionDetection = (args) => {
@@ -383,12 +384,12 @@ export default function StoryTimelinePage() {
     localBeats: plan.beats,
   }), [catalogsByKind, eventChains, packet, placements, plan.beats]);
 
-  if (error) return <div className="p-5 text-red-700">{error}</div>;
-  if (!packet) return <div className="p-5 text-sm text-slate-500">Loading Story Timeline...</div>;
+  if (error) return <AuthoringPageShell><StatusNotice tone="error">{error}</StatusNotice></AuthoringPageShell>;
+  if (!packet) return <AuthoringPageShell><StatusNotice>Loading Story Timeline...</StatusNotice></AuthoringPageShell>;
 
   return (
     <DndContext sensors={sensors} collisionDetection={preferBeatCollision} onDragEnd={onDragEnd}>
-      <div className="space-y-4 p-5">
+      <AuthoringPageShell>
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-wide text-fuchsia-700 dark:text-fuchsia-300">Canonical Story Data + Deliberate Local Planning</div>
@@ -399,14 +400,28 @@ export default function StoryTimelinePage() {
             <Metric value={placements.length} label="canonical placements" />
             <Metric value={plan.beats.length} label="local planning beats" />
             <Metric value={warnings.length} label="coherence warnings" warning={warnings.length > 0} />
-            <button type="button" className="rounded-md border border-fuchsia-400 bg-fuchsia-600 px-3 py-2 font-semibold text-white disabled:opacity-40" disabled={!plan.beats.length || saving} onClick={() => submitPlan(false)}>Review & Commit Plan</button>
-            <button type="button" className="rounded-md border border-red-300 px-3 py-2 font-semibold text-red-700 disabled:opacity-40" disabled={!plan.beats.length} onClick={() => { setPlan({ beats: [] }); setSelection(null); }}>Clear Local Plan</button>
+            <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={!plan.beats.length || saving} onClick={() => submitPlan(false)}>Review Plan</button>
+            <button type="button" className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} disabled={!plan.beats.length} onClick={() => { setPlan({ beats: [] }); setSelection(null); }}>Clear Local Plan</button>
           </div>
         </header>
 
         {(review || mutationError) && <BundleReview result={review} title="Canonical Commit Review" description="Preview validates the complete beat and typed-link bundle without writing it." variant="inline" commitLabel="Commit Plan" cancelLabel="Close Review" saving={saving} error={mutationError} testId="story-timeline-plan-review" onCommit={() => void submitPlan(true)} onCancel={() => { setReview(null); setPreviewBundle(null); setMutationError(""); }} />}
 
-        <section className={`${panelClass} p-3`}>
+        <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+          <AuthoringSectionNav sections={[
+            { id: "timeline-filters", label: "Filters", summary: "Search, focus, and lenses" },
+            { id: "timeline-navigator", label: "Navigator", summary: "Timelines, arcs, and entities" },
+            { id: "timeline-library", label: "Library", summary: "Saved content to place" },
+            { id: "story-timeline-canvas", label: "Canvas", summary: "Timeline bands and lenses" },
+            { id: "timeline-context", label: "Context", summary: "Selection details and warnings" },
+          ]} />
+          <div className="min-w-0 space-y-4">
+        <AuthoringPanel
+          id="timeline-filters"
+          title="Timeline Lenses And Filters"
+          subtitle="Narrow the board without changing saved story order."
+          help="Use these controls to focus the canvas by text, timeline, arc, or lens. Filters only change what is visible on this page; they do not save anything."
+        >
           <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px]">
             <label className="block text-xs font-semibold uppercase text-slate-500">Find Content<input className={`${inputClass} mt-1`} value={search} placeholder="Search the board and library..." onChange={(event) => setSearch(event.target.value)} /></label>
             <label className="block text-xs font-semibold uppercase text-slate-500">Timeline Focus<select className={`${inputClass} mt-1`} value={timelineFocus} onChange={(event) => { setTimelineFocus(event.target.value); setArcFocus(""); }}><option value="">All timelines</option>{timelines.map((timeline) => <option key={text(timeline.id)} value={text(timeline.id)}>{label(timeline)}</option>)}<option value="__unassigned">Unassigned story space</option></select></label>
@@ -415,7 +430,7 @@ export default function StoryTimelinePage() {
           <div className="mt-3 flex flex-wrap gap-2">
             {(["story", "cast", "locations", "quests", "runtime", "state", "issues"] as Lens[]).map((value) => <button key={value} type="button" className={`rounded-full border px-3 py-1 text-xs font-semibold ${lens === value ? "border-fuchsia-600 bg-fuchsia-600 text-white" : "border-slate-300 dark:border-slate-700"}`} onClick={() => setLens(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}
           </div>
-        </section>
+        </AuthoringPanel>
 
         <TimelineNavigator
           timelines={timelines}
@@ -438,9 +453,15 @@ export default function StoryTimelinePage() {
 
         <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_330px]">
           <aside className="space-y-4">
-            <section className={`${panelClass} p-3`}>
-              <h2 className="font-semibold">Content Library</h2>
-              <p className="mt-1 text-xs text-slate-500">Drag content onto an arc lane to create a local beat, or onto an existing local beat to attach it.</p>
+            <AuthoringPanel
+              id="timeline-library"
+              title="Content Library"
+              subtitle="Drag content onto an arc lane to sketch a local beat, or onto an existing local beat to attach it."
+              help="Library cards reference saved records. Dragging them creates or updates browser-local planning beats until you review and commit the plan."
+              collapsible
+              storageKey="soa.story-timeline.content-library.collapsed"
+              collapsedSummary={`${libraryRows.length} visible ${libraryKind.replace(/_/g, " ")}`}
+            >
               <select className={`${inputClass} mt-3`} value={libraryKind} onChange={(event) => setLibraryKind(event.target.value)}>
                 {["locations", "characters", "quests", "events", "dialogues", "encounters", "lore_entries", "items", "factions"].map((kind) => <option key={kind} value={kind}>{kind.replace(/_/g, " ")}</option>)}
               </select>
@@ -450,9 +471,9 @@ export default function StoryTimelinePage() {
                   const attachment = { kind, entry_id: text(entry.id), label: label(entry), role: attachmentRole(kind) };
                   return <LibraryCard key={text(entry.id)} kind={kind} entry={entry} onSelect={() => setSelection({ kind: "library", id: text(entry.id), libraryKind })} onAttach={selectedLocalBeat ? () => attachToBeat(selectedLocalBeat.id, attachment) : undefined} />;
                 })}
-                {!libraryRows.length && <p className="rounded-md border border-dashed border-slate-300 p-3 text-xs text-slate-500">No matching {libraryKind.replace(/_/g, " ")}.</p>}
+                {!libraryRows.length && <EmptyState variant="compact" title={`No matching ${libraryKind.replace(/_/g, " ")}.`}>Adjust the search text or switch library type to find content to place on the board.</EmptyState>}
               </div>
-            </section>
+            </AuthoringPanel>
             <UnplacedSummary unplaced={record(packet.unplaced)} />
           </aside>
 
@@ -465,7 +486,7 @@ export default function StoryTimelinePage() {
             {lens === "runtime" && <EventChainSection events={eventChains} query={query} onSelect={(id) => setSelection({ kind: "event", id })} />}
             {lens === "state" && <RelationshipSection title="State & Dependency Context" relationships={dependencyEdges} />}
             {lens === "issues" && <IssueSection warnings={warnings} dependencyHealth={record(record(packet.health).dependency)} />}
-            {!timelines.length && !arcs.length && placements.length === 0 && plan.beats.length === 0 && <section className={`${panelClass} p-8 text-center`}><h2 className="font-semibold">The story space is empty</h2><p className="mt-2 text-sm text-slate-500">Create timelines and story arcs, or drag library content into Unassigned Story Space to begin a browser-local plan.</p></section>}
+            {!timelines.length && !arcs.length && placements.length === 0 && plan.beats.length === 0 && <EmptyState title="The story space is empty." className="text-center">Create timelines and story arcs, or drag library content into Unassigned Story Space to begin a browser-local plan.</EmptyState>}
           </main>
 
           <ContextDock
@@ -482,7 +503,9 @@ export default function StoryTimelinePage() {
             onRemoveAttachment={(beatId, attachment) => updateBeat(beatId, { attachments: selectedLocalBeat?.attachments.filter((row) => row !== attachment) || [] })}
           />
         </div>
-      </div>
+          </div>
+        </div>
+      </AuthoringPageShell>
     </DndContext>
   );
 }
@@ -544,12 +567,14 @@ function TimelineNavigator({ timelines, arcs, placements, localBeats, entityOccu
     }
   }, [focusedEntityId, trackGroups]);
 
-  return <section className={`${panelClass} p-3`} data-testid="story-navigator">
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 className="font-semibold">Story Navigator</h2>
-        <p className="text-xs text-slate-500">Use this as the wide overview: jump by arc, then inspect repeated entity appearances and state changes without scrolling through every card.</p>
-      </div>
+  return <AuthoringPanel
+    id="timeline-navigator"
+    title="Story Navigator"
+    subtitle="Jump by arc, then inspect repeated entity appearances and state changes without scrolling through every card."
+    help="Use this as the wide overview. Timeline and arc buttons change the visible board; entity occurrence buttons focus the first matching appearance for the selected track."
+    testId="story-navigator"
+  >
+    <div className="flex flex-wrap items-start justify-end gap-3">
       <button type="button" className="rounded border px-3 py-1 text-xs font-semibold" onClick={() => { onFocus(""); onEntityFocus(""); }}>Show All</button>
     </div>
     <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
@@ -568,11 +593,11 @@ function TimelineNavigator({ timelines, arcs, placements, localBeats, entityOccu
                   <span className="mt-1 block text-slate-500">{stats.canonical} canonical / {stats.local} local / {stats.tracked} {trackKind}s</span>
                 </button>;
               })}
-              {!timelineArcs.length && <span className="rounded border border-dashed px-3 py-2 text-xs text-slate-400">No arcs</span>}
+              {!timelineArcs.length && <EmptyState variant="compact" title="No arcs in this timeline.">Create an arc or use the unassigned story space for local planning.</EmptyState>}
             </div>
           </div>;
         })}
-        {!timelines.length && <p className="rounded border border-dashed p-3 text-xs text-slate-500">No timelines yet. Use the unassigned lane or create a timeline first.</p>}
+        {!timelines.length && <EmptyState variant="compact" title="No timelines yet.">Use the unassigned lane for local planning, or create a timeline before committing ordered story beats.</EmptyState>}
       </div>
       <div className="rounded-lg border border-slate-200 p-2 dark:border-slate-800">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -593,11 +618,11 @@ function TimelineNavigator({ timelines, arcs, placements, localBeats, entityOccu
               <span className="mt-1 block truncate text-[10px] text-slate-400">First: {first.source_label || "Unplaced"}</span>
             </button>;
           })}
-          {!trackGroups.length && <p className="rounded border border-dashed p-3 text-xs text-slate-500">No {trackLabels[trackKind].toLowerCase()} are attached to story beats yet.</p>}
+          {!trackGroups.length && <EmptyState variant="compact" title={`No ${trackLabels[trackKind].toLowerCase()} attached yet.`}>Attach this kind of content to story beats when you want the navigator to track appearances across the board.</EmptyState>}
         </div>
       </div>
     </div>
-  </section>;
+  </AuthoringPanel>;
 }
 
 function LibraryCard({ kind, entry, onSelect, onAttach }: { kind: string; entry: EntryRecord; onSelect: () => void; onAttach?: () => void }) {
@@ -616,18 +641,20 @@ function TimelineBand({ timeline, arcs, placements, localBeats, lens, query, onS
     .sort((left, right) => Number(left.order) - Number(right.order));
   const unassignedPlacements = placements.filter((placement) => !text(placement.story_arc_id) && !text(placement.timeline_id));
   const unassignedBeats = localBeats.filter((beat) => !beat.story_arc_id);
-  return <section className={`${panelClass} overflow-hidden`} data-testid={`timeline-band-${timelineId || "unassigned"}`}>
-    <header className="border-b border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
-      <div className="flex flex-wrap items-center justify-between gap-2"><div><div className="text-[10px] font-semibold uppercase text-slate-500">{unassigned ? "Planning Space" : "Timeline Band"}</div><h2 className="font-semibold">{label(timeline)}</h2></div>{!unassigned && <Link className="text-xs font-semibold text-blue-700 dark:text-blue-300" to={entityRoute("timeline", timelineId)}>Open timeline record</Link>}</div>
-      <p className="mt-1 text-xs text-slate-500">{text(timeline.description, "Arc order inside a timeline is not modeled; lanes are shown without implying sequence.")}</p>
-    </header>
-    <div className="space-y-3 p-3">
+  return <AuthoringPanel
+    title={label(timeline)}
+    subtitle={text(timeline.description, "Arc order inside a timeline is not modeled; lanes are shown without implying sequence.")}
+    help={unassigned ? "Use this planning space for content that does not have a saved timeline or arc yet." : "This band groups saved arcs and placements for one timeline. Arc lanes are for navigation and planning; they do not imply global order beyond saved placement data."}
+    actions={!unassigned && <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={entityRoute("timeline", timelineId)}>Inspect Timeline Record</Link>}
+    testId={`timeline-band-${timelineId || "unassigned"}`}
+  >
+    <div className="space-y-3">
       {!unassigned && timelinePlacements.length > 0 && <ScopedRow title="Timeline-Level Adventure Beats" note="Canonical in this timeline, outside a specific arc." cards={timelinePlacements.map((placement) => <PlacementCard key={text(placement.id)} placement={placement} onSelect={() => onSelect({ kind: "placement", id: text(placement.id) })} />)} empty="" />}
       {arcs.map((arc) => <ArcLane key={text(arc.id)} arc={arc} placements={placements.filter((placement) => text(placement.story_arc_id) === text(arc.id))} localBeats={localBeats.filter((beat) => beat.story_arc_id === text(arc.id))} lens={lens} query={query} onSelect={onSelect} onAddBeat={() => onAddBeat(text(arc.id))} />)}
       {unassigned && <ArcLane arc={{ id: "", title: "Unassigned Lane", summary: "Local planning and character beats without an arc." }} placements={unassignedPlacements} localBeats={unassignedBeats} lens={lens} query={query} onSelect={onSelect} onAddBeat={() => onAddBeat("")} unassigned />}
-      {!arcs.length && !unassigned && <p className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-500">This timeline has no story arcs.</p>}
+      {!arcs.length && !unassigned && <EmptyState title="This timeline has no story arcs.">Create arcs to split the timeline into workable lanes, or keep drafting in unassigned story space.</EmptyState>}
     </div>
-  </section>;
+  </AuthoringPanel>;
 }
 
 function ArcLane({ arc, placements, localBeats, lens, query, onSelect, onAddBeat, unassigned = false }: { arc: EntryRecord; placements: EntryRecord[]; localBeats: LocalBeat[]; lens: Lens; query: string; onSelect: (selection: Selection) => void; onAddBeat: () => void; unassigned?: boolean }) {
@@ -641,7 +668,7 @@ function ArcLane({ arc, placements, localBeats, lens, query, onSelect, onAddBeat
   return <article ref={drop.setNodeRef} className={`rounded-lg border p-3 transition ${drop.isOver ? "border-fuchsia-500 bg-fuchsia-50/60 dark:bg-fuchsia-950/30" : "border-slate-200 dark:border-slate-800"}`} data-testid={`story-arc-lane-${arcId || "unassigned"}`}>
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div><div className="text-[10px] font-semibold uppercase text-slate-500">{unassigned ? "Unassigned" : text(arc.type, "Story Arc")}</div><h3 className="font-semibold">{label(arc)}</h3><p className="max-w-3xl text-xs text-slate-500">{text(arc.summary)}</p></div>
-      <div className="flex gap-2"><button type="button" className="rounded border border-fuchsia-300 px-2 py-1 text-xs font-semibold text-fuchsia-700 dark:text-fuchsia-300" onClick={onAddBeat}>Add Planning Beat</button>{!unassigned && <Link className="rounded border px-2 py-1 text-xs font-semibold" to={entityRoute("story_arc", arcId)}>Open Arc</Link>}</div>
+      <div className="flex gap-2"><button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={onAddBeat}>Add Planning Beat</button>{!unassigned && <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={entityRoute("story_arc", arcId)}>Inspect Arc Record</Link>}</div>
     </div>
     <ScopedRow title="Adventure Beat Order" note="Canonical story intent inside this arc." cards={adventureBeats.map((placement) => <PlacementCard key={text(placement.id)} placement={placement} onSelect={() => onSelect({ kind: "placement", id: text(placement.id) })} />)} empty="No canonical adventure beats visible in this lens." />
     <ScopedRow title="Arc Quest Order" note="Canonical only inside this arc." cards={quests.map((placement) => <PlacementCard key={text(placement.id)} placement={placement} onSelect={() => onSelect({ kind: "placement", id: text(placement.id) })} />)} empty="No ordered quests visible in this lens." />
@@ -650,8 +677,8 @@ function ArcLane({ arc, placements, localBeats, lens, query, onSelect, onAddBeat
   </article>;
 }
 
-function ScopedRow({ title, note, cards, empty }: { title: string; note: string; cards: React.ReactNode[]; empty: string }) {
-  return <div className="mt-3"><div className="mb-1 flex flex-wrap items-baseline justify-between gap-2"><div className="text-[11px] font-semibold uppercase text-slate-500">{title}</div><div className="text-[10px] text-slate-400">{note}</div></div><div className="flex min-h-24 gap-2 overflow-x-auto rounded-md border border-dashed border-slate-200 p-2 dark:border-slate-800">{cards.length ? cards : <p className="self-center text-xs text-slate-400">{empty}</p>}</div></div>;
+function ScopedRow({ title, note, cards, empty }: { title: string; note: string; cards: ReactNode[]; empty: string }) {
+  return <div className="mt-3"><div className="mb-1 flex flex-wrap items-baseline justify-between gap-2"><div className="text-[11px] font-semibold uppercase text-slate-500">{title}</div><div className="text-[10px] text-slate-400">{note}</div></div><div className="flex min-h-24 gap-2 overflow-x-auto rounded-md border border-dashed border-slate-200 p-2 dark:border-slate-800">{cards.length ? cards : <EmptyState variant="compact" className="self-center min-w-64">{empty}</EmptyState>}</div></div>;
 }
 
 function PlacementCard({ placement, onSelect }: { placement: EntryRecord; onSelect: () => void }) {
@@ -680,32 +707,32 @@ function LocalBeatCard({ beat, lens, onSelect }: { beat: LocalBeat; lens: Lens; 
 
 function EventChainSection({ events, query, onSelect }: { events: EntryRecord[]; query: string; onSelect: (id: string) => void }) {
   const visible = events.filter((event) => !query || text(event.label).toLowerCase().includes(query));
-  return <section className={`${panelClass} p-3`}><h2 className="font-semibold">Runtime Event Chains</h2><p className="text-xs text-slate-500">These are implementation chains, not global story order.</p><div className="mt-3 flex gap-2 overflow-x-auto">{visible.map((event) => <button key={text(event.event_id)} type="button" className={`w-52 shrink-0 rounded-md border p-3 text-left text-xs ${toneForKind("event")}`} onClick={() => onSelect(text(event.event_id))}><span className="block font-semibold">{text(event.label)}</span><span className="mt-2 block text-[10px]">Next: {text(event.next_event_id, "None")}</span><span className="block text-[10px]">Story beats: {Array.isArray(event.referenced_by_story_beat_ids) ? event.referenced_by_story_beat_ids.length : 0}</span></button>)}</div></section>;
+  return <AuthoringPanel title="Runtime Event Chains" subtitle="Implementation chains, not global story order." help="Use this lens to inspect event follow-up links without treating them as the whole story timeline. Select an event to inspect its nearby context in the dock."><div className="mt-3 flex gap-2 overflow-x-auto">{visible.map((event) => <button key={text(event.event_id)} type="button" className={`w-52 shrink-0 rounded-md border p-3 text-left text-xs ${toneForKind("event")}`} onClick={() => onSelect(text(event.event_id))}><span className="block font-semibold">{text(event.label)}</span><span className="mt-2 block text-[10px]">Next: {text(event.next_event_id, "No follow-up event")}</span><span className="block text-[10px]">Story beats: {Array.isArray(event.referenced_by_story_beat_ids) ? event.referenced_by_story_beat_ids.length : 0}</span></button>)}{!visible.length && <EmptyState variant="compact" title="No runtime events visible.">Adjust the search or add event links before using the runtime lens.</EmptyState>}</div></AuthoringPanel>;
 }
 
 function RelationshipSection({ title, relationships }: { title: string; relationships: EntryRecord[] }) {
-  return <section className={`${panelClass} p-3`}><h2 className="font-semibold">{title}</h2><div className="mt-3 max-h-96 space-y-1 overflow-auto">{relationships.map((edge) => <div key={text(edge.id)} className={`rounded border p-2 text-xs ${edge.explicit === false ? "border-dashed" : ""}`}>{text(edge.source)} <strong>{text(edge.relation)}</strong> {text(edge.target)}</div>)}{!relationships.length && <p className="text-xs text-slate-500">No relationships detected.</p>}</div></section>;
+  return <AuthoringPanel title={title} subtitle="Saved and inferred links that explain state dependencies." help="Use this when the state lens gets noisy. It shows relationship edges that can explain why content is connected or blocked."><div className="mt-3 max-h-96 space-y-1 overflow-auto">{relationships.map((edge) => <div key={text(edge.id)} className={`rounded border p-2 text-xs ${edge.explicit === false ? "border-dashed" : ""}`}>{text(edge.source)} <strong>{text(edge.relation)}</strong> {text(edge.target)}</div>)}{!relationships.length && <EmptyState variant="compact" title="No relationships detected.">That is okay for early drafts. Add story placements, requirements, or consequence links to build dependency context.</EmptyState>}</div></AuthoringPanel>;
 }
 
 function IssueSection({ warnings, dependencyHealth }: { warnings: EntryRecord[]; dependencyHealth: EntryRecord }) {
   const dependencyGroups = Object.entries(dependencyHealth).filter(([, value]) => Array.isArray(value) && value.length);
-  return <section className={`${panelClass} p-3`}><h2 className="font-semibold">Coherence & Dependency Issues</h2><div className="mt-3 grid gap-3 lg:grid-cols-2">{warnings.map((warning, index) => <div key={`${text(warning.code)}:${text(warning.entry_id)}:${text(warning.scope_kind)}:${text(warning.scope_id)}:${index}`} className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"><div className="font-semibold">{text(warning.code).replace(/_/g, " ")}</div><div className="mt-1">{text(warning.message)}</div></div>)}{dependencyGroups.map(([group, value]) => <div key={group} className="rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200"><div className="font-semibold">{group.replace(/_/g, " ")}</div><div className="mt-1">{(value as unknown[]).length} dependency issue(s)</div></div>)}{!warnings.length && !dependencyGroups.length && <p className="text-sm text-emerald-700">No timeline coherence or dependency issues detected.</p>}</div></section>;
+  return <AuthoringPanel title="Coherence And Dependency Issues" subtitle="Warnings and blockers derived from timeline and dependency analysis." help="Use this lens before committing story changes. Warnings may be acceptable while drafting; dependency issues usually need another record or relationship fixed."><div className="mt-3 grid gap-3 lg:grid-cols-2">{warnings.map((warning, index) => <div key={`${text(warning.code)}:${text(warning.entry_id)}:${text(warning.scope_kind)}:${text(warning.scope_id)}:${index}`} className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"><div className="font-semibold">{text(warning.code).replace(/_/g, " ")}</div><div className="mt-1">{text(warning.message)}</div></div>)}{dependencyGroups.map(([group, value]) => <div key={group} className="rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200"><div className="font-semibold">{group.replace(/_/g, " ")}</div><div className="mt-1">{(value as unknown[]).length} dependency issue(s)</div></div>)}{!warnings.length && !dependencyGroups.length && <EmptyState variant="compact" title="No timeline coherence or dependency issues detected.">Continue drafting, then review the plan before commit to validate the saved bundle.</EmptyState>}</div></AuthoringPanel>;
 }
 
 function UnplacedSummary({ unplaced }: { unplaced: EntryRecord }) {
-  return <section className={`${panelClass} p-3`}><h2 className="font-semibold">Unplaced Content</h2><p className="mt-1 text-xs text-slate-500">These counts are derived from current supported placement relationships.</p><div className="mt-3 space-y-1 text-xs">{Object.entries(unplaced).map(([key, value]) => <div key={key} className="flex justify-between rounded border px-2 py-1"><span>{key.replace(/_/g, " ")}</span><strong>{Array.isArray(value) ? value.length : 0}</strong></div>)}</div></section>;
+  return <AuthoringPanel title="Unplaced Content" subtitle="Counts derived from current supported placement relationships." help="Use this as a backlog signal. Unplaced content is not automatically wrong, but high counts mean the timeline has less context to navigate."><div className="mt-3 space-y-1 text-xs">{Object.entries(unplaced).map(([key, value]) => <div key={key} className="flex justify-between rounded border px-2 py-1"><span>{key.replace(/_/g, " ")}</span><strong>{Array.isArray(value) ? value.length : 0}</strong></div>)}</div></AuthoringPanel>;
 }
 
 function ContextDock({ selection, localBeat, placement, event, libraryEntry, libraryKind, relationships, warnings, onUpdateBeat, onDeleteBeat, onRemoveAttachment }: { selection: Selection; localBeat?: LocalBeat; placement?: EntryRecord; event?: EntryRecord; libraryEntry?: EntryRecord; libraryKind: string; relationships: EntryRecord[]; warnings: EntryRecord[]; onUpdateBeat: (beatId: string, patch: Partial<LocalBeat>) => void; onDeleteBeat: (beatId: string) => void; onRemoveAttachment: (beatId: string, attachment: LocalAttachment) => void }) {
-  if (!selection) return <aside className={`${panelClass} h-fit p-3`}><h2 className="font-semibold">Context Dock</h2><p className="mt-2 text-sm text-slate-500">Select a canonical placement, event, library item, or local planning beat. Drop library content directly onto a local beat to attach it.</p></aside>;
-  if (localBeat) return <aside className={`${panelClass} h-fit p-3`} data-testid="story-timeline-context-dock"><div className="flex items-center justify-between gap-2"><h2 className="font-semibold">Local Planning Beat</h2><button type="button" className="text-xs font-semibold text-red-700" onClick={() => onDeleteBeat(localBeat.id)}>Delete</button></div><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Title<input className={`${inputClass} mt-1`} value={localBeat.title} onChange={(eventValue) => onUpdateBeat(localBeat.id, { title: eventValue.target.value })} /></label><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Beat Type<select className={`${inputClass} mt-1`} value={localBeat.beat_type} onChange={(eventValue) => onUpdateBeat(localBeat.id, { beat_type: eventValue.target.value })}>{["Hook", "Introduction", "Discovery", "Decision", "Conflict", "Revelation", "Reversal", "Climax", "Recovery", "Payoff", "Other"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Intent / Summary<textarea className={`${inputClass} mt-1 min-h-28`} value={localBeat.summary} onChange={(eventValue) => onUpdateBeat(localBeat.id, { summary: eventValue.target.value })} /></label><div className="mt-4"><div className="text-xs font-semibold uppercase text-slate-500">Typed Attachments</div><div className="mt-2 space-y-2">{localBeat.attachments.map((attachment) => <div key={`${attachment.kind}:${attachment.entry_id}`} className="rounded border p-2 text-xs"><div className="flex items-center justify-between gap-2"><div><div className="text-[10px] font-semibold uppercase text-slate-500">{attachment.role.replace(/_/g, " ")} / {attachment.kind.replace(/_/g, " ")}</div><div className="font-semibold">{attachment.label}</div></div><button type="button" className="text-red-700" onClick={() => onRemoveAttachment(localBeat.id, attachment)}>Remove</button></div>{entityRoute(attachment.kind, attachment.entry_id) && <Link className="mt-1 inline-block text-blue-700 dark:text-blue-300" to={entityRoute(attachment.kind, attachment.entry_id)}>Open record</Link>}</div>)}{!localBeat.attachments.length && <p className="text-xs text-slate-500">Drag library content onto this beat.</p>}</div></div><p className="mt-4 rounded-md border border-fuchsia-200 bg-fuchsia-50 p-2 text-xs text-fuchsia-800 dark:border-fuchsia-900 dark:bg-fuchsia-950 dark:text-fuchsia-200">This beat remains browser-local until its preview is reviewed and committed.</p></aside>;
+  if (!selection) return <aside id="timeline-context" className="h-fit"><AuthoringPanel title="Context Dock" subtitle="Select a placement, event, library item, or local planning beat to inspect it." help="The dock keeps details beside the board so you do not have to leave the timeline while drafting."><EmptyState variant="compact" title="Nothing selected.">Select a board card, library item, or local planning beat. Drop library content directly onto a local beat to attach it.</EmptyState></AuthoringPanel></aside>;
+  if (localBeat) return <aside id="timeline-context" className="h-fit" data-testid="story-timeline-context-dock"><AuthoringPanel title="Local Planning Beat" help="This beat is browser-local until you review and commit the plan. Use typed attachments to connect saved records to the planned story beat." actions={<button type="button" className="text-xs font-semibold text-red-700" onClick={() => onDeleteBeat(localBeat.id)}>Delete</button>}><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Title<input className={`${inputClass} mt-1`} value={localBeat.title} onChange={(eventValue) => onUpdateBeat(localBeat.id, { title: eventValue.target.value })} /></label><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Beat Type<select className={`${inputClass} mt-1`} value={localBeat.beat_type} onChange={(eventValue) => onUpdateBeat(localBeat.id, { beat_type: eventValue.target.value })}>{["Hook", "Introduction", "Discovery", "Decision", "Conflict", "Revelation", "Reversal", "Climax", "Recovery", "Payoff", "Other"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Intent / Summary<textarea className={`${inputClass} mt-1 min-h-28`} value={localBeat.summary} onChange={(eventValue) => onUpdateBeat(localBeat.id, { summary: eventValue.target.value })} /></label><div className="mt-4"><div className="text-xs font-semibold uppercase text-slate-500">Typed Attachments</div><div className="mt-2 space-y-2">{localBeat.attachments.map((attachment) => <div key={`${attachment.kind}:${attachment.entry_id}`} className="rounded border p-2 text-xs"><div className="flex items-center justify-between gap-2"><div><div className="text-[10px] font-semibold uppercase text-slate-500">{attachment.role.replace(/_/g, " ")} / {attachment.kind.replace(/_/g, " ")}</div><div className="font-semibold">{attachment.label}</div></div><button type="button" className="text-red-700" onClick={() => onRemoveAttachment(localBeat.id, attachment)}>Remove</button></div>{entityRoute(attachment.kind, attachment.entry_id) && <Link className="mt-1 inline-block text-blue-700 dark:text-blue-300" to={entityRoute(attachment.kind, attachment.entry_id)}>Inspect Attached Record</Link>}</div>)}{!localBeat.attachments.length && <EmptyState variant="compact" title="No attached content yet.">Drag library content onto this beat to connect saved records to the plan.</EmptyState>}</div></div><p className="mt-4 rounded-md border border-fuchsia-200 bg-fuchsia-50 p-2 text-xs text-fuchsia-800 dark:border-fuchsia-900 dark:bg-fuchsia-950 dark:text-fuchsia-200">This beat remains browser-local until its preview is reviewed and committed.</p></AuthoringPanel></aside>;
 
   const selectedId = text(placement?.entry_id, text(event?.event_id, text(libraryEntry?.id)));
   const selectedKind = text(placement?.kind, event ? "event" : singular(libraryKind));
   const related = relationships.filter((edge) => text(edge.source).endsWith(`:${selectedId}`) || text(edge.target).endsWith(`:${selectedId}`));
   const selectedWarnings = warnings.filter((warning) => text(warning.entry_id) === selectedId);
   const entry = placement || event || libraryEntry || {};
-  return <aside className={`${panelClass} h-fit p-3`} data-testid="story-timeline-context-dock"><div className="text-[10px] font-semibold uppercase text-slate-500">{selectedKind.replace(/_/g, " ")}</div><h2 className="font-semibold">{text(entry.label, label(entry))}</h2>{entityRoute(selectedKind, selectedId) && <Link className="mt-2 inline-block text-xs font-semibold text-blue-700 dark:text-blue-300" to={entityRoute(selectedKind, selectedId)}>Open owning workspace</Link>}<div className="mt-4 space-y-2 text-xs"><Detail label="Placement Basis" value={placement?.placement_basis} /><Detail label="Ordering Source" value={placement?.ordering_source} /><Detail label="Lane" value={placement?.lane_id} /><Detail label="Next Event" value={event?.next_event_id} /></div><div className="mt-4"><div className="text-xs font-semibold uppercase text-slate-500">Nearby Relationships</div><div className="mt-2 max-h-64 space-y-1 overflow-auto">{related.map((edge) => <div key={text(edge.id)} className={`rounded border p-2 text-[10px] ${edge.explicit === false ? "border-dashed" : ""}`}>{text(edge.source)}<br /><strong>{text(edge.relation)}</strong><br />{text(edge.target)}</div>)}{!related.length && <p className="text-xs text-slate-500">No direct relationships in the current aggregation.</p>}</div></div>{selectedWarnings.length > 0 && <div className="mt-4 space-y-1">{selectedWarnings.map((warning) => <p key={text(warning.code)} className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">{text(warning.message)}</p>)}</div>}</aside>;
+  return <aside id="timeline-context" className="h-fit" data-testid="story-timeline-context-dock"><AuthoringPanel title={text(entry.label, label(entry))} subtitle={selectedKind.replace(/_/g, " ")} help="Inspect the selected record's placement context without leaving the board. Use the inspect link when you need to edit the owning record." actions={entityRoute(selectedKind, selectedId) && <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={entityRoute(selectedKind, selectedId)}>Inspect Owning Workspace</Link>}><div className="mt-4 space-y-2 text-xs"><Detail label="Placement Basis" value={placement?.placement_basis} /><Detail label="Ordering Source" value={placement?.ordering_source} /><Detail label="Lane" value={placement?.lane_id} /><Detail label="Next Event" value={event?.next_event_id} /></div><div className="mt-4"><div className="text-xs font-semibold uppercase text-slate-500">Nearby Relationships</div><div className="mt-2 max-h-64 space-y-1 overflow-auto">{related.map((edge) => <div key={text(edge.id)} className={`rounded border p-2 text-[10px] ${edge.explicit === false ? "border-dashed" : ""}`}>{text(edge.source)}<br /><strong>{text(edge.relation)}</strong><br />{text(edge.target)}</div>)}{!related.length && <EmptyState variant="compact" title="No nearby relationships found.">This record can still be placed on the timeline; add explicit links when it needs dependency or consequence context.</EmptyState>}</div></div>{selectedWarnings.length > 0 && <div className="mt-4 space-y-1">{selectedWarnings.map((warning) => <p key={text(warning.code)} className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">{text(warning.message)}</p>)}</div>}</AuthoringPanel></aside>;
 }
 
 function Detail({ label: detailLabel, value }: { label: string; value: unknown }) {

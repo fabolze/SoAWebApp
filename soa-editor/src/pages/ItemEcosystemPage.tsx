@@ -13,9 +13,12 @@ import { CommaSeparatedInput, ReferenceManageLink, useReferenceOptions } from ".
 import {
   AUTHORING_INPUT_CLASS,
   AUTHORING_PANEL_CLASS,
+  AuthoringPageShell,
+  AuthoringPanel,
   EmptyState,
   FieldCaption,
   NumberField,
+  StatusNotice,
   TextField,
 } from "../components/authoringUi";
 
@@ -156,30 +159,33 @@ export default function ItemEcosystemPage() {
   };
   const reset = () => { if (original) { setPacket(original); localStorage.removeItem(draftKey(isNew ? "new" : id)); setNotice("Draft reset."); } };
 
-  if (loading) return <div className="p-6 text-sm">Loading Item Ecosystem...</div>;
-  return <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-    <div className="mx-auto max-w-7xl space-y-4">
-      <header className={AUTHORING_PANEL_CLASS}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div><div className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-300">Item Ecosystem</div><h1 className="mt-1 text-3xl font-semibold">{text(packet.item.name, "Unnamed Item")}</h1><p className="mt-1 text-sm text-slate-500">Place, compare, validate, and save every acquisition reference for this item.</p></div>
-          <div className="flex flex-wrap gap-2">
+  if (loading) return <AuthoringPageShell><StatusNotice>Loading Item Ecosystem...</StatusNotice></AuthoringPageShell>;
+  return <AuthoringPageShell>
+    <AuthoringPanel
+      title={text(packet.item.name, "Unnamed Item")}
+      subtitle="Item Ecosystem"
+      help="Use this workspace to edit the item, every acquisition source, economy tuning, progression placement, and validation as one bundle."
+      actions={
+        <>
             {!isNew && <Link className="rounded-md border px-3 py-2 text-sm" to={`/author/items/${encodeURIComponent(id)}`}>Edit Mechanics</Link>}
             {!isNew && <Link className="rounded-md border px-3 py-2 text-sm" to={`/inspect/items/${encodeURIComponent(id)}`}>Inspect Item</Link>}
             {!isNew && <Link className="rounded-md border px-3 py-2 text-sm" to="/author/items/new/ecosystem">New Item</Link>}
-            <button className="rounded-md border px-3 py-2 text-sm" onClick={reset}>Reset</button>
-            <button className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!dirty || saving || blockers.length > 0} onClick={save}>{saving ? "Saving..." : "Save All"}</button>
-          </div>
-        </div>
-        {notice && <div className="mt-3 rounded-md bg-slate-100 px-3 py-2 text-sm dark:bg-slate-800">{notice}</div>}
-        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+            <button className="rounded-md border px-3 py-2 text-sm" onClick={reset}>Reset Draft</button>
+            <button className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!dirty || saving || blockers.length > 0} onClick={save}>{saving ? "Saving..." : "Save Item Bundle"}</button>
+        </>
+      }
+    >
+        <p className="text-sm text-slate-500 dark:text-slate-400">Place, compare, validate, and save every acquisition reference for this item.</p>
+        {notice && <StatusNotice className="mt-3" tone={blockers.length ? "warning" : "info"}>{notice}</StatusNotice>}
+        <div className="mt-3 grid gap-3 sm:grid-cols-4">
           <Fact label="Sources" value={text(packet.analysis.total_sources, "0")} />
           <Fact label="Base Price" value={text(packet.item.base_price, "0")} />
           <Fact label="Power" value={simulation ? simulation.metrics.power.toFixed(1) : "..."} />
           <Fact label="Peer Median Price" value={text(packet.analysis.median_peer_price, "0")} />
         </div>
-      </header>
+      </AuthoringPanel>
 
-      <section className={AUTHORING_PANEL_CLASS}><label className="block"><FieldCaption>Open Existing Item</FieldCaption><select className={`${AUTHORING_INPUT_CLASS} normal-case`} value={isNew ? "" : id} onChange={(event) => { if (event.target.value) navigate(`/author/items/${encodeURIComponent(event.target.value)}/ecosystem`); }}><option value="">Select an existing item</option>{(packet.catalogs.items || []).map((item) => <option key={text(item.id)} value={text(item.id)}>{label(item)}</option>)}</select></label></section>
+      <AuthoringPanel title="Open Existing Item" help="Switch to another item ecosystem without leaving this workspace. Unsaved edits remain tracked as a draft for the current item."><label className="block"><FieldCaption>Item</FieldCaption><select className={`${AUTHORING_INPUT_CLASS} normal-case`} value={isNew ? "" : id} onChange={(event) => { if (event.target.value) navigate(`/author/items/${encodeURIComponent(event.target.value)}/ecosystem`); }}><option value="">Select an existing item</option>{(packet.catalogs.items || []).map((item) => <option key={text(item.id)} value={text(item.id)}>{label(item)}</option>)}</select></label></AuthoringPanel>
 
       <nav className="flex flex-wrap gap-2">{["Identity", "Acquisition", "Power", "Economy", "Progression", "Issues"].map((panel) => <button key={panel} className={`rounded-full border px-4 py-2 text-sm font-semibold ${activePanel === panel ? "border-primary bg-primary text-white" : "bg-white dark:bg-slate-900"}`} onClick={() => setActivePanel(panel)}>{panel}</button>)}</nav>
 
@@ -190,8 +196,7 @@ export default function ItemEcosystemPage() {
       {activePanel === "Progression" && <div className="space-y-4"><ItemJourneyTrack packet={packet} model={itemJourney} storyLoading={storyPlacement.loading} storyError={storyPlacement.error} /><ProgressionPanel packet={packet} setSources={setSources} /></div>}
       {activePanel === "Issues" && <IssuesPanel blockers={blockers} warnings={clientWarnings} packet={packet} />}
       {!isNew && text(packet.item.id) && <StoryPlacementPanel entityKind="item" entityId={text(packet.item.id)} entityLabel={text(packet.item.name, text(packet.item.id))} entity={packet.item} storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} />}
-    </div>
-  </div>;
+  </AuthoringPageShell>;
 }
 
 function IdentityPanel({ packet, updateItem }: { packet: ItemPacket; updateItem: (patch: EntryRecord) => void }) {
@@ -259,7 +264,7 @@ function ItemJourneyTrack({ packet, model, storyLoading, storyError }: { packet:
     </div>
     <div className="mt-3 flex flex-wrap gap-2">
       {channels.map((channel) => <span key={text(channel.key, text(channel.label))} className="rounded-full border border-slate-300 px-2 py-1 text-xs dark:border-slate-700">{text(channel.label)} ({text(channel.count, "0")})</span>)}
-      {channels.length === 0 && <span className="text-xs text-slate-500">No acquisition channel yet.</span>}
+      {channels.length === 0 && <EmptyState variant="compact" title="No acquisition channels">Add a shop, loot, reward, encounter, event, or world placement source to show how players can obtain this item.</EmptyState>}
     </div>
     {storyLoading && <p className="mt-3 text-xs text-slate-500">Loading story context...</p>}
     {storyError && <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">{storyError}</p>}
@@ -290,7 +295,7 @@ function ItemJourneyTrack({ packet, model, storyLoading, storyError }: { packet:
           {!row.placed && <div className="mt-1 text-[10px] font-semibold text-amber-800 dark:text-amber-200">Needs story context</div>}
         </div>
       </article>)}
-      {model.rows.length === 0 && <EmptyState>No sources or story placements yet.</EmptyState>}
+      {model.rows.length === 0 && <EmptyState title="No item journey yet">Add an acquisition source or attach story placement context so the journey can show when and where this item enters play.</EmptyState>}
     </div>
     {important && <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">Use story placements, continuity group, state label, or notes to explain important item versions and alternate acquisition paths.</p>}
   </section>;

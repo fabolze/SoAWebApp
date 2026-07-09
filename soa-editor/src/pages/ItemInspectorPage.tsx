@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { apiFetch, buildApiUrl } from "../lib/api";
 import { buildRelationshipIndex, summarizeEntryRelationships, type EntryRelationshipSummary, type InboundReference, type OutboundReference, type RelationshipGroup as RelationshipDataGroup } from "../relationships";
 import type { ItemInspectorViewModel, ItemModifierView, ItemShopSource } from "../inspect/types";
+import { AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 
 function formatNumber(value: unknown): string {
   const numeric = typeof value === "number" ? value : Number(value);
@@ -90,23 +91,20 @@ export default function ItemInspectorPage() {
   }, [item]);
 
   if (loading) {
-    return <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading item inspector...</div>;
+    return <AuthoringPageShell contentClassName="mx-auto w-full max-w-7xl space-y-4"><StatusNotice>Loading item inspector...</StatusNotice></AuthoringPageShell>;
   }
 
   if (error || !item) {
     return (
-      <div className="p-6">
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-          {error || "Item not found."}
-        </div>
+      <AuthoringPageShell contentClassName="mx-auto w-full max-w-7xl space-y-4">
+        <StatusNotice tone="error">{error || "Item not found."}</StatusNotice>
         <Link className="mt-4 inline-flex text-sm font-medium text-blue-700 dark:text-blue-300" to="/items">Back to Items</Link>
-      </div>
+      </AuthoringPageShell>
     );
   }
 
   return (
-    <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="mx-auto max-w-7xl space-y-4">
+    <AuthoringPageShell contentClassName="mx-auto w-full max-w-7xl space-y-4">
         <div className={`rounded-md border p-4 shadow-sm ${rarityClass(item.rarity)}`}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 gap-4">
@@ -148,7 +146,7 @@ export default function ItemInspectorPage() {
                 Author Item
               </Link>
               <Link className="rounded-md border border-current/25 bg-white/70 px-3 py-2 text-sm font-medium hover:bg-white dark:bg-black/20 dark:hover:bg-black/30" to={`/items?selected=${encodeURIComponent(item.id)}`}>
-                Open Editor
+                Inspect In Generic Editor
               </Link>
               <Link className="rounded-md border border-current/25 bg-white/70 px-3 py-2 text-sm font-medium hover:bg-white dark:bg-black/20 dark:hover:bg-black/30" to="/items">
                 Item List
@@ -171,7 +169,7 @@ export default function ItemInspectorPage() {
             )}
             <div className="mt-4">
               <h3 className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Effects</h3>
-              {item.effects.length === 0 ? <EmptyText text="No effects linked." /> : (
+              {item.effects.length === 0 ? <EmptyText title="No linked effects" text="Attach effects in item authoring when this item should change stats, attributes, or combat behavior." /> : (
                 <div className="mt-2 grid gap-2">
                   {item.effects.map((effect) => (
                     <div key={effect.id} className="rounded-md border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950">
@@ -189,23 +187,23 @@ export default function ItemInspectorPage() {
           </Panel>
 
           <Panel title="Modifiers">
-            <ModifierGroup title="Stats" modifiers={item.stat_modifiers} empty="No stat modifiers." />
+            <ModifierGroup title="Stats" modifiers={item.stat_modifiers} emptyTitle="No stat modifiers" empty="Add stat modifiers when this item should affect derived combat or economy values." />
             <div className="mt-3">
-              <ModifierGroup title="Attributes" modifiers={item.attribute_modifiers} empty="No attribute modifiers." />
+              <ModifierGroup title="Attributes" modifiers={item.attribute_modifiers} emptyTitle="No attribute modifiers" empty="Add attribute modifiers when this item should alter character attributes directly." />
             </div>
           </Panel>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr]">
           <Panel title="Sources">
-            {item.shop_sources.length === 0 ? <EmptyText text="No shops currently sell this item." /> : (
+            {item.shop_sources.length === 0 ? <EmptyText title="No shop sources" text="Add shop inventory entries in Item Ecosystem when this item should be available for purchase." /> : (
               <div className="grid gap-2">
                 {item.shop_sources.map((source) => <ShopSourceRow key={source.inventory_id} source={source} />)}
               </div>
             )}
           </Panel>
           <Panel title="References">
-            {!relationships ? <EmptyText text="No relationship scan available." /> : (
+            {!relationships ? <EmptyText title="No relationship scan" text="The relationship index did not return context for this item, so inbound and outbound links cannot be listed here." /> : (
               <div className="space-y-3">
                 <RelationshipGroup title="Referenced by" groups={relationships.inbound} />
                 <RelationshipGroup title="This item references" groups={relationships.outbound} />
@@ -214,17 +212,15 @@ export default function ItemInspectorPage() {
             )}
           </Panel>
         </div>
-      </div>
-    </div>
+    </AuthoringPageShell>
   );
 }
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-      <h2 className="text-sm font-semibold uppercase text-slate-500 dark:text-slate-400">{title}</h2>
-      <div className="mt-3">{children}</div>
-    </section>
+    <AuthoringPanel title={title}>
+      {children}
+    </AuthoringPanel>
   );
 }
 
@@ -241,15 +237,15 @@ function Badge({ label, muted = false }: { label: string; muted?: boolean }) {
   return <span className={`rounded px-2 py-0.5 text-[11px] font-semibold ${muted ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" : "bg-slate-900/10 text-current dark:bg-white/10"}`}>{label}</span>;
 }
 
-function EmptyText({ text }: { text: string }) {
-  return <div className="rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">{text}</div>;
+function EmptyText({ title, text }: { title: string; text: string }) {
+  return <EmptyState title={title}>{text}</EmptyState>;
 }
 
-function ModifierGroup({ title, modifiers, empty }: { title: string; modifiers: ItemModifierView[]; empty: string }) {
+function ModifierGroup({ title, modifiers, emptyTitle, empty }: { title: string; modifiers: ItemModifierView[]; emptyTitle: string; empty: string }) {
   return (
     <div>
       <h3 className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">{title}</h3>
-      {modifiers.length === 0 ? <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">{empty}</div> : (
+      {modifiers.length === 0 ? <EmptyState className="mt-2" variant="compact" title={emptyTitle}>{empty}</EmptyState> : (
         <div className="mt-2 space-y-2">
           {modifiers.map((modifier) => <ModifierRow key={`${modifier.kind}-${modifier.id}`} modifier={modifier} />)}
         </div>
@@ -346,7 +342,7 @@ function RelationshipGroup({ title, groups }: { title: string; groups: Array<Rel
   return (
     <div>
       <h3 className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">{title}</h3>
-      {groups.length === 0 ? <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">None found.</div> : (
+      {groups.length === 0 ? <EmptyState className="mt-2" variant="compact" title="No links found">No records in this relationship direction currently reference this item.</EmptyState> : (
         <div className="mt-2 space-y-2">
           {groups.slice(0, 5).map((group) => (
             <div key={`${title}-${group.schemaLabel}`} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950">
@@ -377,7 +373,7 @@ function RelatedGroup({ groups }: { groups: EntryRelationshipSummary["related"] 
   return (
     <div>
       <h3 className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Related quick links</h3>
-      {groups.length === 0 ? <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">None found.</div> : (
+      {groups.length === 0 ? <EmptyState className="mt-2" variant="compact" title="No related quick links">Related records appear after the relationship index finds nearby inbound or outbound links.</EmptyState> : (
         <div className="mt-2 flex flex-wrap gap-1">
           {groups.flatMap((group) => group.items.slice(0, 8)).slice(0, 16).map((entry) => (
             <Link

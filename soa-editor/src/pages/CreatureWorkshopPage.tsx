@@ -4,6 +4,7 @@ import BundleReview, { type BundleReviewResult } from "../components/authoring/B
 import {
   AUTHORING_INPUT_CLASS,
   AuthoringPageShell,
+  AuthoringSectionNav,
   AuthoringPanel as Panel,
   FieldCaption as Caption,
   NumberField,
@@ -289,8 +290,19 @@ export default function CreatureWorkshopPage() {
 
   return (
     <AuthoringPageShell>
-      <div className="w-full space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+        <AuthoringSectionNav sections={[
+          { id: "creature-header", label: "Header", summary: "Save state and bundle review" },
+          { id: "creature-navigator", label: "Navigator", summary: "Switch creature drafts" },
+          { id: "creature-health", label: "Health", summary: "Blockers and warnings" },
+          { id: "creature-identity", label: "Identity", summary: "Character-facing record" },
+          { id: "creature-combat", label: "Combat", summary: "Enemy profile" },
+          { id: "creature-world", label: "World", summary: "Encounters and habitats" },
+          { id: "creature-context", label: "Context", summary: "Existing appearances" },
+        ]} />
+      <div className="min-w-0 space-y-4">
         <Panel
+          id="creature-header"
           title={displayText(packet.creature.name, "Creature Workshop")}
           subtitle={`${displayText(packet.combat_profile?.enemy_type, "untyped")} / ${currentAppearances.length} encounters / ${currentHabitats.length} habitats`}
           actions={<div className="flex gap-2"><button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={reset}>Reset</button><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || localHealth.blockers.length > 0} onClick={() => void preview()}>{saving ? "Reviewing..." : "Review Bundle"}</button></div>}
@@ -327,6 +339,7 @@ export default function CreatureWorkshopPage() {
           </div>
         </div>
       </div>
+      </div>
     </AuthoringPageShell>
   );
 }
@@ -347,7 +360,7 @@ function deriveHealth(packet: CreaturePacket, appearances: EntryRecord[], habita
 
 function Navigator({ packet }: { packet: CreaturePacket }) {
   const navigate = useNavigate();
-  return <Panel title="Creature Navigator" subtitle="Enemy-like characters from the current data.">
+  return <Panel id="creature-navigator" title="Creature Navigator" subtitle="Enemy-like characters from the current data.">
     <select className={AUTHORING_INPUT_CLASS} value={displayText(packet.creature.id)} onChange={(event) => navigate(`/author/creatures/${encodeURIComponent(event.target.value)}`)}>
       <option value={displayText(packet.creature.id)}>{rowLabel(packet.creature, "Current Creature")}</option>
       {packet.navigator.filter((entry) => displayText(entry.id) !== displayText(packet.creature.id)).map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.id))}</option>)}
@@ -357,7 +370,7 @@ function Navigator({ packet }: { packet: CreaturePacket }) {
 }
 
 function IdentityPanel({ packet, updateCreature }: { packet: CreaturePacket; updateCreature: (patch: EntryRecord) => void }) {
-  return <Panel title="Identity And Role" subtitle="Define the enemy-facing record without creating a new creature table.">
+  return <Panel id="creature-identity" title="Identity And Role" subtitle="Define the enemy-facing record without creating a new creature table.">
     <div className="grid gap-3 md:grid-cols-2">
       <Field label="Name" value={packet.creature.name} onChange={(name) => updateCreature({ name, slug: displayText(packet.creature.slug) || generateSlug(name) })} />
       <Field label="Slug" value={packet.creature.slug} onChange={(slug) => updateCreature({ slug })} />
@@ -374,10 +387,10 @@ function IdentityPanel({ packet, updateCreature }: { packet: CreaturePacket; upd
 
 function CombatPanel({ packet, updateCombat }: { packet: CreaturePacket; updateCombat: (patch: EntryRecord) => void }) {
   const combat = packet.combat_profile;
-  if (!combat) return <Panel title="Combat Kit" subtitle="Creature Workshop expects enemies to have a combat profile.">
+  if (!combat) return <Panel id="creature-combat" title="Combat Kit" subtitle="Creature Workshop expects enemies to have a combat profile.">
     <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} onClick={() => updateCombat(newCombat(displayText(packet.creature.id)))}>Add Combat Profile</button>
   </Panel>;
-  return <Panel title="Combat Kit" subtitle="Shape how this creature fights and what it drops.">
+  return <Panel id="creature-combat" title="Combat Kit" subtitle="Shape how this creature fights and what it drops.">
     <div className="grid gap-3 md:grid-cols-2">
       <SelectField label="Enemy Type" value={combat.enemy_type} options={ENEMY_TYPES} onChange={(enemy_type) => updateCombat({ enemy_type })} />
       <SelectField label="Aggression" value={combat.aggression} options={AGGRESSION} onChange={(aggression) => updateCombat({ aggression })} />
@@ -413,7 +426,7 @@ function EncounterPanel({ packet, selectedEncounter, setSelectedEncounter, updat
     if (displayText(encounter.id) !== encounterId) return encounter;
     return { ...encounter, participants: rows(encounter.participants).filter((row) => displayText(row.character_id) !== creatureId) };
   }));
-  return <Panel title="Encounter Appearances" subtitle="Place the creature into existing encounters as a scoped participant change.">
+  return <Panel id="creature-world" title="Encounter Appearances" subtitle="Place the creature into existing encounters as a scoped participant change.">
     <div className="space-y-2">
       {appearances.map((encounter) => {
         const participant = rows(encounter.participants).find((row) => displayText(row.character_id) === creatureId) || {};
@@ -492,7 +505,7 @@ function HabitatPanel({ packet, appearances, selectedTable, setSelectedTable, up
 }
 
 function HealthPanel({ issues }: { issues: { blockers: string[]; warnings: string[] } }) {
-  return <Panel title="Creature Health" subtitle={`${issues.blockers.length} blockers / ${issues.warnings.length} warnings`}>
+  return <Panel id="creature-health" title="Creature Health" subtitle={`${issues.blockers.length} blockers / ${issues.warnings.length} warnings`}>
     {issues.blockers.map((issue) => <Issue key={issue} tone="red">{issue}</Issue>)}
     {issues.warnings.map((issue) => <Issue key={issue} tone="amber">{issue}</Issue>)}
     {issues.blockers.length + issues.warnings.length === 0 && <div className="text-sm text-slate-500">No creature health issues.</div>}
@@ -500,7 +513,7 @@ function HealthPanel({ issues }: { issues: { blockers: string[]; warnings: strin
 }
 
 function ContextPanel({ appearances, habitats }: { appearances: EntryRecord[]; habitats: { table: EntryRecord; entry: EntryRecord }[] }) {
-  return <Panel title="Usage Summary" subtitle="Where this enemy currently participates.">
+  return <Panel id="creature-context" title="Usage Summary" subtitle="Where this enemy currently participates.">
     <ContextList title="Encounters" entries={appearances} />
     <div className="mt-3">
       <Caption>Habitats</Caption>

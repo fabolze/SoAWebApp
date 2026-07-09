@@ -15,6 +15,7 @@ import { generateUlid, generateSlug } from "../utils/generateId";
 import { type ParentSummary } from "./EditorStackContext";
 import { apiFetch, buildApiUrl } from "../lib/api";
 import { BUTTON_CLASSES, BUTTON_SIZES, TEXT_CLASSES } from "../styles/uiTokens";
+import { AuthoringPageShell, StatusNotice } from "./authoringUi";
 import useDebouncedValue from "./hooks/useDebouncedValue";
 import { isSimulationSchemaName } from "../simulation";
 import { useDirtyState } from "./useDirtyState";
@@ -1017,7 +1018,7 @@ export default function SchemaEditor({
     setShowEditor((v) => !v);
   }, []);
 
-  if (!schema) return <p className="p-4">Loading schema...</p>;
+  if (!schema) return <AuthoringPageShell><StatusNotice>Loading schema...</StatusNotice></AuthoringPageShell>;
 
   const handlePreviewImportCSV = async () => {
     if (!importFile) return;
@@ -1078,7 +1079,7 @@ export default function SchemaEditor({
   };
 
   return (
-    <div className="flex h-full flex-col bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <AuthoringPageShell contentClassName="flex min-h-[calc(100vh-2rem)] w-full flex-col text-slate-900 dark:text-slate-100">
       <div className="p-6 pb-0">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
@@ -1187,9 +1188,7 @@ export default function SchemaEditor({
         </div>
       )}
       {entriesError && (
-        <div className="mx-6 mt-4 rounded border border-red-200 bg-red-50 text-red-800 px-4 py-2 text-sm dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-          {entriesError}
-        </div>
+        <StatusNotice className="mx-6 mt-4" tone="error">{entriesError}</StatusNotice>
       )}
       <div className="flex flex-row gap-6 flex-1 min-h-0">
         <EntryListPanel
@@ -1267,6 +1266,6 @@ export default function SchemaEditor({
           </div>
         </div>
       )}
-    </div>
+    </AuthoringPageShell>
   );
 }

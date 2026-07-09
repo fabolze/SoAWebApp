@@ -225,7 +225,7 @@ function FlagMultiSelect({ label, value, flags, onChange }: { label: string; val
     <select multiple className={`${inputClass} min-h-28`} value={value} onChange={(event) => onChange(Array.from(event.target.selectedOptions).map((option) => option.value))}>
       {flags.map((flag) => <option key={gateText(flag.id)} value={gateText(flag.id)}>{gateLabel(flag, gateText(flag.id))}</option>)}
     </select>
-    <div className="mt-1 flex flex-wrap gap-1">{value.map((id) => <span key={id} className="rounded-full bg-fuchsia-100 px-2 py-1 text-[10px] font-semibold text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-200">{gateLabel(flags.find((flag) => gateText(flag.id) === id), id)}</span>)}{value.length === 0 && <span className="text-xs text-slate-500">None selected.</span>}</div>
+    <div className="mt-1 flex flex-wrap gap-1">{value.map((id) => <span key={id} className="rounded-full bg-fuchsia-100 px-2 py-1 text-[10px] font-semibold text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-200">{gateLabel(flags.find((flag) => gateText(flag.id) === id), id)}</span>)}{value.length === 0 && <EmptyState variant="compact" title="No flags selected.">Select saved player-state flags when this requirement should allow or block access.</EmptyState>}</div>
   </label>;
 }
 
@@ -237,7 +237,7 @@ function UsageList({ title, rows }: { title: string; rows: EntryRecord[] }) {
         <span className="font-semibold">{gateText(row.entry_label, gateLabel(row))}</span>
         <span className="text-slate-500"> / {gateText(row.schema_name)} / {gateText(row.path)}</span>
       </div>)}
-      {rows.length === 0 && <p className="text-xs text-slate-500">No known usage.</p>}
+      {rows.length === 0 && <EmptyState variant="compact" title="Usage not found in loaded content.">This requirement or flag is not referenced by loaded content yet. Attach it to a target before committing if it should control access.</EmptyState>}
     </div>
   </div>;
 }

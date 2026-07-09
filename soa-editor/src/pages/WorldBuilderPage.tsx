@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type PointerEvent, type ReactNode, type SetStateAction } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
+import { AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, EmptyState, StatusNotice } from "../components/authoringUi";
 import {
   packetStoryPlacementWarningRecords,
   parseEntityTrackOccurrences,
@@ -885,46 +886,56 @@ export default function WorldBuilderPage() {
     setNotice("Select another saved location to create a route draft.");
   };
 
-  if (loading) return <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading world builder...</div>;
-  if (error) return <div className="p-6 text-sm text-red-700 dark:text-red-300">{error}</div>;
+  if (loading) return <AuthoringPageShell><StatusNotice>Loading world builder...</StatusNotice></AuthoringPageShell>;
+  if (error) return <AuthoringPageShell><StatusNotice tone="error">{error}</StatusNotice></AuthoringPageShell>;
 
   return (
-    <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="w-full max-w-none space-y-4">
-        <section className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">World Builder</div>
-              <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-100">Interactive World Workspace</h1>
-              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600 dark:text-slate-400">
+    <AuthoringPageShell>
+      <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+        <AuthoringSectionNav sections={[
+          { id: "world-workspace", label: "Workspace", summary: "Actions and health" },
+          { id: "world-hierarchy", label: "Hierarchy", summary: "Location tree" },
+          { id: "world-map", label: "Map", summary: "Filters, layers, and routes" },
+          { id: "world-details", label: "Details", summary: "Selected location or route" },
+        ]} />
+        <div className="min-w-0 space-y-4">
+        <AuthoringPanel
+          id="world-workspace"
+          title="Interactive World Workspace"
+          subtitle="World Builder"
+          help="Use this workspace to inspect locations, routes, POIs, encounters, travel tuning, story placement, and validation issues together before opening a focused editor."
+          status={
+              <div className="flex flex-wrap gap-2 text-xs text-slate-600 dark:text-slate-400">
                 <Badge>{locations.length} locations</Badge>
                 <Badge>{payload?.pois.length ?? 0} POIs</Badge>
                 <Badge>{payload?.encounter_tables.length ?? 0} encounter tables</Badge>
                 <Badge>{healthIssues.length} world issues</Badge>
               </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
+          }
+          actions={
+            <>
               <Link className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" to={withReturnTo("/author/locations/new")}>New Location</Link>
-              <Link className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" to="/author/locations/map">Atlas Viewer</Link>
-              <Link className="rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800" to="/locations">Generic Editors</Link>
-            </div>
-          </div>
-          {notice && <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">{notice}</div>}
-          {(payload?.warnings.length ?? 0) > 0 && <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">{payload?.warnings.length} world packet warning{payload?.warnings.length === 1 ? "" : "s"} found.</div>}
-        </section>
+              <Link className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" to="/author/locations/map">Inspect Atlas Viewer</Link>
+              <Link className="rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800" to="/locations">Inspect Generic Editors</Link>
+            </>
+          }
+        >
+          {notice && <StatusNotice>{notice}</StatusNotice>}
+          {(payload?.warnings.length ?? 0) > 0 && <StatusNotice className="mt-3" tone="warning">{payload?.warnings.length} world packet warning{payload?.warnings.length === 1 ? "" : "s"} found.</StatusNotice>}
+        </AuthoringPanel>
 
         <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[240px_minmax(440px,1fr)_minmax(500px,0.75fr)]">
-          <section className="rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+          <section id="world-hierarchy" className="scroll-mt-4 rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Hierarchy</div>
             <div className="max-h-[760px] overflow-y-auto pr-1">
               {locations.filter((location) => !text(location.parent_location_id)).map((location) => (
                 <HierarchyNode key={entryId(location)} location={location} locations={locations} selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setSelectedRouteId(""); }} depth={0} />
               ))}
-              {locations.length === 0 && <div className="text-sm text-slate-500 dark:text-slate-400">No locations yet.</div>}
+              {locations.length === 0 && <EmptyState variant="compact" title="No locations yet">Create a location to start building the world hierarchy and map.</EmptyState>}
             </div>
           </section>
 
-          <section className="min-w-0 rounded-md border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <section id="world-map" className="min-w-0 scroll-mt-4 rounded-md border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
             <div className="border-b border-slate-200 p-3 dark:border-slate-800">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap gap-2">
@@ -1055,7 +1066,7 @@ export default function WorldBuilderPage() {
                 );
               })}
               {filteredLocations.length === 0 ? (
-                <div className="absolute left-4 top-4 rounded bg-white/90 px-3 py-2 text-sm text-slate-600 shadow dark:bg-slate-900/90 dark:text-slate-300">No locations match the current filters.</div>
+                <div className="absolute left-4 top-4 max-w-sm"><EmptyState title="No locations match the current filters">Clear a search, region, route, story, or state filter to restore map nodes.</EmptyState></div>
               ) : filteredLocations.map((location) => {
                 const id = entryId(location);
                 const coordinates = coordinatesFromEntry(location);
@@ -1114,7 +1125,7 @@ export default function WorldBuilderPage() {
             </div>
           </section>
 
-          <section className="space-y-4 rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 xl:col-span-2 2xl:col-span-1">
+          <section id="world-details" className="space-y-4 scroll-mt-4 rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 xl:col-span-2 2xl:col-span-1">
             {selectedRoute ? (
               <RouteDetails
                 route={selectedRoute}
@@ -1168,8 +1179,9 @@ export default function WorldBuilderPage() {
             )}
           </section>
         </div>
+        </div>
       </div>
-    </div>
+    </AuthoringPageShell>
   );
 }
 
@@ -1208,7 +1220,7 @@ function RouteHoverCard({
       </div>
       <div className="mt-3 space-y-2">
         {bindings.length === 0 ? (
-          <div className="text-xs text-slate-500 dark:text-slate-400">No route events.</div>
+          <EmptyState variant="compact" title="No route events">Add route event bindings when travel on this route should trigger events, encounters, or story beats.</EmptyState>
         ) : bindings.slice(0, 4).map((binding) => {
           const event = eventsById.get(text(binding.event_id));
           const encounter = encountersById.get(text(event?.encounter_id));
@@ -1272,7 +1284,7 @@ function RouteDetails({
       <StoryBeatPanel beats={storyBeats} />
 
       <Panel title="Route Events" link={withReturnTo("/route-event-bindings")}>
-        {bindings.length === 0 ? <div className="text-sm text-slate-500 dark:text-slate-400">No events trigger on this route.</div> : (
+        {bindings.length === 0 ? <EmptyState variant="compact" title="No route events">Add a route event binding when this route should trigger events, encounters, or story beats.</EmptyState> : (
           <div className="space-y-2">
             {bindings.map((binding) => {
               const event = eventsById.get(text(binding.event_id));
@@ -1350,7 +1362,7 @@ function LocationStoryStatePanel({
           </div>
         ))}
         {sorted.length === 0 ? (
-          <div className="text-sm text-slate-500 dark:text-slate-400">No canonical story-state placements match the current map filters.</div>
+          <EmptyState variant="compact" title="No story-state placements match">Clear map story filters or add story placement when this location should appear on the timeline.</EmptyState>
         ) : (
           <div className="grid gap-2">
             {sorted.map((occurrence) => {
@@ -1387,7 +1399,7 @@ function LocationStoryStatePanel({
 function StoryBeatPanel({ beats }: { beats: StoryBeat[] }) {
   return (
     <Panel title="Story Path">
-      {beats.length === 0 ? <div className="text-sm text-slate-500 dark:text-slate-400">No inferred story beats for this selection.</div> : (
+      {beats.length === 0 ? <EmptyState variant="compact" title="No inferred story beats">Add story placements, route events, quests, dialogues, or encounters when this selection should appear in story flow.</EmptyState> : (
         <div className="space-y-2">
           {beats.map((beat, index) => (
             <Link key={`${beat.kind}-${beat.id}-${index}`} className="block rounded-md border border-slate-200 bg-slate-50 px-3 py-2 hover:border-blue-300 dark:border-slate-800 dark:bg-slate-950" to={beat.editorPath}>
@@ -1932,7 +1944,7 @@ function LocationDetails({
       </Panel>
 
       <Panel title="Encounter Placement" link={withReturnTo("/location-encounter-tables")}>
-        {encounterTables.length === 0 ? <div className="text-sm text-slate-500 dark:text-slate-400">No encounter tables for this location.</div> : (
+        {encounterTables.length === 0 ? <EmptyState variant="compact" title="No encounter tables">Add an encounter table when this location should produce combat or encounter options.</EmptyState> : (
           <div className="space-y-2">
             {encounterTables.map((table) => (
               <div key={entryId(table)} className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
@@ -1973,7 +1985,7 @@ function LocationDetails({
       </Panel>
 
       <Panel title="Creative Brief" link={withReturnTo("/location-creative-briefs")}>
-        {briefs.length === 0 ? <div className="text-sm text-slate-500 dark:text-slate-400">No creative brief for this location.</div> : briefs.map((brief) => (
+        {briefs.length === 0 ? <EmptyState variant="compact" title="No creative brief">Add a creative brief when this location needs art, ambience, music, landmark, or story direction.</EmptyState> : briefs.map((brief) => (
           <div key={entryId(brief)} className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
             {text(brief.mood) && <p><span className="font-semibold">Mood:</span> {text(brief.mood)}</p>}
             {text(brief.visual_ideas) && <p><span className="font-semibold">Visual:</span> {text(brief.visual_ideas)}</p>}
@@ -1990,7 +2002,7 @@ function LocationDetails({
 
       <Panel title="Validation Issues">
         {issues.length === 0 ? (
-          <div className="text-sm text-slate-500 dark:text-slate-400">No world validation issues for this location.</div>
+          <EmptyState variant="compact" title="No world validation issues">This location has no current world-map issues. Continue drafting or inspect connected records for deeper validation.</EmptyState>
         ) : (
           <div className="grid gap-2">
             {issues.map((issue) => (
@@ -2012,7 +2024,7 @@ function LocationDetails({
 }
 
 function EntryList({ entries, empty, detail }: { entries: EntryRecord[]; empty: string; detail: (entry: EntryRecord) => string }) {
-  if (entries.length === 0) return <div className="text-sm text-slate-500 dark:text-slate-400">{empty}</div>;
+  if (entries.length === 0) return <EmptyState variant="compact" title={empty}>{worldEmptyHelp(empty)}</EmptyState>;
   return (
     <div className="grid gap-2">
       {entries.map((entry, index) => (
@@ -2027,14 +2039,33 @@ function EntryList({ entries, empty, detail }: { entries: EntryRecord[]; empty: 
 
 function Panel({ title, link, children }: { title: string; link?: string; children: ReactNode }) {
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
-        {link && <Link className="text-xs font-medium text-blue-700 dark:text-blue-300" to={link}>Open editor</Link>}
-      </div>
+    <AuthoringPanel
+      title={title}
+      help={worldPanelHelp(title)}
+      actions={link && <Link className="text-xs font-medium text-blue-700 dark:text-blue-300" to={link}>Inspect Source Records</Link>}
+    >
       {children}
-    </section>
+    </AuthoringPanel>
   );
+}
+
+function worldPanelHelp(title: string): string {
+  if (title === "Story / State Overlay") return "Shows canonical story placements and warnings for this location without leaving the world map.";
+  if (title === "Story Path") return "Shows inferred story beats connected to the selected location or route.";
+  if (title === "Routes And Route Events") return "Shows connected routes and any events that trigger from those routes.";
+  if (title === "POIs / Interactables") return "Shows points of interest and interactable content placed at this location.";
+  if (title === "Encounter Placement") return "Shows encounter tables that can spawn or present encounters at this location.";
+  if (title === "Travel Tuning") return "Shows travel cost, time, risk, and encounter tuning rows that apply here.";
+  if (title === "Creative Brief") return "Shows art, ambience, audio, landmark, and story notes for this location.";
+  if (title === "Validation Issues") return "Shows world validation issues that point to records needing attention.";
+  return "Inspect this part of the selected world record.";
+}
+
+function worldEmptyHelp(empty: string): string {
+  if (empty.includes("connected routes")) return "Create a route when this location should connect to another saved location.";
+  if (empty.includes("POIs")) return "Create a POI when this location needs an interactable, item, event, dialogue, or encounter hook.";
+  if (empty.includes("travel tuning")) return "Add travel tuning when this location or route type needs custom cost, time, risk, or encounter chances.";
+  return "That can be fine while drafting; add source records when this part of the world needs authored content.";
 }
 
 function Fact({ label, value }: { label: string; value: string }) {

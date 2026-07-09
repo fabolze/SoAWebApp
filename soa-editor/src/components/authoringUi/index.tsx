@@ -25,6 +25,43 @@ export function AuthoringPageShell({
   );
 }
 
+export type AuthoringSectionNavItem = {
+  id: string;
+  label: ReactNode;
+  summary?: ReactNode;
+};
+
+export function AuthoringSectionNav({
+  sections,
+  title = "Workspace Sections",
+  className = "",
+}: {
+  sections: AuthoringSectionNavItem[];
+  title?: ReactNode;
+  className?: string;
+}) {
+  if (sections.length === 0) return null;
+  return (
+    <nav className={`hidden xl:block ${className}`.trim()} aria-label={typeof title === "string" ? title : "Workspace sections"}>
+      <div className="sticky top-4 rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <div className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">{title}</div>
+        <div className="mt-2 space-y-1">
+          {sections.map((section) => (
+            <a
+              key={section.id}
+              className="block rounded-md px-2 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-200"
+              href={`#${section.id}`}
+            >
+              <span className="block font-medium">{section.label}</span>
+              {section.summary && <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{section.summary}</span>}
+            </a>
+          ))}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
 export type NumberEmptyValue = "empty-string" | "null" | "zero";
 
 type NumberCommitValue = number | "" | null;

@@ -11,6 +11,7 @@ import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
 import { useDirtyState } from "../components/useDirtyState";
+import { AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import { apiFetch } from "../lib/api";
 import type { EntryRecord } from "../types/editorQol";
 import { generateSlug, generateUlid } from "../utils/generateId";
@@ -61,13 +62,17 @@ function useDraft<T>(key: string, initial: T) {
 }
 
 function Shell({ title, subtitle, dirty, onSave, onReset, children }: { title: string; subtitle: string; dirty: boolean; onSave: () => void; onReset: () => void; children: React.ReactNode }) {
-  return <div className="space-y-5 p-5">
-    <header className="flex flex-wrap items-center justify-between gap-3">
-      <div><h1 className="text-2xl font-semibold">{title}</h1><p className="text-sm text-slate-500">{subtitle}</p></div>
-      <div className="flex gap-2"><button className="rounded-md border px-3 py-2 text-sm" onClick={onReset}>Reset</button><button className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!dirty} onClick={onSave}>Save All</button></div>
-    </header>
+  return <AuthoringPageShell>
+    <AuthoringPanel
+      title={title}
+      subtitle={dirty ? "Unsaved journey draft" : "Draft matches last saved bundle"}
+      help={subtitle}
+      actions={<><button className="rounded-md border px-3 py-2 text-sm" onClick={onReset}>Reset Draft</button><button className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!dirty} onClick={onSave}>Save Quest Bundle</button></>}
+    >
+      <p className="text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
+    </AuthoringPanel>
     {children}
-  </div>;
+  </AuthoringPageShell>;
 }
 
 function MultiReferencePicker({ label, values, options, onChange, emptyText = "None selected." }: { label: string; values: unknown; options: EntryRecord[]; onChange: (values: string[]) => void; emptyText?: string }) {
@@ -83,7 +88,7 @@ function MultiReferencePicker({ label, values, options, onChange, emptyText = "N
         const option = resolvedOptions.find((entry) => text(entry.id) === id);
         return <button key={id} type="button" className="rounded-full bg-slate-900 px-2 py-1 text-xs font-medium text-white dark:bg-slate-100 dark:text-slate-900" title="Remove" onClick={() => onChange(selected.filter((value) => value !== id))}>{option ? rowLabel(option, id) : id} x</button>;
       })}
-      {selected.length === 0 && <span className="text-xs text-slate-500">{emptyText}</span>}
+      {selected.length === 0 && <EmptyState variant="compact">{emptyText}</EmptyState>}
     </div>
     <select className={`${inputClass} mt-2`} value="" disabled={available.length === 0} onChange={(event) => event.target.value && onChange([...selected, event.target.value])}>
       <option value="">{available.length ? `Add ${label.toLowerCase()}...` : "No more available"}</option>
@@ -126,7 +131,7 @@ function ObjectiveBoard({ objectives, flags, selectedObjectiveId = "", canReview
         <div className="md:col-span-2"><MultiReferencePicker label="Flags Set" values={objective.flags_set} options={flags} onChange={(flags_set) => update(index, { flags_set })} /></div>
       </div>
     </article>)}
-    {objectiveRows.length === 0 && <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Quest has no objectives.</p>}
+    {objectiveRows.length === 0 && <EmptyState title="No objectives yet">Add at least one ordered objective so the quest journey can describe what the player does before completion.</EmptyState>}
     <button type="button" className="rounded-md border border-blue-300 px-3 py-2 text-sm font-semibold text-blue-700 dark:border-blue-800 dark:text-blue-300" onClick={() => onChange([...objectiveRows, { objective_id: generateSlug(`objective-${generateUlid().slice(-6)}`), description: "", requirements_id: "", flags_set: [] }])}>Add Objective</button>
   </div>;
 }
@@ -163,21 +168,21 @@ function DependencyContext({ context, packet }: { context: unknown; packet: Entr
   };
   return <div className="space-y-3">
     <p className="text-sm text-slate-500">Objectives apply flags in order. Completion flags can unlock later content.</p>
-    <div><div className="mb-1 text-xs font-semibold uppercase text-slate-500">Prerequisites</div>{rows(value.prerequisites).length ? rows(value.prerequisites).map((edge) => <div key={text(edge.id)} className="mb-1 rounded border border-amber-200 px-2 py-1 text-xs">{nodeLabel(edge.source)} -&gt; {text(edge.relation)} -&gt; {nodeLabel(edge.target)}</div>) : <p className="text-xs text-slate-500">No prerequisite flag gates detected.</p>}</div>
-    <div><div className="mb-1 text-xs font-semibold uppercase text-slate-500">Aftermath</div>{rows(value.aftermath).length ? rows(value.aftermath).map((edge) => <div key={text(edge.id)} className="mb-1 rounded border border-emerald-200 px-2 py-1 text-xs">{nodeLabel(edge.source)} -&gt; unlocks -&gt; {nodeLabel(edge.target)}</div>) : <p className="text-xs text-slate-500">No downstream content is currently unlocked by this quest.</p>}</div>
+    <div><div className="mb-1 text-xs font-semibold uppercase text-slate-500">Prerequisites</div>{rows(value.prerequisites).length ? rows(value.prerequisites).map((edge) => <div key={text(edge.id)} className="mb-1 rounded border border-amber-200 px-2 py-1 text-xs">{nodeLabel(edge.source)} -&gt; {text(edge.relation)} -&gt; {nodeLabel(edge.target)}</div>) : <EmptyState variant="compact" title="No prerequisite flags">Add quest unlock requirements when this journey should be blocked by player state.</EmptyState>}</div>
+    <div><div className="mb-1 text-xs font-semibold uppercase text-slate-500">Aftermath</div>{rows(value.aftermath).length ? rows(value.aftermath).map((edge) => <div key={text(edge.id)} className="mb-1 rounded border border-emerald-200 px-2 py-1 text-xs">{nodeLabel(edge.source)} -&gt; unlocks -&gt; {nodeLabel(edge.target)}</div>) : <EmptyState variant="compact" title="No downstream unlocks">Add completion flags or follow-up requirements when this quest should open later content.</EmptyState>}</div>
     {edges.some((edge) => !text(edge.source) || !text(edge.target)) && <p className="text-sm text-red-600">Broken dependency context detected.</p>}
   </div>;
 }
 
-function FlagTray({ label, values, flags, empty = "None." }: { label: string; values: string[]; flags: EntryRecord[]; empty?: string }) {
+function FlagTray({ label, values, flags, empty = "No flags in this group." }: { label: string; values: string[]; flags: EntryRecord[]; empty?: string }) {
   return <div><div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">{label}</div><div className="flex flex-wrap gap-1">
-    {values.length ? values.map((flag) => <span key={flag} className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">{labelFromOptions(flag, flags, flag)}</span>) : <span className="text-xs text-slate-500">{empty}</span>}
+    {values.length ? values.map((flag) => <span key={flag} className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">{labelFromOptions(flag, flags, flag)}</span>) : <EmptyState variant="compact">{empty}</EmptyState>}
   </div></div>;
 }
 
 function RequirementStatus({ step, flags }: { step: QuestWalkthroughStep; flags: EntryRecord[] }) {
   const requirement = step.requirement;
-  if (!requirement) return <p className="text-xs text-slate-500">No gate for this step.</p>;
+  if (!requirement) return <EmptyState variant="compact" title="No unlock requirement">This step is currently available without checking player state.</EmptyState>;
   return <div className={`rounded-md border p-3 text-xs ${requirement.satisfied ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200" : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"}`}>
     <div className="mb-2 font-semibold">{requirement.label} {requirement.satisfied ? "is open" : "is locked"}</div>
     <div className="grid gap-2 md:grid-cols-2">
@@ -195,7 +200,7 @@ function RewardTray({ rewards, packet }: { rewards: EntryRecord; packet: EntryRe
   const currencyRewards = rows(rewards.currency_rewards);
   const reputationRewards = rows(rewards.reputation_rewards);
   const hasRewards = numberValue(rewards.xp_reward) !== 0 || itemRewards.length > 0 || currencyRewards.length > 0 || reputationRewards.length > 0;
-  if (!hasRewards) return <p className="text-xs text-slate-500">No payoff authored for this step.</p>;
+  if (!hasRewards) return <EmptyState variant="compact" title="No payoff authored">Add XP, item, currency, or reputation rewards when this step should grant a payoff.</EmptyState>;
   return <div className="grid gap-2 text-xs md:grid-cols-2">
     {numberValue(rewards.xp_reward) !== 0 && <div className="rounded border border-slate-200 p-2 dark:border-slate-800">XP: {numberValue(rewards.xp_reward)}</div>}
     {itemRewards.map((reward, index) => <div key={`item-${index}`} className="rounded border border-slate-200 p-2 dark:border-slate-800">Item: {labelFromOptions(reward.item_id, rows(packet.items), text(reward.item_id))} x {text(reward.quantity) || "1"}</div>)}
@@ -250,16 +255,16 @@ const milestoneTone: Record<QuestStoryMilestoneKind, string> = {
 };
 
 function QuestStoryPathPanel({ analysis, flags }: { analysis: QuestJourneyAnalysis; flags: EntryRecord[] }) {
-  return <section className={`${panelClass} xl:col-span-2`} data-testid="quest-story-path-panel">
-    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 className="font-semibold">Story Path</h2>
-        <p className="text-sm text-slate-500">Objective order beside canonical quest story placements and arc branches.</p>
-      </div>
-      <div className="flex flex-wrap gap-1 text-xs">
+  return <AuthoringPanel
+    className="xl:col-span-2"
+    title="Story Path"
+    subtitle="Objective order beside canonical quest story placements and arc branches."
+    help="Use this preview to compare playable objective order with canonical story placement, branch exits, and path diagnostics before reviewing the quest bundle."
+    status={<div className="flex flex-wrap gap-1 text-xs">
         {(["start", "escalation", "branch", "resolution"] as QuestStoryMilestoneKind[]).map((kind) => <span key={kind} className={`rounded-full border px-2 py-1 font-semibold capitalize ${milestoneTone[kind]}`}>{kind}</span>)}
-      </div>
-    </div>
+      </div>}
+    testId="quest-story-path-panel"
+  >
     <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
       <div>
         <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Playable Steps</div>
@@ -276,7 +281,7 @@ function QuestStoryPathPanel({ analysis, flags }: { analysis: QuestJourneyAnalys
                 <div className="mt-2 flex flex-wrap gap-1">
                   {step.requirementId && <span className="rounded-full border border-amber-200 px-2 py-1 text-xs text-amber-800 dark:border-amber-900 dark:text-amber-200">Gate: {step.requirementId}</span>}
                   {step.flagsSet.map((flag) => <span key={flag} className="rounded-full border border-emerald-200 px-2 py-1 text-xs text-emerald-800 dark:border-emerald-900 dark:text-emerald-200">Sets {labelFromOptions(flag, flags, flag)}</span>)}
-                  {!step.requirementId && step.flagsSet.length === 0 && <span className="text-xs text-slate-500">No gate or state change.</span>}
+                  {!step.requirementId && step.flagsSet.length === 0 && <EmptyState variant="compact">This step has no unlock requirement or state change.</EmptyState>}
                 </div>
               </div>
             </div>
@@ -296,7 +301,7 @@ function QuestStoryPathPanel({ analysis, flags }: { analysis: QuestJourneyAnalys
             </div>
             <p className="mt-1 text-xs">Order {milestone.order} / {milestone.lifecycle}</p>
           </article>)}
-          {analysis.milestones.length === 0 && <p className="rounded-md border border-dashed border-slate-300 p-3 text-sm text-slate-500 dark:border-slate-700">No canonical quest story placements yet.</p>}
+          {analysis.milestones.length === 0 && <EmptyState title="No canonical quest story placements">Attach story placement context when this quest should appear on the timeline or in branch previews.</EmptyState>}
         </div>
       </div>
     </div>
@@ -308,18 +313,18 @@ function QuestStoryPathPanel({ analysis, flags }: { analysis: QuestJourneyAnalys
             <div className="font-semibold">{branch.conditionFlag ? labelFromOptions(branch.conditionFlag, flags, branch.conditionFlag) : "No condition"} -&gt; {branch.nextQuestLabel}</div>
             <div className="mt-1 text-xs">{branch.targetOrder === null ? "Target is outside this arc order." : `Arc order ${branch.targetOrder + 1}`}</div>
           </div>)}
-          {analysis.branches.length === 0 && <p className="rounded-md border border-dashed border-slate-300 p-3 text-sm text-slate-500 dark:border-slate-700">No branch entries originate from this quest.</p>}
+          {analysis.branches.length === 0 && <EmptyState title="No branch exits">Add branch entries when completing this quest should move the player into another quest path.</EmptyState>}
         </div>
       </div>
       <div>
         <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Path Diagnostics</div>
         <div className="space-y-2">
           {analysis.diagnostics.map((diagnostic) => <p key={diagnostic.id} className={`rounded border px-3 py-2 text-sm ${diagnostic.severity === "warning" ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200" : "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"}`}>{diagnostic.message}</p>)}
-          {analysis.diagnostics.length === 0 && <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">No branch path issues detected.</p>}
+          {analysis.diagnostics.length === 0 && <StatusNotice tone="success">No branch path issues detected.</StatusNotice>}
         </div>
       </div>
     </div>
-  </section>;
+  </AuthoringPanel>;
 }
 
 export function QuestJourneyPage() {
@@ -362,9 +367,9 @@ export function QuestJourneyPage() {
   const questAnalysis = useMemo(() => buildQuestJourneyAnalysis({ packet, storyPacket: storyPlacement.packet, questId: text(quest.id), occurrences: storyPlacement.context.occurrences }), [packet, quest, storyPlacement.context.occurrences, storyPlacement.packet]);
   const save = async () => { const response = await apiFetch("/api/ui/quests/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(packet) }); const data = await response.json(); if (response.ok) { setPacket(data); setOriginal(JSON.stringify(data)); if (isNew) navigate(`/author/quests/${encodeURIComponent(text(data.quest.id))}`, { replace: true }); } };
   return <Shell title="Quest Journey Board" subtitle="Compose invitation, ordered objectives, completion, payoff, and aftermath." dirty={dirty} onSave={save} onReset={() => setPacket(JSON.parse(original))}><div className="grid gap-4 xl:grid-cols-2">
-    <section className={panelClass}><h2 className="mb-3 font-semibold">Invitation</h2><div className="space-y-3"><label className="block text-sm">Title<input className={`${inputClass} mt-1`} value={text(quest.title)} onChange={(event) => update("title", event.target.value)} /></label><label className="block text-sm">Slug<input className={`${inputClass} mt-1`} value={text(quest.slug)} onChange={(event) => update("slug", event.target.value)} /></label><label className="block text-sm">Description<textarea className={`${inputClass} mt-1 min-h-24`} value={text(quest.description)} onChange={(event) => update("description", event.target.value)} /></label><ReferenceChipPicker label="Quest Unlock Requirement" value={quest.requirements_id} reference="requirements" onChange={(requirements_id) => update("requirements_id", requirements_id)} /><MultiReferencePicker label="Quest Givers" values={packet.quest_giver_profile_ids} options={interactionProfiles} onChange={(quest_giver_profile_ids) => setPacket({ ...packet, quest_giver_profile_ids })} /><EditableTagList tags={quest.tags} onChange={(tags) => update("tags", tags)} /></div></section>
-    <section className={panelClass}><div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">Journey Health</h2><span className={`rounded-full px-2 py-1 text-xs font-semibold ${rows(quest.objectives).length && !objectiveIssues ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{rows(quest.objectives).length && !objectiveIssues ? "Ready to review" : "Needs attention"}</span></div><div className="space-y-2 text-sm">{rows(quest.objectives).length === 0 && <p className="rounded border border-amber-200 p-2 text-amber-800">Add at least one objective.</p>}{objectiveIssues > 0 && <p className="rounded border border-amber-200 p-2 text-amber-800">{objectiveIssues} objective(s) need both an ID and player-facing description.</p>}{strings(quest.flags_set_on_completion).length === 0 && <p className="rounded border border-slate-200 p-2 text-slate-600">No completion flag is set, so this quest cannot directly unlock flag-gated content.</p>}{!hasRewards && <p className="rounded border border-amber-200 p-2 text-amber-800">Quest has no authored payoff.</p>}{strings(packet.quest_giver_profile_ids).length === 0 && <p className="rounded border border-slate-200 p-2 text-slate-600">No quest giver currently offers this quest.</p>}</div></section>
-    <section className={`${panelClass} xl:col-span-2`}><h2 className="mb-3 font-semibold">Ordered Objectives</h2><ObjectiveBoard objectives={quest.objectives} flags={questFlags} selectedObjectiveId={selectedObjectiveConsequenceId} canReviewConsequences={!isNew && text(quest.id) !== ""} onReviewConsequence={setSelectedObjectiveConsequenceId} onChange={(objectives) => update("objectives", objectives)} />
+    <AuthoringPanel title="Invitation" help="Define how the quest appears to the player, which unlock requirement controls availability, and which interaction profiles can offer it."><div className="space-y-3"><label className="block text-sm">Title<input className={`${inputClass} mt-1`} value={text(quest.title)} onChange={(event) => update("title", event.target.value)} /></label><label className="block text-sm">Slug<input className={`${inputClass} mt-1`} value={text(quest.slug)} onChange={(event) => update("slug", event.target.value)} /></label><label className="block text-sm">Description<textarea className={`${inputClass} mt-1 min-h-24`} value={text(quest.description)} onChange={(event) => update("description", event.target.value)} /></label><ReferenceChipPicker label="Quest Unlock Requirement" value={quest.requirements_id} reference="requirements" onChange={(requirements_id) => update("requirements_id", requirements_id)} /><MultiReferencePicker label="Quest Givers" values={packet.quest_giver_profile_ids} options={interactionProfiles} onChange={(quest_giver_profile_ids) => setPacket({ ...packet, quest_giver_profile_ids })} /><EditableTagList tags={quest.tags} onChange={(tags) => update("tags", tags)} /></div></AuthoringPanel>
+    <AuthoringPanel title="Journey Health" help="Use this checklist before review. It flags missing objectives, missing player-facing text, missing payoff, and missing state links." status={<span className={`rounded-full px-2 py-1 text-xs font-semibold ${rows(quest.objectives).length && !objectiveIssues ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{rows(quest.objectives).length && !objectiveIssues ? "Ready to review" : "Needs attention"}</span>}><div className="space-y-2 text-sm">{rows(quest.objectives).length === 0 && <StatusNotice tone="warning">Add at least one objective.</StatusNotice>}{objectiveIssues > 0 && <StatusNotice tone="warning">{objectiveIssues} objective(s) need both an ID and player-facing description.</StatusNotice>}{strings(quest.flags_set_on_completion).length === 0 && <EmptyState variant="compact" title="No completion flag">Add a completion flag when this quest should directly unlock flag-gated content.</EmptyState>}{!hasRewards && <StatusNotice tone="warning">Quest has no authored payoff.</StatusNotice>}{strings(packet.quest_giver_profile_ids).length === 0 && <EmptyState variant="compact" title="No quest giver">Add a quest giver when this quest should be offered by a character or interaction profile.</EmptyState>}</div></AuthoringPanel>
+    <AuthoringPanel className="xl:col-span-2" title="Ordered Objectives" help="Author the player-facing steps in order. Saved objectives can review their completion flags through the objective consequence composer."><ObjectiveBoard objectives={quest.objectives} flags={questFlags} selectedObjectiveId={selectedObjectiveConsequenceId} canReviewConsequences={!isNew && text(quest.id) !== ""} onReviewConsequence={setSelectedObjectiveConsequenceId} onChange={(objectives) => update("objectives", objectives)} />
       {!isNew && selectedObjectiveConsequenceId && !objectiveConsequenceSource && <p className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Save this objective before reviewing its consequence packet.</p>}
       {!isNew && objectiveConsequenceSource && <div className="mt-4">
         <ConsequenceComposer
@@ -392,10 +397,10 @@ export function QuestJourneyPage() {
           }}
         />
       </div>}
-    </section>
+    </AuthoringPanel>
     {!isNew && text(quest.id) && <QuestStoryPathPanel analysis={questAnalysis} flags={questFlags} />}
-    <section className={panelClass}><h2 className="mb-3 font-semibold">Completion & Payoff</h2><div className="space-y-4"><MultiReferencePicker label="Completion Flags" values={quest.flags_set_on_completion} options={questFlags} onChange={(flags) => update("flags_set_on_completion", flags)} /><label className="block text-xs font-semibold uppercase text-slate-500">Experience Reward<input className={`${inputClass} mt-1`} type="number" value={text(quest.xp_reward)} onChange={(event) => update("xp_reward", Number(event.target.value))} /></label><RewardRows label="Item Reward" rowsValue={quest.item_rewards} reference="items" idKey="item_id" amountKey="quantity" onChange={(value) => update("item_rewards", value)} /><RewardRows label="Currency Reward" rowsValue={quest.currency_rewards} reference="currencies" idKey="currency_id" amountKey="amount" onChange={(value) => update("currency_rewards", value)} /><RewardRows label="Reputation Reward" rowsValue={quest.reputation_rewards} reference="factions" idKey="faction_id" amountKey="amount" onChange={(value) => update("reputation_rewards", value)} /></div></section>
-    {!isNew && text(quest.id) && <section className={panelClass}><ConsequenceComposer
+    <AuthoringPanel title="Completion & Payoff" help="Set the state and rewards granted when the full quest completes. Use the consequence review below for saved quests when you need an atomic commit."><div className="space-y-4"><MultiReferencePicker label="Completion Flags" values={quest.flags_set_on_completion} options={questFlags} onChange={(flags) => update("flags_set_on_completion", flags)} /><label className="block text-xs font-semibold uppercase text-slate-500">Experience Reward<input className={`${inputClass} mt-1`} type="number" value={text(quest.xp_reward)} onChange={(event) => update("xp_reward", Number(event.target.value))} /></label><RewardRows label="Item Reward" rowsValue={quest.item_rewards} reference="items" idKey="item_id" amountKey="quantity" onChange={(value) => update("item_rewards", value)} /><RewardRows label="Currency Reward" rowsValue={quest.currency_rewards} reference="currencies" idKey="currency_id" amountKey="amount" onChange={(value) => update("currency_rewards", value)} /><RewardRows label="Reputation Reward" rowsValue={quest.reputation_rewards} reference="factions" idKey="faction_id" amountKey="amount" onChange={(value) => update("reputation_rewards", value)} /></div></AuthoringPanel>
+    {!isNew && text(quest.id) && <AuthoringPanel title="Quest Consequence Review" help="Review and commit completion flags, payoff rewards, reputation, and follow-up story consequences through one shared packet."><ConsequenceComposer
       sourceKind="quest"
       source={quest}
       expectedSource={record(originalPacket.quest)}
@@ -406,10 +411,10 @@ export function QuestJourneyPage() {
         setPacket((current) => ({ ...current, quest: savedQuest }));
         setOriginal(JSON.stringify({ ...originalPacket, quest: savedQuest }));
       }}
-    /></section>}
-    <section className={panelClass}><h2 className="mb-3 font-semibold">Walkthrough & Aftermath</h2><QuestWalkthroughPanel packet={packet} /><Link className="mt-4 inline-block text-sm font-semibold text-primary" to="/author/dependencies">Open Dependency Map</Link></section>
+    /></AuthoringPanel>}
+    <AuthoringPanel title="Walkthrough & Aftermath" help="Test the quest flow with temporary player state and inspect prerequisite or downstream dependency context."><QuestWalkthroughPanel packet={packet} /><Link className="mt-4 inline-block text-sm font-semibold text-primary" to="/author/dependencies">Inspect Dependency Map</Link></AuthoringPanel>
     {!isNew && text(quest.id) && <section className="xl:col-span-2"><StoryPlacementPanel entityKind="quest" entityId={text(quest.id)} entityLabel={text(quest.title) || text(quest.id)} entity={quest} storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} /></section>}
-    <section className={`${panelClass} xl:col-span-2`}><details><summary className="cursor-pointer font-semibold">Advanced Arc & Branch Data</summary><div className="mt-3"><JsonEditor label="Arc selection and branches" value={packet.arc} onChange={(value) => setPacket({ ...packet, arc: value })} /></div></details></section>
+    <AuthoringPanel className="xl:col-span-2" title="Advanced Arc & Branch Data" help="Use this advanced JSON editor only when the structured story path and branch controls do not expose the needed arc data."><JsonEditor label="Arc selection and branches" value={packet.arc} onChange={(value) => setPacket({ ...packet, arc: value })} /></AuthoringPanel>
   </div></Shell>;
 }
 
@@ -431,7 +436,7 @@ function DependencyFlagPicker({ flags, selected, onChange }: { flags: Dependency
         const flag = flags.find((entry) => entry.id === id);
         return <button key={id} type="button" className="rounded-full bg-slate-900 px-2 py-1 text-xs font-medium text-white dark:bg-slate-100 dark:text-slate-900" title="Remove" onClick={() => onChange(selected.filter((value) => value !== id))}>{flag?.label || id} x</button>;
       })}
-      {selected.length === 0 && <span className="text-xs text-slate-500">Start with no flags.</span>}
+      {selected.length === 0 && <EmptyState variant="compact" title="No starting flags">Start with temporary flags only when you want to test a later-game dependency state.</EmptyState>}
     </div>
     <select className={`${inputClass} mt-2`} value="" disabled={available.length === 0} onChange={(event) => event.target.value && onChange([...selected, event.target.value])}>
       <option value="">{available.length ? "Add initial flag..." : "No more flags"}</option>
@@ -440,12 +445,12 @@ function DependencyFlagPicker({ flags, selected, onChange }: { flags: Dependency
   </div>;
 }
 
-function DependencyFlagList({ label, flagIds, flags, empty = "None." }: { label: string; flagIds: string[]; flags: DependencyNode[]; empty?: string }) {
+function DependencyFlagList({ label, flagIds, flags, empty = "No flags in this step." }: { label: string; flagIds: string[]; flags: DependencyNode[]; empty?: string }) {
   return <div><div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">{label}</div><div className="flex flex-wrap gap-1">
     {flagIds.length ? flagIds.map((id) => {
       const flag = flags.find((entry) => entry.id === id);
       return <span key={id} className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">{flag?.label || id}</span>;
-    }) : <span className="text-xs text-slate-500">{empty}</span>}
+    }) : <EmptyState variant="compact">{empty}</EmptyState>}
   </div></div>;
 }
 
@@ -464,7 +469,7 @@ function DependencyGateList({ title, gates, flags, onFocus, empty, testId }: { t
           {gate.presentForbiddenFlags.length > 0 && <DependencyFlagList label="Forbidden Present" flagIds={gate.presentForbiddenFlags} flags={flags} />}
         </div>}
       </article>)}
-      {gates.length === 0 && <p className="rounded-md border border-slate-200 p-3 text-xs text-slate-500 dark:border-slate-800">{empty}</p>}
+      {gates.length === 0 && <EmptyState variant="compact">{empty}</EmptyState>}
     </div>
   </div>;
 }
@@ -497,11 +502,13 @@ function DependencyWalkthroughPanel({ model, initialFlags, triggerIds, activeInd
     onTriggerIdsChange(triggerIds.filter((_, rowIndex) => rowIndex !== index));
     onActiveIndexChange(Math.max(0, Math.min(activeIndex, triggerIds.length - 1)));
   };
-  return <section className={panelClass} data-testid="dependency-walkthrough-panel">
-    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-      <div><h2 className="font-semibold">State Walkthrough</h2><p className="text-xs text-slate-500">Step through temporary flag state from existing sources. Nothing here is saved.</p></div>
-      {(initialFlags.length > 0 || triggerIds.length > 0) && <button type="button" className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold" onClick={() => { onInitialFlagsChange([]); onTriggerIdsChange([]); onActiveIndexChange(0); }}>Reset Walkthrough</button>}
-    </div>
+  return <AuthoringPanel
+    title="State Walkthrough"
+    subtitle="Step through temporary flag state from existing sources. Nothing here is saved."
+    help="Use the walkthrough to test whether a sequence of authored flag producers opens or blocks later content without editing any records."
+    actions={(initialFlags.length > 0 || triggerIds.length > 0) && <button type="button" className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold" onClick={() => { onInitialFlagsChange([]); onTriggerIdsChange([]); onActiveIndexChange(0); }}>Reset Walkthrough</button>}
+    testId="dependency-walkthrough-panel"
+  >
     <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
       <div className="space-y-4">
         <DependencyFlagPicker flags={model.flags} selected={initialFlags} onChange={(values) => { onInitialFlagsChange(values); onActiveIndexChange(0); }} />
@@ -527,7 +534,7 @@ function DependencyWalkthroughPanel({ model, initialFlags, triggerIds, activeInd
                 </div>
               </div>;
             })}
-            {triggerIds.length === 0 && <p className="rounded-md border border-slate-200 p-3 text-xs text-slate-500 dark:border-slate-800">Add a source to see how authored flags unlock or block content.</p>}
+            {triggerIds.length === 0 && <EmptyState variant="compact" title="No trigger queue">Add a flag-setting source to see how authored flags unlock or block content.</EmptyState>}
           </div>
         </div>
       </div>
@@ -552,7 +559,7 @@ function DependencyWalkthroughPanel({ model, initialFlags, triggerIds, activeInd
         </div>}
       </div>
     </div>
-  </section>;
+  </AuthoringPanel>;
 }
 
 function dependencyNodeTone(node: EntryRecord | undefined, issueNodeIds: Set<string>): string {
@@ -636,17 +643,18 @@ function DependencyGraphPanel({
 }) {
   const graphNodes = useMemo(() => dependencyGraphNodes(visibleEdges, nodeById, issueNodeIds), [issueNodeIds, nodeById, visibleEdges]);
   const graphEdges = useMemo(() => dependencyGraphEdges(visibleEdges), [visibleEdges]);
-  return <section className={panelClass} data-testid="dependency-graph-panel">
-    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 className="font-semibold">Focused Graph</h2>
-        <p className="text-xs text-slate-500">Read-only map of the same filtered relationships. Click a node to focus its neighborhood.</p>
-      </div>
-      <div className="flex gap-2 text-xs">
+  return <AuthoringPanel
+    title="Focused Graph"
+    subtitle="Read-only map of the same filtered relationships. Click a node to focus its neighborhood."
+    help="Use the graph for orientation, then use the relationship list and health panel for exact records and affected fields."
+    status={
+      <>
         <span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{graphNodes.length} shown nodes</span>
         <span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{graphEdges.length} shown edges</span>
-      </div>
-    </div>
+      </>
+    }
+    testId="dependency-graph-panel"
+  >
     <div className="h-[420px] overflow-hidden rounded-md border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
       {graphNodes.length > 0 ? (
         <ReactFlow
@@ -663,10 +671,10 @@ function DependencyGraphPanel({
           <Controls />
         </ReactFlow>
       ) : (
-        <div className="grid h-full place-items-center text-sm text-slate-500">No graph relationships match the current filters.</div>
+        <div className="grid h-full place-items-center p-4"><EmptyState title="No graph relationships match">Clear the focus, search, or lens filters to restore the dependency graph.</EmptyState></div>
       )}
     </div>
-  </section>;
+  </AuthoringPanel>;
 }
 
 export function DependencyMapPage() {
@@ -699,16 +707,16 @@ export function DependencyMapPage() {
     const haystack = [edge.relation, edge.path, nodeById.get(text(edge.source))?.label, nodeById.get(text(edge.target))?.label, edge.source, edge.target].map((entry) => text(entry)).join(" ").toLowerCase();
     return haystack.includes(search.trim().toLowerCase());
   });
-  return <div className="space-y-5 p-5">
-    <header className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-semibold">Adventure Dependency Map</h1><p className="text-sm text-slate-500">Trace prerequisites, flags, unlocks, and branches. Solid relationships are stored; dashed relationships are inferred.</p></div><div className="flex gap-2 text-xs"><span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{nodes.length} nodes</span><span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{allEdges.length} relationships</span><span className={`rounded-full px-2 py-1 ${issueNodeIds.size ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>{issueNodeIds.size} issue nodes</span></div></header>
-    <section className={panelClass}><div className="grid gap-3 lg:grid-cols-2"><label className="block text-xs font-semibold uppercase text-slate-500">Focus Node<select className={`${inputClass} mt-1`} value={focus} onChange={(event) => setFocus(event.target.value)}><option value="">All nodes</option>{nodes.map((node) => <option key={text(node.id)} value={text(node.id)}>{text(node.kind)}: {text(node.label)}</option>)}</select></label><label className="block text-xs font-semibold uppercase text-slate-500">Search Relationships<input className={`${inputClass} mt-1`} value={search} placeholder="Search node, relation, or field..." onChange={(event) => setSearch(event.target.value)} /></label></div><div className="mt-3 flex flex-wrap gap-2">{dependencyLenses.map((value) => <button key={value} type="button" className={`rounded-full border px-3 py-1 text-xs font-semibold ${lens === value ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 dark:border-slate-700"}`} onClick={() => setLens(value)}>{dependencyLensLabel(value)}</button>)}{(focus || search || lens !== "all") && <button type="button" className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold" onClick={() => { setFocus(""); setSearch(""); setLens("all"); }}>Clear Filters</button>}</div></section>
+  return <AuthoringPageShell>
+    <AuthoringPanel title="Adventure Dependency Map" subtitle="Trace prerequisites, flags, unlocks, and branches. Solid relationships are stored; dashed relationships are inferred." help="Use this read-only workspace to find broken unlock chains, impossible requirements, unused flags, and the content affected by a flag or requirement." status={<><span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{nodes.length} nodes</span><span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{allEdges.length} relationships</span><span className={`rounded-full px-2 py-1 ${issueNodeIds.size ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>{issueNodeIds.size} issue nodes</span></>} />
+    <AuthoringPanel title="Dependency Filters" help="Focus on one node, search by label or field path, or switch lenses to isolate prerequisites, unlocks, flag links, branches, explicit links, or inferred links."><div className="grid gap-3 lg:grid-cols-2"><label className="block text-xs font-semibold uppercase text-slate-500">Focus Node<select className={`${inputClass} mt-1`} value={focus} onChange={(event) => setFocus(event.target.value)}><option value="">All nodes</option>{nodes.map((node) => <option key={text(node.id)} value={text(node.id)}>{text(node.kind)}: {text(node.label)}</option>)}</select></label><label className="block text-xs font-semibold uppercase text-slate-500">Search Relationships<input className={`${inputClass} mt-1`} value={search} placeholder="Search node, relation, or field..." onChange={(event) => setSearch(event.target.value)} /></label></div><div className="mt-3 flex flex-wrap gap-2">{dependencyLenses.map((value) => <button key={value} type="button" className={`rounded-full border px-3 py-1 text-xs font-semibold ${lens === value ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 dark:border-slate-700"}`} onClick={() => setLens(value)}>{dependencyLensLabel(value)}</button>)}{(focus || search || lens !== "all") && <button type="button" className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold" onClick={() => { setFocus(""); setSearch(""); setLens("all"); }}>Clear Filters</button>}</div></AuthoringPanel>
     <DependencyGraphPanel visibleEdges={visibleEdges} nodeById={nodeById} issueNodeIds={issueNodeIds} onFocus={setFocus} />
     <DependencyWalkthroughPanel model={walkthrough} initialFlags={initialFlags} triggerIds={triggerIds} activeIndex={activeWalkthroughIndex} onInitialFlagsChange={setInitialFlags} onTriggerIdsChange={setTriggerIds} onActiveIndexChange={setActiveWalkthroughIndex} onFocus={setFocus} />
     <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
-      <section className={panelClass}><h2 className="font-semibold">Actionable Health</h2><p className="mt-1 text-xs text-slate-500">Select an issue to focus its relationships, then open the affected record.</p><div className="mt-3 space-y-4"><HealthIssueGroup title="Impossible Gates" description="A requirement depends on a flag that nothing currently sets." severity="error" nodes={rows(health.impossible_gates)} onFocus={setFocus} /><HealthIssueGroup title="Dead Flags" description="These flags are consumed but have no producer." severity="error" nodes={rows(health.dead_flags)} onFocus={setFocus} /><HealthIssueGroup title="Contradictions" description="A requirement both requires and forbids the same flag." severity="error" nodes={rows(health.contradictions)} onFocus={setFocus} /><CycleIssueGroup cycles={Array.isArray(health.cycles) ? health.cycles : []} nodeById={nodeById} onFocus={setFocus} /><HealthIssueGroup title="Unused Flags" description="These flags are produced but never consumed." severity="warning" nodes={rows(health.unused_flags)} onFocus={setFocus} /><BrokenEdgeGroup edges={brokenEdges} nodeById={nodeById} onFocus={setFocus} />{issueNodeIds.size === 0 && <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">No dependency health issues detected.</p>}</div></section>
-      <section className={panelClass}><div className="flex items-center justify-between gap-3"><div><h2 className="font-semibold">Relationships</h2><p className="text-xs text-slate-500">{visibleEdges.length} shown. Click either endpoint to focus it.</p></div>{focus && <NodeLink node={nodeById.get(focus)} compact />}</div><div className="mt-3 space-y-2">{visibleEdges.map((edge) => <DependencyEdgeCard key={text(edge.id)} edge={edge} source={nodeById.get(text(edge.source))} target={nodeById.get(text(edge.target))} issueNodeIds={issueNodeIds} onFocus={setFocus} />)}{visibleEdges.length === 0 && <p className="rounded-md border border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800">No relationships match the current focus and lens.</p>}</div></section>
+      <AuthoringPanel title="Actionable Health" subtitle="Select an issue to focus its relationships, then open the affected record." help="Use these issue groups to find dependency records that block reachable content or create contradictory state.">{issueNodeIds.size === 0 && <StatusNotice tone="success">No dependency health issues detected.</StatusNotice>}<div className="mt-3 space-y-4"><HealthIssueGroup title="Impossible Gates" description="A requirement depends on a flag that nothing currently sets." severity="error" nodes={rows(health.impossible_gates)} onFocus={setFocus} /><HealthIssueGroup title="Dead Flags" description="These flags are consumed but have no producer." severity="error" nodes={rows(health.dead_flags)} onFocus={setFocus} /><HealthIssueGroup title="Contradictions" description="A requirement both requires and forbids the same flag." severity="error" nodes={rows(health.contradictions)} onFocus={setFocus} /><CycleIssueGroup cycles={Array.isArray(health.cycles) ? health.cycles : []} nodeById={nodeById} onFocus={setFocus} /><HealthIssueGroup title="Unused Flags" description="These flags are produced but never consumed." severity="warning" nodes={rows(health.unused_flags)} onFocus={setFocus} /><BrokenEdgeGroup edges={brokenEdges} nodeById={nodeById} onFocus={setFocus} /></div></AuthoringPanel>
+      <AuthoringPanel title="Relationships" subtitle={`${visibleEdges.length} shown. Click either endpoint to focus it.`} help="This list shows the exact relationship records behind the graph, including inferred edges and broken endpoints." actions={focus && <NodeLink node={nodeById.get(focus)} compact />}><div className="space-y-2">{visibleEdges.map((edge) => <DependencyEdgeCard key={text(edge.id)} edge={edge} source={nodeById.get(text(edge.source))} target={nodeById.get(text(edge.target))} issueNodeIds={issueNodeIds} onFocus={setFocus} />)}{visibleEdges.length === 0 && <EmptyState title="No relationships match">Clear the focus, search, or lens filters to show relationship records again.</EmptyState>}</div></AuthoringPanel>
     </div>
-  </div>;
+  </AuthoringPageShell>;
 }
 
 type DependencyLens = "all" | "prerequisites" | "unlocks" | "flags" | "branches" | "explicit" | "inferred";

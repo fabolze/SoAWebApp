@@ -5,7 +5,7 @@ import { deriveEncounterAftermathRows, type EncounterAftermathRow } from "../aut
 import { emptyScopedGatePacket, type ScopedGatePacket } from "../authoring/scopedGate";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
-import { AuthoringPageShell } from "../components/authoringUi";
+import { AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import SearchableSelect from "../components/SearchableSelect";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
@@ -319,16 +319,16 @@ export default function EncounterStagePage() {
     setGateSelectedRequirementId(requirementId);
     setPacket((current) => patch(current));
     setOriginal((current) => current ? patch(current) : current);
-    setNotice("Encounter gate committed.");
+    setNotice("Encounter unlock requirement committed.");
   };
 
-  if (loading) return <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading Encounter Stage...</div>;
+  if (loading) return <AuthoringPageShell><StatusNotice>Loading Encounter Stage...</StatusNotice></AuthoringPageShell>;
 
   return (
     <AuthoringPageShell>
       <div className="w-full space-y-4">
         <Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} onSave={() => void save()} onReset={reset} />
-        {(notice || restored) && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{restored ? "Restored unsaved Encounter Stage draft. " : ""}{notice}</div>}
+        {(notice || restored) && <StatusNotice>{restored ? "Restored unsaved Encounter Stage draft. " : ""}{notice}</StatusNotice>}
         <EncounterSelector packet={packet} />
         <div className="grid gap-4 2xl:grid-cols-[1fr_360px]">
           <div className="space-y-4">
@@ -347,8 +347,8 @@ export default function EncounterStagePage() {
               targetId={gateTargetId}
               setTargetId={setGateTargetId}
               directCommit
-              title="Encounter Gate"
-              subtitle="Create or reuse flags and requirements, then attach the saved encounter gate atomically."
+              title="Encounter Unlock Requirement"
+              subtitle="Create or reuse flags and requirements, then attach the saved encounter requirement atomically."
               tag="encounter-stage"
               onCommitted={(nextPacket, requirementId) => applyGateCommit(nextPacket, requirementId)}
             />}
@@ -383,9 +383,9 @@ export default function EncounterStagePage() {
           </div>
         </div>
         <div className="sticky bottom-3 flex justify-end gap-2 rounded-md border border-slate-200 bg-white/95 p-3 shadow dark:border-slate-800 dark:bg-slate-900/95">
-          <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} to={`/encounters?selected=${encodeURIComponent(displayText(packet.encounter.id))}`}>Generic Editor</Link>
-          <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={reset}>Reset</button>
-          <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || issues.blockers.length > 0} onClick={() => void save()}>{saving ? "Saving..." : "Save All"}</button>
+          <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} to={`/encounters?selected=${encodeURIComponent(displayText(packet.encounter.id))}`}>Inspect In Generic Editor</Link>
+          <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={reset}>Reset Draft</button>
+          <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || issues.blockers.length > 0} onClick={() => void save()}>{saving ? "Saving..." : "Save Encounter Bundle"}</button>
         </div>
       </div>
     </AuthoringPageShell>
@@ -393,17 +393,17 @@ export default function EncounterStagePage() {
 }
 
 function Header({ packet, dirty, saving, blockers, onSave, onReset }: { packet: EncounterPacket; dirty: boolean; saving: boolean; blockers: string[]; onSave: () => void; onReset: () => void }) {
-  return <Panel title={displayText(packet.encounter.name, "Encounter Stage")} subtitle={`${displayText(packet.encounter.encounter_type, "Encounter")} / ${rows(packet.encounter.participants).length} participants / ${packet.placements.length} placements`}>
+  return <Panel title={displayText(packet.encounter.name, "Encounter Stage")} subtitle={`${displayText(packet.encounter.encounter_type, "Encounter")} / ${rows(packet.encounter.participants).length} participants / ${packet.placements.length} placements`} help="Use this workspace to build the encounter, participants, rewards, placement, story timing, and consequences as one reviewed bundle. Save writes the encounter bundle after blockers are resolved.">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="text-xs text-slate-500">{dirty ? "Unsaved bundle changes" : "Bundle saved"}</div>
-      <div className="flex gap-2"><button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={onReset}>Reset</button><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || blockers.length > 0} onClick={onSave}>{saving ? "Saving..." : "Save All"}</button></div>
+      <div className="flex gap-2"><button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={onReset}>Reset Draft</button><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || blockers.length > 0} onClick={onSave}>{saving ? "Saving..." : "Save Encounter Bundle"}</button></div>
     </div>
   </Panel>;
 }
 
 function EncounterSelector({ packet }: { packet: EncounterPacket }) {
   const navigate = useNavigate();
-  return <Panel title="Encounter Selector" subtitle="Open an existing encounter or create a new staged bundle.">
+  return <Panel title="Encounter Selector" subtitle="Open an existing encounter or create a new staged bundle." help="Use this selector to switch the staged encounter bundle. If you have unsaved changes, the app's dirty-state protection will warn before navigation.">
     <div className="flex gap-2">
       <select className={inputClass} value={displayText(packet.encounter.id)} onChange={(event) => navigate(`/author/encounters/${encodeURIComponent(event.target.value)}`)}>
         <option value={displayText(packet.encounter.id)}>{rowLabel(packet.encounter, "Current Encounter")}</option>
@@ -425,12 +425,12 @@ function IdentityPanel({ packet, setPacket, updateEncounter, showInlineGate }: {
     const requirement = { id, slug: generateSlug(`${displayText(encounter.name, "encounter")}-gate`), required_flags: [], forbidden_flags: [], min_faction_reputation: [], tags: [] };
     setPacket((current) => ({ ...current, encounter: { ...current.encounter, requirements_id: id }, requirement, requirement_usages: [] }));
   };
-  return <Panel title="Identity And Gate" subtitle="Define the encounter and its reusable entry requirement.">
+  return <Panel title="Identity And Unlock Requirement" subtitle="Define the encounter and its reusable entry requirement." help="Use this section for the encounter's identity and optional unlock requirement. The requirement controls whether the encounter is available; it does not place the encounter in the world or timeline.">
     <div className="grid gap-3 md:grid-cols-2">
       <Field label="Name" value={encounter.name} onChange={(name) => updateEncounter({ name, slug: displayText(encounter.slug) || generateSlug(name) })} />
       <Field label="Slug" value={encounter.slug} onChange={(slug) => updateEncounter({ slug })} />
       <label className="block"><Caption>Encounter Type</Caption><select className={inputClass} value={displayText(encounter.encounter_type)} onChange={(event) => updateEncounter({ encounter_type: event.target.value })}>{["Combat", "Dialogue", "Event"].map((value) => <option key={value}>{value}</option>)}</select></label>
-      <label className="block"><Caption>Requirement Gate</Caption><select className={inputClass} value={displayText(encounter.requirements_id)} onChange={(event) => selectRequirement(event.target.value)}><option value="">Unassigned</option>{packet.requirements.map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.id))}</option>)}</select></label>
+      <label className="block"><Caption>Unlock Requirement</Caption><select className={inputClass} value={displayText(encounter.requirements_id)} onChange={(event) => selectRequirement(event.target.value)}><option value="">No unlock requirement</option>{packet.requirements.map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.id))}</option>)}</select></label>
       <label className="block md:col-span-2"><Caption>Description</Caption><textarea className={`${inputClass} min-h-24`} value={editableText(encounter.description)} onChange={(event) => updateEncounter({ description: event.target.value })} /></label>
       <div className="md:col-span-2"><EditableTagList tags={encounter.tags} onChange={(tags) => updateEncounter({ tags })} /></div>
     </div>
@@ -491,7 +491,7 @@ function Stage({ packet, setPacket, selectedCharacter, setSelectedCharacter }: {
   const dragEnd = (event: DragEndEvent) => {
     if (event.over && SIDES.includes(String(event.over.id) as Side)) move(String(event.active.id), String(event.over.id) as Side);
   };
-  return <Panel title="Participants" subtitle="Add characters to a side, then mark whether they are used for combat, interaction, or both.">
+  return <Panel title="Participants" subtitle="Add characters to a side, then mark whether they are used for combat, interaction, or both." help="Participants build the fight or conversation cast. Drag characters between sides, then mark whether each one participates in combat, interaction, or both.">
     <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
       <div className="grid gap-2 lg:grid-cols-[1fr_160px_auto]">
         <div>
@@ -524,7 +524,7 @@ function Stage({ packet, setPacket, selectedCharacter, setSelectedCharacter }: {
       <div className="mb-3 flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
         <div className="basis-full text-[11px] font-semibold uppercase text-slate-500">Available Cast</div>
         {unassignedCharacters.map((entry) => <CastChip key={characterId(entry)} entry={entry} onAdd={() => move(characterId(entry), "Neutral")} />)}
-        {packet.characters.length === 0 && <div className="text-xs text-slate-500">No characters are available yet. Create a character first, then return here to add participants.</div>}
+        {packet.characters.length === 0 && <EmptyState variant="compact" title="No characters available yet.">Create a character first, then return here to add participants.</EmptyState>}
         {packet.characters.length > 0 && unassignedCharacters.length === 0 && <div className="text-xs text-slate-500">All available characters are already assigned. Use the side columns below to inspect, move, or remove them.</div>}
       </div>
       <div className="grid gap-3 xl:grid-cols-3">
@@ -551,7 +551,7 @@ function SideZone({ side, packet, selectedCharacter, setSelectedCharacter, updat
   };
   return <div ref={droppable.setNodeRef} className={`min-h-52 rounded-md border-2 border-dashed p-3 ${droppable.isOver ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30" : "border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-950"}`}>
     <div className="mb-2 text-sm font-semibold">{side} ({participants.length})</div>
-    <div className="space-y-2">{participants.length === 0 && <div className="rounded-md border border-dashed border-slate-300 px-3 py-6 text-center text-xs text-slate-500 dark:border-slate-700">No {side.toLowerCase()} participants yet.</div>}{participants.map((participant) => {
+    <div className="space-y-2">{participants.length === 0 && <EmptyState variant="compact" className="text-center" title={`No ${side.toLowerCase()} participants yet.`}>Drag or add a character here when this side should take part in the encounter.</EmptyState>}{participants.map((participant) => {
       const id = displayText(participant.character_id);
       const character = characters.get(id);
       return <ParticipantCard key={id} id={id} participant={participant} packet={character} selected={selectedCharacter === id} onSelect={() => setSelectedCharacter(id)} onChange={(patch) => update(id, patch)} onRemove={() => remove(id)} />;
@@ -579,7 +579,7 @@ function RewardPanel({ packet, updateEncounter }: { packet: EncounterPacket; upd
   const currencies = useReferenceOptions("currencies", packet.currencies);
   const factions = useReferenceOptions("factions", packet.factions);
   const update = (patch: EntryRecord) => updateEncounter({ rewards: { ...rewards, ...patch } });
-  return <Panel title="Rewards" subtitle="Shape the payoff and progression consequences.">
+  return <Panel title="Rewards" subtitle="Shape the payoff and progression consequences." help="Rewards are saved on the encounter. Use flags here when completing the encounter should change player state; use story consequences for effects on other records.">
     <div className="grid gap-3 md:grid-cols-2"><NumberField label="XP" value={rewards.xp} onChange={(xp) => update({ xp })} /><MultiSelect label="Flags Set" values={strings(rewards.flags_set)} options={flags} onChange={(flags_set) => update({ flags_set })} /></div>
     <div className="grid gap-3 xl:grid-cols-3"><RewardRows title="Item Rewards" rows={rows(rewards.items)} options={items} referenceKey="item_id" numberKey="quantity" onChange={(items) => update({ items })} /><RewardRows title="Currency Rewards" rows={rows(rewards.currencies)} options={currencies} referenceKey="currency_id" numberKey="amount" onChange={(currencies) => update({ currencies })} /><RewardRows title="Reputation Rewards" rows={rows(rewards.reputation)} options={factions} referenceKey="faction_id" numberKey="amount" onChange={(reputation) => update({ reputation })} /></div>
   </Panel>;
@@ -601,7 +601,7 @@ function AftermathPanel({ rows: aftermathRows, loading, error }: { rows: Encount
     participants: aftermathRows.filter((row) => row.group === "participants"),
     story: aftermathRows.filter((row) => row.group === "story"),
   };
-  return <Panel title="Encounter Aftermath" subtitle="Preview what changes because this encounter happens. Draft rewards are local; story consequences are saved placements.">
+  return <Panel title="Encounter Aftermath" subtitle="Preview what changes because this encounter happens. Draft rewards are local; story consequences are saved placements." help="Use this to check payoff, participant impact, and saved story consequences before committing. Empty groups are normal while drafting.">
     {loading && <div className="mb-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">Loading story consequences...</div>}
     {error && <Issue tone="amber">{error}</Issue>}
     <div className="grid gap-3 lg:grid-cols-3">
@@ -609,7 +609,7 @@ function AftermathPanel({ rows: aftermathRows, loading, error }: { rows: Encount
         <div key={group} className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
           <div className="mb-2 text-xs font-semibold uppercase text-slate-500">{groupLabels[group]}</div>
           <div className="space-y-2">
-            {grouped[group].length === 0 && <div className="text-xs text-slate-500">None.</div>}
+            {grouped[group].length === 0 && <EmptyState variant="compact" title={`No ${groupLabels[group].toLowerCase()} yet.`}>That is fine while drafting; add rewards, participants, or story consequences when this encounter should leave a visible result.</EmptyState>}
             {grouped[group].map((row) => (
               <div key={row.id} className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950">
                 <div className="font-semibold text-slate-900 dark:text-slate-100">{row.route ? <Link className="text-blue-700 hover:underline dark:text-blue-300" to={row.route}>{row.label}</Link> : row.label}</div>
@@ -628,7 +628,7 @@ function PlacementPanel({ packet, setPacket }: { packet: EncounterPacket; setPac
   const placed = new Set(packet.placements.map((placement) => placement.table_id));
   const add = (tableId: string) => setPacket((current) => ({ ...current, placements: [...current.placements, { table_id: tableId, entry: { encounter_id: current.encounter.id, weight: 1, spawn_group: "", min_count: 1, max_count: 1, spawn_notes: "" } }] }));
   const update = (index: number, patch: EntryRecord) => setPacket((current) => ({ ...current, placements: current.placements.map((placement, rowIndex) => rowIndex === index ? { ...placement, entry: { ...placement.entry, ...patch } } : placement) }));
-  return <Panel title="World Placement" subtitle="Place this encounter into existing location encounter tables.">
+  return <Panel title="World Placement" subtitle="Place this encounter into existing location encounter tables." help="World placement controls where this encounter can appear in location encounter tables. It does not set story order; use Story Placement for timeline context.">
     <div className="space-y-3">{packet.placements.map((placement, index) => {
       const table = encounterTables.find((entry) => displayText(entry.id) === placement.table_id);
       const location = isRecord(table?.location) ? table.location : {};
@@ -657,39 +657,39 @@ function SimulationComparison({ packet }: { packet: EncounterPacket }) {
     const median = values.length ? values[Math.floor(values.length / 2)] : 0;
     return { current, peers, poorReward: median > 0 && current.metrics.value < median * 0.6 };
   }, [datasets, packet, scenarioId]);
-  return <Panel title="Simulation And Comparison" subtitle="Compare the current draft against same-type encounters using the existing simulation.">
+  return <Panel title="Simulation And Comparison" subtitle="Compare the current draft against same-type encounters using the existing simulation." help="Use this as a balance check. It compares draft power, value, and influence against nearby same-type encounters; it does not save tuning changes by itself.">
     <label className="block max-w-sm"><Caption>Scenario</Caption><select className={inputClass} value={scenarioId} onChange={(event) => setScenarioId(event.target.value)}>{SIMULATION_SCENARIOS.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.label}</option>)}</select></label>
     {!result ? <div className="mt-3 text-sm text-slate-500">Loading simulation datasets...</div> : <><div className="mt-3 grid gap-2 sm:grid-cols-3"><Metric label="Power" value={result.current.metrics.power} /><Metric label="Value" value={result.current.metrics.value} /><Metric label="Influence" value={result.current.metrics.influence} /></div>{result.current.warnings.map((warning) => <div key={warning} className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">{warning}</div>)}{result.poorReward && <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">Reward value is below 60% of the comparison-peer median.</div>}<div className="mt-3 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-xs uppercase text-slate-500"><th className="p-2">Peer</th><th>Nearby</th><th>Power</th><th>Value</th><th>Influence</th></tr></thead><tbody>{result.peers.map((peer) => <tr key={displayText(peer.entry.id)} className="border-t border-slate-200 dark:border-slate-800"><td className="p-2 font-semibold">{rowLabel(peer.entry, displayText(peer.entry.id))}</td><td>{peer.sharesLocation ? "Same location" : "-"}</td><td>{peer.metrics.power.toFixed(0)}</td><td>{peer.metrics.value.toFixed(0)}</td><td>{peer.metrics.influence.toFixed(0)}</td></tr>)}</tbody></table></div></>}
   </Panel>;
 }
 
 function HealthPanel({ issues }: { issues: { blockers: string[]; warnings: string[] } }) {
-  return <Panel title="Encounter Health" subtitle={`${issues.blockers.length} blockers / ${issues.warnings.length} warnings`}>
+  return <Panel title="Encounter Health" subtitle={`${issues.blockers.length} blockers / ${issues.warnings.length} warnings`} help="Blockers prevent a safe save. Warnings can be acceptable while drafting, but should be reviewed before committing the encounter bundle.">
     {issues.blockers.map((issue) => <Issue key={issue} tone="red">{issue}</Issue>)}
     {issues.warnings.map((issue) => <Issue key={issue} tone="amber">{issue}</Issue>)}
-    {issues.blockers.length + issues.warnings.length === 0 && <div className="text-sm text-slate-500">No encounter health issues.</div>}
+    {issues.blockers.length + issues.warnings.length === 0 && <EmptyState variant="compact" title="No encounter health issues.">The browser checks did not find blockers or warnings. Save still relies on backend validation.</EmptyState>}
   </Panel>;
 }
 
 function Dossier({ packet, selectedCharacter }: { packet: EncounterPacket; selectedCharacter: string }) {
   const entry = packet.characters.find((candidate) => characterId(candidate) === selectedCharacter);
-  if (!entry) return <Panel title="Participant Dossier" subtitle="Select a participant card to inspect it."><div className="text-sm text-slate-500">No participant selected.</div></Panel>;
+  if (!entry) return <Panel title="Participant Dossier" subtitle="Select a participant card to inspect it." help="Use this side panel to inspect combat and interaction readiness for the selected participant."><EmptyState variant="compact" title="No participant selected.">Select a participant card to inspect its character, combat profile, and interaction profile.</EmptyState></Panel>;
   const combat = entry.combat_profile;
   const interaction = entry.interaction_profile;
-  return <Panel title="Participant Dossier" subtitle={rowLabel(entry.character, selectedCharacter)}>
+  return <Panel title="Participant Dossier" subtitle={rowLabel(entry.character, selectedCharacter)} help="Use this to verify whether the selected participant has the profiles needed for combat or interaction contexts.">
     <div className="grid gap-2 sm:grid-cols-2"><Fact label="Level" value={String(Number(entry.character.level || 0))} /><Fact label="Class" value={displayText(entry.character.class_id, "Unassigned")} /><Fact label="Faction" value={displayText(entry.character.faction_id, "Unassigned")} /><Fact label="Home" value={displayText(entry.character.home_location_id, "Unassigned")} /></div>
     <div className="mt-3 rounded-md border border-slate-200 p-3 text-xs dark:border-slate-800"><div className="font-semibold">Combat Profile</div>{combat ? <div className="mt-1 space-y-1 text-slate-600 dark:text-slate-400"><div>{displayText(combat.enemy_type)} / {displayText(combat.aggression)}</div><div>{strings(combat.custom_abilities).length} abilities / {rows(combat.custom_stats).length} stats</div><div>{rows(combat.loot_table).length} loot rows / {Number(combat.xp_reward || 0)} XP</div></div> : <div className="mt-1 text-amber-700">Missing combat profile.</div>}</div>
     <div className="mt-3 rounded-md border border-slate-200 p-3 text-xs dark:border-slate-800"><div className="font-semibold">Interaction Profile</div>{interaction ? <div className="mt-1 space-y-1 text-slate-600 dark:text-slate-400"><div>{displayText(interaction.role)}</div><div>{strings(interaction.available_quests).length} quests / {rows(interaction.inventory).length} inventory rows</div></div> : <div className="mt-1 text-amber-700">Missing interaction profile.</div>}</div>
-    <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs} mt-3`} to={`/author/characters/${encodeURIComponent(selectedCharacter)}`}>Open Character Creator</Link>
+    <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs} mt-3`} to={`/author/characters/${encodeURIComponent(selectedCharacter)}`}>Inspect Character Creator</Link>
   </Panel>;
 }
 
 function WorldContext({ packet }: { packet: EncounterPacket }) {
-  return <Panel title="Direct World Context" subtitle="POIs and events that directly invoke this encounter."><ContextList title="POIs" entries={packet.context.pois} /><ContextList title="Events" entries={packet.context.events} /></Panel>;
+  return <Panel title="Direct World Context" subtitle="POIs and events that directly invoke this encounter." help="Use this to see existing world records that already reference the encounter. Empty context is fine until the encounter is placed or invoked elsewhere."><ContextList title="POIs" entries={packet.context.pois} /><ContextList title="Events" entries={packet.context.events} /></Panel>;
 }
 
 function ContextList({ title, entries }: { title: string; entries: EntryRecord[] }) {
-  return <div className="mb-3"><div className="mb-1 text-xs font-semibold uppercase text-slate-500">{title}</div>{entries.length === 0 ? <div className="text-xs text-slate-500">None.</div> : entries.map((entry) => <div key={displayText(entry.id)} className="rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-800">{rowLabel(entry, displayText(entry.id))}</div>)}</div>;
+  return <div className="mb-3"><div className="mb-1 text-xs font-semibold uppercase text-slate-500">{title}</div>{entries.length === 0 ? <EmptyState variant="compact" title={`No linked ${title.toLowerCase()}.`}>Link world records when this encounter should be invoked directly.</EmptyState> : entries.map((entry) => <div key={displayText(entry.id)} className="rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-800">{rowLabel(entry, displayText(entry.id))}</div>)}</div>;
 }
 
 function MultiSelect({ label, values, options, onChange }: { label: string; values: string[]; options: EntryRecord[]; onChange: (values: string[]) => void }) {
@@ -708,12 +708,12 @@ function Caption({ children }: { children: ReactNode }) {
   return <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">{children}</div>;
 }
 
-function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
-  return <section className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><div className="mb-3"><h2 className="text-sm font-semibold text-slate-950 dark:text-slate-100">{title}</h2>{subtitle && <div className="mt-1 text-xs text-slate-500">{subtitle}</div>}</div>{children}</section>;
+function Panel({ title, subtitle, help, children }: { title: string; subtitle?: string; help?: ReactNode; children: ReactNode }) {
+  return <AuthoringPanel title={title} subtitle={subtitle} help={help}>{children}</AuthoringPanel>;
 }
 
 function Issue({ tone, children }: { tone: "red" | "amber"; children: ReactNode }) {
-  return <div className={`mb-2 rounded border px-3 py-2 text-xs ${tone === "red" ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200" : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200"}`}>{children}</div>;
+  return <StatusNotice tone={tone === "red" ? "error" : "warning"} className="mb-2 text-xs">{children}</StatusNotice>;
 }
 
 function Fact({ label, value }: { label: string; value: string }) {

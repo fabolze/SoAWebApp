@@ -2,6 +2,7 @@
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { findDatasetBySchema } from "../config/editorDatasets";
+import { EmptyState } from "../components/authoringUi";
 import { useEditorStack } from "../components/EditorStackContext";
 import { apiFetch } from "../lib/api";
 import { generateSlug } from "../utils/generateId";
@@ -253,7 +254,7 @@ export function EditableTagList({
             <XMarkIcon className="h-3 w-3" />
           </button>
         ))}
-        {values.length === 0 && <span className="text-xs text-slate-500 dark:text-slate-400">No tags yet.</span>}
+        {values.length === 0 && <EmptyState variant="compact" title="No tags assigned.">Add tags when this record needs grouping, search hints, or authoring filters.</EmptyState>}
       </div>
       <div className="mt-2 flex gap-2">
         <input

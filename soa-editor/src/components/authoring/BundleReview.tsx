@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../../styles/uiTokens";
-import { AuthoringStatusChip, StatusNotice } from "../authoringUi";
+import { AuthoringStatusChip, EmptyState, StatusNotice } from "../authoringUi";
 import { BUNDLE_REVIEW_CHANGE_KINDS, normalizeBundleReview, type BundleReviewResult } from "./bundleReviewModel";
 export type { BundleReviewResult } from "./bundleReviewModel";
 
@@ -30,6 +30,14 @@ function detailsText(details: Record<string, unknown> | undefined): string {
   return JSON.stringify(details, null, 2);
 }
 
+function changeKindHelp(kind: string): string {
+  if (kind === "created") return "New records that will be added when you commit this review.";
+  if (kind === "changed") return "Existing records that will be updated. Expand a row to inspect field-level details when the backend provides them.";
+  if (kind === "deleted") return "Existing records that will be removed. Review these carefully before committing.";
+  if (kind === "unlinked") return "Existing records that stay in the database but will no longer be connected by this workflow.";
+  return "Records affected by this reviewed outcome.";
+}
+
 export default function BundleReview({
   result,
   title,
@@ -54,6 +62,7 @@ export default function BundleReview({
   const requiredWarnings = warningAcknowledgement === "required" ? normalized.warnings : [];
   if (warningAcknowledgement === "advisory") advisoryWarnings.unshift(...normalized.warnings.map((warning) => warning.message));
   const allAccepted = requiredWarnings.every((warning) => acceptedWarningIds.includes(warning.id));
+  const totalChanges = BUNDLE_REVIEW_CHANGE_KINDS.reduce((count, kind) => count + normalized.changes[kind].length, 0);
 
   useEffect(() => setAcceptedWarningIds([]), [result]);
 
@@ -82,8 +91,13 @@ export default function BundleReview({
       <AuthoringStatusChip tone={blockers.length ? "error" : "neutral"}><strong>{blockers.length}</strong> blockers</AuthoringStatusChip>
     </div>}
 
+    {result && totalChanges === 0 && !advisoryWarnings.length && !requiredWarnings.length && !blockers.length && !error && (
+      <EmptyState className="mt-4" title="No record changes in this review">Continue editing until the preview contains records to create, update, delete, or unlink.</EmptyState>
+    )}
+
     {result && BUNDLE_REVIEW_CHANGE_KINDS.map((kind) => normalized.changes[kind].length > 0 && <details key={kind} className="mt-3 rounded border border-slate-200 p-2 dark:border-slate-700">
       <summary className="cursor-pointer text-sm font-semibold">{humanize(kind)} ({normalized.changes[kind].length})</summary>
+      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{changeKindHelp(kind)}</p>
       <div className="mt-2 space-y-2">
         {normalized.changes[kind].map((change, index) => <div key={`${change.table}:${change.id}:${index}`} className="rounded bg-slate-50 p-2 text-xs dark:bg-slate-950">
           <div><strong>{humanize(change.table)}</strong> <span className="font-mono text-slate-500">{change.id}</span></div>

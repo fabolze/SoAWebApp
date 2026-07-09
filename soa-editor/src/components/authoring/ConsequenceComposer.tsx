@@ -368,7 +368,7 @@ function FlagMultiSelect({ label, values, flags, onChange }: { label: string; va
     <select multiple className={`${inputClass} min-h-24`} value={values} onChange={(event) => onChange(Array.from(event.target.selectedOptions).map((option) => option.value))}>
       {flags.map((flag) => <option key={consequenceText(flag.id)} value={consequenceText(flag.id)}>{consequenceLabel(flag, consequenceText(flag.id))}</option>)}
     </select>
-    <div className="mt-1 flex flex-wrap gap-1">{values.map((id) => <span key={id} className="rounded-full bg-fuchsia-100 px-2 py-1 text-[10px] font-semibold text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-200">{consequenceLabel(flags.find((flag) => consequenceText(flag.id) === id), id)}</span>)}{values.length === 0 && <span className="text-xs text-slate-500">None selected.</span>}</div>
+    <div className="mt-1 flex flex-wrap gap-1">{values.map((id) => <span key={id} className="rounded-full bg-fuchsia-100 px-2 py-1 text-[10px] font-semibold text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-200">{consequenceLabel(flags.find((flag) => consequenceText(flag.id) === id), id)}</span>)}{values.length === 0 && <EmptyState variant="compact" title="No outcome flags selected.">Select flags only when this outcome should save new player state.</EmptyState>}</div>
   </label>;
 }
 

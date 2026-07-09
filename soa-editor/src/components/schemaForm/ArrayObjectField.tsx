@@ -3,6 +3,7 @@ import SearchableSelect from '../SearchableSelect';
 import ArrayStringMultiSelectField from '../SchemaFields/ArrayStringMultiSelectField';
 import TagInput from '../TagInput';
 import { BUTTON_CLASSES, BUTTON_SIZES } from '../../styles/uiTokens';
+import { EmptyState } from '../authoringUi';
 import { getRowPresets } from '../../presets/rowPresets';
 import {
   formatCompactNumber,
@@ -401,12 +402,7 @@ export default function ArrayObjectField({
         {renderSpecialTopInfo()}
       </div>
       <div className="space-y-4">
-        {safeValue.length === 0 && (
-          <div className="rounded-md border border-dashed border-slate-300 bg-white px-4 py-5 text-center dark:border-slate-700 dark:bg-slate-950">
-            <div className="text-sm font-medium text-slate-800 dark:text-slate-200">No {label.toLowerCase()} yet</div>
-            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Add a row or start from a row preset.</div>
-          </div>
-        )}
+        {safeValue.length === 0 && <EmptyState title={`No ${label.toLowerCase()} yet`}>Add a row or start from a row preset when this record needs structured {label.toLowerCase()}.</EmptyState>}
         {safeValue.map((item, idx: number) => {
           const headline = getRowHeadline(item, idx);
           const isExpanded = expandedRows.has(idx);

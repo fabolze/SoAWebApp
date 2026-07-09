@@ -6,7 +6,7 @@ import {
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
-import { AuthoringPageShell } from "../components/authoringUi";
+import { AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
@@ -342,14 +342,18 @@ export default function ProgressionFlowPage() {
     <AuthoringPageShell>
       <div className="w-full space-y-4">
         <Header dirty={dirty} saving={saving} issues={issues} onPreview={() => void preview()} onDiscard={discardDraft} />
-        {notice && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{notice}</div>}
+        {notice && <StatusNotice>{notice}</StatusNotice>}
         <div className="grid gap-4 xl:grid-cols-[1fr_420px]">
           <main className="space-y-4">
-            <Panel title="Shared Base" subtitle="Use one phrase to generate related slugs, then keep real ids as the source of truth.">
+            <Panel
+              title="Shared Base"
+              subtitle="Use one phrase to draft related names before reviewing the real records."
+              help="Use this when a progression beat needs a matching player-state flag, unlock requirement, and event. The generated names are only starting points; the review step shows the records that will be saved."
+            >
               <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
                 <Field label="Base Name" value={baseName} onChange={setBaseName} />
                 <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm} self-end`} onClick={() => addDraftFlag("resolved")}>New Outcome Flag</button>
-                <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm} self-end`} onClick={createRequirementFromFlags}>New Gate</button>
+                <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm} self-end`} onClick={createRequirementFromFlags}>New Unlock Requirement</button>
               </div>
             </Panel>
             <ScopedGateBuilder
@@ -415,12 +419,16 @@ export default function ProgressionFlowPage() {
 }
 
 function Header({ dirty, saving, issues, onPreview, onDiscard }: { dirty: boolean; saving: boolean; issues: string[]; onPreview: () => void; onDiscard: () => void }) {
-  return <Panel title="Progression Flow And Gate Builder" subtitle="Create events, encounters, requirements, and flags hand in hand while preserving the canonical tables.">
+  return <Panel
+    title="Progression Flow And Unlock Builder"
+    subtitle="Create events, encounters, requirements, and player-state flags together before review."
+    help="This workspace drafts linked progression records and sends them through bundle review. Preview does not save. Commit saves the reviewed records after backend validation."
+  >
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="text-xs text-slate-500">{dirty ? "Unsaved linked-authoring draft" : "No pending flow changes"} / {issues.length} local warning(s)</div>
       <div className="flex gap-2">
         <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={saving || !dirty} onClick={onDiscard}>Discard Draft</button>
-        <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || !dirty} onClick={onPreview}>{saving ? "Reviewing..." : "Review Bundle"}</button>
+        <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || !dirty} onClick={onPreview}>{saving ? "Reviewing..." : "Review Changes"}</button>
       </div>
     </div>
   </Panel>;
@@ -439,7 +447,11 @@ function EventComposer({ packet, eventDraft, encounterDraft, selectedRequirement
   const eventType = text(eventDraft?.type, "Encounter");
   const payloadOptions = eventType === "Encounter" ? packet.encounters : eventType === "Dialogue" ? packet.dialogues : eventType === "LoreDiscovery" ? packet.lore_entries : [];
   const payloadKey = eventType === "Encounter" ? "encounter_id" : eventType === "Dialogue" ? "dialogue_id" : eventType === "LoreDiscovery" ? "lore_id" : "";
-  return <Panel title="Source And Outcome Composer" subtitle="Edit one event's payload, outcome flags, next-event link, and encounter outcome state together.">
+  return <Panel
+    title="Source And Outcome Composer"
+    subtitle="Edit one event's playable content, outcome flags, follow-up event, and encounter result together."
+    help="Use this when a progression beat should do something in play and then change player state. Event flags are saved on the event; encounter reward flags are saved on the linked encounter."
+  >
     <div className="mb-3 flex flex-wrap gap-2">
       <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} onClick={() => startEventDraft()}>New Event Draft</button>
       <select className={`${inputClass} max-w-md`} value="" onChange={(event) => {
@@ -450,7 +462,7 @@ function EventComposer({ packet, eventDraft, encounterDraft, selectedRequirement
         {packet.events.map((event) => <option key={text(event.id)} value={text(event.id)}>{label(event, text(event.id))}</option>)}
       </select>
     </div>
-    {!eventDraft ? <Empty>Create or select an event to compose a source/outcome flow.</Empty> : <div className="space-y-3">
+    {!eventDraft ? <Empty title="No event selected yet.">Create a new event draft or choose a saved event when you are ready to connect playable content to outcomes.</Empty> : <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-3">
         <Field label="Title" value={eventDraft.title} onChange={(title) => patchEvent({ title, slug: text(eventDraft.slug) || generateSlug(title) })} />
         <Field label="Slug" value={eventDraft.slug} onChange={(slug) => patchEvent({ slug })} />
@@ -489,40 +501,61 @@ function buildFlowRows(packet: FlowPacket, event: Entry | null, encounter: Entry
     const required = strings(requirement.required_flags);
     const forbidden = strings(requirement.forbidden_flags);
     const open = required.every((id) => temporaryFlags.includes(id)) && forbidden.every((id) => !temporaryFlags.includes(id));
-    flowRows.push({ id: `requirement:${text(requirement.id)}`, kind: "Gate", label: label(requirement), detail: `${required.length} required / ${forbidden.length} forbidden`, open });
+    flowRows.push({ id: `requirement:${text(requirement.id)}`, kind: "Unlock", label: label(requirement), detail: `${required.length} needed / ${forbidden.length} blocked`, open });
   }
   return flowRows;
 }
 
 function FlowCanvas({ rows: flowRows }: { rows: Array<{ id: string; kind: string; label: string; detail: string; open?: boolean }> }) {
-  return <Panel title="Compact Flow" subtitle="A selected-seed chain, not a whole-project graph. Dotted proposals become real only through bundle review.">
+  return <Panel
+    title="Compact Flow"
+    subtitle="A focused chain for the selected draft. Proposed records become real only after review."
+    help="This is a compact walkthrough of the current beat, not the whole project graph. It shows what happens, what player state changes, and whether the selected unlock requirement would open in the temporary state."
+    collapsible
+    storageKey="soa.progression-flow.compact-flow.collapsed"
+    collapsedSummary={`${flowRows.length} focused step(s)`}
+  >
     <div className="grid gap-2 md:grid-cols-4">
-      {flowRows.length === 0 && <Empty>No flow focus yet.</Empty>}
-      {flowRows.map((row) => <div key={row.id} className={`rounded-md border p-3 ${row.kind === "Gate" ? row.open ? "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950" : "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"}`}>
+      {flowRows.length === 0 && <Empty title="No progression chain selected yet.">Draft or select an event, encounter, or unlock requirement to see how this progression beat would play through.</Empty>}
+      {flowRows.map((row) => <div key={row.id} className={`rounded-md border p-3 ${row.kind === "Unlock" ? row.open ? "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950" : "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"}`}>
         <div className="text-[10px] font-semibold uppercase text-slate-500">{row.kind}</div>
         <div className="mt-1 text-sm font-semibold">{row.label}</div>
-        <div className="mt-1 text-xs text-slate-500">{row.detail}{row.kind === "Gate" ? row.open ? " / open in temporary state" : " / blocked in temporary state" : ""}</div>
+        <div className="mt-1 text-xs text-slate-500">{row.detail}{row.kind === "Unlock" ? row.open ? " / available in temporary state" : " / locked in temporary state" : ""}</div>
       </div>)}
     </div>
   </Panel>;
 }
 
 function TemporaryPlaythrough({ packet, temporaryFlags, setTemporaryFlags, flagsById }: { packet: FlowPacket; temporaryFlags: string[]; setTemporaryFlags: (flags: string[]) => void; flagsById: Map<string, Entry> }) {
-  const openGates = packet.requirements.filter((requirement) => strings(requirement.required_flags).every((id) => temporaryFlags.includes(id)) && strings(requirement.forbidden_flags).every((id) => !temporaryFlags.includes(id)));
-  return <Panel title="Temporary State" subtitle="Toggle flags and watch requirements that would open.">
+  const openRequirements = packet.requirements.filter((requirement) => strings(requirement.required_flags).every((id) => temporaryFlags.includes(id)) && strings(requirement.forbidden_flags).every((id) => !temporaryFlags.includes(id)));
+  return <Panel
+    title="Temporary Player State"
+    subtitle="Toggle flags for this walkthrough only and watch which unlock requirements would become available."
+    help="These toggles do not save player state. They let you test whether saved requirements would be available if the player had specific flags."
+    collapsible
+    storageKey="soa.progression-flow.temporary-state.collapsed"
+    collapsedSummary={`${temporaryFlags.length} active test flag(s), ${openRequirements.length} available requirement(s)`}
+  >
     <FlagMultiSelect label="Active Flags" value={temporaryFlags} flags={packet.flags} onChange={setTemporaryFlags} />
     <div className="mt-3 space-y-2">
-      <Caption>Open Gates</Caption>
-      {openGates.slice(0, 8).map((requirement) => <div key={text(requirement.id)} className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">{label(requirement)} / {strings(requirement.required_flags).map((id) => label(flagsById.get(id), id)).join(", ")}</div>)}
-      {!openGates.length && <Empty>No gates open under the temporary state.</Empty>}
+      <Caption>Available Unlock Requirements</Caption>
+      {openRequirements.slice(0, 8).map((requirement) => <div key={text(requirement.id)} className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">{label(requirement)} / {strings(requirement.required_flags).map((id) => label(flagsById.get(id), id)).join(", ")}</div>)}
+      {!openRequirements.length && <Empty title="Nothing is available in this test state.">Turn on player-state flags above to see which saved unlock requirements would open.</Empty>}
     </div>
   </Panel>;
 }
 
 function UsagePanel({ packet, selectedRequirement, flags }: { packet: FlowPacket; selectedRequirement: Entry | null; flags: Entry[] }) {
   const selectedFlags = strings(selectedRequirement?.required_flags);
-  return <Panel title="Usage Preview" subtitle="Producer and consumer context from the dependency index.">
-    {selectedFlags.length === 0 && <Empty>Select or draft a requirement to inspect flag usage.</Empty>}
+  return <Panel
+    title="Usage Preview"
+    subtitle="Shows which records set or need the selected player-state flags."
+    help="Use this before editing a shared unlock requirement. Producers set the flag; consumers depend on the flag."
+    collapsible
+    storageKey="soa.progression-flow.usage-preview.collapsed"
+    collapsedSummary={`${selectedFlags.length} selected flag(s)`}
+  >
+    {selectedFlags.length === 0 && <Empty title="No flags selected for usage preview.">Select or draft an unlock requirement to inspect where its player-state flags are used.</Empty>}
     {selectedFlags.map((flagId) => {
       const usage = packet.flag_usage_by_id[flagId] || { producers: [], consumers: [] };
       return <div key={flagId} className="mb-3 rounded-md border border-slate-200 p-3 dark:border-slate-800">
@@ -552,9 +585,9 @@ function localIssues(packet: FlowPacket, bundle: ReturnType<typeof buildBundle>,
 }
 
 function IssuePanel({ issues }: { issues: string[] }) {
-  return <Panel title="Local Health" subtitle={`${issues.length} warning(s) before backend preview.`}>
+  return <Panel title="Local Health" subtitle={`${issues.length} warning(s) before backend preview.`} help="These warnings are checked in the browser before preview. Backend preview may still find additional blockers.">
     {issues.map((issue) => <div key={issue} className="mb-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">{issue}</div>)}
-    {!issues.length && <Empty>No local issues found.</Empty>}
+    {!issues.length && <Empty title="No local issues found.">Review changes to run the backend validation before committing.</Empty>}
   </Panel>;
 }
 
@@ -564,7 +597,7 @@ function FlagMultiSelect({ label: pickerLabel, value, flags, onChange }: { label
     <select multiple className={`${inputClass} min-h-28`} value={value} onChange={(event) => onChange(Array.from(event.target.selectedOptions).map((option) => option.value))}>
       {flags.map((flag) => <option key={text(flag.id)} value={text(flag.id)}>{label(flag, text(flag.id))}</option>)}
     </select>
-    <div className="mt-1 flex flex-wrap gap-1">{value.map((id) => <span key={id} className="rounded-full bg-fuchsia-100 px-2 py-1 text-[10px] font-semibold text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-200">{label(flags.find((flag) => text(flag.id) === id), id)}</span>)}{value.length === 0 && <span className="text-xs text-slate-500">None selected.</span>}</div>
+    <div className="mt-1 flex flex-wrap gap-1">{value.map((id) => <span key={id} className="rounded-full bg-fuchsia-100 px-2 py-1 text-[10px] font-semibold text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-200">{label(flags.find((flag) => text(flag.id) === id), id)}</span>)}{value.length === 0 && <Empty title="No flags selected.">Choose saved player-state flags when this progression beat should require, forbid, or produce a state change.</Empty>}</div>
   </label>;
 }
 
@@ -576,7 +609,7 @@ function UsageList({ title, rows: value }: { title: string; rows: Entry[] }) {
         <span className="font-semibold">{text(row.label, text(row.entry_label, label(row)))}</span>
         <span className="text-slate-500"> / {text(row.schema_name, text(row.kind))} {text(row.path) ? `/ ${text(row.path)}` : ""}</span>
       </div>)}
-      {!value.length && <Empty>None.</Empty>}
+      {!value.length && <Empty title={`No ${title.toLowerCase()} found.`}>That is okay for unused flags. Shared flags should usually show at least one producer or consumer.</Empty>}
     </div>
   </div>;
 }
@@ -585,14 +618,14 @@ function Field({ label: fieldLabel, value, onChange }: { label: string; value: u
   return <label className="block"><Caption>{fieldLabel}</Caption><input className={inputClass} value={text(value)} onChange={(event) => onChange(event.target.value)} /></label>;
 }
 
-function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
-  return <section className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><div className="mb-3"><h2 className="text-sm font-semibold text-slate-950 dark:text-slate-100">{title}</h2>{subtitle && <div className="mt-1 text-xs text-slate-500">{subtitle}</div>}</div>{children}</section>;
+function Panel({ title, subtitle, help, collapsible, storageKey, collapsedSummary, children }: { title: string; subtitle?: string; help?: ReactNode; collapsible?: boolean; storageKey?: string; collapsedSummary?: ReactNode; children: ReactNode }) {
+  return <AuthoringPanel title={title} subtitle={subtitle} help={help} collapsible={collapsible} storageKey={storageKey} collapsedSummary={collapsedSummary}>{children}</AuthoringPanel>;
 }
 
 function Caption({ children }: { children: ReactNode }) {
   return <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">{children}</div>;
 }
 
-function Empty({ children }: { children: ReactNode }) {
-  return <div className="text-xs text-slate-500">{children}</div>;
+function Empty({ title, children }: { title?: ReactNode; children: ReactNode }) {
+  return <EmptyState variant="compact" title={title}>{children}</EmptyState>;
 }

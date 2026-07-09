@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Autocomplete from '../Autocomplete';
 import SearchableSelect from '../SearchableSelect';
 import { BUTTON_CLASSES, BUTTON_SIZES } from '../../styles/uiTokens';
+import { EmptyState } from '../authoringUi';
 import { getReferenceOptionLabel, getReferenceOptionValue } from '../schemaForm/helpers';
 import ReferenceDetailsCard from './ReferenceDetailsCard';
 import FloatingReferenceInspector from './FloatingReferenceInspector';
@@ -268,16 +269,14 @@ export default function ReferenceSelectField({
         )}
       </FloatingReferenceInspector>
       {showEmptyCreate && (
-        <div className="mt-2 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
-          <span>No options yet.</span>
-          <button
-            type="button"
-            className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`}
-            onClick={handleCreate}
-          >
-            Create new
-          </button>
-        </div>
+        <EmptyState
+          className="mt-2"
+          variant="compact"
+          title={`No ${label.toLowerCase()} options yet`}
+          action={<button type="button" className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`} onClick={handleCreate}>Create new</button>}
+        >
+          Create a referenced record, then select it here.
+        </EmptyState>
       )}
     </div>
   );

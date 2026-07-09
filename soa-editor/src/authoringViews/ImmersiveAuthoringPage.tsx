@@ -6,7 +6,7 @@ import {
   MapPinIcon,
 } from "@heroicons/react/24/outline";
 import SchemaForm from "../components/SchemaForm";
-import { AuthoringPageShell, AuthoringPanel, AuthoringStatusChip, EmptyState } from "../components/authoringUi";
+import { AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, AuthoringStatusChip, EmptyState } from "../components/authoringUi";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch, buildApiUrl } from "../lib/api";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
@@ -623,28 +623,6 @@ function sectionNavForKind(kind: AuthoringKind): Array<{ id: string; label: stri
     { id: "mechanics", label: "Mechanics", summary: "Equipment and effects" },
     { id: "modifiers", label: "Modifiers", summary: "Stat and attribute bonuses" },
   ];
-}
-
-function AuthoringSectionNav({ sections }: { sections: Array<{ id: string; label: string; summary: string }> }) {
-  return (
-    <nav className="hidden xl:block">
-      <div className="sticky top-4 rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-        <div className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">Workspace Sections</div>
-        <div className="mt-2 space-y-1">
-          {sections.map((section) => (
-            <a
-              key={section.id}
-              className="block rounded-md px-2 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-200"
-              href={`#${section.id}`}
-            >
-              <span className="block font-medium">{section.label}</span>
-              <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{section.summary}</span>
-            </a>
-          ))}
-        </div>
-      </div>
-    </nav>
-  );
 }
 
 function setRow(rows: EntryRecord[], index: number, patch: EntryRecord): EntryRecord[] {
