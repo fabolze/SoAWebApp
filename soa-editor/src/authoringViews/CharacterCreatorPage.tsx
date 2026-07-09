@@ -4,6 +4,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import SchemaForm from "../components/SchemaForm";
+import { AuthoringPageShell, AuthoringPanel, EmptyState } from "../components/authoringUi";
 import { useDirtyState } from "../components/useDirtyState";
 import SimulationWorkbench from "../components/simulation/SimulationWorkbench";
 import { apiFetch } from "../lib/api";
@@ -272,8 +273,7 @@ export default function CharacterCreatorPage() {
   if (loading || !schema) return <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading character creator...</div>;
 
   return (
-    <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="mx-auto max-w-7xl space-y-4">
+    <AuthoringPageShell>
         <CreatorHeader bundle={bundle} mode={mode} setMode={setMode} dirty={dirty} saving={saving} blockers={blockers} onSave={() => void save()} onReset={() => { if (original) setBundle(original); setChangedEncounters(new Set()); }} />
         {notice && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{notice}</div>}
         {mode === "advanced" ? (
@@ -299,8 +299,7 @@ export default function CharacterCreatorPage() {
           <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={() => { if (original) setBundle(original); setChangedEncounters(new Set()); }}>Reset</button>
           <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || blockers.length > 0} onClick={() => void save()}>{saving ? "Saving..." : "Save All"}</button>
         </div>
-      </div>
-    </div>
+    </AuthoringPageShell>
   );
 }
 
@@ -406,7 +405,7 @@ function WorldPresencePanel({ bundle, changedEncounters, onBundleChange, onEncou
     onBundleChange({ ...bundle, world_presence: { ...bundle.world_presence, encounters } });
     onEncounterChanged(displayText(encounter.id));
   };
-  return <Panel title="World Presence" subtitle="Place this character in encounters and review existing world links."><div className="grid gap-4 lg:grid-cols-[1.3fr_.7fr]"><div><div className="mb-2 flex items-center justify-between"><Caption>Encounter Placement</Caption><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.xs}`} onClick={addEncounter}>Create Encounter</button></div><div className="grid gap-2">{bundle.world_presence.encounters.map((encounter, index) => { const participant = arrayRows(encounter.participants).find((row) => displayText(row.character_id) === displayText(bundle.character.id)); return <div key={displayText(encounter.id)} className={`rounded-md border p-3 ${changedEncounters.has(displayText(encounter.id)) ? "border-blue-400 bg-blue-50 dark:bg-blue-950" : "border-slate-200 dark:border-slate-800"}`}><div className="flex justify-between gap-2"><strong className="text-sm">{displayText(encounter.name)}</strong><Link className="text-xs text-blue-700" to={`/encounters?selected=${encodeURIComponent(displayText(encounter.id))}`}>Open</Link></div><div className="mt-2 grid gap-2 sm:grid-cols-2"><select className={inputClass} value={displayText(participant?.combat_side, "Neutral")} onChange={(event) => updateEncounter(index, { ...(participant || { character_id: bundle.character.id, contexts: ["Combat"] }), combat_side: event.target.value })}>{["Hostile","Friendly","Neutral"].map((side) => <option key={side}>{side}</option>)}</select><select className={inputClass} value={stringArray(participant?.contexts).join(",")} onChange={(event) => updateEncounter(index, { ...(participant || { character_id: bundle.character.id }), contexts: event.target.value.split(",") })}><option value="Combat">Combat</option><option value="Interaction">Interaction</option><option value="Combat,Interaction">Combat + Interaction</option></select></div><button className="mt-2 text-xs text-red-600" onClick={() => updateEncounter(index, null)}>Remove Placement</button></div>; })}{bundle.world_presence.encounters.length === 0 && <Empty>No encounter appearances.</Empty>}</div></div><div className="space-y-3"><PresenceList title="Dialogues" entries={bundle.world_presence.dialogues} path="dialogues" /><PresenceList title="Shops" entries={bundle.world_presence.shops} path="shops" /><div><Caption>Other Characters</Caption><div className="text-xs text-slate-500">{characters.length} available for encounter composition in the full encounter editor.</div></div></div></div></Panel>;
+  return <Panel title="World Presence" subtitle="Place this character in encounters and review existing world links."><div className="grid gap-4 lg:grid-cols-[1.3fr_.7fr]"><div><div className="mb-2 flex items-center justify-between"><Caption>Encounter Placement</Caption><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.xs}`} onClick={addEncounter}>Create Encounter</button></div><div className="grid gap-2">{bundle.world_presence.encounters.map((encounter, index) => { const participant = arrayRows(encounter.participants).find((row) => displayText(row.character_id) === displayText(bundle.character.id)); return <div key={displayText(encounter.id)} className={`rounded-md border p-3 ${changedEncounters.has(displayText(encounter.id)) ? "border-blue-400 bg-blue-50 dark:bg-blue-950" : "border-slate-200 dark:border-slate-800"}`}><div className="flex justify-between gap-2"><strong className="text-sm">{displayText(encounter.name)}</strong><Link className="text-xs text-blue-700" to={`/encounters?selected=${encodeURIComponent(displayText(encounter.id))}`}>Inspect Encounter Record</Link></div><div className="mt-2 grid gap-2 sm:grid-cols-2"><select className={inputClass} value={displayText(participant?.combat_side, "Neutral")} onChange={(event) => updateEncounter(index, { ...(participant || { character_id: bundle.character.id, contexts: ["Combat"] }), combat_side: event.target.value })}>{["Hostile","Friendly","Neutral"].map((side) => <option key={side}>{side}</option>)}</select><select className={inputClass} value={stringArray(participant?.contexts).join(",")} onChange={(event) => updateEncounter(index, { ...(participant || { character_id: bundle.character.id }), contexts: event.target.value.split(",") })}><option value="Combat">Combat</option><option value="Interaction">Interaction</option><option value="Combat,Interaction">Combat + Interaction</option></select></div><button className="mt-2 text-xs text-red-600" onClick={() => updateEncounter(index, null)}>Remove Placement</button></div>; })}{bundle.world_presence.encounters.length === 0 && <EmptyState title="No encounter appearances yet." variant="compact">That is fine while drafting identity. Create an encounter placement when this character should appear in combat, dialogue, or world events.</EmptyState>}</div></div><div className="space-y-3"><PresenceList title="Dialogues" entries={bundle.world_presence.dialogues} path="dialogues" /><PresenceList title="Shops" entries={bundle.world_presence.shops} path="shops" /><div><Caption>Other Characters</Caption><div className="text-xs text-slate-500">{characters.length} available for encounter composition in the full encounter editor.</div></div></div></div></Panel>;
 }
 
 function ComparisonPanel({ bundle }: { bundle: CharacterBundle }) {
@@ -473,8 +472,8 @@ function PresenceList({ title, entries, path }: { title: string; entries: EntryR
 }
 
 function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
-  return <section className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><h2 className="text-lg font-semibold text-slate-950 dark:text-slate-100">{title}</h2>{subtitle && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>}<div className="mt-4">{children}</div></section>;
+  return <AuthoringPanel title={title} subtitle={subtitle}>{children}</AuthoringPanel>;
 }
 function Caption({ children }: { children: ReactNode }) { return <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">{children}</div>; }
-function Empty({ children }: { children: ReactNode }) { return <div className="text-sm text-slate-500 dark:text-slate-400">{children}</div>; }
+function Empty({ children }: { children: ReactNode }) { return <EmptyState variant="plain">{children}</EmptyState>; }
 const inputClass = "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";

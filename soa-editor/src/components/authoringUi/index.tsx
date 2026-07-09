@@ -9,6 +9,22 @@ export const AUTHORING_PANEL_CLASS =
 export const AUTHORING_CAPTION_CLASS =
   "mb-1 text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400";
 
+export function AuthoringPageShell({
+  children,
+  className = "",
+  contentClassName = "w-full space-y-4",
+}: {
+  children: ReactNode;
+  className?: string;
+  contentClassName?: string;
+}) {
+  return (
+    <div className={`min-h-full bg-slate-100 p-4 dark:bg-slate-950 ${className}`.trim()}>
+      <div className={contentClassName}>{children}</div>
+    </div>
+  );
+}
+
 export type NumberEmptyValue = "empty-string" | "null" | "zero";
 
 type NumberCommitValue = number | "" | null;
@@ -350,10 +366,14 @@ export function CheckboxField({
 
 export function EmptyState({
   children,
+  title,
+  action,
   variant = "boxed",
   className = "",
 }: {
-  children: ReactNode;
+  children?: ReactNode;
+  title?: ReactNode;
+  action?: ReactNode;
   variant?: "boxed" | "plain" | "compact";
   className?: string;
 }) {
@@ -363,7 +383,14 @@ export function EmptyState({
       : variant === "compact"
         ? "rounded border border-dashed border-slate-300 p-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
         : "rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400";
-  return <div className={`${classes} ${className}`.trim()}>{children}</div>;
+  if (!title && !action) return <div className={`${classes} ${className}`.trim()}>{children}</div>;
+  return (
+    <div className={`${classes} ${className}`.trim()}>
+      {title && <div className="font-semibold text-slate-700 dark:text-slate-200">{title}</div>}
+      {children && <div className={title ? "mt-1" : ""}>{children}</div>}
+      {action && <div className="mt-3">{action}</div>}
+    </div>
+  );
 }
 
 export function StatusNotice({

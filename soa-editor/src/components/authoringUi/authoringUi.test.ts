@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AuthoringPanel, AuthoringStatusChip, coerceNumberDraft, numberInputValue, textInputValue } from "./index";
+import { AuthoringPageShell, AuthoringPanel, AuthoringStatusChip, EmptyState, coerceNumberDraft, numberInputValue, textInputValue } from "./index";
 
 describe("authoringUi field policies", () => {
   it("preserves text values exactly", () => {
@@ -51,5 +51,27 @@ describe("authoringUi field policies", () => {
     expect(markup).toContain("1 warning");
     expect(markup).toContain("Runtime encounter placed after the intro.");
     expect(markup).not.toContain("Hidden detail");
+  });
+
+  it("renders the shared full-width page shell", () => {
+    const markup = renderToStaticMarkup(createElement(AuthoringPageShell, null, createElement("div", null, "Workspace")));
+
+    expect(markup).toContain("min-h-full");
+    expect(markup).toContain("w-full space-y-4");
+    expect(markup).toContain("Workspace");
+  });
+
+  it("renders structured empty states with next-action copy", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        EmptyState,
+        { title: "No story placement yet.", action: createElement("button", null, "Add Placement") },
+        "That is fine while drafting; add one when timeline order matters.",
+      ),
+    );
+
+    expect(markup).toContain("No story placement yet.");
+    expect(markup).toContain("timeline order matters");
+    expect(markup).toContain("Add Placement");
   });
 });

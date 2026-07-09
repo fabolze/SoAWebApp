@@ -6,7 +6,7 @@ import {
   MapPinIcon,
 } from "@heroicons/react/24/outline";
 import SchemaForm from "../components/SchemaForm";
-import { AuthoringPanel, AuthoringStatusChip } from "../components/authoringUi";
+import { AuthoringPageShell, AuthoringPanel, AuthoringStatusChip, EmptyState } from "../components/authoringUi";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch, buildApiUrl } from "../lib/api";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
@@ -420,8 +420,7 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
   }
 
   return (
-    <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="w-full space-y-4">
+    <AuthoringPageShell>
         <AuthoringHeader
           config={config}
           data={data}
@@ -486,8 +485,7 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
           onReset={reset}
           listPath={`${config.listPath}?selected=${encodeURIComponent(displayText(data.id, id))}`}
         />
-      </div>
-    </div>
+    </AuthoringPageShell>
   );
 }
 
@@ -1227,7 +1225,12 @@ function LocationRoutesPanel({ location, persisted, isDirty }: { location: Entry
       ) : isDirty ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Save current location changes before creating a route edge.</div>
       ) : connected.length === 0 ? (
-        <div className="rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">No route edges connect to this location yet.</div>
+        <EmptyState
+          title="No route edges connect to this location yet."
+          variant="compact"
+        >
+          That is fine for an isolated draft. Add routes when this place should appear in travel, fast travel, or encounter-table movement.
+        </EmptyState>
       ) : (
         <div className="space-y-2">
           {connected.map((route) => {
@@ -1307,9 +1310,9 @@ function ModifierEditor({
         </div>
       </div>
       {rows.length === 0 ? (
-        <div className="rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-          No modifiers yet. Add a flat bonus for direct stats, a percentage bonus for scaling gear, or a multiplier for rare build-defining items.
-        </div>
+          <EmptyState title="No modifiers yet." variant="compact">
+            Add a flat bonus for direct stats, a percentage bonus for scaling gear, or a multiplier for rare build-defining items.
+          </EmptyState>
       ) : (
         <div className="space-y-2">
           {rows.map((row, index) => {
@@ -1633,7 +1636,9 @@ function ShopInventoryEditor({
         <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} onClick={addRow}>Add Item</button>
       </div>
       {rows.length === 0 ? (
-        <div className="rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">No inventory rows yet. Add an item to stock this shop.</div>
+        <EmptyState title="No inventory rows yet." variant="compact">
+          Add an item when this merchant should sell specific stock. Shop-wide pricing still works without inventory rows.
+        </EmptyState>
       ) : (
         <div className="space-y-3">
           {rows.map((row, index) => {
@@ -1879,8 +1884,7 @@ function LocationAtlasPage() {
   });
 
   return (
-    <div className="min-h-full bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="w-full space-y-4">
+    <AuthoringPageShell>
         <section className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -1960,7 +1964,9 @@ function LocationAtlasPage() {
           {loading ? (
             <div className="absolute left-4 top-4 rounded bg-white/90 px-3 py-2 text-sm text-slate-600 shadow dark:bg-slate-900/90 dark:text-slate-300">Loading locations...</div>
           ) : filtered.length === 0 ? (
-            <div className="absolute left-4 top-4 rounded bg-white/90 px-3 py-2 text-sm text-slate-600 shadow dark:bg-slate-900/90 dark:text-slate-300">No locations match this filter.</div>
+            <div className="absolute left-4 top-4 max-w-sm rounded bg-white/90 px-3 py-2 text-sm text-slate-600 shadow dark:bg-slate-900/90 dark:text-slate-300">
+              No locations match this filter. Clear one filter or create a location with matching region, place, or ecology.
+            </div>
           ) : (
             filtered.map((location) => {
               const coordinates = isRecord(location.coordinates) ? location.coordinates : {};
@@ -1983,8 +1989,7 @@ function LocationAtlasPage() {
             })
           )}
         </section>
-      </div>
-    </div>
+    </AuthoringPageShell>
   );
 }
 
