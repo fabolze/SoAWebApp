@@ -1,1 +1,2 @@
 Name,id,slug,name,description,alignment,relationships,reputation_config,tags,icon_path
+faction-general-folk,01KX138C1PREJC1K2G97CQ4BBV,faction_general_folk,General Folk,The general farmers and people out there living and chit chatting about deeds done by the main characters group.,Neutral,{},"{""max"": 100, ""min"": 0, ""thresholds"": {""ally"": 90, ""friendly"": 10, ""trusted"": 50}}","[""faction"", ""general""]",
