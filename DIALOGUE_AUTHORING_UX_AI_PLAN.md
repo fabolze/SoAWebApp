@@ -1,436 +1,546 @@
-# Dialogue Authoring UX and AI Import Plan
-
-Status: revised limited-prototype proposal; production implementation gated
-Scope reviewed: `/author/dialogues`, `/author/dialogues/new`, `/author/dialogues/:id`  
-Primary implementation: `soa-editor/src/pages/DialogueFlowPage.tsx` and `backend/app/routes/r_ui_dialogues.py`
-
-## Goal
-
-Help a narrative author stay in the act of writing. The workspace should make the common loop—write a line, choose the next speaker, add a response, keep going—fast and calm, while keeping graph structure, requirements, flags, story placement, rehearsal, and bundle validation close at hand when they are needed.
-
-The second goal is a safe, **provider-neutral import contract for model-generated drafts**. A writer should be able to describe a scene in an external chat, request a small documented interchange format, paste the result into the app, inspect the generated graph, and stage it as a local draft. The format and importer can be provider-neutral; output quality and formatting consistency cannot be assumed to be model-independent.
-
-This is deliberately a human-reviewed import workflow, not an autonomous dialogue generator. Parsing and reference validation can make malformed or unsafe output fail safely, but they cannot prove that lore, characterization, branching, or gameplay meaning is correct. AI output must never bypass review, validation, rehearsal, backend preview, or the normal commit path.
-
-## Current workspace: what is already strong
-
-The current Dialogue Scene Room has a solid foundation:
-
-- It edits lines directly on a visual graph and supports explicit choices and automatic continuations.
-- It preserves unsaved work in local storage and restores the draft after navigation or reload.
-- It separates local drafting from rollback-only preview and atomic bundle commit.
-- It offers rehearsal with temporary flags/reputation and path snapshots.
-- It exposes story beats, requirements, flags, participant context, downstream world impact, reachability, cycles, and broken targets.
-- It has starter recipes and can auto-layout the graph.
-- Canonical character references are supported while a fallback speaker name remains possible.
-- The current bundle API is already suitable for accepting generated nodes after they have been reviewed in the client.
-
-These capabilities should be retained. The UX opportunity is chiefly one of hierarchy and flow: advanced world-state tools currently compete visually with the writing task.
-
-## Findings and likely interruptions
-
-### P0: the writing surface is not the first or simplest surface
-
-The page places Scene Brief, Story Beat Track, and—on saved dialogues—Story Placement before a three-column workbench. On a typical screen the writer must scroll to reach the graph, and later scroll away from it to adjust the brief or beats. This makes planning metadata feel like a prerequisite even when the writer already knows the scene.
-
-Recommendation:
-
-- Make the workbench the persistent primary area beneath a compact, sticky scene bar.
-- Collapse Scene Brief, Story Beats, and Story Placement into drawers or an expandable “Scene setup” region. Show concise summaries in the bar: cast, location, entry gate, beats, placement, and issues.
-- Remember the writer's last open/closed state per dialogue.
-- On a new dialogue, use a short setup step, then move focus directly into the first line.
-
-### P0: graph editing is being asked to serve as prose editing
-
-Each node card is 275px wide with a small, non-resizable textarea. A graph is excellent for understanding topology, but comparatively poor for drafting rhythm, reading an exchange, revising several adjacent lines, or pasting a scene. The inspector duplicates the selected line in another textarea, adding a choice of editing locations rather than a clear writing flow.
-
-Recommendation: add a first-class **Script view** beside Flow, Rehearsal, and Impact.
-
-Script view should:
-
-- Render a branch-aware outline with speaker, line, and indented player choices.
-- Allow continuous keyboard navigation through editable lines.
-- Support `Enter` for a new line, `Ctrl/Cmd+Enter` for a continuation, and a discoverable command for a player choice.
-- Offer speaker autocomplete when typing a speaker prefix, with the last few speakers first.
-- Allow multi-line selection, cut/copy/paste, duplicate branch, and move line/branch.
-- Keep structural annotations such as requirements and set flags collapsed into small chips.
-- Synchronize selection with Flow view; switching views must not lose focus or scroll context.
-
-Flow remains the best topology and debugging view. Script becomes the default creative-writing view for new scenes.
-
-### P0: adding the next exchange requires too much pointer work
-
-`+ Continue` creates a linked node and inherits the source speaker. In natural back-and-forth dialogue, the likely next speaker is often the other recent participant. Creating a choice also begins with generic text and then requires edge/inspector selection to complete its details. There are no page-level keyboard shortcuts or focus handoff to the new line.
-
-Recommendation:
-
-- After adding a linked node, focus its text editor immediately.
-- Add “Continue as…” with a predicted next speaker; use the other speaker in a two-person exchange, otherwise the most recent distinct speaker. Prediction is only a default.
-- Let the writer type a new choice label inline under the source line, press Enter, and immediately write the target line.
-- Add a command palette (`Ctrl/Cmd+K`) for Add continuation, Add choice, Change speaker, Go to node, Rehearse from here, Toggle focus mode, and Import dialogue text.
-- Show a small shortcut reference on first use and in Help; do not rely on invisible shortcuts.
-
-### P0: there is no bulk/script import path
-
-The only fast starts are four fixed recipes, and recipes work only on an empty dialogue. There is no supported way to paste a screenplay-like exchange, AI-generated structure, or an external draft and convert it into nodes.
-
-Recommendation: prototype the provider-neutral DLG/1 importer described below only after its grammar and canonical graph semantics are settled. Continue beyond the prototype only if it proves useful both for human-authored text import and model-generated drafts.
-
-### P1: advanced panels compete with line writing
-
-The permanent left Dialogue Library uses 235px and the Context Dock uses 390px. On smaller desktop widths the graph becomes the constrained middle column. The dock offers Edit, Beat, Health, and Context even when the writer only needs the selected line. The selected saved node can also expose the large shared Consequence Composer beneath the editor.
-
-Recommendation:
-
-- Add **Focus mode**: hide library, story planning, minimap, and advanced inspector sections; retain a thin scene bar, script/flow canvas, selected-line essentials, save state, and exit control.
-- Make the library a searchable slide-over. Add title, participant, location, tag, and “recently edited” filters.
-- Make the inspector resizable/collapsible and preserve its width.
-- Place advanced fields (slug, fallback speaker, requirements, flags, grouping, consequences) under progressive-disclosure sections. Speaker and line text remain always visible.
-- Keep Health as a compact issue count that opens a navigable issue list, rather than a peer writing tab.
-
-### P1: context is available but not ambient
-
-Character want and voice notes are only visible after switching the dock to Context. The writer must trade away the node editor to consult them. Relationships are a separate list without the most useful relationship summary near the current speaker.
-
-Recommendation:
-
-- Add a pinnable **voice card** for the selected speaker: want, voice notes, relationship to the other active speaker, and scene direction.
-- Allow two or three “always visible while writing” context snippets selected by the writer.
-- Add speaker color/avatar consistently in Script, Flow, and Rehearsal.
-- Show the selected branch's compact “what changes” strip (requirements in, flags out) without opening the full Impact view.
-
-### P1: change safety is broad, not granular
-
-Local draft recovery and Reset Draft are valuable, but there is no visible undo/redo for individual writing operations. Reset discards the whole unsaved bundle. Line deletions have a special undo, while text edits, connections, speaker changes, and branch moves do not.
-
-Recommendation:
-
-- Add an in-memory command history for dialogue and node mutations with `Ctrl/Cmd+Z` and redo.
-- Coalesce normal typing into sensible undo groups.
-- Keep draft recovery; show “Saved locally just now” separately from “Committed to project.”
-- Offer named local snapshots for riskier rewrites or imports.
-- Before replacing an existing graph through import, automatically create a local snapshot.
-
-### P1: terminal lines and starts are under-specified
-
-Every node without choices is reported as a dead end, even though a normal conversation must end. This creates warning noise and weakens trust in Health. Rehearsal reads a local `soa.dialogue-flow.start.*` key, but this view currently has no action that sets it. The canonical dialogue model also has no `starting_node_id`, so start identity is inferred from inbound edges and can be ambiguous.
-
-Recommendation and prerequisite:
-
-- Resolve start and ending semantics in the canonical data model before defining DLG/1 or building its importer.
-- Add canonical `dialogues.starting_node_id`, including ownership and existence validation in preview/commit. Browser-local state may cache selection or layout, but must not define portable dialogue meaning.
-- Represent endings with a typed terminal field, or formally define every node without outgoing edges as terminal. Do not encode runtime semantics in a reserved user-editable tag.
-- Add “Set as start” and “Mark as ending” actions to Flow and Script view, and make Health distinguish intentional endings from invalid or unreachable structure.
-
-### P1: validation needs to be closer to the affected text
-
-Graph health is calculated live, but most feedback is summarized in the header or Health tab. Blocker strings often identify a generated label or ID rather than bringing the writer to the exact field. Similar-consequence and dead-end warnings can be legitimate and should not all carry the same weight.
-
-Recommendation:
-
-- Mark affected lines/choices inline and make every issue navigable.
-- Separate errors, likely mistakes, and intentional structural notes.
-- Add quick fixes for missing choice target, empty speaker, duplicate consequence, unmarked ending, and multiple starts.
-- Run heavier world-impact/coherence checks on pause or before review so typing stays responsive.
-
-### P2: graph navigation will degrade with larger scenes
-
-There is no node search, outline, breadcrumbs, branch folding, or “return to selection.” Auto Layout is global and manual positions are browser-local. Large conversations will continually reorient the writer.
-
-Recommendation:
-
-- Add node/speaker/text search and a compact outline.
-- Add Fit selection, Back/Forward selection history, fold branch, isolate branch, and breadcrumb to root.
-- Preserve the selected node when auto-layout runs; allow layout of only a selected subgraph.
-- Treat browser-local layout as a collaboration limitation and decide later whether layout should become canonical/shared metadata.
-
-### P2: accessibility and copy quality need a pass
-
-Graph edge selection and handles are pointer-centric. Keyboard users need a non-graph editing route, another reason Script view is important. Some rendered arrow characters appear garbled in source/output and should be normalized to a real Unicode arrow or an icon with an accessible label.
-
-Recommendation:
-
-- Ensure the full create/edit/connect workflow is possible in Script view without drag operations.
-- Add meaningful labels for node actions, branch levels, requirement states, and consequence state.
-- Verify focus order after creating/removing lines and when closing review/import modals.
-- Fix the mojibaked arrows and test source encoding.
-
-## Proposed target experience
-
-The default authoring loop should feel like this:
-
-1. Create a dialogue and enter a title plus optional one-paragraph direction.
-2. Add or resolve two or more participants.
-3. Start in Script view with cursor focus on the first speaker/line.
-4. Write continuously with inline choices and predicted next speakers.
-5. Pin voice/context notes only when useful.
-6. Switch to Flow to inspect branching and fix topology.
-7. Rehearse representative branches.
-8. Open Health/Impact only for structural and world-state review.
-9. Review the atomic bundle and commit.
-
-Focus mode should reduce that further to scene direction, pinned context, the script, and local/committed save status.
-
-## AI-assisted workflow: human-reviewed draft import
-
-### Product boundary
-
-The limited prototype should **not require an OpenAI API integration**. The app provides a provider-neutral prompt builder, a documented DLG/1 import format, deterministic parsing, project-reference resolution, graph preview, and local staging.
-
-Ordinary chat output has no machine-enforced contract. Extra prose, smart punctuation, renamed directives, missing targets, truncation, and invented syntax are expected product scenarios. The parser must make these failures visible and safe; the product must not imply that it makes them rare or makes the narrative correct.
-
-V1 is suitable for short draft scenes, screenplay-to-node conversion, alternate phrasing, ambient dialogue, and branches whose outcomes the author has already chosen. It is not intended to design quest-critical state, decide canonical lore, replace existing dialogue automatically, or produce editorially final text.
-
-### V1 authority boundary
-
-AI may propose speakers, spoken text, choice labels, and graph topology. It may not assign entry requirements, node/choice requirements, flags, reputation changes, consequences, story beats, or other canonical gameplay state.
-
-Those effects are added by the author after staging. If a later version permits generated effects, the author must first select an explicit allow-list of intended outcomes and confirm every attachment individually. Resolving a valid reference name is not evidence that the reference is used with the correct meaning.
-
-### End-to-end writer workflow
-
-For important or quest-related scenes, separate structure from prose:
-
-1. The author selects only the participants and context needed for the scene, then records intended decisions, facts to reveal or conceal, and approved outcomes.
-2. The model proposes a small branch outline without dialogue prose or gameplay effects.
-3. The author approves or edits the topology and branch meanings.
-4. The model writes dialogue within that approved structure and returns one DLG/1 block.
-5. The app parses locally and shows syntax diagnostics, speaker/reference resolution, and a graph/change preview.
-6. The author chooses **Stage local draft**. The result is not committed to the project; it is stored only in the normal local draft.
-7. The author edits in Script/Flow, adds any gameplay effects, rehearses representative paths, reviews Health/Impact, runs backend preview, and commits through the existing bundle flow.
-
-For small, non-critical scenes, the outline and prose requests may be combined, but the same review and state restrictions apply.
-
-### DLG/1 specification gate
-
-DLG/1 is promising as a human import/export format, but the sketch below is not implementation-ready until it has all of the following:
-
-- a formal grammar and separate semantic rules document,
-- golden valid/invalid fixtures and compatibility rules for future versions,
-- explicit normalization and error-recovery rules,
-- semantic round-trip expectations,
-- resource limits and fuzz/property tests.
-
-If DLG is only temporary plumbing for a single model workflow, prefer a simpler internal JSON import contract. Continue with a custom language only if manual authoring, repair, and durable export are real product requirements.
-
-### Proposed DLG/1 core profile
-
-```dlg
-!DLG 1
-@title The Bell Below
-@slug the-bell-below
-@owner Mara Venn
-@location Flooded Archive
-@direction Mara needs the player to recover a bell, but hides that ringing it will wake her brother.
-@start opening
-
-:: opening
-@speaker Mara Venn
-| The water is rising. If we want the bell, we go now.
-? "Why does it matter to you?" -> confession
-? "Tell me where it is." -> route
-? "No. Find someone else." -> refusal
-
-:: confession
-@speaker Mara Venn
-| My brother carried it below. I heard it ring once after the vault collapsed.
-> route
-
-:: route
-@speaker Mara Venn
-| Take the eastern stair. Do not ring the bell until I am with you.
-? "You have my word." -> accepted
-? "I make no promises." -> wary_acceptance
-
-:: refusal
-@speaker Mara Venn
-| Then I misjudged you.
-@end
-
-:: accepted
-@speaker Mara Venn
-| Then meet me below the archive.
-@end
-
-:: wary_acceptance
-@speaker Mara Venn
-| That is exactly what I was afraid you would say.
-@end
+# Dialogue Authoring UX and AI Import — Implementation Plan
+
+Status: implementation-ready for canonical semantics and Script UX; DLG/import remains a gated local pilot
+
+Primary UI: `soa-editor/src/pages/DialogueFlowPage.tsx`
+
+Primary API: `backend/app/routes/r_ui_dialogues.py`
+
+Last repository review: 2026-07-10
+
+## Outcome
+
+Deliver a keyboard-friendly Script view for writing and reviewing dialogue, make start/end semantics canonical, and then pilot a safe text-import workflow that stages generated dialogue into an empty local draft without committing it.
+
+The work is deliberately split into independently shippable milestones. AI import does not block the authoring improvements, and direct model/provider integration is not in the initial scope.
+
+This document is a scoped implementation plan, not a second workspace roadmap. `AUTHORING_WORKSPACES_GAME_DESIGN.md` remains authoritative for the Dialogue Scene Room's creative north star and delivery status, while `AUTHORING_UX_FRONTEND_PLAN.md` remains authoritative for shared layout, copy, accessibility, and visual conventions. Update those canonical documents when implementation status or shared UX behavior actually changes.
+
+## Project alignment
+
+The implementation must preserve the established Dialogue Scene Room rather than replace it with a standalone text editor:
+
+- Keep the full-width `AuthoringPageShell`, shared `AuthoringPanel`, structured `EmptyState`, explicit “Review Dialogue Bundle” language, and “Advanced Details” schema-complete fallback.
+- Keep Flow, rehearsal, World Echo, Scene Brief, Story Beat Track, Story Placement, health lenses, participant context, local layout/grouping, and the shared Consequence Composer available. Script and Focus modes change hierarchy, not the save contract.
+- Keep one local draft containing dialogue, nodes, story-beat changes, beat unlinks, and deletions. Script history may cover only dialogue/node edits, but it must never discard or roll back unrelated staged beat work.
+- Keep canonical story placement on `adventure_beat_links` and dialogue-linked character beats on `character_story_beats`; imported prose must not synthesize either.
+- Keep requirements and consequences author-authored through the existing trusted controls. AI import deliberately produces a mechanically inert graph that the writer may enrich afterward.
+- Keep graph positions, grouping, view state, focus preference, rehearsal state, and import source local. Only fields backed by models or real link tables may enter the bundle.
+- Keep generic dialogue and dialogue-node editors reachable for rare fields and debugging, but do not make them part of the normal writing loop.
+
+### Baseline that must not regress
+
+Before Milestone 1, record or add a small regression suite for the currently working bundle: load, local draft restore/reset, node/choice editing, safe node deletion, story-beat update/unlink, consequence editing, rollback-only preview, atomic commit, rehearsal gates, and World Echo derivation. New Script/import tests supplement this baseline.
+
+## Decisions fixed by this plan
+
+These decisions replace the unresolved alternatives in the earlier proposal.
+
+1. `Dialogue.starting_node_id` is the canonical start. It is a nullable string validated by the bundle API rather than a database foreign key because the current atomic upsert creates the dialogue before its new nodes.
+2. `DialogueNode.is_terminal` is the canonical intentional-ending marker. It defaults to `false`. A terminal node must have no outgoing choices.
+3. A valid non-empty dialogue has exactly one start and at least one reachable terminal. An empty dialogue may have no start and no terminal while it is a local draft, but backend preview/commit rejects it.
+4. A node with no outgoing choices and `is_terminal=false` is an error (`unmarked_end`), not a generic warning. A terminal with outgoing choices is an error (`terminal_has_outgoing`).
+5. Cycles are allowed, but every node must be reachable from the canonical start. Requiring every cycle to reach a terminal is deferred because intentional looping dialogue may exist.
+6. Script view is a preorder projection of the graph, not a second data model. It edits the same `dialogue` and `nodes` state as Flow view.
+7. Script view does not support arbitrary drag reorder in its first release. Graph meaning comes from edges; “move branch” is deferred until its edge-rewrite behavior is specified.
+8. Undo/redo covers dialogue and node mutations only. Story-beat editing, graph layout, rehearsal state, and committed data are excluded initially.
+9. DLG/1 import is allowed only when the active local draft has zero nodes. Append, merge, replace, and revision import are out of scope.
+10. Imported content may set only title, slug suggestion, description/direction, speakers, line text, start, terminal markers, and topology. Requirements, flags, consequences, reputation, story beats, canonical IDs, and database writes are forbidden.
+11. Parsing and staging happen in the browser. Existing `/api/ui/dialogues/preview` and `/api/ui/dialogues/bundle` remain the only persistence path.
+12. No direct OpenAI or other provider integration is included. The pilot builds and copies a prompt and accepts pasted output.
+13. Existing saved dialogues are allowed to load in a repairable legacy state. Read/load and source import do not reject missing canonical start/end fields; only Dialogue Scene preview/commit requires a valid final graph.
+14. Start/end fields are part of source CSV and UE export contracts. They must not be treated as UI-only metadata.
+15. Imported text is untrusted content. It is rendered as text, never HTML; directive-like prose, Markdown, URLs, and prompt-injection text have no executable meaning.
+
+## Repository constraints
+
+- Models are SQLAlchemy classes in `backend/app/models/`.
+- Existing SQLite files are upgraded additively in `backend/app/db/init_db.py::_upgrade_sqlite_schema`; no migration revision directory is currently used.
+- Generic editors depend on JSON schemas in `backend/app/schemas/`.
+- Dialogue bundle validation is transactional and already validates same-dialogue targets, reference shapes, deletions, and story-beat concurrency.
+- The frontend currently keeps dialogue state, graph analysis, mutation functions, and most UI in one large page component.
+- There is no project/tenant identifier on dialogue data. Same-project ownership cannot be enforced until the wider data model adds one; this plan requires same-dialogue target validation and existence validation only.
+- Source CSVs in `backend/data/` are the portable rebuild truth, and UE CSV output is a downstream integration contract. Model/schema changes require source headers, coercion/export coverage, and UE documentation/consumer review.
+- The shared authoring vocabulary and primitives are already implemented. New UI should compose them rather than introducing dialogue-only substitutes.
+- The current bundle route reports most validation failures through Flask `abort(400, description=...)`; clickable issue navigation requires a deliberately defined structured error payload or a stable adapter, not parsing human-readable strings.
+
+## Target module layout
+
+Create the following modules while keeping `DialogueFlowPage.tsx` as the route-level coordinator:
+
+```text
+soa-editor/src/dialogues/
+  types.ts
+  graph.ts
+  mutations.ts
+  speakerPrediction.ts
+  history.ts
+  script/
+    DialogueScriptView.tsx
+    ScriptNode.tsx
+  import/
+    dlgTypes.ts
+    dlgParser.ts
+    dlgSemantics.ts
+    dlgSerializer.ts
+    dlgStaging.ts
+    DialogueImportDialog.tsx
+    DialoguePromptBuilder.tsx
+    fixtures/
+backend/app/models/
+  m_dialogues.py
+  m_dialogue_nodes.py
+backend/app/routes/
+  r_ui_dialogues.py
 ```
 
-Core rules to formalize:
+`types.ts` owns typed dialogue, node, and choice shapes used by new code. Existing `EntryRecord` API boundaries may be normalized into these types incrementally; a full application-wide type migration is not required.
 
-- Exactly one fenced `dlg` block is accepted when fences are present. Multiple blocks are an error; unfenced input is allowed only when `!DLG 1` is the first meaningful line.
-- Normalize only UTF-8 BOM and newline style automatically. Structural smart quotes and Unicode arrows produce a targeted diagnostic rather than silent rewriting.
-- `:: local_label` labels match `[A-Za-z][A-Za-z0-9_-]*`, are unique, and are never treated as database IDs.
-- `| ` begins spoken text, so dialogue may safely begin with `@`, `?`, `>`, `::`, or `//`. Consecutive `| ` lines join with newlines; a bare `|` represents an intentional blank paragraph.
-- `@speaker` is required for every node. Missing speakers may be repaired only by an explicit author action.
-- Choices use `? "text" -> target`; automatic continuations use `> target`. A node may have at most one continuation and may not mix continuations with choices.
-- `@end` cannot coexist with outgoing edges and maps to the canonical terminal representation chosen before implementation.
-- Exactly one `@start` must target a defined node and maps to canonical `starting_node_id`.
-- Choice strings support only `\"`, `\\`, and `\n`. Unknown escapes are errors.
-- Comments occupy their own `//` line. The semantic round trip need not preserve whitespace or comments, but must preserve all dialogue meaning.
-- Unknown directives, unsupported annotations, unresolved references, duplicate labels, missing targets, terminal conflicts, and truncated nodes block staging. Nothing is silently omitted.
+## Milestone 1 — Canonical graph semantics
 
-The V1 AI profile excludes `@entry`, `@requires`, `@sets`, `@beat`, and equivalent choice options. A later human-authored profile may add them with quoted/tokenized reference rules and lossless mapping, but they are not part of the initial model prompt.
+Goal: start/end meaning survives reload, export, preview, and commit.
 
-### Mapping to canonical data
+### M1.1 Persist the fields
 
-| DLG/1 construct | Canonical field/action |
-|---|---|
-| `@title` / `@slug` | `dialogue.title` / collision-checked `dialogue.slug` |
-| `@owner` / `@location` | explicitly resolve to canonical records |
-| `@direction` | `dialogue.description` |
-| `@start` | canonical `dialogue.starting_node_id` |
-| `:: label` | generate a new node ULID and globally unique prefixed slug |
-| `@speaker` | literal `node.speaker`, plus `speaker_character_id` when explicitly resolved |
-| `| text` | `node.text` |
-| `? ... -> ...` | choice with generated `next_node_id`; no effects in the AI profile |
-| `> target` | automatic continuation using the existing blank-choice representation |
-| `@end` | canonical typed terminal semantics, never a reserved tag |
+Change:
 
-The preview must preserve one symbol-to-generated-ID map for its lifetime so re-rendering or changing speaker resolution does not churn IDs.
+- `backend/app/models/m_dialogues.py`: add `starting_node_id = Column(String, nullable=True)`.
+- `backend/app/models/m_dialogue_nodes.py`: add `is_terminal = Column(Boolean, nullable=False, default=False)`.
+- `backend/app/db/init_db.py`: add SQLite upgrades for both columns and backfill `is_terminal = 0` where null.
+- `backend/app/schemas/dialogues.json`: expose `starting_node_id` as a dialogue-node reference.
+- `backend/app/schemas/dialogue_nodes.json`: expose `is_terminal` as a checkbox.
+- `backend/data/dialogues_seed.csv` and `backend/data/dialogue_nodes_seed.csv`: add the columns. Seed starts and terminals explicitly where they can be inferred safely.
 
-### Semantic review
+Legacy-data rule:
 
-Structural validity is necessary but insufficient. Before staging, the review UI should ask the author to inspect:
+- The upgrade does not guess starts or endings. Existing rows remain `starting_node_id = NULL` and `is_terminal = false` until seed data or an author fixes them.
+- This avoids silently choosing among multiple roots or treating unfinished lines as intentional endings.
+- Existing records remain loadable and editable. Dialogue Scene preview/commit blocks until the author explicitly repairs start/end semantics; unrelated generic reads, exports, and startup are not blocked.
+- Do not silently rewrite all source dialogue CSVs by inference. For tracked seed/source rows, add explicit values only after each graph has been checked; document any rows intentionally left for manual repair.
 
-- whether every branch outcome matches its visible choice,
-- whether facts are revealed only where intended,
-- whether speakers know only what they should know,
-- whether choices have meaningfully different outcomes,
-- whether cycles/repetition are intentional,
-- whether voice and lore remain consistent.
+Export/integration work:
 
-These are review prompts and evaluation criteria, not claims of automated proof. Backend preview remains authoritative for project ownership, canonical reference existence, slug/ID uniqueness, start/terminal invariants, and bundle integrity.
+- Add both columns to the tracked source CSV headers and verify lossless source export/import round trips them.
+- Verify UE CSV serialization includes `starting_node_id` and `is_terminal` with the expected reference/boolean representation, then update the relevant UE relationship/authoring documentation if its consumer contract changes.
+- Confirm full-source preflight/rebuild accepts the new headers and that old SQLite upgrade plus a subsequent source export produces a rebuildable dataset.
 
-## Import UX, privacy, and safety
+Tests:
 
-### Import modes and identity
+- Add a persistence-contract test proving old-style SQLite tables receive both columns.
+- Update dialogue fixtures to include canonical start/end values.
+- Add source CSV round-trip and UE export assertions for the new fields.
 
-MVP imports only into a new or empty dialogue. Existing local metadata is reconciled field by field, and generated content is staged rather than committed.
+### M1.2 Centralize graph analysis
 
-Appending, inserting, or replacing existing content is deferred until the product has stable update identity and optimistic concurrency. Local labels alone are not update identities: generating fresh ULIDs would turn a revision into delete-all/add-all.
+Extract pure frontend graph analysis from `DialogueFlowPage.tsx` into `soa-editor/src/dialogues/graph.ts`.
 
-A later revision protocol must include one of the following: verified immutable node references, immutable slugs, or a signed export-session mapping. It must also include the exported dialogue revision and reject or merge stale imports when the canonical dialogue has changed. All destructive merge modes require a visual diff and automatic local snapshot.
+Return structured issues rather than display strings:
 
-### Resolution behavior
+```ts
+type DialogueIssueCode =
+  | "missing_start"
+  | "start_not_found"
+  | "unreachable_node"
+  | "missing_target"
+  | "unmarked_end"
+  | "terminal_has_outgoing"
+  | "missing_terminal";
 
-Speaker and metadata references resolve by exact slug, case-insensitive exact display name, unique normalized name, then explicit author selection. New-node imports do not accept pasted canonical IDs. Ambiguous references are never fuzzy-resolved silently, and fallback speaker text is clearly distinguished from a canonical character link.
+interface DialogueIssue {
+  code: DialogueIssueCode;
+  severity: "error" | "warning" | "note";
+  nodeId?: string;
+  choiceIndex?: number;
+  message: string;
+}
+```
 
-Because the V1 AI profile contains no gameplay-state references, flag and requirement resolution is not part of AI staging. Authors add those records and attachments through the existing trusted UI after import.
+`analyzeDialogue(dialogue, nodes)` must be deterministic and must not read local storage. Retain cycle detection as a note/lens feature.
 
-### Privacy and provenance policy
+Tests in `graph.test.ts` cover empty graphs, missing/invalid start, unreachable nodes, broken targets, marked and unmarked endings, terminal conflicts, and cycles.
 
-- Never include an entire catalog automatically. The author selects the minimum characters, locations, notes, and facts required.
-- Show the exact outgoing prompt before the explicit copy/send action.
-- Display the project's approved provider, account/workspace, retention, and unpublished-content policy at that action.
-- Disable external prompt generation when project policy does not permit the selected content/provider combination.
-- Decide whether AI provenance is stored, local-only, or omitted through the project's legal/editorial policy; do not hard-code “no provenance” as the universal default.
+### M1.3 Enforce the same invariants on the backend
 
-### Trust and technical limits
+Extend `_validate_node_graph` in `r_ui_dialogues.py` to receive `dialogue_data` and validate the final submitted graph before any upsert:
 
-- Treat pasted content as untrusted text: never execute it or render it as raw HTML.
-- Enforce document, node, choice, line, nesting, and total-record limits with line-specific diagnostics.
-- Generate ULIDs locally, collision-check slugs, and keep preview IDs stable.
-- Run client graph analysis and backend rollback-only `/api/ui/dialogues/preview` before commit.
-- Verify project ownership, references, uniqueness, canonical start/terminal semantics, and graph invariants again on the backend at commit time.
-- Malformed output is a routine recoverable state: preserve the pasted source, navigate to each error, and allow cancel without mutating the draft.
+- non-empty `nodes`;
+- `starting_node_id` exists in submitted node IDs;
+- all choice targets exist in submitted node IDs;
+- all submitted nodes have the matching `dialogue_id`;
+- terminal nodes have no outgoing choices;
+- every node is reachable from `starting_node_id`;
+- at least one reachable terminal exists.
 
-## Implementation plan
+Return bundle errors with a stable `path` (`dialogue.starting_node_id`, `nodes[i].is_terminal`, or `nodes[i].choices[j].next_node_id`). Preview and commit must execute the identical validator.
 
-### Phase 0: schema and continuity prerequisites
+Define one machine-readable error shape for graph blockers, for example `{ code, path, message, node_id?, choice_index? }`, while retaining a readable top-level message for existing callers. The frontend maps backend `code`/`path` to the same issue-navigation model used by client analysis. Do not make UI behavior depend on matching English error text.
 
-1. Decide and migrate canonical start and terminal semantics.
-2. Enforce those semantics and all project ownership/reference/uniqueness invariants in backend preview and commit.
-3. Add Set as start, Mark as ending, focus handoff, predicted next speaker, collapsible panels, and library search.
-4. Add granular undo/redo and automatic local snapshots for risky operations.
-5. Fix source encoding/mojibaked arrows and verify accessible labels and focus order.
+Backend contract tests:
 
-Acceptance checks:
+- accept a valid linear graph and valid branching graph;
+- reject missing/foreign start, unreachable node, unmarked ending, terminal with choices, and missing terminal;
+- prove preview rolls back and commit persists `starting_node_id`/`is_terminal`;
+- retain existing cross-dialogue target, safe deletion, and malformed-reference tests.
 
-- Start and ending meaning survives browser/device changes and export.
-- Intentional endings do not create false dead-end warnings.
-- A two-person linear exchange can be written from the keyboard after the initial action.
-- Backend preview rejects cross-project references and invalid graph semantics even if client checks are bypassed.
+### M1.4 Add author actions and remove browser-local start
 
-### Phase 1: Script view
+In Flow view:
 
-Suggested modules remain:
+- Add “Set as start” to each node action menu.
+- Add a terminal checkbox/action. Enabling it removes no edges automatically; show the resulting inline error until the author removes them.
+- Render start and terminal badges.
+- Rehearsal starts from `packet.dialogue.starting_node_id`.
+- Delete `startKey()` and all reads/writes of `soa.dialogue-flow.start.*`.
+- Replace “dead end” strings with structured inline issues.
 
-- `soa-editor/src/dialogues/script/DialogueScriptView.tsx`
-- `soa-editor/src/dialogues/script/ScriptLine.tsx`
-- `soa-editor/src/dialogues/history.ts`
-- shared typed mutation helpers extracted from `DialogueFlowPage.tsx`
+Acceptance:
 
-Implement the branch-aware outline, inline create/edit/remove/reorder actions, speaker prediction, pinned context, Focus mode, selection synchronization, keyboard access, and undo/redo tests before investing heavily in AI import. This provides the baseline against which AI-assisted drafting must demonstrate additional value.
+- Reloading a committed dialogue preserves its start and endings.
+- Clicking any issue selects and scrolls/fits the affected node.
+- A valid graph passes both client analysis and backend preview.
+- A legacy dialogue loads with repair actions and cannot be committed accidentally until repaired.
+- Source and UE exports preserve the new semantics.
 
-### Phase 2: DLG/1 specification and parser prototype
+## Milestone 2 — Typed mutations, history, and writing ergonomics
 
-1. Publish the formal grammar, semantic rules, safe-normalization policy, version compatibility policy, and golden fixture corpus.
-2. Implement tokenizer/parser, source spans, AST, semantic validation, serializer, and resource limits.
-3. Test directive-looking prose, blank paragraphs, escapes, smart punctuation, multiple fences, forward references, cycles, duplicate/missing targets, terminal conflicts, truncation, and unknown directives.
-4. Add semantic round-trip, property/fuzz, and denial-of-service tests.
-5. Decide from the prototype whether DLG has durable human value; otherwise replace it with an internal structured format before UI integration.
+Goal: establish one safe mutation layer before adding a second editing view.
 
-### Phase 3: limited prompt/import pilot
+### M2.1 Extract mutations
 
-1. Add the structured brief, exact outgoing-context preview, project policy notice, and Copy prompt action.
-2. Prompt for topology first and prose second for important scenes; never request gameplay effects.
-3. Add paste, diagnostics, speaker resolution, graph/change preview, stable generated IDs, and **Stage local draft** for empty dialogues.
-4. Prove cancel does not mutate state and staging does not commit project data.
-5. Run a pilot comparing the full workflow with manual Script-view authoring.
+Implement pure functions in `mutations.ts`:
 
-No backend parser endpoint is needed for the pilot. Existing preview/commit endpoints remain persistence authorities; a server parser is justified only for later CLI/batch use or shared format enforcement.
+- `updateDialogue`
+- `updateNode`
+- `addContinuation`
+- `addChoiceBranch`
+- `deleteNodeAndIncomingEdges`
+- `setStartingNode`
+- `setTerminal`
+- `duplicateBranch` (only if all duplicated nodes are exclusively owned by that branch; otherwise return a typed refusal)
 
-### Phase 4: export and revision identity
+Every function returns a new state and a selection/focus hint. Both Flow and Script views call these functions; neither view rewrites edges independently.
 
-Plain DLG export may be added for inspection and backup after semantic round-trip tests pass. AI reimport into existing dialogue remains blocked until immutable identity, export revision, stale-write handling, reviewed create/update/delete diffs, and snapshot recovery are implemented.
+The shared state contract must retain story beats, beat unlinks, deletion tracking, and local-only grouping even though these helpers mutate only dialogue/nodes. Add regression tests proving node undo/redo does not overwrite concurrently staged story-beat or placement changes.
 
-### Phase 5: optional direct AI integration
+### M2.2 Speaker prediction
 
-Proceed only if the pilot demonstrates material value. A direct provider should produce a schema-constrained internal JSON AST where the provider supports it, then serialize to DLG/1 for human inspection. Generated-in-app and pasted candidates must converge on the same resolution, preview, staging, rehearsal, and commit flow. The model never receives commit authority.
+Implement `predictNextSpeaker(sourceId, nodes)`:
 
-## Suggested delivery priority
+1. Walk the current branch backward through a unique inbound chain, up to 10 nodes.
+2. If exactly two distinct recent canonical speaker IDs exist, choose the one different from the source.
+3. Otherwise choose the most recent distinct speaker.
+4. Fall back to the source speaker and then `NPC`.
 
-| Priority | Outcome | Why first |
+Copy both `speaker` and `speaker_character_id` from the prediction. Unit-test two-person alternation, branches with multiple inbound edges, one-speaker scenes, and fallback speakers.
+
+### M2.3 Undo/redo
+
+Implement `history.ts` as a reducer-backed bounded history:
+
+- maximum 100 structural entries;
+- text edits within the same field coalesce while focus remains in that field or until 750 ms idle;
+- `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z`, and Windows `Ctrl+Y`;
+- undo/redo restores dialogue/nodes plus selected node, not layout or inspector state;
+- loading, resetting, restoring a local draft, staging an import, and successful commit clear history;
+- staging import creates one undoable entry after an automatic named snapshot.
+
+Do not use browser undo as the application history. Add reducer and keyboard-handler unit tests.
+
+### M2.4 Focus handoff
+
+After adding a continuation or choice branch, render the new node, select it, and focus its text area using a pending focus target keyed by node ID. Add an accessible live announcement (“Line added for {speaker}”).
+
+Acceptance:
+
+- In a two-speaker scene, a writer can add alternating continuations, type, undo, and redo without leaving the keyboard.
+- No mutation bypasses the shared mutation layer.
+
+## Milestone 3 — Script view and focus mode
+
+Goal: make prose drafting the default creative surface while Flow remains the topology surface.
+
+### M3.1 Script projection
+
+Add `"script"` to `CenterView`. Build a stable preorder traversal from the canonical start:
+
+- emit the current node;
+- emit outgoing choices in stored array order;
+- indent descendants by branch depth;
+- when a node has already been emitted, render a compact link row instead of duplicating its editor;
+- append unreachable nodes in an “Unreachable” error section so they remain repairable.
+
+Each row contains speaker picker, editable text, start/terminal badges, collapsed requirement/effect chips, add-continuation, add-choice, and overflow actions. Choice labels edit inline above their targets.
+
+### M3.2 Keyboard contract
+
+Inside a line editor:
+
+- `Enter` inserts a newline (normal textarea behavior).
+- `Ctrl/Cmd+Enter` adds a predicted-speaker continuation.
+- `Ctrl/Cmd+Shift+Enter` adds a choice branch and focuses its choice label.
+- `Alt+ArrowUp/Down` moves focus to the previous/next visible script row; it does not mutate topology.
+- `Escape` returns focus to the row action bar.
+
+Avoid plain-Enter structural behavior because multiline dialogue text is already supported.
+
+### M3.3 Selection and view synchronization
+
+- Maintain one selected node ID in the page coordinator.
+- Switching views selects the same node.
+- Flow fits/centers the selected node; Script scrolls it into view.
+- Store each view’s scroll/viewport state in memory for the route lifetime, not as canonical data.
+
+### M3.4 Focus mode and panel hierarchy
+
+Add Focus mode that hides Scene Brief, Story Beat Track, Story Placement, library, minimap, and advanced inspector content. Retain:
+
+- compact scene title/status bar;
+- Script/Flow switch;
+- selected-line essentials;
+- issue count;
+- local-draft/committed state;
+- exit Focus mode action.
+
+Persist only the user preference in local storage. It must not affect dialogue data.
+
+Implement this with the existing shared shell/panel vocabulary. Hidden panels must remain reachable after exiting Focus mode, and their draft state must remain mounted or otherwise preserved. Focus mode must not hide the committed/local status, bundle review entry point, blocker count, or an accessible route back to advanced controls.
+
+### M3.5 Tests
+
+- Component tests: preorder/branch rendering, shared-node link rows, unreachable section, inline choice editing, focus after add, and keyboard commands.
+- Playwright: create a dialogue, author a two-person exchange in Script view, branch once, mark endings, set start, switch to Flow, preview, and commit.
+- Accessibility: every structural action has an accessible name; focus returns to the invoking control after dialogs close.
+- Regression: story-beat edits, beat unlinks, Story Placement, Consequence Composer drafts, and local graph layout survive Script/Flow/Focus transitions.
+- Responsive: at the supported narrow desktop breakpoint, Script remains writable and Flow can still expose the Context Dock without horizontal control loss.
+
+Acceptance:
+
+- The complete create/edit/connect workflow is possible without graph dragging.
+- Switching Script/Flow does not lose selection or edits.
+- A 10-node two-speaker dialogue with one branch can be authored and previewed using the keyboard.
+
+## Milestone 4 — DLG/1 parser package
+
+Goal: prove the interchange format independently of AI UX.
+
+### M4.1 Supported grammar
+
+The V1 grammar supports exactly:
+
+```text
+document      := header metadata* node+
+header        := "!DLG 1" EOL
+metadata      := title | slug | owner | location | direction | start
+node          := node_header speaker text_line+ (choice+ | continuation | end)
+node_header   := ":: " LABEL EOL
+speaker       := "@speaker " VALUE EOL
+text_line     := "|" (" " TEXT)? EOL
+choice        := "? " QUOTED " -> " LABEL EOL
+continuation  := "> " LABEL EOL
+end           := "@end" EOL
+```
+
+`LABEL = [A-Za-z][A-Za-z0-9_-]*`. Metadata directives are `@title`, `@slug`, `@owner`, `@location`, `@direction`, and exactly one `@start`. A node cannot mix choices, continuation, and `@end`. Consecutive text lines join with `\n`; bare `|` is a blank line.
+
+Quoted choice text supports only `\"`, `\\`, and `\n`. Unknown directives/escapes are errors. UTF-8 BOM and CRLF are normalized. Smart quotes/arrows produce diagnostics and are not silently rewritten.
+
+Accept either one fenced `dlg` block with no non-whitespace content outside it, or unfenced input whose first meaningful line is `!DLG 1`. Multiple blocks are errors.
+
+### M4.2 Parser contract
+
+`parseDlg(source)` returns:
+
+```ts
+interface ParseResult {
+  ast?: DlgDocument;
+  diagnostics: Array<{
+    code: string;
+    severity: "error" | "warning";
+    message: string;
+    span: { start: number; end: number; line: number; column: number };
+  }>;
+}
+```
+
+No partial AST may be staged when any error exists. The original source is retained by the import dialog.
+
+Parsing must be a total, side-effect-free operation over a JavaScript string. It must not evaluate Markdown/HTML, follow links, interpolate directives into code, access storage, resolve project references, or perform network requests. Diagnostics should escape source excerpts and cap excerpt length.
+
+Resource limits:
+
+- 100 KiB source;
+- 200 nodes;
+- 20 choices per node;
+- 10,000 characters per spoken line block;
+- 500 total edges;
+- parser completes in linear time relative to source length.
+
+### M4.3 Semantic validation and serialization
+
+Validate unique labels, one defined start, defined targets, terminal conflicts, reachability, at least one terminal, and speaker presence. Cycles are allowed.
+
+`serializeDlg(ast)` emits normalized unfenced DLG/1. Required round-trip property:
+
+```text
+semantic(parse(serialize(parse(source)))) == semantic(parse(source))
+```
+
+Whitespace and comments need not round-trip; comments are not supported in V1.
+
+Fixtures/tests:
+
+- at least 10 valid and 20 invalid golden files;
+- forward targets, branches, cycles, multiline/blank text, escaped choices;
+- duplicate labels, missing targets/start/speaker, multiple fences, smart punctuation, mixed edge kinds, terminal conflicts, truncation, unknown directives, and every resource limit;
+- property tests may be added with an existing/new lightweight generator, but golden and round-trip tests are mandatory for the milestone.
+
+Exit gate: proceed to Milestone 5 only if the format can represent every seed dialogue after canonical start/end data is supplied. Otherwise use internal JSON for the pilot and record the rejected DLG cases.
+
+## Milestone 5 — Empty-draft import pilot
+
+Goal: stage a reviewed candidate locally without adding a persistence bypass.
+
+### M5.1 Prompt builder
+
+Build a dialog that lets the author select:
+
+- participants (required, explicit selection);
+- optional location;
+- scene direction;
+- facts to reveal/withhold;
+- intended branch outcomes;
+- maximum node count.
+
+Show the exact generated prompt before enabling Copy. Never include the full character/location catalog. The prompt requests DLG/1 and explicitly forbids requirements, flags, effects, IDs, and story beats.
+
+Project provider/retention policy has no current canonical storage location. For the pilot, show configurable static policy copy from one frontend config module. Do not claim enforcement until a project-policy model exists.
+
+The prompt preview must clearly distinguish authored project context from instructions. Treat all stored names, notes, descriptions, and pasted model output as data even if they contain instruction-like text. Copy is an explicit user action; opening the builder performs no clipboard or network operation.
+
+### M5.2 Import review dialog
+
+The import dialog has four states:
+
+1. Paste source.
+2. Parse diagnostics with clickable source spans.
+3. Resolve `@owner`, `@location`, and every unique `@speaker` by exact slug, case-insensitive exact display name, then explicit selection. Never fuzzy-resolve silently and never accept pasted IDs.
+4. Preview graph summary and stage.
+
+The preview must show at least node/edge/terminal counts, start label, speakers and fallback speakers, unresolved/ambiguous references, cycles, and unreachable nodes. It must also state that requirements, flags, consequences, beats, and canonical IDs will not be imported.
+
+Staging is disabled when:
+
+- the current draft contains any node;
+- any parse/semantic error exists;
+- a metadata reference is ambiguous;
+- any speaker has neither an explicit canonical selection nor an explicitly confirmed fallback string;
+- resource limits are exceeded.
+
+### M5.3 Stable staging
+
+`dlgStaging.ts` converts the resolved AST to the normal frontend state:
+
+- generate all ULIDs once when entering preview and retain the label-to-ID map while the dialog is open;
+- use `generateSlug` plus collision checks against the current packet’s nodes;
+- map `@start` to `dialogue.starting_node_id`;
+- map `@end` to `node.is_terminal=true`;
+- choice/continuation edges contain only `choice_text` and `next_node_id` (plus empty `set_flags` for current schema compatibility);
+- imported nodes have empty requirements, flags, and tags;
+- never call an API.
+
+Before staging, write a named local snapshot using the existing draft storage namespace. Then replace the empty local node array as one undoable mutation, select the start node, close the dialog, and focus Script view. Cancel at every earlier step leaves packet state byte-for-byte unchanged.
+
+Only the dialogue fields explicitly accepted in the review may replace local metadata; show a field-level before/after summary for title, slug suggestion, description, owner, and location. Blank generated metadata does not erase an existing local value. The empty-node restriction applies to active nodes, but staging is also blocked when pending node deletions or other state makes “empty” ambiguous.
+
+Tests:
+
+- unit tests for resolution order, ambiguity, ID stability, forbidden-field absence, and staging mapping;
+- component tests for error navigation and cancel safety;
+- Playwright happy path from prompt copy through paste, resolve, stage, edit, backend preview, and commit;
+- spy/assert that staging performs no fetch request.
+
+Acceptance:
+
+- A valid 10-node DLG/1 scene can be parsed, resolved, previewed, and staged into an empty local draft.
+- Malformed or ambiguous input cannot mutate the draft.
+- Imported data cannot create gameplay effects or commit data.
+
+## Deferred work
+
+The following are explicitly not part of Milestones 1–5:
+
+- direct provider/API integration;
+- append, merge, replace, or revision reimport;
+- immutable export-session identity and optimistic concurrency for dialogue nodes;
+- AI-authored requirements, flags, consequences, reputation, beats, or lore;
+- collaborative/shared graph layout;
+- arbitrary branch reorder/move;
+- project/tenant ownership validation (requires a project identity in the broader schema);
+- command palette, library slide-over/search, pinned voice cards, branch folding, and subgraph layout.
+- automated lore, voice, knowledge-state, emotional-intent, or branch-quality scoring; these remain human health questions until the project has honest canonical inputs and validated evaluation behavior.
+
+These may become separate follow-up plans after the Script view and import pilot produce usage evidence.
+
+## Delivery sequence and pull-request boundaries
+
+Keep pull requests small enough to review and revert independently:
+
+| PR | Contents | Depends on |
 |---|---|---|
-| 1 | Canonical start/end semantics and backend invariants | Prevents temporary meaning from leaking into the format |
-| 2 | Script view, focus/keyboard improvements, undo/redo | Improves all authoring and establishes the comparison baseline |
-| 3 | Formal DLG/1 specification and parser prototype | Tests whether the custom format is robust and worth owning |
-| 4 | Empty-dialogue AI draft pilot | Validates usefulness with limited persistence risk |
-| 5 | Stable revision identity and concurrency | Required before any non-empty reimport or replacement |
-| 6 | Optional schema-constrained direct provider | Convenience only after demonstrated value |
+| 1 | Model/schema/SQLite/seed fields | — |
+| 2 | Frontend graph analysis and structured issues | PR 1 |
+| 3 | Backend graph invariants and contract tests | PR 1 |
+| 4 | Flow start/end actions and rehearsal migration | PRs 2–3 |
+| 5 | Typed mutations, speaker prediction, focus handoff | PR 4 |
+| 6 | History/undo/redo | PR 5 |
+| 7 | Script view projection and editing | PRs 5–6 |
+| 8 | Focus mode, synchronization, E2E/accessibility | PR 7 |
+| 9 | DLG parser, semantics, serializer, fixtures | PR 4 |
+| 10 | Prompt builder and import review | PRs 8–9 |
+| 11 | Local staging and pilot E2E | PR 10 |
 
-## Success measures
+PRs 5–8 may proceed in parallel with PR 9 after canonical graph semantics are merged.
 
-Compare repeated samples against manual Script-view authoring, segmented by scene size and importance:
+## Verification commands
 
-- first-pass parse rate and percentage structurally valid without repair,
-- malformed/truncated response frequency,
-- time from brief to a draft the author considers usable,
-- total author time saved or lost versus Script view,
-- percentage of generated prose retained,
-- lore, knowledge, character-voice, and branch-meaning corrections per scene,
-- meaningful versus cosmetic branch rate,
-- incorrect gameplay effects per import (target: zero in V1 because AI cannot author them),
-- percentage reaching staging, rehearsal, backend preview, and commit,
-- backend preview failure rate for imported versus manual drafts,
-- writer-reported confidence and interruption cost.
+Run the smallest relevant set during development and the full set before each milestone closes:
 
-The five-minute ten-node scenario is a best-case usability demonstration, not an acceptance benchmark. Approve production scope only if the pilot shows repeatable net time savings and acceptable semantic quality across representative scenes.
+```powershell
+python -m pytest backend/tests/test_dialogue_flow_contracts.py backend/tests/test_persistence_contracts.py
+Set-Location soa-editor
+npm run test:unit
+npm run lint
+npm run build
+npm run test:e2e -- authoring-workflows.spec.ts
+```
 
-## Gates before production implementation
+Any new Playwright spec may be run by its own filename while iterating. A milestone is not complete if build, lint, relevant unit tests, or its acceptance E2E fails.
 
-1. Canonical start and terminal semantics are migrated and enforced.
-2. The V1 authority boundary is accepted: AI generates language/topology, not gameplay state or canonical lore.
-3. DLG/1 has a formal grammar, semantic specification, compatibility policy, and fixture corpus.
-4. Backend preview/commit independently verifies ownership, references, uniqueness, and graph invariants.
-5. The project defines approved external providers/workspaces, data handling, and provenance policy.
-6. A pilot demonstrates value over Script view. Stable identity and optimistic concurrency are additional gates for revision import.
+For model/schema milestones, also run the CSV contract suite and rebuild preflight relevant to the changed source files. Before final delivery, run the repository-standard backend `pytest` and frontend unit/lint/build suites; run the focused dialogue Playwright workflow and document any unrelated pre-existing failures rather than weakening the gate.
 
-## Definition of done for the limited AI workflow
+## Rollout, recovery, and documentation
 
-The prototype is complete when a writer can select minimal approved context, see and copy the exact prompt, paste one DLG/1 candidate, navigate syntax errors, resolve speakers, preview the graph and changes, and stage it into a new/empty local draft. The author can then revise, add gameplay effects manually, rehearse, run backend preview, and commit through the existing atomic review.
+- Ship canonical semantics before making Script the default or exposing import.
+- After migration, open representative linear, branching, cyclic, gated, and story-linked dialogues and repair them explicitly. Keep a source backup before rewriting tracked canonical CSVs.
+- Feature-gate the import pilot in frontend configuration so Script authoring can ship independently and the pilot can be disabled without affecting normal dialogue editing.
+- A failed parse, cancelled dialog, failed preview, or failed commit leaves the current local draft recoverable. Successful commit clears history according to M2.3 but retains the normal committed bundle and draft-recovery behavior.
+- Update `PROJECT_CONTEXT.md`, `README.md`, and `soa-editor/README.md` only when their stated current behavior changes. Update the Dialogue Scene Room status/catalog entry in `AUTHORING_WORKSPACES_GAME_DESIGN.md` in the same change that ships a milestone; keep shared UX details in `AUTHORING_UX_FRONTEND_PLAN.md`.
+- Record the DLG/1 grammar/version in one canonical developer-facing location (this document until code ships, then a colocated README/spec referenced here). Do not allow prompt examples, parser behavior, and fixtures to become three competing specifications.
 
-At no point may generated text create gameplay-state records or effects, silently discard unsupported data, overwrite a non-empty graph, define start/end only in browser state, or commit project data. Production approval remains contingent on the pilot and all gates above.
+## Definition of done
+
+The planned work is complete when:
+
+1. Canonical start and terminal state persist and are enforced identically by client analysis, backend preview, and backend commit.
+2. A writer can author, branch, repair, undo/redo, rehearse, and commit a dialogue from Script view without graph dragging.
+3. Flow and Script share one mutation/state model and preserve selection when switching.
+4. DLG/1 has executable parser/semantic/round-trip tests and passes the seed-dialogue representation gate.
+5. A writer can inspect the exact prompt, paste one candidate, navigate errors, resolve references, preview stable generated nodes, and stage into an empty local draft.
+6. Cancel and invalid input do not mutate the draft; staging does not call the backend; imported content contains no gameplay state.
+7. The staged draft still passes the normal rehearsal, backend preview, review, and atomic commit path before becoming canonical.
+
+## Pilot decision after delivery
+
+Measure manual Script authoring against import-assisted authoring for representative small scenes: time to usable draft, parse/repair rate, prose retained, semantic/voice corrections, staging-to-commit rate, and writer confidence. Direct provider integration or revision import receives a new plan only if the pilot shows repeatable net value.
+
+Segment results by scene size and importance, and record malformed/truncated output rate, backend-preview failure rate, meaningful versus cosmetic branch rate, lore/knowledge corrections, and total author time including prompt repair. The pilot succeeds only when it saves net author time without lowering confidence or producing gameplay-state writes (target: zero). No single “five-minute scene” demonstration is sufficient evidence for direct-provider or revision-import scope.
