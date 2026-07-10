@@ -53,6 +53,15 @@
         "label": "Requirements"
       }
     },
+    "starting_node_id": {
+      "type": "string",
+      "description": "Canonical first node of this dialogue. Required before Dialogue Scene preview or commit.",
+      "ui": {
+        "widget": "reference",
+        "reference": "dialogue-nodes",
+        "label": "Starting Node"
+      }
+    },
     "tags": {
       "type": "array",
       "description": "Tags for filtering/searching/categorization",

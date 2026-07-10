@@ -98,6 +98,13 @@ Keep this sheet open while authoring DataTables or wiring Blueprint lookups. It 
 - **Blueprint owners:** `BP_NPCSpawner`, `BP_DialogueManager`, `BP_CompanionManager`.
 
 ### Dialogues (`m_dialogues.py`) and Dialogue Nodes (`m_dialogue_nodes.py`)
+
+`dialogues.starting_node_id` is the canonical entry node. `dialogue_nodes.is_terminal`
+marks an intentional ending; terminal nodes must not have outgoing choices. Both fields
+are included in source and UE CSV exports. The starting-node value remains a validated
+string rather than a database foreign key so atomic authoring bundles can create a
+dialogue before inserting its nodes.
+
 - **References:** Characters, Locations, Requirements, Flags (set or require), Events (follow-ups).
 - **Blueprint owners:** `BP_DialogueManager`, narrative analytics tooling.
 

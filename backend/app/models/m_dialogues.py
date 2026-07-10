@@ -17,6 +17,9 @@ class Dialogue(Base):
     character_id = Column(String, ForeignKey("characters.id"))
     location_id = Column(String, ForeignKey("locations.id"))
     requirements_id = Column(String, ForeignKey("requirements.id"))
+    # Kept as a validated string rather than an FK so an atomic bundle can
+    # insert the dialogue before inserting its new nodes.
+    starting_node_id = Column(String, nullable=True)
 
     description = Column(Text)  # Notes or context for writers
     tags = Column(JSON)         # List of string tags

@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 import backend.app.models
 from backend.app.models.base import Base
 from backend.app.models.m_flags import Flag
+from backend.app.db.init_db import _upgrade_sqlite_schema
 from backend.app.routes import base_route, r_flags
 from backend.app.routes.r_content_packs import ContentPackRoute
 from backend.app.routes.r_currencies import CurrencyRoute
@@ -75,6 +76,31 @@ def test_schema_lookup_handles_bom_and_table_name_aliases():
     assert ContentPackRoute().get_schema_required_fields() == ["id", "slug", "name"]
     assert CurrencyRoute().get_schema_required_fields() == ["id", "slug", "name", "type"]
     assert ShopInventoryRoute().get_schema_required_fields() == ["id", "slug", "shop_id", "item_id"]
+
+
+def test_sqlite_upgrade_adds_canonical_dialogue_graph_columns():
+    engine = create_engine("sqlite://", future=True)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE dialogues (id VARCHAR PRIMARY KEY, slug VARCHAR NOT NULL, title VARCHAR NOT NULL)"
+        )
+        connection.exec_driver_sql(
+            "CREATE TABLE dialogue_nodes (id VARCHAR PRIMARY KEY, dialogue_id VARCHAR NOT NULL, "
+            "speaker VARCHAR NOT NULL, text TEXT NOT NULL)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO dialogue_nodes (id, dialogue_id, speaker, text) "
+            "VALUES ('node-1', 'dialogue-1', 'NPC', 'Hello')"
+        )
+
+    _upgrade_sqlite_schema(engine)
+
+    assert "starting_node_id" in {column["name"] for column in inspect(engine).get_columns("dialogues")}
+    assert "is_terminal" in {column["name"] for column in inspect(engine).get_columns("dialogue_nodes")}
+    with engine.connect() as connection:
+        assert connection.exec_driver_sql(
+            "SELECT is_terminal FROM dialogue_nodes WHERE id = 'node-1'"
+        ).scalar_one() == 0
 
 
 def _flags_client(monkeypatch):

@@ -1,12 +1,33 @@
 # Dialogue Authoring UX and AI Import — Implementation Plan
 
-Status: implementation-ready for canonical semantics and Script UX; DLG/import remains a gated local pilot
+Status: in progress; Milestone 1.1 persistence contracts implemented, Milestones 1.2-1.4 next; DLG/import remains a gated local pilot
 
 Primary UI: `soa-editor/src/pages/DialogueFlowPage.tsx`
 
 Primary API: `backend/app/routes/r_ui_dialogues.py`
 
 Last repository review: 2026-07-10
+
+## Implementation progress
+
+### 2026-07-10 — Milestone 1.1 complete
+
+- Added nullable `dialogues.starting_node_id` and non-null/default-false
+  `dialogue_nodes.is_terminal` model fields.
+- Added additive SQLite upgrades, including a false backfill for legacy terminal values.
+- Exposed both fields in the generic JSON schemas and tracked source CSV headers. The
+  tracked dialogue seed files currently contain no data rows, so no start/end values
+  were inferred.
+- Verified source CSV coercion/export and UE CSV serialization preserve both fields,
+  and documented the UE relationship contract.
+- Added old-style SQLite upgrade and CSV/export contract coverage.
+- Verification: persistence/CSV contracts (`25 passed`), Dialogue Scene/recovery
+  contracts (`31 passed`), source preflight (`49 tables`, `122 rows`, no errors), and
+  `git diff --check` (line-ending notices only).
+
+Milestone 1.1 establishes storage and interchange only. Canonical graph analysis,
+backend preview/commit enforcement, and Flow author actions remain open in Milestones
+1.2-1.4; legacy dialogues are therefore still loadable without the new semantics.
 
 ## Outcome
 

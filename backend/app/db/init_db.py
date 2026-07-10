@@ -192,10 +192,18 @@ def _upgrade_sqlite_schema(active_engine) -> None:
                 if "status_rules" not in profile_columns:
                     connection.execute(text("ALTER TABLE combat_profiles ADD COLUMN status_rules JSON"))
 
+            if "dialogues" in table_names:
+                dialogue_columns = {column["name"] for column in inspector.get_columns("dialogues")}
+                if "starting_node_id" not in dialogue_columns:
+                    connection.execute(text("ALTER TABLE dialogues ADD COLUMN starting_node_id VARCHAR"))
+
             if "dialogue_nodes" in table_names:
                 dialogue_node_columns = {column["name"] for column in inspector.get_columns("dialogue_nodes")}
                 if "speaker_character_id" not in dialogue_node_columns:
                     connection.execute(text("ALTER TABLE dialogue_nodes ADD COLUMN speaker_character_id VARCHAR"))
+                if "is_terminal" not in dialogue_node_columns:
+                    connection.execute(text("ALTER TABLE dialogue_nodes ADD COLUMN is_terminal BOOLEAN NOT NULL DEFAULT 0"))
+                connection.execute(text("UPDATE dialogue_nodes SET is_terminal = 0 WHERE is_terminal IS NULL"))
 
             if "character_story_beats" in table_names:
                 beat_columns = {column["name"] for column in inspector.get_columns("character_story_beats")}

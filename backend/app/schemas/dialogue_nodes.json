@@ -52,6 +52,15 @@
         "label": "Dialogue Text"
       }
     },
+    "is_terminal": {
+      "type": "boolean",
+      "description": "Marks this node as an intentional ending. Terminal nodes cannot have outgoing choices.",
+      "default": false,
+      "ui": {
+        "widget": "checkbox",
+        "label": "Terminal Node"
+      }
+    },
     "choices": {
       "type": "array",
       "description": "List of choices or automatic next nodes",
