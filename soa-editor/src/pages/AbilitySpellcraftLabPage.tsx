@@ -9,7 +9,6 @@ import { buildAbilityUsageModel } from "../authoring/abilityUsage";
 import {
   AUTHORING_INPUT_CLASS,
   AuthoringPageShell,
-  AuthoringSectionNav,
   AuthoringPanel as Panel,
   CheckboxField,
   EmptyState as Empty,
@@ -566,18 +565,7 @@ export default function AbilitySpellcraftLabPage() {
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <AuthoringPageShell>
-        <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-          <AuthoringSectionNav sections={[
-            { id: "ability-header", label: "Header", summary: "Save state and mode" },
-            { id: "ability-selector", label: "Selector", summary: "Open or clone abilities" },
-            { id: "ability-identity", label: "Identity", summary: "Name and intent" },
-            { id: "ability-chain", label: "Chain", summary: "Target, delivery, payload" },
-            { id: "ability-libraries", label: "Libraries", summary: "Effects and scaling" },
-            { id: "ability-test", label: "Testing", summary: "Bench previews" },
-            { id: "ability-inspector", label: "Inspector", summary: "Lens and selected effect" },
-            { id: "ability-links", label: "Links", summary: "Profiles and requirements" },
-          ]} />
-        <div className="min-w-0 space-y-4">
+        <div className="space-y-4">
           <Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} advanced={advanced} setAdvanced={setAdvanced} onSave={() => void preview()} onReset={reset} />
           {(notice || restored) && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{restored ? "Restored unsaved Ability Spellcraft draft. " : ""}{notice}</div>}
           <AbilitySelector packet={packet} onClone={startVariantDraft} />
@@ -622,9 +610,9 @@ export default function AbilitySpellcraftLabPage() {
                   <StatusDefensePanel packet={packet} setPacket={setPacket} />
                   <RelationshipPanel packet={packet} setPacket={setPacket} onCreateRelated={() => startVariantDraft(packet.ability, "Related")} />
                   <RequirementPanel packet={packet} setPacket={setPacket} />
-                </div>
-              </div>
-            </>
+            </div>
+           </div>
+             </>
           )}
           <div className="sticky bottom-3 flex justify-end gap-2 rounded-md border border-slate-200 bg-white/95 p-3 shadow dark:border-slate-800 dark:bg-slate-900/95">
             <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} to={`/abilities?selected=${encodeURIComponent(displayText(packet.ability.id))}`}>Generic Editor</Link>
@@ -632,8 +620,7 @@ export default function AbilitySpellcraftLabPage() {
             <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || issues.blockers.length > 0 || !dirty} onClick={() => void preview()}>{saving ? "Reviewing..." : "Review & Save"}</button>
           </div>
           {review && <BundleReview result={review} title="Ability Bundle Review" description="Preview validates the complete canonical change before it commits atomically." variant="modal" commitLabel="Commit Bundle" saving={saving} error={reviewError} additionalWarnings={issues.warnings} additionalBlockers={issues.blockers} onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={() => void save()} />}
-        </div>
-        </div>
+         </div>
       </AuthoringPageShell>
     </DndContext>
   );

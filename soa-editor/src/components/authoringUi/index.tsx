@@ -27,66 +27,6 @@ export function AuthoringPageShell({
   );
 }
 
-export type AuthoringSectionNavItem = {
-  id: string;
-  label: ReactNode;
-  summary?: ReactNode;
-};
-
-export function AuthoringSectionNav({
-  sections,
-  title = "Workspace Sections",
-  className = "",
-}: {
-  sections: AuthoringSectionNavItem[];
-  title?: ReactNode;
-  className?: string;
-}) {
-  const [activeId, setActiveId] = useState(sections[0]?.id || "");
-
-  useEffect(() => {
-    if (sections.length === 0 || typeof window === "undefined" || !("IntersectionObserver" in window)) return;
-    const elements = sections.map((section) => document.getElementById(section.id)).filter((element): element is HTMLElement => Boolean(element));
-    if (elements.length === 0) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top);
-        if (visible[0]?.target.id) setActiveId(visible[0].target.id);
-      },
-      { rootMargin: "-96px 0px -65% 0px", threshold: [0, 0.25, 0.75] },
-    );
-    elements.forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
-  }, [sections]);
-
-  if (sections.length === 0) return null;
-
-  const link = (section: AuthoringSectionNavItem) => (
-    <a
-      key={section.id}
-      className={`block rounded-md px-2 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${activeId === section.id ? "bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-100" : "text-slate-700 hover:bg-slate-100 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-200"}`}
-      href={`#${section.id}`}
-      aria-current={activeId === section.id ? "location" : undefined}
-    >
-      <span className="block font-medium">{section.label}</span>
-      {section.summary && <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{section.summary}</span>}
-    </a>
-  );
-
-  return (
-    <nav className={`${className}`.trim()} aria-label={typeof title === "string" ? title : "Workspace sections"}>
-      <div className="sticky top-2 z-20 flex gap-2 overflow-x-auto rounded-md border border-slate-200 bg-white p-2 shadow-sm xl:top-4 xl:block xl:overflow-visible xl:p-3 dark:border-slate-800 dark:bg-slate-900">
-        <div className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">{title}</div>
-        <div className="flex gap-1 xl:mt-2 xl:block xl:space-y-1">
-          {sections.map(link)}
-        </div>
-      </div>
-    </nav>
-  );
-}
-
 export type NumberEmptyValue = "empty-string" | "null" | "zero";
 
 type NumberCommitValue = number | "" | null;

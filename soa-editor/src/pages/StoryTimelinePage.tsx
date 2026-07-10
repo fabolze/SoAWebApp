@@ -25,7 +25,7 @@ import {
   type TrackKind,
 } from "../authoring/storyPlacement";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
-import { AuthoringFilterBar, AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, EmptyState, StatusNotice, type AuthoringFilterMode } from "../components/authoringUi";
+import { AuthoringFilterBar, AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice, type AuthoringFilterMode } from "../components/authoringUi";
 import { apiFetch } from "../lib/api";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import type { EntryRecord } from "../types/editorQol";
@@ -409,15 +409,7 @@ export default function StoryTimelinePage() {
 
         {(review || mutationError) && <BundleReview result={review} title="Canonical Commit Review" description="Preview validates the complete beat and typed-link bundle without writing it." variant="inline" commitLabel="Commit Plan" cancelLabel="Close Review" saving={saving} error={mutationError} testId="story-timeline-plan-review" onCommit={() => void submitPlan(true)} onCancel={() => { setReview(null); setPreviewBundle(null); setMutationError(""); }} />}
 
-        <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-          <AuthoringSectionNav sections={[
-            { id: "timeline-filters", label: "Filters", summary: "Search, focus, and lenses" },
-            { id: "timeline-navigator", label: "Navigator", summary: "Timelines, arcs, and entities" },
-            { id: "timeline-library", label: "Library", summary: "Saved content to place" },
-            { id: "story-timeline-canvas", label: "Canvas", summary: "Timeline bands and lenses" },
-            { id: "timeline-context", label: "Context", summary: "Selection details and warnings" },
-          ]} />
-          <div className="min-w-0 space-y-4">
+        <div className="space-y-4">
         <AuthoringPanel
           id="timeline-filters"
           title="Timeline Lenses And Filters"
@@ -513,7 +505,6 @@ export default function StoryTimelinePage() {
           />
         </div>
           </div>
-        </div>
       </AuthoringPageShell>
     </DndContext>
   );

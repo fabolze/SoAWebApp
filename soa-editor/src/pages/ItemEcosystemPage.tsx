@@ -17,7 +17,6 @@ import {
   AuthoringHealthSummary,
   AuthoringPageShell,
   AuthoringPanel,
-  AuthoringSectionNav,
   EmptyState,
   FieldCaption,
   NumberField,
@@ -199,7 +198,7 @@ export default function ItemEcosystemPage() {
 
        <div id="item-ecosystem-selector" className="scroll-mt-24"><AuthoringPanel title="Open Existing Item" help="Switch to another item ecosystem without leaving this workspace. Unsaved edits remain tracked as a draft for the current item."><label className="block"><FieldCaption>Item</FieldCaption><select className={`${AUTHORING_INPUT_CLASS} normal-case`} value={isNew ? "" : id} onChange={(event) => { if (event.target.value) navigate(`/author/items/${encodeURIComponent(event.target.value)}/ecosystem`); }}><option value="">Select an existing item</option>{(packet.catalogs.items || []).map((item) => <option key={text(item.id)} value={text(item.id)}>{label(item)}</option>)}</select></label></AuthoringPanel></div>
 
-       <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]"><AuthoringSectionNav sections={[{ id: "item-ecosystem-header", label: "Workspace", summary: "Save state and health" }, { id: "item-ecosystem-selector", label: "Item Selector", summary: "Switch item bundle" }, { id: "item-ecosystem-panels", label: "Workflow Panels", summary: "Identity to validation" }, { id: "item-ecosystem-story", label: "Story Placement", summary: "Timeline context" }]} /><div id="item-ecosystem-panels" className="min-w-0 scroll-mt-24"><nav className="flex flex-wrap gap-2">{["Identity", "Acquisition", "Power", "Economy", "Progression", "Issues"].map((panel) => <button type="button" key={panel} className={`rounded-full border px-4 py-2 text-sm font-semibold ${activePanel === panel ? "border-primary bg-primary text-white" : "bg-white dark:bg-slate-900"}`} onClick={() => setActivePanel(panel)}>{panel}</button>)}</nav>
+       <div id="item-ecosystem-panels" className="scroll-mt-24"><nav className="flex flex-wrap gap-2">{["Identity", "Acquisition", "Power", "Economy", "Progression", "Issues"].map((panel) => <button type="button" key={panel} className={`rounded-full border px-4 py-2 text-sm font-semibold ${activePanel === panel ? "border-primary bg-primary text-white" : "bg-white dark:bg-slate-900"}`} onClick={() => setActivePanel(panel)}>{panel}</button>)}</nav>
 
       {activePanel === "Identity" && <IdentityPanel packet={packet} updateItem={updateItem} />}
       {activePanel === "Acquisition" && <AcquisitionPanel packet={packet} setSources={setSources} />}
@@ -207,7 +206,7 @@ export default function ItemEcosystemPage() {
       {activePanel === "Economy" && <EconomyPanel packet={packet} updateItem={updateItem} setSources={setSources} simulation={simulation} />}
       {activePanel === "Progression" && <div className="space-y-4"><ItemJourneyTrack packet={packet} model={itemJourney} storyLoading={storyPlacement.loading} storyError={storyPlacement.error} /><ProgressionPanel packet={packet} setSources={setSources} /></div>}
        {activePanel === "Issues" && <IssuesPanel blockers={blockers} warnings={clientWarnings} packet={packet} />}
-       </div></div>
+        </div>
        {!isNew && text(packet.item.id) && <div id="item-ecosystem-story" className="scroll-mt-24"><StoryPlacementPanel entityKind="item" entityId={text(packet.item.id)} entityLabel={text(packet.item.name, text(packet.item.id))} entity={packet.item} storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} /></div>}
   </AuthoringPageShell>;
 }

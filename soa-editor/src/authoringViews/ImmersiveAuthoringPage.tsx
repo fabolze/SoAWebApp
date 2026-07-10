@@ -6,7 +6,7 @@ import {
   MapPinIcon,
 } from "@heroicons/react/24/outline";
 import SchemaForm from "../components/SchemaForm";
-import { AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, AuthoringStatusChip, EmptyState } from "../components/authoringUi";
+import { AuthoringPageShell, AuthoringPanel, AuthoringStatusChip, EmptyState } from "../components/authoringUi";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch, buildApiUrl } from "../lib/api";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
@@ -461,8 +461,7 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
             />
           </AuthoringPanel>
         ) : (
-          <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-            <AuthoringSectionNav sections={sectionNavForKind(config.kind)} />
+          <div className="space-y-4">
             <EntityAuthoringSurface
               config={config}
               schema={schema}
@@ -593,36 +592,6 @@ function EntityAuthoringSurface({
     return <LocationAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} isDirty={isDirty} focusField={focusField} />;
   }
   return <ItemAuthoringSurface config={config} schema={schema} data={data} onChange={onChange} changedFieldKeys={changedFieldKeys} persisted={persisted} />;
-}
-
-function sectionNavForKind(kind: AuthoringKind): Array<{ id: string; label: string; summary: string }> {
-  if (kind === "shop") {
-    return [
-      { id: "merchant-front", label: "Merchant Front", summary: "Identity and world context" },
-      { id: "pricing-rules", label: "Pricing Rules", summary: "Shop-wide price behavior" },
-      { id: "inventory-counter", label: "Inventory", summary: "Stock and item overrides" },
-    ];
-  }
-  if (kind === "character") {
-    return [
-      { id: "character-sheet", label: "Character Sheet", summary: "Identity and notes" },
-      { id: "role-world-links", label: "Role Links", summary: "Class, faction, home" },
-    ];
-  }
-  if (kind === "location") {
-    return [
-      { id: "location-card", label: "Location Card", summary: "Description and image" },
-      { id: "atlas-placement", label: "Atlas Placement", summary: "Map coordinates" },
-      { id: "place-ecology", label: "Place And Ecology", summary: "Type, biome, flags" },
-      { id: "routes", label: "Routes", summary: "Connected movement records" },
-    ];
-  }
-  return [
-    { id: "item-card", label: "Item Card", summary: "Identity and preview" },
-    { id: "economy-access", label: "Economy And Access", summary: "Value and unlocks" },
-    { id: "mechanics", label: "Mechanics", summary: "Equipment and effects" },
-    { id: "modifiers", label: "Modifiers", summary: "Stat and attribute bonuses" },
-  ];
 }
 
 function setRow(rows: EntryRecord[], index: number, patch: EntryRecord): EntryRecord[] {

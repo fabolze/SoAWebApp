@@ -6,7 +6,7 @@ import {
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
-import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, EmptyState, StatusNotice } from "../components/authoringUi";
+import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
@@ -350,14 +350,7 @@ export default function ProgressionFlowPage() {
       <div className="w-full space-y-4">
         <Header dirty={dirty} saving={saving} issues={issues} onPreview={() => void preview()} onDiscard={discardDraft} />
         {notice && <StatusNotice>{notice}</StatusNotice>}
-        <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_420px]">
-          <AuthoringSectionNav sections={[
-            { id: "progression-base", label: "Shared Base", summary: "Name the draft" },
-            { id: "progression-requirement", label: "Unlock Requirement", summary: "Player-state rules" },
-            { id: "progression-source", label: "Source And Outcome", summary: "Playable content" },
-            { id: "progression-flow", label: "Compact Flow", summary: "Focused chain" },
-            { id: "progression-context", label: "Context", summary: "Temporary state and health" },
-          ]} />
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
           <main className="space-y-4">
             <Panel
               id="progression-base"

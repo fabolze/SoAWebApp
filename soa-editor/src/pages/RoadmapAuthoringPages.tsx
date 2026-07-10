@@ -11,7 +11,7 @@ import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
 import { useDirtyState } from "../components/useDirtyState";
-import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, EmptyState, StatusNotice } from "../components/authoringUi";
+import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import { apiFetch } from "../lib/api";
 import type { EntryRecord } from "../types/editorQol";
 import { generateSlug, generateUlid } from "../utils/generateId";
@@ -62,7 +62,7 @@ function useDraft<T>(key: string, initial: T) {
   return [value, setValue] as const;
 }
 
-function Shell({ title, subtitle, dirty, blockers = 0, warnings = 0, sections = [], onSave, onReset, children }: { title: string; subtitle: string; dirty: boolean; blockers?: number; warnings?: number; sections?: Array<{ id: string; label: string; summary: string }>; onSave: () => void; onReset: () => void; children: React.ReactNode }) {
+function Shell({ title, subtitle, dirty, blockers = 0, warnings = 0, onSave, onReset, children }: { title: string; subtitle: string; dirty: boolean; blockers?: number; warnings?: number; onSave: () => void; onReset: () => void; children: React.ReactNode }) {
   return <AuthoringPageShell>
     <AuthoringPanel
       title={title}
@@ -73,10 +73,7 @@ function Shell({ title, subtitle, dirty, blockers = 0, warnings = 0, sections = 
     >
       <p className="text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
     </AuthoringPanel>
-    <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-      <AuthoringSectionNav sections={sections} />
-      <div className="min-w-0">{children}</div>
-    </div>
+    <div className="min-w-0">{children}</div>
   </AuthoringPageShell>;
 }
 
@@ -371,7 +368,7 @@ export function QuestJourneyPage() {
   const storyPlacement = useEntityStoryPlacement({ entityKind: "quest", entityId: text(quest.id), entity: quest });
   const questAnalysis = useMemo(() => buildQuestJourneyAnalysis({ packet, storyPacket: storyPlacement.packet, questId: text(quest.id), occurrences: storyPlacement.context.occurrences }), [packet, quest, storyPlacement.context.occurrences, storyPlacement.packet]);
   const save = async () => { const response = await apiFetch("/api/ui/quests/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(packet) }); const data = await response.json(); if (response.ok) { setPacket(data); setOriginal(JSON.stringify(data)); if (isNew) navigate(`/author/quests/${encodeURIComponent(text(data.quest.id))}`, { replace: true }); } };
-  return <Shell title="Quest Journey Board" subtitle="Compose invitation, ordered objectives, completion, payoff, and aftermath." dirty={dirty} blockers={objectiveIssues} warnings={(hasRewards ? 0 : 1) + (strings(packet.quest_giver_profile_ids).length ? 0 : 1)} sections={[{ id: "authoring-invitation", label: "Invitation", summary: "Player-facing entry" }, { id: "authoring-journey-health", label: "Journey Health", summary: "Review blockers" }, { id: "authoring-ordered-objectives", label: "Objectives", summary: "Ordered steps" }, { id: "authoring-completion-payoff", label: "Completion And Payoff", summary: "Rewards and state" }, { id: "authoring-walkthrough-aftermath", label: "Walkthrough", summary: "Temporary playthrough" }]} onSave={save} onReset={() => setPacket(JSON.parse(original))}><div className="grid gap-4 xl:grid-cols-2">
+  return <Shell title="Quest Journey Board" subtitle="Compose invitation, ordered objectives, completion, payoff, and aftermath." dirty={dirty} blockers={objectiveIssues} warnings={(hasRewards ? 0 : 1) + (strings(packet.quest_giver_profile_ids).length ? 0 : 1)} onSave={save} onReset={() => setPacket(JSON.parse(original))}><div className="grid gap-4 xl:grid-cols-2">
     <AuthoringPanel title="Invitation" help="Define how the quest appears to the player, which unlock requirement controls availability, and which interaction profiles can offer it."><div className="space-y-3"><label className="block text-sm">Title<input className={`${inputClass} mt-1`} value={text(quest.title)} onChange={(event) => update("title", event.target.value)} /></label><label className="block text-sm">Slug<input className={`${inputClass} mt-1`} value={text(quest.slug)} onChange={(event) => update("slug", event.target.value)} /></label><label className="block text-sm">Description<textarea className={`${inputClass} mt-1 min-h-24`} value={text(quest.description)} onChange={(event) => update("description", event.target.value)} /></label><ReferenceChipPicker label="Quest Unlock Requirement" value={quest.requirements_id} reference="requirements" onChange={(requirements_id) => update("requirements_id", requirements_id)} /><MultiReferencePicker label="Quest Givers" values={packet.quest_giver_profile_ids} options={interactionProfiles} onChange={(quest_giver_profile_ids) => setPacket({ ...packet, quest_giver_profile_ids })} /><EditableTagList tags={quest.tags} onChange={(tags) => update("tags", tags)} /></div></AuthoringPanel>
     <AuthoringPanel title="Journey Health" help="Use this checklist before review. It flags missing objectives, missing player-facing text, missing payoff, and missing state links." status={<span className={`rounded-full px-2 py-1 text-xs font-semibold ${rows(quest.objectives).length && !objectiveIssues ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{rows(quest.objectives).length && !objectiveIssues ? "Ready to review" : "Needs attention"}</span>}><div className="space-y-2 text-sm">{rows(quest.objectives).length === 0 && <StatusNotice tone="warning">Add at least one objective.</StatusNotice>}{objectiveIssues > 0 && <StatusNotice tone="warning">{objectiveIssues} objective(s) need both an ID and player-facing description.</StatusNotice>}{strings(quest.flags_set_on_completion).length === 0 && <EmptyState variant="compact" title="No completion flag">Add a completion flag when this quest should directly unlock flag-gated content.</EmptyState>}{!hasRewards && <StatusNotice tone="warning">Quest has no authored payoff.</StatusNotice>}{strings(packet.quest_giver_profile_ids).length === 0 && <EmptyState variant="compact" title="No quest giver">Add a quest giver when this quest should be offered by a character or interaction profile.</EmptyState>}</div></AuthoringPanel>
     <AuthoringPanel className="xl:col-span-2" title="Ordered Objectives" help="Author the player-facing steps in order. Saved objectives can review their completion flags through the objective consequence composer."><ObjectiveBoard objectives={quest.objectives} flags={questFlags} selectedObjectiveId={selectedObjectiveConsequenceId} canReviewConsequences={!isNew && text(quest.id) !== ""} onReviewConsequence={setSelectedObjectiveConsequenceId} onChange={(objectives) => update("objectives", objectives)} />
@@ -726,9 +723,7 @@ export function DependencyMapPage() {
   if (loading) return <AuthoringPageShell><StatusNotice>Loading Dependency Map...</StatusNotice></AuthoringPageShell>;
   if (loadError) return <AuthoringPageShell><StatusNotice tone="error" action={<button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={load}>Try Again</button>}>{loadError} Check the service and retry.</StatusNotice></AuthoringPageShell>;
   return <AuthoringPageShell>
-    <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-      <AuthoringSectionNav sections={[{ id: "dependency-header", label: "Dependency Map", summary: "Graph scope" }, { id: "dependency-filters", label: "Filters", summary: "Focus and lenses" }, { id: "dependency-graph", label: "Graph", summary: "Relationship canvas" }, { id: "dependency-walkthrough", label: "Walkthrough", summary: "Temporary flags" }, { id: "dependency-health", label: "Actionable Health", summary: "Broken chains" }, { id: "dependency-relationships", label: "Relationships", summary: "Exact links" }]} />
-      <main className="min-w-0 space-y-4">
+    <main className="space-y-4">
     <div id="dependency-header" className="scroll-mt-24" />
     <AuthoringPanel title="Adventure Dependency Map" subtitle="Trace prerequisites, flags, unlocks, and branches. Solid relationships are stored; dashed relationships are inferred." help="Use this read-only workspace to find broken unlock chains, impossible requirements, unused flags, and the content affected by a flag or requirement." status={<><span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{nodes.length} nodes</span><span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-slate-800">{allEdges.length} relationships</span><span className={`rounded-full px-2 py-1 ${issueNodeIds.size ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>{issueNodeIds.size} issue nodes</span></>} />
     <AuthoringHealthSummary blockers={issueNodeIds.size} warnings={brokenEdges.length} dirty={Boolean(focus || search || lens !== "all")} />
@@ -743,7 +738,6 @@ export function DependencyMapPage() {
       <AuthoringPanel title="Relationships" subtitle={`${visibleEdges.length} shown. Click either endpoint to focus it.`} help="This list shows the exact relationship records behind the graph, including inferred edges and broken endpoints." actions={focus && <NodeLink node={nodeById.get(focus)} compact />}><div className="space-y-2">{visibleEdges.map((edge) => <DependencyEdgeCard key={text(edge.id)} edge={edge} source={nodeById.get(text(edge.source))} target={nodeById.get(text(edge.target))} issueNodeIds={issueNodeIds} onFocus={setFocus} />)}{visibleEdges.length === 0 && <EmptyState title="No relationships match">Clear the focus, search, or lens filters to show relationship records again.</EmptyState>}</div></AuthoringPanel>
     </div>
       </main>
-    </div>
   </AuthoringPageShell>;
 }
 

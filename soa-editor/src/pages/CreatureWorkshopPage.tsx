@@ -4,7 +4,6 @@ import BundleReview, { type BundleReviewResult } from "../components/authoring/B
 import {
   AUTHORING_INPUT_CLASS,
   AuthoringPageShell,
-  AuthoringSectionNav,
   AuthoringPanel as Panel,
   FieldCaption as Caption,
   NumberField,
@@ -290,17 +289,7 @@ export default function CreatureWorkshopPage() {
 
   return (
     <AuthoringPageShell>
-      <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-        <AuthoringSectionNav sections={[
-          { id: "creature-header", label: "Header", summary: "Save state and bundle review" },
-          { id: "creature-navigator", label: "Navigator", summary: "Switch creature drafts" },
-          { id: "creature-health", label: "Health", summary: "Blockers and warnings" },
-          { id: "creature-identity", label: "Identity", summary: "Character-facing record" },
-          { id: "creature-combat", label: "Combat", summary: "Enemy profile" },
-          { id: "creature-world", label: "World", summary: "Encounters and habitats" },
-          { id: "creature-context", label: "Context", summary: "Existing appearances" },
-        ]} />
-      <div className="min-w-0 space-y-4">
+      <div className="space-y-4">
         <Panel
           id="creature-header"
           title={displayText(packet.creature.name, "Creature Workshop")}
@@ -338,7 +327,6 @@ export default function CreatureWorkshopPage() {
             <AdvancedPanel creatureId={creatureId} />
           </div>
         </div>
-      </div>
       </div>
     </AuthoringPageShell>
   );

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type PointerEvent, type ReactNode, type SetStateAction } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
-import { AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, EmptyState, StatusNotice } from "../components/authoringUi";
+import { AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import {
   packetStoryPlacementWarningRecords,
   parseEntityTrackOccurrences,
@@ -891,14 +891,7 @@ export default function WorldBuilderPage() {
 
   return (
     <AuthoringPageShell>
-      <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-        <AuthoringSectionNav sections={[
-          { id: "world-workspace", label: "Workspace", summary: "Actions and health" },
-          { id: "world-hierarchy", label: "Hierarchy", summary: "Location tree" },
-          { id: "world-map", label: "Map", summary: "Filters, layers, and routes" },
-          { id: "world-details", label: "Details", summary: "Selected location or route" },
-        ]} />
-        <div className="min-w-0 space-y-4">
+      <div className="space-y-4">
         <AuthoringPanel
           id="world-workspace"
           title="Interactive World Workspace"
@@ -1178,7 +1171,6 @@ export default function WorldBuilderPage() {
               <div className="text-sm text-slate-600 dark:text-slate-300">Select a location to inspect its world-building packet.</div>
             )}
           </section>
-        </div>
         </div>
       </div>
     </AuthoringPageShell>

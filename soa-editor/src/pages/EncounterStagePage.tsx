@@ -5,7 +5,7 @@ import { deriveEncounterAftermathRows, type EncounterAftermathRow } from "../aut
 import { emptyScopedGatePacket, type ScopedGatePacket } from "../authoring/scopedGate";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
-import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, EmptyState, StatusNotice } from "../components/authoringUi";
+import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import SearchableSelect from "../components/SearchableSelect";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
@@ -334,14 +334,7 @@ export default function EncounterStagePage() {
   return (
     <AuthoringPageShell>
       <div className="w-full space-y-4">
-        <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-          <AuthoringSectionNav sections={[
-            { id: "encounter-header", label: "Encounter Header", summary: "Save state and health" },
-            { id: "encounter-selector", label: "Encounter Selector", summary: "Switch staged bundle" },
-            { id: "encounter-compose", label: "Build Encounter", summary: "Identity, payoff, placement" },
-            { id: "encounter-context", label: "Context", summary: "Health and world links" },
-          ]} />
-          <main className="min-w-0 space-y-4">
+        <main className="space-y-4">
         <div id="encounter-header" className="scroll-mt-24"><Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} warnings={issues.warnings} onSave={() => void save()} onReset={reset} /></div>
         {(notice || restored) && <StatusNotice>{restored ? "Restored unsaved Encounter Stage draft. " : ""}{notice}</StatusNotice>}
         <div id="encounter-selector" className="scroll-mt-24"><EncounterSelector packet={packet} /></div>
@@ -403,7 +396,6 @@ export default function EncounterStagePage() {
           <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || issues.blockers.length > 0} onClick={() => void save()}>{saving ? "Saving..." : "Save Encounter Bundle"}</button>
         </div>
           </main>
-        </div>
       </div>
     </AuthoringPageShell>
   );

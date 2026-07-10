@@ -18,7 +18,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { EditableTagList, ReferenceChipPicker, displayText, isRecord } from "../authoringViews/controls";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
-import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, EmptyState, StatusNotice } from "../components/authoringUi";
+import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
@@ -579,14 +579,7 @@ export default function DialogueFlowPage() {
         {deletions.length > 0 && <div className="mt-3 flex items-center justify-between rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950"><span>{deletions.length} line(s) queued for deletion.</span><button className={inactive} onClick={() => setDeletions([])}>Undo Line Deletions</button></div>}
       </AuthoringPanel>
 
-      <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
-        <AuthoringSectionNav sections={[
-          { id: "dialogue-brief", label: "Scene Brief", summary: "Situation and anchors" },
-          { id: "dialogue-beats", label: "Story Beat Track", summary: "Character milestones" },
-          { id: "dialogue-workbench", label: "Dialogue Workbench", summary: "Graph, rehearsal, impact" },
-          { id: "dialogue-context", label: "Context Dock", summary: "Edit and health" },
-        ]} />
-        <main className="min-w-0 space-y-4">
+      <main className="space-y-4">
           <div id="dialogue-brief" className="scroll-mt-24"><SceneBrief packet={packet} onChange={updateDialogue} onRecipe={applyRecipe} /></div>
           <div id="dialogue-beats" className="scroll-mt-24"><BeatTrack packet={packet} selectedBeatId={selectedBeatId} setSelectedBeatId={(beatId) => { setSelectedBeatId(beatId); setTab("beat"); }} onCreate={createBeat} /></div>
           {!isNew && currentId && <StoryPlacementPanel entityKind="dialogue" entityId={currentId} entityLabel={label(packet.dialogue)} entity={{ ...packet.dialogue, nodes: packet.nodes }} enableCrossEntityConsequenceActions />}
@@ -653,10 +646,9 @@ export default function DialogueFlowPage() {
           {tab === "health" && <HealthPanel health={health} onSelect={(nodeId) => { setSelectedNodeId(nodeId); setView("flow"); }} />}
           {tab === "context" && <ContextPanel packet={packet} />}
         </Panel>
-      </div>
-        </main>
-      </div>
-    </div>
+       </div>
+         </main>
+     </div>
     {review && <BundleReview result={review} title="Dialogue Scene Bundle Review" description="Dialogue, lines, and story beats will commit atomically." variant="modal" commitLabel="Commit Bundle" saving={saving} error={reviewError} warningAcknowledgement="required" onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={(acceptedWarningIds) => void commit(acceptedWarningIds)} />}
   </AuthoringPageShell>;
 }

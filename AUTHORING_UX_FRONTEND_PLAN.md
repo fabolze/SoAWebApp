@@ -31,12 +31,12 @@ Last reviewed: 2026-07-10
 | Documentation split | Done | This file is the dedicated UX/frontend companion to the game-design document. |
 | Authoring view full-width audit | Done | All listed `/author/*` workspaces use the shared route shell. `ItemInspectorPage` retains an intentional reading-width cap; non-authoring utility pages and constrained reading surfaces remain outside this dense-workspace standard. |
 | Collapsible authoring panels | In Progress | Shared `AuthoringPanel` now supports collapse/expand, persistent localStorage state, status chips, and collapsed summaries. Item, shop, character, and location immersive panels have initial coverage. |
-| Local section navigation | Done | The shared responsive rail now highlights the active section and works as a horizontal sticky rail below wide desktop. It covers immersive authoring, Ability Spellcraft, Creature Workshop, Story Timeline, Dialogue Flow, Encounter Stage, Progression Flow, Character Studio, Item Ecosystem, Quest Journey, Dependency Map, and World Builder. |
+| Workspace sections overview | Removed | The persistent workspace-sections overview was removed after UX review; long workspaces now rely on their visible panels, local controls, filters, and context docks without reserving a navigation column. |
 | Contextual help affordance | Done | Shared `AuthoringPanel` now uses the app's Heroicons help icon, accessible labels, hover/focus/click/escape behavior, and optional concrete examples. Major authoring panels have direct help coverage. |
 | Wording and vocabulary cleanup | Done | Primary specialized workflows and lifecycle fields now use authoring intent language; technical metadata remains available in Advanced Details. Cross-workspace actions consistently say Inspect, Review, Commit, Reset, or New Tab. |
 | Navigation preservation | Done for authoring workspaces | Dense authoring links use explicit inspect/edit/review wording, dirty-state guards remain active, and story context links identify new-tab behavior. Utility-page navigation remains governed by the existing generic editor shell. |
 | Shared frontend assets and controls | Done for authoring surfaces | `AuthoringPageShell`, `AuthoringPanel`, `AuthoringStatusChip`, `AuthoringHealthSummary`, `AuthoringFilterBar`, `StatusNotice`, `EmptyState`, standard issue classes, Heroicons affordances, and `uiTokens` now cover shell, panel, status, issue, filtering, empty-state, and common action behavior across the complex workspaces. |
-| Scroll and density cleanup | Done for complex workspaces | Collapsible low-frequency panels, persistent summaries, section rails, context docks, and Story Timeline issue/changed filters now provide an intentional density escape hatch. |
+| Scroll and density cleanup | Done for complex workspaces | Collapsible low-frequency panels, persistent summaries, context docks, and Story Timeline issue/changed filters provide an intentional density escape hatch without a persistent sections overview. |
 | Responsive behavior | Done for complex workspaces | Section navigation becomes a horizontal sticky rail below wide desktop, while dense authoring areas retain grid-based layouts that reflow at laptop/tablet breakpoints. |
 | Accessibility and keyboard use | Done for shared authoring primitives | Help, section links, collapse controls, status notices, filter controls, and icon affordances have semantic names, focus styles, keyboard escape behavior, and state attributes. |
 | Empty/error/loading states | Done for audited authoring workspaces | Shared structured empty states and retryable notices cover the listed specialized workspaces and generic schema array/reference states; load failures now explain recovery and expose Try Again where the route owns a retryable load. |
@@ -60,7 +60,6 @@ Every complex authoring route should share a page shell with:
 
 - Full-width route container.
 - Workspace header with title, dirty state, health summary, save/reset actions, and route-level help.
-- Optional local section navigation for long views.
 - Main authoring area plus context dock or right rail when useful.
 - Sticky save bar only when it does not cover active controls.
 - Consistent loading, restore, error, and save-success messaging.
@@ -71,15 +70,12 @@ Implementation note, 2026-07-09:
 
 - `soa-editor/src/components/authoringUi/index.tsx` now exposes `AuthoringPageShell` for full-width authoring route containers.
 - `ImmersiveAuthoringPage` now removes the centered `max-w-7xl` shell and uses the shared full-width route container.
-- Item, shop, character, and location immersive authoring views now render beside a sticky local section rail on wide screens.
-- The section rail is now shared as `AuthoringSectionNav` so long specialized workspaces can reuse one navigation pattern.
 - `LocationAtlasPage` and bundled `CharacterCreatorPage` also use the shared route shell and available route width.
 - `EncounterStagePage`, `ProgressionFlowPage`, `AbilitySpellcraftLabPage`, and `CreatureWorkshopPage` now use the shared full-width route shell.
 - `ItemEcosystemPage` now uses the shared full-width route shell. `ItemInspectorPage` uses the shared route shell with an intentional `max-w-7xl` reading cap because it is an inspection surface rather than a dense bundle workspace.
 - `QuestJourneyPage` and `DependencyMapPage` now use the shared route shell for the active quest/dependency workspaces.
 - Shared `SchemaEditor` routes now use `AuthoringPageShell`, so the generic entity editors inherit the shared route container without editing each generated wrapper page.
 - `WorldBuilderPage` now uses `AuthoringPageShell` for its active world authoring workspace.
-- `AbilitySpellcraftLabPage`, `CreatureWorkshopPage`, `StoryTimelinePage`, and `WorldBuilderPage` now use shared local section navigation to jump between major workflow sections without losing the current workspace.
 - Remaining work: audit non-authoring utility pages and intentionally constrained modals, inspectors, and reading surfaces separately.
 
 ### Collapsible Authoring Panel
@@ -249,10 +245,9 @@ Implementation note, 2026-07-09:
 
 Implementation update, 2026-07-10:
 
-- `AuthoringSectionNav` now tracks the visible section with `IntersectionObserver`, marks the active link, and becomes a horizontal sticky rail below wide desktop so navigation remains useful on laptop widths.
 - `AuthoringPanel` now uses Heroicons for help and collapse affordances, supports hover/focus/click/escape help behavior, exposes semantic `aria-controls` state, and accepts an optional concrete `helpExample`.
 - `AuthoringHealthSummary` standardizes saved/unsaved/saving, blocker, and warning counts for workspace headers. `AuthoringFilterBar` standardizes `Show All`, `Show Issues`, and `Show Changed` controls with counts.
-- Progression Flow, Dialogue Flow, Encounter Stage, Character Studio, Item Ecosystem, Quest Journey, Dependency Map, and Story Timeline now expose section navigation and compact health summaries. Story Timeline's issue and changed filters actively reduce the visible workspace.
+- Progression Flow, Dialogue Flow, Encounter Stage, Character Studio, Item Ecosystem, Quest Journey, Dependency Map, and Story Timeline now expose compact health summaries. Story Timeline's issue and changed filters actively reduce the visible workspace.
 - Loading failures in the audited long workspaces now explain recovery and expose a retry action; Story Timeline and dependency navigation preserve explicit inspection wording.
 - Lifecycle placement fields now describe story appearance, player/world change, visible state, and story-beat boundaries in authoring language. Story context links explicitly say when they inspect a full timeline in a new tab.
 - Shared `uiTokens` now include link/icon action variants and standard issue colors. Shared authoring UI tests cover health summaries, filters, semantic panel behavior, and structured empty states.
@@ -282,7 +277,7 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 - Done 2026-07-10: audit all `/author/*` route containers for width usage, max-width caps, and wasted side margins. Dense authoring routes use `AuthoringPageShell`; the intentionally capped `ItemInspectorPage` and non-authoring utility pages are documented exceptions.
 - Done for shared primitive: create or standardize the shared authoring page shell.
 - Done for shared primitive: create or standardize collapsible authoring panels.
-- Done 2026-07-10: add responsive local section navigation to all long specialized workspaces. The shared rail has active-section highlighting and horizontal laptop behavior.
+- Removed 2026-07-10: the persistent workspace-sections overview was removed after review because it reserved space without providing enough value. Existing panel anchors remain available in markup where useful, but no overview UI is rendered.
 - Done for shared primitive: preserve collapsed state in localStorage where it helps repeated work.
 - Done 2026-07-10: standardize saved/unsaved/saving, blocker, and warning counts with `AuthoringHealthSummary`; collapsed panel status remains visible through shared status chips and summaries.
 
@@ -305,7 +300,7 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 ### P1: Reduce Scroll And Cognitive Load
 
 - Done 2026-07-10: add compact saved/draft/blocker/warning summaries to the audited long workspaces.
-- Done 2026-07-10: split dense workspaces with section rails and context docks where the workflow benefits from side-by-side inspection.
+- Done 2026-07-10: split dense workspaces with context docks where the workflow benefits from side-by-side inspection.
 - Done 2026-07-10: collapse low-frequency sections with persistent state and meaningful summaries.
 - Done 2026-07-10: Story Timeline now provides working Show Issues and Show Changed modes; domain-specific lenses remain available where a workspace already has a more precise filter model.
 - Done 2026-07-10: retain `VirtualizedTable` and virtualized searchable pickers as the repeated-row strategy for datasets that can grow; audited specialized cards remain bounded/scrollable.
@@ -329,7 +324,7 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 - Done 2026-07-10: shared icon affordances have accessible names and tooltips; existing custom controls retain explicit labels or `aria-label`s.
 - Done 2026-07-10: help popovers work on hover, focus, click, and Escape.
 - Done 2026-07-10: collapsible panels use semantic sections/headings, buttons, `aria-expanded`, and `aria-controls`.
-- Done 2026-07-10: responsive section rails and grid breakpoints prevent the dense authoring layouts from relying on fixed desktop-only navigation.
+- Done 2026-07-10: responsive grid breakpoints keep dense authoring layouts usable without fixed desktop-only navigation.
 - Done 2026-07-10: wide desktop surfaces use the extra width for navigation, main authoring areas, context docks, or bounded reading columns.
 
 ## Workspace-Specific UX Notes
