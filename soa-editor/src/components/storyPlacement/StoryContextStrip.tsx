@@ -71,9 +71,9 @@ export default function StoryContextStrip({ packet, entityKind, entityId, occurr
         target="_blank"
         rel="noreferrer"
       >
-        Open full timeline in new tab
+        Inspect Full Story Timeline In New Tab
       </Link>
-      {sourceRoute && <Link className="font-semibold text-blue-700 dark:text-blue-300" to={sourceRoute}>Open nearest beat</Link>}
+      {sourceRoute && <Link className="font-semibold text-blue-700 dark:text-blue-300" to={sourceRoute}>Inspect Nearest Story Beat</Link>}
     </div>
   </section>;
 }

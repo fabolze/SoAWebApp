@@ -9,12 +9,15 @@ import { formatApiError } from "../lib/apiErrors";
 import { getSimulationScenarioById, loadSimulationDatasets, SIMULATION_SCENARIOS, simulateEntity, type SimulationDatasets, type SimulationResult } from "../simulation";
 import type { EntryRecord } from "../types/editorQol";
 import { generateSlug, generateUlid } from "../utils/generateId";
+import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import { CommaSeparatedInput, ReferenceManageLink, useReferenceOptions } from "../authoringViews/controls";
 import {
   AUTHORING_INPUT_CLASS,
   AUTHORING_PANEL_CLASS,
+  AuthoringHealthSummary,
   AuthoringPageShell,
   AuthoringPanel,
+  AuthoringSectionNav,
   EmptyState,
   FieldCaption,
   NumberField,
@@ -70,6 +73,7 @@ export default function ItemEcosystemPage() {
   const [packet, setPacket] = useState<ItemPacket>(emptyPacket);
   const [original, setOriginal] = useState<ItemPacket | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [scenarioId, setScenarioId] = useState("loot_economy");
@@ -89,6 +93,7 @@ export default function ItemEcosystemPage() {
     let cancelled = false;
     async function load() {
       setLoading(true);
+      setLoadError("");
       try {
         const response = await apiFetch(isNew ? "/api/ui/items/ecosystem-new" : `/api/ui/items/ecosystem/${encodeURIComponent(id)}`);
         const data = await response.json();
@@ -97,7 +102,11 @@ export default function ItemEcosystemPage() {
         const next = draft ? JSON.parse(draft) as ItemPacket : data as ItemPacket;
         if (!cancelled) { setPacket(next); setOriginal(data as ItemPacket); }
       } catch (error) {
-        if (!cancelled) setNotice(error instanceof Error ? error.message : "Item ecosystem load failed.");
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : "Item ecosystem load failed.";
+          setLoadError(message);
+          setNotice(message);
+        }
       } finally { if (!cancelled) setLoading(false); }
     }
     void load();
@@ -160,22 +169,25 @@ export default function ItemEcosystemPage() {
   const reset = () => { if (original) { setPacket(original); localStorage.removeItem(draftKey(isNew ? "new" : id)); setNotice("Draft reset."); } };
 
   if (loading) return <AuthoringPageShell><StatusNotice>Loading Item Ecosystem...</StatusNotice></AuthoringPageShell>;
+  if (loadError) return <AuthoringPageShell><StatusNotice tone="error" action={<button type="button" className="rounded-md border px-2 py-1 text-xs" onClick={() => window.location.reload()}>Try Again</button>}>{loadError} Refresh the workspace after the service is available.</StatusNotice></AuthoringPageShell>;
   return <AuthoringPageShell>
     <AuthoringPanel
+      id="item-ecosystem-header"
       title={text(packet.item.name, "Unnamed Item")}
       subtitle="Item Ecosystem"
       help="Use this workspace to edit the item, every acquisition source, economy tuning, progression placement, and validation as one bundle."
       actions={
         <>
-            {!isNew && <Link className="rounded-md border px-3 py-2 text-sm" to={`/author/items/${encodeURIComponent(id)}`}>Edit Mechanics</Link>}
-            {!isNew && <Link className="rounded-md border px-3 py-2 text-sm" to={`/inspect/items/${encodeURIComponent(id)}`}>Inspect Item</Link>}
-            {!isNew && <Link className="rounded-md border px-3 py-2 text-sm" to="/author/items/new/ecosystem">New Item</Link>}
-            <button className="rounded-md border px-3 py-2 text-sm" onClick={reset}>Reset Draft</button>
-            <button className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!dirty || saving || blockers.length > 0} onClick={save}>{saving ? "Saving..." : "Save Item Bundle"}</button>
+            {!isNew && <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} to={`/author/items/${encodeURIComponent(id)}`}>Edit Mechanics</Link>}
+            {!isNew && <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} to={`/inspect/items/${encodeURIComponent(id)}`}>Inspect Item</Link>}
+            {!isNew && <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} to="/author/items/new/ecosystem">New Item</Link>}
+            <button type="button" className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} onClick={reset}>Reset Draft</button>
+            <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving || blockers.length > 0} onClick={save}>{saving ? "Saving..." : "Save Item Bundle"}</button>
         </>
       }
     >
-        <p className="text-sm text-slate-500 dark:text-slate-400">Place, compare, validate, and save every acquisition reference for this item.</p>
+        <AuthoringHealthSummary blockers={blockers.length} warnings={clientWarnings.length} dirty={dirty} saving={saving} />
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Place, compare, validate, and save every acquisition reference for this item.</p>
         {notice && <StatusNotice className="mt-3" tone={blockers.length ? "warning" : "info"}>{notice}</StatusNotice>}
         <div className="mt-3 grid gap-3 sm:grid-cols-4">
           <Fact label="Sources" value={text(packet.analysis.total_sources, "0")} />
@@ -185,17 +197,18 @@ export default function ItemEcosystemPage() {
         </div>
       </AuthoringPanel>
 
-      <AuthoringPanel title="Open Existing Item" help="Switch to another item ecosystem without leaving this workspace. Unsaved edits remain tracked as a draft for the current item."><label className="block"><FieldCaption>Item</FieldCaption><select className={`${AUTHORING_INPUT_CLASS} normal-case`} value={isNew ? "" : id} onChange={(event) => { if (event.target.value) navigate(`/author/items/${encodeURIComponent(event.target.value)}/ecosystem`); }}><option value="">Select an existing item</option>{(packet.catalogs.items || []).map((item) => <option key={text(item.id)} value={text(item.id)}>{label(item)}</option>)}</select></label></AuthoringPanel>
+       <div id="item-ecosystem-selector" className="scroll-mt-24"><AuthoringPanel title="Open Existing Item" help="Switch to another item ecosystem without leaving this workspace. Unsaved edits remain tracked as a draft for the current item."><label className="block"><FieldCaption>Item</FieldCaption><select className={`${AUTHORING_INPUT_CLASS} normal-case`} value={isNew ? "" : id} onChange={(event) => { if (event.target.value) navigate(`/author/items/${encodeURIComponent(event.target.value)}/ecosystem`); }}><option value="">Select an existing item</option>{(packet.catalogs.items || []).map((item) => <option key={text(item.id)} value={text(item.id)}>{label(item)}</option>)}</select></label></AuthoringPanel></div>
 
-      <nav className="flex flex-wrap gap-2">{["Identity", "Acquisition", "Power", "Economy", "Progression", "Issues"].map((panel) => <button key={panel} className={`rounded-full border px-4 py-2 text-sm font-semibold ${activePanel === panel ? "border-primary bg-primary text-white" : "bg-white dark:bg-slate-900"}`} onClick={() => setActivePanel(panel)}>{panel}</button>)}</nav>
+       <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]"><AuthoringSectionNav sections={[{ id: "item-ecosystem-header", label: "Workspace", summary: "Save state and health" }, { id: "item-ecosystem-selector", label: "Item Selector", summary: "Switch item bundle" }, { id: "item-ecosystem-panels", label: "Workflow Panels", summary: "Identity to validation" }, { id: "item-ecosystem-story", label: "Story Placement", summary: "Timeline context" }]} /><div id="item-ecosystem-panels" className="min-w-0 scroll-mt-24"><nav className="flex flex-wrap gap-2">{["Identity", "Acquisition", "Power", "Economy", "Progression", "Issues"].map((panel) => <button type="button" key={panel} className={`rounded-full border px-4 py-2 text-sm font-semibold ${activePanel === panel ? "border-primary bg-primary text-white" : "bg-white dark:bg-slate-900"}`} onClick={() => setActivePanel(panel)}>{panel}</button>)}</nav>
 
       {activePanel === "Identity" && <IdentityPanel packet={packet} updateItem={updateItem} />}
       {activePanel === "Acquisition" && <AcquisitionPanel packet={packet} setSources={setSources} />}
       {activePanel === "Power" && <PowerPanel simulation={simulation} peerResults={peerResults} scenarioId={scenarioId} setScenarioId={setScenarioId} />}
       {activePanel === "Economy" && <EconomyPanel packet={packet} updateItem={updateItem} setSources={setSources} simulation={simulation} />}
       {activePanel === "Progression" && <div className="space-y-4"><ItemJourneyTrack packet={packet} model={itemJourney} storyLoading={storyPlacement.loading} storyError={storyPlacement.error} /><ProgressionPanel packet={packet} setSources={setSources} /></div>}
-      {activePanel === "Issues" && <IssuesPanel blockers={blockers} warnings={clientWarnings} packet={packet} />}
-      {!isNew && text(packet.item.id) && <StoryPlacementPanel entityKind="item" entityId={text(packet.item.id)} entityLabel={text(packet.item.name, text(packet.item.id))} entity={packet.item} storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} />}
+       {activePanel === "Issues" && <IssuesPanel blockers={blockers} warnings={clientWarnings} packet={packet} />}
+       </div></div>
+       {!isNew && text(packet.item.id) && <div id="item-ecosystem-story" className="scroll-mt-24"><StoryPlacementPanel entityKind="item" entityId={text(packet.item.id)} entityLabel={text(packet.item.name, text(packet.item.id))} entity={packet.item} storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} /></div>}
   </AuthoringPageShell>;
 }
 

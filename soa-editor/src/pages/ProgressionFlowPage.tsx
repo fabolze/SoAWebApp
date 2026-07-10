@@ -6,7 +6,7 @@ import {
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
-import { AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
+import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, EmptyState, StatusNotice } from "../components/authoringUi";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
@@ -173,6 +173,7 @@ function buildBundle(flags: Entry[], requirement: Entry | null, eventDraft: Entr
 export default function ProgressionFlowPage() {
   const [packet, setPacket] = useState<FlowPacket>(emptyPacket);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState("");
   const [baseName, setBaseName] = useState("New Progression Beat");
   const [draftFlags, setDraftFlags] = useState<Entry[]>([]);
@@ -193,9 +194,9 @@ export default function ProgressionFlowPage() {
   const flagsById = useMemo(() => byId([...packet.flags, ...draftFlags]), [draftFlags, packet.flags]);
   const requirementsById = useMemo(() => byId(packet.requirements), [packet.requirements]);
   const selectedRequirement = requirementDraft || requirementsById.get(selectedRequirementId) || null;
-  const attachment = selectedRequirement && targetSchema && targetId
+  const attachment = useMemo(() => selectedRequirement && targetSchema && targetId
     ? { schema_name: targetSchema, entry_id: targetId, requirements_id: text(selectedRequirement.id) }
-    : null;
+    : null, [selectedRequirement, targetId, targetSchema]);
   const bundle = useMemo(() => buildBundle(draftFlags, requirementDraft, eventDraft, encounterDraft, attachment), [attachment, draftFlags, encounterDraft, eventDraft, requirementDraft]);
   const serialized = stable(bundle);
   const dirty = initialSerialized !== "" && serialized !== initialSerialized;
@@ -211,6 +212,7 @@ export default function ProgressionFlowPage() {
   const load = () => {
     setLoading(true);
     setNotice("");
+    setLoadError("");
     apiFetch("/api/ui/progression-flow")
       .then(async (response) => {
         const payload = await response.json();
@@ -218,7 +220,11 @@ export default function ProgressionFlowPage() {
         setPacket({ ...emptyPacket, ...payload });
         setInitialSerialized(stable(buildBundle([], null, null, null, null)));
       })
-      .catch((error) => setNotice(error instanceof Error ? error.message : "Progression Flow failed to load."))
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : "Progression Flow failed to load.";
+        setLoadError(message);
+        setNotice(message);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -336,16 +342,25 @@ export default function ProgressionFlowPage() {
     }
   };
 
-  if (loading) return <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading Progression Flow...</div>;
+  if (loading) return <AuthoringPageShell><StatusNotice>Loading Progression Flow...</StatusNotice></AuthoringPageShell>;
+  if (loadError) return <AuthoringPageShell><StatusNotice tone="error" action={<button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={load}>Try Again</button>}>{loadError} Refresh the workspace after the service is available.</StatusNotice></AuthoringPageShell>;
 
   return (
     <AuthoringPageShell>
       <div className="w-full space-y-4">
         <Header dirty={dirty} saving={saving} issues={issues} onPreview={() => void preview()} onDiscard={discardDraft} />
         {notice && <StatusNotice>{notice}</StatusNotice>}
-        <div className="grid gap-4 xl:grid-cols-[1fr_420px]">
+        <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_420px]">
+          <AuthoringSectionNav sections={[
+            { id: "progression-base", label: "Shared Base", summary: "Name the draft" },
+            { id: "progression-requirement", label: "Unlock Requirement", summary: "Player-state rules" },
+            { id: "progression-source", label: "Source And Outcome", summary: "Playable content" },
+            { id: "progression-flow", label: "Compact Flow", summary: "Focused chain" },
+            { id: "progression-context", label: "Context", summary: "Temporary state and health" },
+          ]} />
           <main className="space-y-4">
             <Panel
+              id="progression-base"
               title="Shared Base"
               subtitle="Use one phrase to draft related names before reviewing the real records."
               help="Use this when a progression beat needs a matching player-state flag, unlock requirement, and event. The generated names are only starting points; the review step shows the records that will be saved."
@@ -356,31 +371,31 @@ export default function ProgressionFlowPage() {
                 <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm} self-end`} onClick={createRequirementFromFlags}>New Unlock Requirement</button>
               </div>
             </Panel>
-            <ScopedGateBuilder
-              packet={packet}
-              baseName={baseName}
-              draftFlags={draftFlags}
-              setDraftFlags={setDraftFlags}
-              requirementDraft={requirementDraft}
-              setRequirementDraft={setRequirementDraft}
-              selectedRequirementId={selectedRequirementId}
-              setSelectedRequirementId={selectExistingRequirement}
-              targetSchema={targetSchema}
-              setTargetSchema={setTargetSchema}
-              targetId={targetId}
-              setTargetId={setTargetId}
-              tag="progression-flow"
-            />
-            <EventComposer
-              packet={packet}
-              eventDraft={eventDraft}
-              encounterDraft={encounterDraft}
-              selectedRequirement={selectedRequirement}
-              flagsById={flagsById}
-              startEventDraft={startEventDraft}
-              patchEvent={patchEvent}
-              patchEncounterRewards={patchEncounterRewards}
-            />
+            <div id="progression-requirement" className="scroll-mt-24"><ScopedGateBuilder
+                packet={packet}
+                baseName={baseName}
+                draftFlags={draftFlags}
+                setDraftFlags={setDraftFlags}
+                requirementDraft={requirementDraft}
+                setRequirementDraft={setRequirementDraft}
+                selectedRequirementId={selectedRequirementId}
+                setSelectedRequirementId={selectExistingRequirement}
+                targetSchema={targetSchema}
+                setTargetSchema={setTargetSchema}
+                targetId={targetId}
+                setTargetId={setTargetId}
+                tag="progression-flow"
+              /></div>
+            <div id="progression-source" className="scroll-mt-24"><EventComposer
+                packet={packet}
+                eventDraft={eventDraft}
+                encounterDraft={encounterDraft}
+                selectedRequirement={selectedRequirement}
+                flagsById={flagsById}
+                startEventDraft={startEventDraft}
+                patchEvent={patchEvent}
+                patchEncounterRewards={patchEncounterRewards}
+              /></div>
             {eventDraft && packet.events.some((entry) => text(entry.id) === text(eventDraft.id)) && <ConsequenceComposer
               sourceKind="event"
               source={eventDraft}
@@ -393,7 +408,7 @@ export default function ProgressionFlowPage() {
                 setEventDraft(savedEvent);
               }}
             />}
-            <FlowCanvas rows={graph} />
+            <div id="progression-flow" className="scroll-mt-24"><FlowCanvas rows={graph} /></div>
             <BundleReview
               result={review}
               title="Progression Flow Bundle Review"
@@ -407,7 +422,7 @@ export default function ProgressionFlowPage() {
               onCommit={() => void commit()}
             />
           </main>
-          <aside className="space-y-4">
+          <aside id="progression-context" className="space-y-4 scroll-mt-24">
             <TemporaryPlaythrough packet={packet} temporaryFlags={temporaryFlags} setTemporaryFlags={setTemporaryFlags} flagsById={flagsById} />
             <IssuePanel issues={issues} />
             <UsagePanel packet={packet} selectedRequirement={selectedRequirement} flags={[...packet.flags, ...draftFlags]} />
@@ -422,10 +437,11 @@ function Header({ dirty, saving, issues, onPreview, onDiscard }: { dirty: boolea
   return <Panel
     title="Progression Flow And Unlock Builder"
     subtitle="Create events, encounters, requirements, and player-state flags together before review."
-    help="This workspace drafts linked progression records and sends them through bundle review. Preview does not save. Commit saves the reviewed records after backend validation."
-  >
+     help="This workspace drafts linked progression records and sends them through bundle review. Preview does not save. Commit saves the reviewed records after backend validation."
+     helpExample="Draft a flag such as 'Gatehouse Open', attach it to an unlock requirement, then connect that requirement to the event that grants it."
+   >
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="text-xs text-slate-500">{dirty ? "Unsaved linked-authoring draft" : "No pending flow changes"} / {issues.length} local warning(s)</div>
+      <div><AuthoringHealthSummary blockers={0} warnings={issues.length} dirty={dirty} saving={saving} /><div className="mt-1 text-xs text-slate-500">{dirty ? "Draft changes stay local until review." : "Draft matches the last reviewed bundle."}</div></div>
       <div className="flex gap-2">
         <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={saving || !dirty} onClick={onDiscard}>Discard Draft</button>
         <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || !dirty} onClick={onPreview}>{saving ? "Reviewing..." : "Review Changes"}</button>
@@ -618,8 +634,8 @@ function Field({ label: fieldLabel, value, onChange }: { label: string; value: u
   return <label className="block"><Caption>{fieldLabel}</Caption><input className={inputClass} value={text(value)} onChange={(event) => onChange(event.target.value)} /></label>;
 }
 
-function Panel({ title, subtitle, help, collapsible, storageKey, collapsedSummary, children }: { title: string; subtitle?: string; help?: ReactNode; collapsible?: boolean; storageKey?: string; collapsedSummary?: ReactNode; children: ReactNode }) {
-  return <AuthoringPanel title={title} subtitle={subtitle} help={help} collapsible={collapsible} storageKey={storageKey} collapsedSummary={collapsedSummary}>{children}</AuthoringPanel>;
+function Panel({ id, title, subtitle, help, helpExample, collapsible, storageKey, collapsedSummary, children }: { id?: string; title: string; subtitle?: string; help?: ReactNode; helpExample?: ReactNode; collapsible?: boolean; storageKey?: string; collapsedSummary?: ReactNode; children: ReactNode }) {
+  return <AuthoringPanel id={id} title={title} subtitle={subtitle} help={help} helpExample={helpExample} collapsible={collapsible} storageKey={storageKey} collapsedSummary={collapsedSummary}>{children}</AuthoringPanel>;
 }
 
 function Caption({ children }: { children: ReactNode }) {

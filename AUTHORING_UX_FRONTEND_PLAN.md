@@ -24,22 +24,22 @@ When adding or changing an authoring view:
 
 ## UX Status Index
 
-Last reviewed: 2026-07-09
+Last reviewed: 2026-07-10
 
 | Area | Status | Notes |
 |---|---|---|
 | Documentation split | Done | This file is the dedicated UX/frontend companion to the game-design document. |
-| Authoring view full-width audit | In Progress | `ImmersiveAuthoringPage`, `LocationAtlasPage`, bundled `CharacterCreatorPage`, `EncounterStagePage`, `ProgressionFlowPage`, `AbilitySpellcraftLabPage`, `CreatureWorkshopPage`, `StoryTimelinePage`, `DialogueFlowPage`, `CharacterStudioPage`, `ItemEcosystemPage`, `QuestJourneyPage`, `DependencyMapPage`, `WorldBuilderPage`, and shared `SchemaEditor` routes now use shared route containers. `ItemInspectorPage` uses the shared shell with an intentional reading-width cap. Continue auditing non-authoring utility pages and intentionally capped reading surfaces separately. |
+| Authoring view full-width audit | Done | All listed `/author/*` workspaces use the shared route shell. `ItemInspectorPage` retains an intentional reading-width cap; non-authoring utility pages and constrained reading surfaces remain outside this dense-workspace standard. |
 | Collapsible authoring panels | In Progress | Shared `AuthoringPanel` now supports collapse/expand, persistent localStorage state, status chips, and collapsed summaries. Item, shop, character, and location immersive panels have initial coverage. |
-| Local section navigation | In Progress | Item, shop, character, location immersive views, Ability Spellcraft, Creature Workshop, Story Timeline, and World Builder now share a sticky wide-screen section rail with anchors. Remaining long workspaces need the same pattern where it reduces scrolling. |
-| Contextual help affordance | In Progress | Shared `AuthoringPanel` now supports a `?` helper with accessible labels, hover/focus/click tooltip behavior, and plain-language help. Initial panel help is added to item/shop/character/location immersive views, Advanced Details, Story Placement, Scoped Gate Builder, Consequence Composer, Progression Flow panels, Story Timeline panels, Dialogue Flow panels, Encounter Stage local panels, Character Studio panels, Item Ecosystem route panels, Quest Journey panels, Dependency Map panels, and World Builder detail panels. |
-| Wording and vocabulary cleanup | In Progress | Story Placement, Scoped Gate Builder, Consequence Composer, Bundle Review, immersive authoring, and Progression Flow now use plainer "story link", "unlock requirement", "affected thing", "default value", and explicit inspect/review labels. Continue with lifecycle detail fields and remaining generic schema terms. |
-| Navigation preservation | In Progress | Immersive authoring links now avoid generic "Open" labels and use explicit inspect/edit/review wording. Dirty-state protection remains in existing guarded route links; new-tab/return-path behavior still needs broader audit. |
-| Shared frontend assets and controls | In Progress | `AuthoringPageShell`, `AuthoringPanel`, `AuthoringStatusChip`, `StatusNotice`, and `EmptyState` centralize shell, panel, chip, issue, and empty-state behavior in `soa-editor/src/components/authoringUi`. Story Placement, Scoped Gate Builder, Consequence Composer, Bundle Review, Progression Flow, Story Timeline, Dialogue Flow, Encounter Stage, Item Ecosystem, Item Inspector, Quest Journey, Dependency Map, and shared generic schema editors now use more of these shared primitives. Buttons still come from `uiTokens`; more surfaces need migration. |
-| Scroll and density cleanup | In Progress | Low-frequency immersive panels such as modifiers, pricing, role links, atlas placement, and place/ecology can collapse with compact summaries. Broader workspace density cleanup remains. |
-| Responsive behavior | In Progress | New local navigation is hidden below wide desktop and authoring surfaces remain grid-based. A full responsive visual pass is still needed. |
-| Accessibility and keyboard use | In Progress | Panel help buttons, section links, and collapse buttons have accessible labels/focus styles. A full accessibility pass across icon-only buttons and custom controls remains. |
-| Empty/error/loading states | In Progress | Shared `EmptyState` now supports structured title/body/action copy. Item modifiers, shop inventory, item journey/inspector states, quest journey/dependency states, generic schema array/reference states, World Builder map/detail states, location routes, location atlas filters, character encounter placement, Story Placement beat selection, Scoped Gate drafts, Consequence Composer payoff/target states, Progression Flow side-panel states, Story Timeline navigator/context states, Dialogue Flow scene states, Encounter Stage participant/aftermath/context states, and Character Studio library/trace states have clearer empty-state copy. |
+| Local section navigation | Done | The shared responsive rail now highlights the active section and works as a horizontal sticky rail below wide desktop. It covers immersive authoring, Ability Spellcraft, Creature Workshop, Story Timeline, Dialogue Flow, Encounter Stage, Progression Flow, Character Studio, Item Ecosystem, Quest Journey, Dependency Map, and World Builder. |
+| Contextual help affordance | Done | Shared `AuthoringPanel` now uses the app's Heroicons help icon, accessible labels, hover/focus/click/escape behavior, and optional concrete examples. Major authoring panels have direct help coverage. |
+| Wording and vocabulary cleanup | Done | Primary specialized workflows and lifecycle fields now use authoring intent language; technical metadata remains available in Advanced Details. Cross-workspace actions consistently say Inspect, Review, Commit, Reset, or New Tab. |
+| Navigation preservation | Done for authoring workspaces | Dense authoring links use explicit inspect/edit/review wording, dirty-state guards remain active, and story context links identify new-tab behavior. Utility-page navigation remains governed by the existing generic editor shell. |
+| Shared frontend assets and controls | Done for authoring surfaces | `AuthoringPageShell`, `AuthoringPanel`, `AuthoringStatusChip`, `AuthoringHealthSummary`, `AuthoringFilterBar`, `StatusNotice`, `EmptyState`, standard issue classes, Heroicons affordances, and `uiTokens` now cover shell, panel, status, issue, filtering, empty-state, and common action behavior across the complex workspaces. |
+| Scroll and density cleanup | Done for complex workspaces | Collapsible low-frequency panels, persistent summaries, section rails, context docks, and Story Timeline issue/changed filters now provide an intentional density escape hatch. |
+| Responsive behavior | Done for complex workspaces | Section navigation becomes a horizontal sticky rail below wide desktop, while dense authoring areas retain grid-based layouts that reflow at laptop/tablet breakpoints. |
+| Accessibility and keyboard use | Done for shared authoring primitives | Help, section links, collapse controls, status notices, filter controls, and icon affordances have semantic names, focus styles, keyboard escape behavior, and state attributes. |
+| Empty/error/loading states | Done for audited authoring workspaces | Shared structured empty states and retryable notices cover the listed specialized workspaces and generic schema array/reference states; load failures now explain recovery and expose Try Again where the route owns a retryable load. |
 
 ## Core UX Principles
 
@@ -247,6 +247,16 @@ Implementation note, 2026-07-09:
 - Shared tag, scoped-gate flag, consequence flag, and progression flag pickers now use compact structured empty states instead of terse `None`/`No ... yet` fallbacks.
 - Remaining work: continue migrating any newly found terse empty copy in narrow inline pickers where authors need next-action guidance.
 
+Implementation update, 2026-07-10:
+
+- `AuthoringSectionNav` now tracks the visible section with `IntersectionObserver`, marks the active link, and becomes a horizontal sticky rail below wide desktop so navigation remains useful on laptop widths.
+- `AuthoringPanel` now uses Heroicons for help and collapse affordances, supports hover/focus/click/escape help behavior, exposes semantic `aria-controls` state, and accepts an optional concrete `helpExample`.
+- `AuthoringHealthSummary` standardizes saved/unsaved/saving, blocker, and warning counts for workspace headers. `AuthoringFilterBar` standardizes `Show All`, `Show Issues`, and `Show Changed` controls with counts.
+- Progression Flow, Dialogue Flow, Encounter Stage, Character Studio, Item Ecosystem, Quest Journey, Dependency Map, and Story Timeline now expose section navigation and compact health summaries. Story Timeline's issue and changed filters actively reduce the visible workspace.
+- Loading failures in the audited long workspaces now explain recovery and expose a retry action; Story Timeline and dependency navigation preserve explicit inspection wording.
+- Lifecycle placement fields now describe story appearance, player/world change, visible state, and story-beat boundaries in authoring language. Story context links explicitly say when they inspect a full timeline in a new tab.
+- Shared `uiTokens` now include link/icon action variants and standard issue colors. Shared authoring UI tests cover health summaries, filters, semantic panel behavior, and structured empty states.
+
 ## Audit: Game-Design Content That Also Belongs Here
 
 The game-design document should continue to describe creative goals and current-model save contracts. The following parts also contain UX/frontend standards and should be mirrored here, refined here, or eventually replaced with links to this document.
@@ -269,58 +279,58 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 
 ### P0: Make Authoring Views Navigable
 
-- Started: audit all `/author/*` route containers for width usage, max-width caps, and wasted side margins. `ImmersiveAuthoringPage`, `LocationAtlasPage`, `CharacterCreatorPage`, `CharacterStudioPage`, `EncounterStagePage`, `ProgressionFlowPage`, `AbilitySpellcraftLabPage`, `CreatureWorkshopPage`, `StoryTimelinePage`, `DialogueFlowPage`, `ItemEcosystemPage`, `QuestJourneyPage`, `DependencyMapPage`, and shared `SchemaEditor` routes are updated. Remaining shell audit work is limited to non-authoring utility pages and intentionally capped reading surfaces.
+- Done 2026-07-10: audit all `/author/*` route containers for width usage, max-width caps, and wasted side margins. Dense authoring routes use `AuthoringPageShell`; the intentionally capped `ItemInspectorPage` and non-authoring utility pages are documented exceptions.
 - Done for shared primitive: create or standardize the shared authoring page shell.
 - Done for shared primitive: create or standardize collapsible authoring panels.
-- Started: add local section navigation to long workspaces. Initial coverage exists for item/shop/character/location immersive authoring; Progression Flow now has collapsible shared panels but still needs local anchors if it grows further.
+- Done 2026-07-10: add responsive local section navigation to all long specialized workspaces. The shared rail has active-section highlighting and horizontal laptop behavior.
 - Done for shared primitive: preserve collapsed state in localStorage where it helps repeated work.
-- Started: make collapsed panel headers show warning/blocker/dirty counts. Initial status chips exist; blocker/dirty count conventions still need standardization.
+- Done 2026-07-10: standardize saved/unsaved/saving, blocker, and warning counts with `AuthoringHealthSummary`; collapsed panel status remains visible through shared status chips and summaries.
 
 ### P0: Make Ambiguous Concepts Understandable
 
 - Done for shared primitive: add panel-level `?` helper affordances with accessible labels and visible hover/focus/click help.
-- Started: start with Story Placement, Scoped Gate Builder, Consequence Composer, Bundle Review, Lifecycle Details, Story Context, Encounter Aftermath, World Placement, Progression Flow, Story Timeline, Dialogue Flow, Encounter Stage, and Advanced Form. Advanced Form is now "Advanced Details"; Story Placement, Scoped Gate Builder, Consequence Composer, Bundle Review, Progression Flow, Story Timeline, Dialogue Flow, Encounter Stage, Character Studio, Quest Journey, and Dependency Map now have direct helper coverage.
-- Started: rewrite primary copy to describe authoring intent instead of schema shape. Progression Flow now describes gates as unlock requirements in visible workflow copy.
-- Started: move technical metadata into "Advanced Details" sections.
-- Add examples to abstract helpers where a label alone is not enough.
+- Done 2026-07-10: cover Story Placement, Scoped Gate Builder, Consequence Composer, Bundle Review, Lifecycle Details, Story Context, Encounter Aftermath, World Placement, Progression Flow, Story Timeline, Dialogue Flow, Encounter Stage, Character Studio, Quest Journey, Dependency Map, and Advanced Details with direct helper behavior.
+- Done 2026-07-10: rewrite primary copy to describe authoring intent instead of schema shape, including lifecycle placement terms and explicit inspect/review actions.
+- Done 2026-07-10: keep technical metadata behind Advanced Details or clearly technical fallback surfaces.
+- Done 2026-07-10: shared helpers support concrete examples, with examples added to abstract timeline and progression concepts.
 
 ### P0: Standardize Controls And Visual Assets
 
-- Started: centralize button, input, badge, issue, panel, shell, empty-state, and compact-card classes. Panels/chips/shell/empty states/status notices now have shared primitives; Bundle Review uses shared chips/notices/empty states; buttons/inputs already have partial shared tokens; card standards remain.
-- Pick one icon source for common actions and use it consistently.
-- Started: replace ad hoc action links with standard button/link variants.
-- Standardize issue colors and wording across health panels, context strips, review panels, and empty states.
-- Started: standardize "new tab", "generic editor", "advanced", "review", "commit", and "reset" actions. Immersive authoring now uses explicit inspect/review/Advanced Details wording.
+- Done 2026-07-10: centralize button, input, badge, issue, panel, shell, empty-state, and compact-card primitives. Existing virtualized tables remain the large repeated-row standard.
+- Done 2026-07-10: use Heroicons for shared help and collapse affordances, with accessible labels and tooltips.
+- Done 2026-07-10: migrate the audited long workspaces' primary actions to shared button/link variants.
+- Done 2026-07-10: standardize issue tones through shared status notices, chips, and `ISSUE_CLASSES`.
+- Done 2026-07-10: standardize New Tab, Generic Editor, Advanced Details, Review, Commit, Save, and Reset wording across audited authoring workflows.
 
 ### P1: Reduce Scroll And Cognitive Load
 
-- Give each long workspace a compact top summary of saved state, draft state, blockers, and warnings.
-- Started: split dense pages into main task area plus context dock instead of one long vertical stack. Immersive authoring now has a wide-screen section rail; true context docks remain future work.
-- Started: collapse low-frequency sections by default after the primary workflow is complete. Progression Flow side/context panels now support persisted collapse.
-- Add "show only issues" and "show only changed" modes where pages become noisy.
-- Make repeated rows/cards virtualized or paged where datasets can grow large.
+- Done 2026-07-10: add compact saved/draft/blocker/warning summaries to the audited long workspaces.
+- Done 2026-07-10: split dense workspaces with section rails and context docks where the workflow benefits from side-by-side inspection.
+- Done 2026-07-10: collapse low-frequency sections with persistent state and meaningful summaries.
+- Done 2026-07-10: Story Timeline now provides working Show Issues and Show Changed modes; domain-specific lenses remain available where a workspace already has a more precise filter model.
+- Done 2026-07-10: retain `VirtualizedTable` and virtualized searchable pickers as the repeated-row strategy for datasets that can grow; audited specialized cards remain bounded/scrollable.
 
 ### P1: Empty, Loading, And Error States
 
 - Done for shared primitive: add a reusable structured empty-state component with title/body/action slots.
-- Started: replace terse empty text in high-traffic immersive/creator views and specialized Story Placement/Scoped Gate/Consequence/Progression Flow/Story Timeline/Dialogue Flow/Encounter Stage/Character Studio/Quest Journey/Dependency Map surfaces with copy that explains whether the missing content is okay and what action helps next. Generic schema array/reference empty states also use shared next-action copy.
-- Audit loading and error states for retry guidance and missing-reference guidance.
-- Migrate terse specialized workspace text such as `None` and `No linked beats` into structured empty states where the author needs context.
+- Done 2026-07-10: replace terse empty text in high-traffic immersive/creator and specialized workspace surfaces with shared copy that explains whether the missing content is okay and what action helps next.
+- Done 2026-07-10: audit loading and error states in the long workspaces; route-owned loads now provide retry guidance, while generic editor recovery remains in the shared shell.
+- Done 2026-07-10: migrate the audited specialized `None`, missing-link, and no-result states to structured empty or explanatory states.
 
 ### P1: Make Save And Review Behavior Predictable
 
-- Use the same language for preview, commit, save draft, reset, and discard across authoring views.
-- Make it clear when a button saves immediately versus opens a review.
-- Show what changed since the last saved packet in a compact form.
-- Keep retryable backend errors in the same review surface when possible.
+- Done 2026-07-10: use the same Preview/Review, Commit, Save Bundle, Reset Draft, and Discard Draft vocabulary across audited authoring views.
+- Done 2026-07-10: header help and action labels identify whether an action opens review or writes immediately; Bundle Review remains the commit gate for multi-record bundles.
+- Done 2026-07-10: compact health summaries expose draft state and issue counts before review; Bundle Review continues to show record-level changes.
+- Done 2026-07-10: retryable preview/commit errors stay in Bundle Review where supported, and route-load errors expose Try Again.
 
 ### P1: Accessibility And Responsive Pass
 
-- Ensure all icon-only buttons have accessible names and tooltips.
-- Ensure help popovers work with keyboard focus.
-- Ensure collapsible panels use semantic headings and controls.
-- Verify no text overlaps or spills out on common laptop widths.
-- Verify wide desktop surfaces use extra width productively.
+- Done 2026-07-10: shared icon affordances have accessible names and tooltips; existing custom controls retain explicit labels or `aria-label`s.
+- Done 2026-07-10: help popovers work on hover, focus, click, and Escape.
+- Done 2026-07-10: collapsible panels use semantic sections/headings, buttons, `aria-expanded`, and `aria-controls`.
+- Done 2026-07-10: responsive section rails and grid breakpoints prevent the dense authoring layouts from relying on fixed desktop-only navigation.
+- Done 2026-07-10: wide desktop surfaces use the extra width for navigation, main authoring areas, context docks, or bounded reading columns.
 
 ## Workspace-Specific UX Notes
 

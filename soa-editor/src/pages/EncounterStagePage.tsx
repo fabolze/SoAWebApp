@@ -5,7 +5,7 @@ import { deriveEncounterAftermathRows, type EncounterAftermathRow } from "../aut
 import { emptyScopedGatePacket, type ScopedGatePacket } from "../authoring/scopedGate";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
-import { AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
+import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, EmptyState, StatusNotice } from "../components/authoringUi";
 import SearchableSelect from "../components/SearchableSelect";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
@@ -168,6 +168,7 @@ export default function EncounterStagePage() {
   const [packet, setPacket] = useState<EncounterPacket>(emptyPacket);
   const [original, setOriginal] = useState<EncounterPacket | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedCharacter, setSelectedCharacter] = useState("");
@@ -208,6 +209,7 @@ export default function EncounterStagePage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadError("");
     const endpoint = isNew ? "/api/ui/encounters" : `/api/ui/encounters/${encodeURIComponent(id)}`;
     Promise.all([apiFetch(endpoint), apiFetch("/api/ui/scoped-gates")]).then(async ([response, gateResponse]) => {
       const payload = await response.json();
@@ -238,7 +240,11 @@ export default function EncounterStagePage() {
         setGateTargetSchema("encounters");
         setGateTargetId(displayText(next.encounter.id));
       }
-    }).catch((error) => setNotice(error instanceof Error ? error.message : "Encounter Stage failed to load."))
+    }).catch((error) => {
+      const message = error instanceof Error ? error.message : "Encounter Stage failed to load.";
+      setLoadError(message);
+      setNotice(message);
+    })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [id, isNew]);
@@ -323,14 +329,23 @@ export default function EncounterStagePage() {
   };
 
   if (loading) return <AuthoringPageShell><StatusNotice>Loading Encounter Stage...</StatusNotice></AuthoringPageShell>;
+  if (loadError) return <AuthoringPageShell><StatusNotice tone="error" action={<button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => window.location.reload()}>Try Again</button>}>{loadError} Refresh the workspace after the service is available.</StatusNotice></AuthoringPageShell>;
 
   return (
     <AuthoringPageShell>
       <div className="w-full space-y-4">
-        <Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} onSave={() => void save()} onReset={reset} />
+        <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+          <AuthoringSectionNav sections={[
+            { id: "encounter-header", label: "Encounter Header", summary: "Save state and health" },
+            { id: "encounter-selector", label: "Encounter Selector", summary: "Switch staged bundle" },
+            { id: "encounter-compose", label: "Build Encounter", summary: "Identity, payoff, placement" },
+            { id: "encounter-context", label: "Context", summary: "Health and world links" },
+          ]} />
+          <main className="min-w-0 space-y-4">
+        <div id="encounter-header" className="scroll-mt-24"><Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} warnings={issues.warnings} onSave={() => void save()} onReset={reset} /></div>
         {(notice || restored) && <StatusNotice>{restored ? "Restored unsaved Encounter Stage draft. " : ""}{notice}</StatusNotice>}
-        <EncounterSelector packet={packet} />
-        <div className="grid gap-4 2xl:grid-cols-[1fr_360px]">
+        <div id="encounter-selector" className="scroll-mt-24"><EncounterSelector packet={packet} /></div>
+        <div id="encounter-compose" className="grid scroll-mt-24 gap-4 2xl:grid-cols-[1fr_360px]">
           <div className="space-y-4">
             <IdentityPanel packet={packet} setPacket={setPacket} updateEncounter={updateEncounter} showInlineGate={isNew} />
             {!isNew && <ScopedGateBuilder
@@ -376,7 +391,7 @@ export default function EncounterStagePage() {
             {!isNew && displayText(packet.encounter.id) && <StoryPlacementPanel entityKind="encounter" entityId={displayText(packet.encounter.id)} entityLabel={displayText(packet.encounter.name, displayText(packet.encounter.id))} entity={packet.encounter} enableCrossEntityConsequenceActions storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} />}
             <SimulationComparison packet={packet} />
           </div>
-          <div className="space-y-4">
+          <div id="encounter-context" className="space-y-4 scroll-mt-24">
             <HealthPanel issues={issues} />
             <Dossier packet={packet} selectedCharacter={selectedCharacter} />
             <WorldContext packet={packet} />
@@ -387,15 +402,17 @@ export default function EncounterStagePage() {
           <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={reset}>Reset Draft</button>
           <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || issues.blockers.length > 0} onClick={() => void save()}>{saving ? "Saving..." : "Save Encounter Bundle"}</button>
         </div>
+          </main>
+        </div>
       </div>
     </AuthoringPageShell>
   );
 }
 
-function Header({ packet, dirty, saving, blockers, onSave, onReset }: { packet: EncounterPacket; dirty: boolean; saving: boolean; blockers: string[]; onSave: () => void; onReset: () => void }) {
+function Header({ packet, dirty, saving, blockers, warnings, onSave, onReset }: { packet: EncounterPacket; dirty: boolean; saving: boolean; blockers: string[]; warnings: string[]; onSave: () => void; onReset: () => void }) {
   return <Panel title={displayText(packet.encounter.name, "Encounter Stage")} subtitle={`${displayText(packet.encounter.encounter_type, "Encounter")} / ${rows(packet.encounter.participants).length} participants / ${packet.placements.length} placements`} help="Use this workspace to build the encounter, participants, rewards, placement, story timing, and consequences as one reviewed bundle. Save writes the encounter bundle after blockers are resolved.">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="text-xs text-slate-500">{dirty ? "Unsaved bundle changes" : "Bundle saved"}</div>
+      <div><AuthoringHealthSummary blockers={blockers.length} warnings={warnings.length} dirty={dirty} saving={saving} /><div className="mt-1 text-xs text-slate-500">{dirty ? "Changes stay in this draft until the bundle is saved." : "Bundle matches the last saved encounter."}</div></div>
       <div className="flex gap-2"><button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={onReset}>Reset Draft</button><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || blockers.length > 0} onClick={onSave}>{saving ? "Saving..." : "Save Encounter Bundle"}</button></div>
     </div>
   </Panel>;
@@ -708,8 +725,8 @@ function Caption({ children }: { children: ReactNode }) {
   return <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">{children}</div>;
 }
 
-function Panel({ title, subtitle, help, children }: { title: string; subtitle?: string; help?: ReactNode; children: ReactNode }) {
-  return <AuthoringPanel title={title} subtitle={subtitle} help={help}>{children}</AuthoringPanel>;
+function Panel({ id, title, subtitle, help, children }: { id?: string; title: string; subtitle?: string; help?: ReactNode; children: ReactNode }) {
+  return <AuthoringPanel id={id} title={title} subtitle={subtitle} help={help}>{children}</AuthoringPanel>;
 }
 
 function Issue({ tone, children }: { tone: "red" | "amber"; children: ReactNode }) {

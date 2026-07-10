@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import { useEffect, useId, useMemo, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { ChevronDownIcon, ChevronUpIcon, QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
 
 export const AUTHORING_INPUT_CLASS =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
@@ -40,22 +42,45 @@ export function AuthoringSectionNav({
   title?: ReactNode;
   className?: string;
 }) {
+  const [activeId, setActiveId] = useState(sections[0]?.id || "");
+
+  useEffect(() => {
+    if (sections.length === 0 || typeof window === "undefined" || !("IntersectionObserver" in window)) return;
+    const elements = sections.map((section) => document.getElementById(section.id)).filter((element): element is HTMLElement => Boolean(element));
+    if (elements.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top);
+        if (visible[0]?.target.id) setActiveId(visible[0].target.id);
+      },
+      { rootMargin: "-96px 0px -65% 0px", threshold: [0, 0.25, 0.75] },
+    );
+    elements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [sections]);
+
   if (sections.length === 0) return null;
+
+  const link = (section: AuthoringSectionNavItem) => (
+    <a
+      key={section.id}
+      className={`block rounded-md px-2 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${activeId === section.id ? "bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-100" : "text-slate-700 hover:bg-slate-100 hover:text-blue-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-200"}`}
+      href={`#${section.id}`}
+      aria-current={activeId === section.id ? "location" : undefined}
+    >
+      <span className="block font-medium">{section.label}</span>
+      {section.summary && <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{section.summary}</span>}
+    </a>
+  );
+
   return (
-    <nav className={`hidden xl:block ${className}`.trim()} aria-label={typeof title === "string" ? title : "Workspace sections"}>
-      <div className="sticky top-4 rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+    <nav className={`${className}`.trim()} aria-label={typeof title === "string" ? title : "Workspace sections"}>
+      <div className="sticky top-2 z-20 flex gap-2 overflow-x-auto rounded-md border border-slate-200 bg-white p-2 shadow-sm xl:top-4 xl:block xl:overflow-visible xl:p-3 dark:border-slate-800 dark:bg-slate-900">
         <div className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">{title}</div>
-        <div className="mt-2 space-y-1">
-          {sections.map((section) => (
-            <a
-              key={section.id}
-              className="block rounded-md px-2 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-200"
-              href={`#${section.id}`}
-            >
-              <span className="block font-medium">{section.label}</span>
-              {section.summary && <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{section.summary}</span>}
-            </a>
-          ))}
+        <div className="flex gap-1 xl:mt-2 xl:block xl:space-y-1">
+          {sections.map(link)}
         </div>
       </div>
     </nav>
@@ -91,6 +116,7 @@ export function AuthoringPanel({
   subtitle,
   actions,
   help,
+  helpExample,
   status,
   collapsedSummary,
   collapsible = false,
@@ -105,6 +131,7 @@ export function AuthoringPanel({
   subtitle?: ReactNode;
   actions?: ReactNode;
   help?: ReactNode;
+  helpExample?: ReactNode;
   status?: ReactNode;
   collapsedSummary?: ReactNode;
   collapsible?: boolean;
@@ -117,7 +144,10 @@ export function AuthoringPanel({
 }) {
   const [collapsed, setCollapsed] = useState(() => readPanelCollapsedState(storageKey, defaultCollapsed));
   const [helpOpen, setHelpOpen] = useState(false);
-  const helpText = useMemo(() => reactNodeToText(help), [help]);
+  const helpText = useMemo(() => [reactNodeToText(help), reactNodeToText(helpExample)].filter(Boolean).join(" Example: "), [help, helpExample]);
+  const generatedContentId = useId();
+  const sectionId = id || inferredPanelId(title) || undefined;
+  const contentId = `${sectionId || generatedContentId.replace(/:/g, "")}-content`;
 
   useEffect(() => {
     if (!storageKey) return;
@@ -129,31 +159,37 @@ export function AuthoringPanel({
   }, [collapsed, storageKey]);
 
   return (
-    <section id={id} data-testid={testId} className={`${AUTHORING_PANEL_CLASS} scroll-mt-4 ${className}`.trim()}>
+    <section id={sectionId} data-testid={testId} className={`${AUTHORING_PANEL_CLASS} scroll-mt-24 ${className}`.trim()}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-semibold text-slate-950 dark:text-slate-100">{title}</h2>
             {help && (
-              <span className="relative inline-flex">
+              <span className="relative inline-flex" onMouseEnter={() => setHelpOpen(true)} onMouseLeave={() => setHelpOpen(false)}>
                 <button
                   type="button"
                   className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-[11px] font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-200"
                   aria-label={`Help for ${helpLabel(title)}`}
                   aria-expanded={helpOpen}
+                  aria-controls={`${contentId}-help`}
                   title={helpText}
                   onClick={() => setHelpOpen((value) => !value)}
                   onFocus={() => setHelpOpen(true)}
                   onBlur={() => setHelpOpen(false)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") setHelpOpen(false);
+                  }}
                 >
-                  ?
+                  <QuestionMarkCircleIcon className="h-4 w-4" aria-hidden="true" />
                 </button>
                 {helpOpen && (
                   <span
+                    id={`${contentId}-help`}
                     role="tooltip"
                     className="absolute left-0 top-6 z-20 w-72 rounded-md border border-slate-200 bg-white p-3 text-xs font-normal leading-5 text-slate-600 shadow-lg dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
                   >
-                    {help}
+                    <span>{help}</span>
+                    {helpExample && <span className="mt-2 block border-t border-slate-200 pt-2 dark:border-slate-800"><strong>Example:</strong> {helpExample}</span>}
                   </span>
                 )}
               </span>
@@ -162,7 +198,7 @@ export function AuthoringPanel({
           </div>
           {subtitle && <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{subtitle}</div>}
           {collapsed && collapsedSummary && <div className="mt-2 text-xs text-slate-600 dark:text-slate-300">{collapsedSummary}</div>}
-          {help && <div className="sr-only">{help}</div>}
+          {help && <div className="sr-only">{help}{helpExample && <> Example: {helpExample}</>}</div>}
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           {actions}
@@ -171,14 +207,17 @@ export function AuthoringPanel({
               type="button"
               className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               aria-expanded={!collapsed}
+              aria-controls={contentId}
+              aria-label={`${collapsed ? "Expand" : "Collapse"} ${helpLabel(title)}`}
+              title={`${collapsed ? "Expand" : "Collapse"} ${helpLabel(title)}`}
               onClick={() => setCollapsed((value) => !value)}
             >
-              {collapsed ? "Expand" : "Collapse"}
+              {collapsed ? <><ChevronDownIcon className="mr-1 h-4 w-4" aria-hidden="true" />Expand</> : <><ChevronUpIcon className="mr-1 h-4 w-4" aria-hidden="true" />Collapse</>}
             </button>
           )}
         </div>
       </div>
-      {!collapsed && <div className="mt-3">{children}</div>}
+      {!collapsed && <div id={contentId} className="mt-3">{children}</div>}
     </section>
   );
 }
@@ -199,6 +238,11 @@ function helpLabel(value: ReactNode): string {
   return reactNodeToText(value) || "this panel";
 }
 
+function inferredPanelId(value: ReactNode): string {
+  const slug = reactNodeToText(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return slug ? `authoring-${slug}` : "";
+}
+
 function reactNodeToText(value: ReactNode): string {
   if (typeof value === "string" || typeof value === "number") return String(value);
   if (Array.isArray(value)) return value.map(reactNodeToText).filter(Boolean).join(" ");
@@ -208,9 +252,11 @@ function reactNodeToText(value: ReactNode): string {
 export function AuthoringStatusChip({
   tone = "neutral",
   children,
+  title,
 }: {
   tone?: "neutral" | "success" | "warning" | "error" | "info";
   children?: ReactNode;
+  title?: string;
 }) {
   const classes = {
     neutral: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
@@ -219,7 +265,82 @@ export function AuthoringStatusChip({
     error: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200",
     info: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200",
   }[tone];
-  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${classes}`}>{children}</span>;
+  return <span role="status" title={title} className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${classes}`}>{children}</span>;
+}
+
+export function AuthoringHealthSummary({
+  blockers = 0,
+  warnings = 0,
+  dirty = false,
+  saving = false,
+  className = "",
+}: {
+  blockers?: number;
+  warnings?: number;
+  dirty?: boolean;
+  saving?: boolean;
+  className?: string;
+}) {
+  const stateLabel = saving ? "Saving" : dirty ? "Unsaved changes" : "Saved";
+  return (
+    <div className={`flex flex-wrap items-center gap-1 ${className}`.trim()} aria-label={`Authoring status: ${stateLabel}; ${blockers} blockers; ${warnings} warnings`}>
+      <AuthoringStatusChip tone={saving ? "info" : dirty ? "warning" : "success"}>{saving ? "Saving" : dirty ? "Unsaved" : "Saved"}</AuthoringStatusChip>
+      {blockers > 0 ? <AuthoringStatusChip tone="error">{blockers} blocker{blockers === 1 ? "" : "s"}</AuthoringStatusChip> : <AuthoringStatusChip tone="success">No blockers</AuthoringStatusChip>}
+      {warnings > 0 ? <AuthoringStatusChip tone="warning">{warnings} warning{warnings === 1 ? "" : "s"}</AuthoringStatusChip> : <AuthoringStatusChip tone="neutral">No warnings</AuthoringStatusChip>}
+    </div>
+  );
+}
+
+export type AuthoringFilterMode = "all" | "issues" | "changed";
+
+export function AuthoringFilterBar({
+  value,
+  onChange,
+  issueCount = 0,
+  changedCount = 0,
+  className = "",
+}: {
+  value: AuthoringFilterMode;
+  onChange: (value: AuthoringFilterMode) => void;
+  issueCount?: number;
+  changedCount?: number;
+  className?: string;
+}) {
+  const options: Array<{ value: AuthoringFilterMode; label: string; count?: number }> = [
+    { value: "all", label: "Show All" },
+    { value: "issues", label: "Show Issues", count: issueCount },
+    { value: "changed", label: "Show Changed", count: changedCount },
+  ];
+  return (
+    <div className={`flex flex-wrap items-center gap-1 ${className}`.trim()} aria-label="Workspace display filter">
+      <span className="mr-1 text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">View</span>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          className={`rounded-md border px-2 py-1 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${value === option.value ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white text-slate-700 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"}`}
+          aria-pressed={value === option.value}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}{option.count !== undefined ? ` (${option.count})` : ""}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function AuthoringIconButton({ icon, label, className = "", ...buttonProps }: { icon: ReactNode; label: string; className?: string } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "aria-label" | "title">) {
+  return (
+    <button
+      {...buttonProps}
+      type={buttonProps.type || "button"}
+      aria-label={label}
+      title={label}
+      className={`inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 ${className}`.trim()}
+    >
+      {icon}
+    </button>
+  );
 }
 
 export function FieldCaption({ label, children, description }: { label?: ReactNode; children?: ReactNode; description?: ReactNode }) {
@@ -450,10 +571,12 @@ export function EmptyState({
 export function StatusNotice({
   tone = "info",
   children,
+  action,
   className = "",
 }: {
   tone?: "info" | "success" | "warning" | "error";
   children: ReactNode;
+  action?: ReactNode;
   className?: string;
 }) {
   const toneClass = {
@@ -462,7 +585,7 @@ export function StatusNotice({
     warning: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200",
     error: "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200",
   }[tone];
-  return <div className={`rounded-md border px-3 py-2 text-sm ${toneClass} ${className}`.trim()}>{children}</div>;
+  return <div role={tone === "error" ? "alert" : "status"} className={`flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm ${toneClass} ${className}`.trim()}><div>{children}</div>{action && <div className="shrink-0">{action}</div>}</div>;
 }
 
 export function ModeTabs<T extends string>({

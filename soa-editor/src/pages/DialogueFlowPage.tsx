@@ -18,7 +18,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { EditableTagList, ReferenceChipPicker, displayText, isRecord } from "../authoringViews/controls";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
-import { AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
+import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, EmptyState, StatusNotice } from "../components/authoringUi";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch } from "../lib/api";
@@ -332,6 +332,7 @@ export default function DialogueFlowPage() {
   const [lens, setLens] = useState<Lens>("choices");
   const [tab, setTab] = useState<InspectorTab>("edit");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [review, setReview] = useState<BundleReviewResult | null>(null);
@@ -355,7 +356,7 @@ export default function DialogueFlowPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true); setNotice(""); setDeletions([]); setBeatUnlinks([]); setReview(null);
+    setLoading(true); setLoadError(""); setNotice(""); setDeletions([]); setBeatUnlinks([]); setReview(null);
     Promise.all([
       apiFetch("/api/dialogues").then((response) => response.json()),
       isNew ? Promise.resolve(null) : apiFetch(`/api/ui/dialogues/${encodeURIComponent(id)}`).then(async (response) => {
@@ -393,7 +394,11 @@ export default function DialogueFlowPage() {
       setPositions({ ...autoLayout(restored.nodes), ...storedPositions });
       setGroups(readGroups(text(base.dialogue.id)));
       setSelectedNodeId(text(restored.nodes[0]?.id));
-    }).catch((error) => setNotice(error instanceof Error ? error.message : "Dialogue Scene Room failed to load."))
+    }).catch((error) => {
+      const message = error instanceof Error ? error.message : "Dialogue Scene Room failed to load.";
+      setLoadError(message);
+      setNotice(message);
+    })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [emptyPacket, id, isNew]);
@@ -556,28 +561,39 @@ export default function DialogueFlowPage() {
   };
 
   if (loading) return <AuthoringPageShell><StatusNotice>Loading Dialogue Scene Room...</StatusNotice></AuthoringPageShell>;
+  if (loadError) return <AuthoringPageShell><StatusNotice tone="error" action={<button type="button" className={inactive} onClick={() => window.location.reload()}>Try Again</button>}>{loadError} Refresh the workspace after the service is available.</StatusNotice></AuthoringPageShell>;
 
   return <AuthoringPageShell>
     <div className="space-y-4">
       <AuthoringPanel
+        id="dialogue-header"
         title={label(packet.dialogue)}
         subtitle={`${activeNodes.length} lines / ${packet.story_beats.length} beats / ${health.blockers.length} blockers / ${health.warnings.length} warnings / ${dirty ? "Unsaved" : "Saved"}`}
         help="Use this workspace to write a dialogue graph, rehearse choices, connect story beats, and review the saved bundle. Editing here drafts dialogue lines and beat links until you preview and commit."
         actions={<div className="flex flex-wrap gap-2"><Link className={inactive} to="/dialogues">Inspect In Generic Editor</Link><button className={inactive} disabled={!dirty || saving} onClick={reset}>Reset Draft</button><button className={active} disabled={saving || saveBlocked || !dirty} onClick={() => void preview()}>{saving ? "Reviewing..." : "Review Dialogue Bundle"}</button></div>}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><div className="text-xs font-semibold uppercase text-violet-600">Dialogue Scene Room</div><h1 className="sr-only">{label(packet.dialogue)}</h1></div>
+          <div><div className="text-xs font-semibold uppercase text-violet-600">Dialogue Scene Room</div><h1 className="sr-only">{label(packet.dialogue)}</h1><AuthoringHealthSummary blockers={health.blockers.length} warnings={health.warnings.length} dirty={dirty} saving={saving} /></div>
         </div>
         {notice && <Notice>{notice}</Notice>}
         {deletions.length > 0 && <div className="mt-3 flex items-center justify-between rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950"><span>{deletions.length} line(s) queued for deletion.</span><button className={inactive} onClick={() => setDeletions([])}>Undo Line Deletions</button></div>}
       </AuthoringPanel>
 
-      <SceneBrief packet={packet} onChange={updateDialogue} onRecipe={applyRecipe} />
-      <BeatTrack packet={packet} selectedBeatId={selectedBeatId} setSelectedBeatId={(beatId) => { setSelectedBeatId(beatId); setTab("beat"); }} onCreate={createBeat} />
-      {!isNew && currentId && <StoryPlacementPanel entityKind="dialogue" entityId={currentId} entityLabel={label(packet.dialogue)} entity={{ ...packet.dialogue, nodes: packet.nodes }} enableCrossEntityConsequenceActions />}
+      <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+        <AuthoringSectionNav sections={[
+          { id: "dialogue-brief", label: "Scene Brief", summary: "Situation and anchors" },
+          { id: "dialogue-beats", label: "Story Beat Track", summary: "Character milestones" },
+          { id: "dialogue-workbench", label: "Dialogue Workbench", summary: "Graph, rehearsal, impact" },
+          { id: "dialogue-context", label: "Context Dock", summary: "Edit and health" },
+        ]} />
+        <main className="min-w-0 space-y-4">
+          <div id="dialogue-brief" className="scroll-mt-24"><SceneBrief packet={packet} onChange={updateDialogue} onRecipe={applyRecipe} /></div>
+          <div id="dialogue-beats" className="scroll-mt-24"><BeatTrack packet={packet} selectedBeatId={selectedBeatId} setSelectedBeatId={(beatId) => { setSelectedBeatId(beatId); setTab("beat"); }} onCreate={createBeat} /></div>
+          {!isNew && currentId && <StoryPlacementPanel entityKind="dialogue" entityId={currentId} entityLabel={label(packet.dialogue)} entity={{ ...packet.dialogue, nodes: packet.nodes }} enableCrossEntityConsequenceActions />}
 
-      <div className="grid gap-4 xl:grid-cols-[235px_minmax(760px,1fr)_390px]">
+      <div id="dialogue-workbench" className="grid scroll-mt-24 gap-4 xl:grid-cols-[235px_minmax(0,1fr)_390px]">
         <Panel
+          id="dialogue-library"
           title="Dialogue Library"
           subtitle="Switch scenes without leaving the dialogue authoring workspace."
           help="Use this to move between saved dialogues. Dirty-state protection still applies through the app shell, so review or reset drafts before switching when needed."
@@ -586,7 +602,7 @@ export default function DialogueFlowPage() {
           <div className="max-h-[760px] space-y-1 overflow-y-auto">{dialogues.map((dialogue) => <Link key={text(dialogue.id)} to={`/author/dialogues/${encodeURIComponent(text(dialogue.id))}`} className={`block rounded border px-3 py-2 text-sm ${text(dialogue.id) === currentId ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-slate-200 dark:border-slate-800"}`}>{label(dialogue)}</Link>)}{!dialogues.length && <Empty title="No saved dialogues loaded.">Create a new dialogue or retry after the dialogue list is available.</Empty>}</div>
         </Panel>
 
-        <section className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <section id="dialogue-canvas" className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 scroll-mt-24">
           <div className="border-b border-slate-200 p-3 dark:border-slate-800">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex gap-1">{(["flow", "rehearsal", "impact"] as CenterView[]).map((item) => <button key={item} className={view === item ? active : inactive} onClick={() => setView(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>
@@ -610,6 +626,7 @@ export default function DialogueFlowPage() {
         </section>
 
         <Panel
+          id="dialogue-context"
           title="Context Dock"
           subtitle="Edit the selected line, story beat, health issue, or scene context."
           help="The dock changes with the selected tab. Edit works on the selected node or choice, Beat edits story milestones, Health explains blockers and warnings, and Context shows linked world records."
@@ -636,6 +653,8 @@ export default function DialogueFlowPage() {
           {tab === "health" && <HealthPanel health={health} onSelect={(nodeId) => { setSelectedNodeId(nodeId); setView("flow"); }} />}
           {tab === "context" && <ContextPanel packet={packet} />}
         </Panel>
+      </div>
+        </main>
       </div>
     </div>
     {review && <BundleReview result={review} title="Dialogue Scene Bundle Review" description="Dialogue, lines, and story beats will commit atomically." variant="modal" commitLabel="Commit Bundle" saving={saving} error={reviewError} warningAcknowledgement="required" onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={(acceptedWarningIds) => void commit(acceptedWarningIds)} />}
@@ -751,7 +770,7 @@ function FlagPicker({ value, options, label: pickerLabel = "Flags Set", onChange
 function Field({ label: fieldLabel, value, textarea, onChange }: { label: string; value: unknown; textarea?: boolean; onChange: (value: string) => void }) {
   return <label className="block text-xs font-semibold uppercase text-slate-500">{fieldLabel}{textarea ? <textarea aria-label={fieldLabel} className={`${inputClass} mt-1 min-h-24 normal-case`} value={value == null ? "" : String(value)} onChange={(event) => onChange(event.target.value)} /> : <input aria-label={fieldLabel} className={`${inputClass} mt-1 normal-case`} value={value == null ? "" : String(value)} onChange={(event) => onChange(event.target.value)} />}</label>;
 }
-function Panel({ title, subtitle, help, children }: { title: string; subtitle?: string; help?: ReactNode; children: ReactNode }) { return <AuthoringPanel title={title} subtitle={subtitle} help={help}>{children}</AuthoringPanel>; }
+function Panel({ id, title, subtitle, help, children }: { id?: string; title: string; subtitle?: string; help?: ReactNode; children: ReactNode }) { return <AuthoringPanel id={id} title={title} subtitle={subtitle} help={help}>{children}</AuthoringPanel>; }
 function Notice({ children }: { children: ReactNode }) { return <div className="mt-3"><StatusNotice>{children}</StatusNotice></div>; }
 function Empty({ title, children }: { title?: ReactNode; children: ReactNode }) { return <EmptyState variant="compact" title={title}>{children}</EmptyState>; }
 function Caption({ children }: { children: ReactNode }) { return <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{children}</div>; }

@@ -71,9 +71,9 @@ export default function ScopedGateBuilder({
   const selectedRequirement = requirementDraft || requirementsById.get(selectedRequirementId) || null;
   const selectedRequirementUsage = selectedRequirement ? packet.requirement_usages_by_id[gateText(selectedRequirement.id)] || [] : [];
   const targetEntries = packet.requirement_targets.find((group) => group.schema_name === targetSchema)?.entries || [];
-  const attachment = selectedRequirement && targetSchema && targetId
+  const attachment = useMemo(() => selectedRequirement && targetSchema && targetId
     ? { schema_name: targetSchema, entry_id: targetId, requirements_id: gateText(selectedRequirement.id) }
-    : null;
+    : null, [selectedRequirement, targetId, targetSchema]);
   const bundle = useMemo(() => buildScopedGateBundle(draftFlags, requirementDraft, attachment), [attachment, draftFlags, requirementDraft]);
   const issues = useMemo(() => scopedGateIssues(packet, bundle, flagsById), [bundle, flagsById, packet]);
 

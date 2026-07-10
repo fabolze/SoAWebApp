@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AuthoringPageShell, AuthoringPanel, AuthoringStatusChip, EmptyState, coerceNumberDraft, numberInputValue, textInputValue } from "./index";
+import { AuthoringFilterBar, AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, AuthoringStatusChip, EmptyState, coerceNumberDraft, numberInputValue, textInputValue } from "./index";
 
 describe("authoringUi field policies", () => {
   it("preserves text values exactly", () => {
@@ -73,5 +73,20 @@ describe("authoringUi field policies", () => {
     expect(markup).toContain("No story placement yet.");
     expect(markup).toContain("timeline order matters");
     expect(markup).toContain("Add Placement");
+  });
+
+  it("renders a consistent health summary with issue counts", () => {
+    const markup = renderToStaticMarkup(createElement(AuthoringHealthSummary, { blockers: 2, warnings: 1, dirty: true }));
+    expect(markup).toContain("Unsaved");
+    expect(markup).toContain("2 blockers");
+    expect(markup).toContain("1 warning");
+    expect(markup).toContain("Authoring status");
+  });
+
+  it("renders issue and changed view filters with counts", () => {
+    const markup = renderToStaticMarkup(createElement(AuthoringFilterBar, { value: "issues", issueCount: 3, changedCount: 4, onChange: () => undefined }));
+    expect(markup).toContain("Show Issues (3)");
+    expect(markup).toContain("Show Changed (4)");
+    expect(markup).toContain('aria-pressed="true"');
   });
 });

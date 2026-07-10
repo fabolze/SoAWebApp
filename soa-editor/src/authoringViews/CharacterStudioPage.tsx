@@ -10,8 +10,10 @@ import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPane
 import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
 import {
   AUTHORING_INPUT_CLASS,
+  AuthoringHealthSummary,
   AuthoringPageShell,
   AuthoringPanel as Panel,
+  AuthoringSectionNav,
   EmptyState,
   FieldCaption as Caption,
   NumberField,
@@ -109,6 +111,7 @@ export default function CharacterStudioPage() {
   const [deletions, setDeletions] = useState<Record<string, string[]>>({});
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [review, setReview] = useState<BundleReviewResult | null>(null);
   const [previewMutation, setPreviewMutation] = useState<EntryRecord | null>(null);
@@ -131,6 +134,7 @@ export default function CharacterStudioPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError("");
     Promise.all([
       import("../../../backend/app/schemas/characters.json"),
       import("../../../backend/app/schemas/combat_profiles.json"),
@@ -158,7 +162,11 @@ export default function CharacterStudioPage() {
       setOriginal(base);
       setSelectedIds([displayText(base.character.id)]);
       try { setPositions(JSON.parse(localStorage.getItem(layoutKey(displayText(base.character.id))) || "{}")); } catch { setPositions({}); }
-    }).catch((error) => setNotice(error instanceof Error ? error.message : "Character Studio failed to load."))
+    }).catch((error) => {
+      const message = error instanceof Error ? error.message : "Character Studio failed to load.";
+      setLoadError(message);
+      setNotice(message);
+    })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [id, isNew]);
@@ -311,7 +319,7 @@ export default function CharacterStudioPage() {
     navigate(`${routes[kind] || `/${kind}`}?returnTo=${encodeURIComponent(returnTo)}`);
   };
 
-  if (loading || !packet || !schema || !original) return <AuthoringPageShell><StatusNotice>Loading Character Studio...</StatusNotice></AuthoringPageShell>;
+  if (loading || !packet || !schema || !original) return <AuthoringPageShell><StatusNotice tone={loadError ? "error" : "info"} action={loadError ? <button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => window.location.reload()}>Try Again</button> : undefined}>{loadError || "Loading Character Studio..."}</StatusNotice></AuthoringPageShell>;
   const filteredCast = packet.navigator.filter((entry) => `${entry.name || ""} ${entry.title || ""} ${entry.interaction_role || ""}`.toLowerCase().includes(search.toLowerCase()));
   const library = packet.catalogs[libraryKind] || [];
 
@@ -319,26 +327,36 @@ export default function CharacterStudioPage() {
     <AuthoringPageShell>
       <div className="space-y-4">
         <Panel
+          id="character-header"
           title={displayText(packet.character.name, "New Character")}
           subtitle={`${dirty ? "Unsaved staged bundle" : "Bundle saved"} / ${packet.graph.nodes.length} web nodes / ${packet.story_beats.length} beats`}
           help="Use Character Studio to shape identity, story profile, combat/interaction roles, relationships, and presence beats as one staged bundle. Review opens the bundle preview before records are committed."
           actions={<div className="flex flex-wrap gap-2"><button className={studioMode === "individual" ? active : inactive} onClick={() => { setStudioMode("individual"); setSelectedIds([displayText(packet.character.id)]); }}>Individual</button><button className={studioMode === "ensemble" ? active : inactive} onClick={() => setStudioMode("ensemble")}>Ensemble</button><button className={inactive} disabled={!dirty || saving} onClick={reset}>Reset Draft</button><button className={active} disabled={!dirty || saving || Boolean(packet.combat_profile&&!packet.character.class_id)} onClick={() => void preview()}>Review Character Bundle</button></div>}
         >
           <div className="text-xs font-semibold uppercase text-violet-600">Character Studio</div>
+          <AuthoringHealthSummary blockers={packet.health.blockers.length} warnings={packet.health.warnings.length} dirty={dirty} saving={saving} />
           {notice && <div className="mt-3"><StatusNotice>{notice}</StatusNotice></div>}
         </Panel>
-        <Panel title="Create This Character" help="These steps are shortcuts into the main authoring areas. They do not save automatically; they stage changes for the bundle review."><div className="grid gap-2 md:grid-cols-5"><QuickStep number="1" label="Identity" detail="Name, class, faction, home" done={Boolean(packet.character.name&&packet.character.class_id)} onClick={()=>setTab("dossier")}/><QuickStep number="2" label="Story Core" detail="Want, need, fear, secret" done={Boolean(packet.story_profile)} onClick={()=>{if(!packet.story_profile)update("story_profile",newProfile(displayText(packet.character.id)));setTab("story");}}/><QuickStep number="3" label="Role" detail="Combat or interaction profile" done={Boolean(packet.combat_profile||packet.interaction_profile)} onClick={()=>setTab(packet.combat_profile?"combat":"interaction")}/><QuickStep number="4" label="Story Beats" detail="Add entrances, decisions, changes" done={packet.story_beats.length>0} onClick={addEmptyBeat}/><QuickStep number="5" label="Review" detail="Inspect and commit staged work" done={!dirty} onClick={()=>setTab("pending")}/></div><p className="mt-3 text-xs text-slate-500">Everything is staged locally first. Use the visible Add buttons or drag existing content onto the character web. Review Character Bundle opens a complete bundle review before committing.</p></Panel>
-        <div className="grid gap-4 xl:grid-cols-[280px_minmax(680px,1fr)_390px]">
+        <Panel id="character-steps" title="Create This Character" help="These steps are shortcuts into the main authoring areas. They do not save automatically; they stage changes for the bundle review."><div className="grid gap-2 md:grid-cols-5"><QuickStep number="1" label="Identity" detail="Name, class, faction, home" done={Boolean(packet.character.name&&packet.character.class_id)} onClick={()=>setTab("dossier")}/><QuickStep number="2" label="Story Core" detail="Want, need, fear, secret" done={Boolean(packet.story_profile)} onClick={()=>{if(!packet.story_profile)update("story_profile",newProfile(displayText(packet.character.id)));setTab("story");}}/><QuickStep number="3" label="Role" detail="Combat or interaction profile" done={Boolean(packet.combat_profile||packet.interaction_profile)} onClick={()=>setTab(packet.combat_profile?"combat":"interaction")}/><QuickStep number="4" label="Story Beats" detail="Add entrances, decisions, changes" done={packet.story_beats.length>0} onClick={addEmptyBeat}/><QuickStep number="5" label="Review" detail="Inspect and commit staged work" done={!dirty} onClick={()=>setTab("pending")}/></div><p className="mt-3 text-xs text-slate-500">Everything is staged locally first. Use the visible Add buttons or drag existing content onto the character web. Review Character Bundle opens a complete bundle review before committing.</p></Panel>
+        <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+          <AuthoringSectionNav sections={[
+            { id: "character-header", label: "Workspace", summary: "Save state and health" },
+            { id: "character-steps", label: "Creation Steps", summary: "Start the character" },
+            { id: "character-web", label: "Character Web", summary: "Connect and place" },
+            { id: "character-trace", label: "Presence Trace", summary: "Order story beats" },
+            { id: "character-context", label: "Context Dock", summary: "Edit selected area" },
+          ]} />
+          <div className="grid min-w-0 gap-4 xl:grid-cols-[280px_minmax(680px,1fr)_390px]">
           <aside className="space-y-4"><Panel title="Cast Navigator" help="Use this to switch the focused character, or select multiple characters when working in ensemble mode."><input className={AUTHORING_INPUT_CLASS} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search cast" /><div className="mt-2 max-h-72 space-y-1 overflow-auto">{filteredCast.map((entry) => { const idValue = displayText(entry.id); const chosen = selectedIds.includes(idValue); return <button key={idValue} className={`flex w-full items-center justify-between rounded border px-2 py-2 text-left text-xs ${chosen ? "border-violet-500 bg-violet-50 dark:bg-violet-950" : "border-slate-200 dark:border-slate-800"}`} onClick={() => { if (studioMode === "ensemble") setSelectedIds((current) => chosen ? current.filter((value) => value !== idValue) : current.length < 8 ? [...current, idValue] : current); else if (idValue !== packet.character.id) navigate(`/author/characters/${encodeURIComponent(idValue)}`); }}><span>{rowLabel(entry, idValue)}</span><span>{displayText(entry.encounter_count, "0")}E/{displayText(entry.dialogue_count, "0")}D</span></button>; })}{filteredCast.length===0&&<EmptyState variant="compact" title="No matching cast members.">Adjust the search or create another character before using ensemble mode.</EmptyState>}</div></Panel><Panel title="Starters" help="Starter presets fill common combat or interaction defaults. They stage changes locally and still require bundle review."><div className="flex flex-wrap gap-1">{STARTERS.map((starter)=><button key={starter.label} className={inactive} onClick={()=>setPendingStarter(starter)}>{starter.label}</button>)}</div>{pendingStarter&&<div className="mt-2 rounded border border-blue-200 p-2 text-xs"><div>Apply <strong>{pendingStarter.label}</strong> defaults?</div><div className="mt-2 flex gap-2"><button className={inactive} onClick={()=>setPendingStarter(null)}>Cancel</button><button className={active} onClick={applyStarter}>Apply Defaults</button></div></div>}</Panel>
           <Panel title="Content Library" help="Drag saved content onto the character web or presence trace to stage connections. Create New opens the relevant authoring page for missing content."><select className={AUTHORING_INPUT_CLASS} value={libraryKind} onChange={(event) => setLibraryKind(event.target.value)}>{["characters","abilities","quests","dialogues","encounters","shops","factions","characterclasses","locations","events","story_arcs"].map((kind) => <option key={kind}>{kind}</option>)}</select><p className="mt-2 text-xs text-slate-500">Use Connect to stage a sensible default connection, Add Beat to place content in the story, or drag it onto the canvas.</p><div className="mt-2 max-h-80 space-y-1 overflow-auto">{library.map((entry) => <DraggableCard key={displayText(entry.id)} kind={libraryKind} entry={entry} onAdd={["characters","abilities","quests","dialogues","encounters","shops","factions","characterclasses","locations"].includes(libraryKind)?()=>applyDrop(libraryKind,entry,"character"):undefined} onBeat={()=>applyDrop(libraryKind,entry,"trace")} />)}{library.length===0&&<EmptyState variant="compact" title={`No ${libraryKind.replace(/_/g," ")} exist yet.`}>Create one, then return to connect it to this character.</EmptyState>}</div><button className={`${active} mt-2 w-full`} onClick={() => createFocusedDraft(libraryKind)}>Create New {libraryKind.replace(/_/g," ")}</button></Panel></aside>
           <main className="space-y-4">
-            <section className="overflow-hidden rounded-md border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"><div className="border-b border-slate-200 p-3 dark:border-slate-800"><div className="flex flex-wrap justify-between gap-2"><div className="flex flex-wrap gap-1">{(["select","place","connect","sketch","move"] as CanvasMode[]).map((value) => <button key={value} className={canvasMode === value ? active : inactive} onClick={() => { setCanvasMode(value); setConnectSource(""); }}>{value[0].toUpperCase()+value.slice(1)}</button>)}</div><div className="flex flex-wrap gap-1">{(["presence","story","social","combat","issues"] as Lens[]).map((value) => <button key={value} className={lens === value ? active : inactive} onClick={() => setLens(value)}>{value[0].toUpperCase()+value.slice(1)}</button>)}</div></div><p className="mt-2 text-xs text-slate-500">{canvasMode === "connect" ? "Select two character nodes to stage a directed relationship." : canvasMode === "sketch" ? "Use Story Profile cards in the dock to sketch the character's creative core." : "Drag library content onto the center character or Presence Trace."}</p></div>
+            <section id="character-web" className="scroll-mt-24 overflow-hidden rounded-md border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"><div className="border-b border-slate-200 p-3 dark:border-slate-800"><div className="flex flex-wrap justify-between gap-2"><div className="flex flex-wrap gap-1">{(["select","place","connect","sketch","move"] as CanvasMode[]).map((value) => <button key={value} className={canvasMode === value ? active : inactive} onClick={() => { setCanvasMode(value); setConnectSource(""); }}>{value[0].toUpperCase()+value.slice(1)}</button>)}</div><div className="flex flex-wrap gap-1">{(["presence","story","social","combat","issues"] as Lens[]).map((value) => <button key={value} className={lens === value ? active : inactive} onClick={() => setLens(value)}>{value[0].toUpperCase()+value.slice(1)}</button>)}</div></div><p className="mt-2 text-xs text-slate-500">{canvasMode === "connect" ? "Select two character nodes to stage a directed relationship." : canvasMode === "sketch" ? "Use Story Profile cards in the dock to sketch the character's creative core." : "Drag library content onto the center character or Presence Trace."}</p></div>
               <CharacterWeb packet={packet} lens={lens} mode={canvasMode} positions={positions} setPositions={(next) => { setPositions(next); localStorage.setItem(layoutKey(displayText(packet.character.id)), JSON.stringify(next)); }} selectedNode={selectedNode} setSelectedNode={setSelectedNode} connectSource={connectSource} onConnect={connectCharacter} />
             </section>
-            <PresenceTrace packet={packet} onChange={(story_beats) => update("story_beats", story_beats)} onDelete={(beat) => deleteOwned("story_beats", beat)} />
+            <div id="character-trace" className="scroll-mt-24"><PresenceTrace packet={packet} onChange={(story_beats) => update("story_beats", story_beats)} onDelete={(beat) => deleteOwned("story_beats", beat)} /></div>
             <StoryPlacementPanel entityKind="character" entityId={displayText(packet.character.id)} entityLabel={displayText(packet.character.name, displayText(packet.character.id, "This character"))} entity={packet.character} enableCharacterConsequenceActions storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} />
           </main>
-          <aside><Panel title="Context Dock" help="Use the dock to edit the selected authoring area without leaving the character web. Advanced exposes the full schema fallback for the same staged records."><div className="mb-3 flex flex-wrap gap-1">{(["dossier","combat","interaction","story","presence","relationships","health","pending","advanced"] as DockTab[]).map((value) => <button key={value} className={tab === value ? active : inactive} onClick={() => setTab(value)}>{value === "story" ? "Story Profile" : value[0].toUpperCase()+value.slice(1)}</button>)}</div>
+          <aside id="character-context" className="scroll-mt-24"><Panel title="Context Dock" help="Use the dock to edit the selected authoring area without leaving the character web. Advanced exposes the full schema fallback for the same staged records."><div className="mb-3 flex flex-wrap gap-1">{(["dossier","combat","interaction","story","presence","relationships","health","pending","advanced"] as DockTab[]).map((value) => <button key={value} className={tab === value ? active : inactive} onClick={() => setTab(value)}>{value === "story" ? "Story Profile" : value[0].toUpperCase()+value.slice(1)}</button>)}</div>
             {tab === "dossier" && <Dossier packet={packet} updateCharacter={updateCharacter} />}
             {tab === "combat" && <CombatDock packet={packet} onAdvanced={()=>setTab("advanced")} onChange={(value) => update("combat_profile", value)} onDelete={() => packet.combat_profile && deleteOwned("combat_profile", packet.combat_profile)} />}
             {tab === "interaction" && <InteractionDock packet={packet} onAdvanced={()=>setTab("advanced")} onChange={(value) => update("interaction_profile", value)} onDelete={() => packet.interaction_profile && deleteOwned("interaction_profile", packet.interaction_profile)} />}
@@ -349,7 +367,8 @@ export default function CharacterStudioPage() {
             {tab === "pending" && <PendingDock mutation={mutation()} deletions={deletions} />}
             {tab === "advanced" && <div className="space-y-5"><div><Caption>Character</Caption><SchemaForm schema={schema} schemaName="characters" data={packet.character} onChange={(next) => update("character", next)} /></div>{packet.combat_profile&&profileSchemas.combat_profiles&&<div><Caption>Combat Profile</Caption><SchemaForm schema={profileSchemas.combat_profiles} schemaName="combat_profiles" data={packet.combat_profile} onChange={(next)=>update("combat_profile",next)}/></div>}{packet.interaction_profile&&profileSchemas.interaction_profiles&&<div><Caption>Interaction Profile</Caption><SchemaForm schema={profileSchemas.interaction_profiles} schemaName="interaction_profiles" data={packet.interaction_profile} onChange={(next)=>update("interaction_profile",next)}/></div>}{packet.story_profile&&profileSchemas.character_story_profiles&&<div><Caption>Story Profile</Caption><SchemaForm schema={profileSchemas.character_story_profiles} schemaName="character_story_profiles" data={packet.story_profile} onChange={(next)=>update("story_profile",next)}/></div>}</div>}
           </Panel></aside>
-        </div>
+         </div>
+          </div>
       </div>
       {review && <BundleReview result={review} title="Character Bundle Review" description="Character records, narrative records, and presence changes will commit atomically." variant="modal" commitLabel="Commit Bundle" saving={saving} error={reviewError} warningAcknowledgement="required" onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={(acceptedWarningIds) => void commit(acceptedWarningIds)} />}
     </AuthoringPageShell>

@@ -25,7 +25,7 @@ import {
   type TrackKind,
 } from "../authoring/storyPlacement";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
-import { AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, EmptyState, StatusNotice } from "../components/authoringUi";
+import { AuthoringFilterBar, AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, AuthoringSectionNav, EmptyState, StatusNotice, type AuthoringFilterMode } from "../components/authoringUi";
 import { apiFetch } from "../lib/api";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import type { EntryRecord } from "../types/editorQol";
@@ -178,6 +178,7 @@ export default function StoryTimelinePage() {
   const [previewBundle, setPreviewBundle] = useState<EntryRecord | null>(null);
   const [mutationError, setMutationError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [filterMode, setFilterMode] = useState<AuthoringFilterMode>("all");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   useEffect(() => {
@@ -384,7 +385,7 @@ export default function StoryTimelinePage() {
     localBeats: plan.beats,
   }), [catalogsByKind, eventChains, packet, placements, plan.beats]);
 
-  if (error) return <AuthoringPageShell><StatusNotice tone="error">{error}</StatusNotice></AuthoringPageShell>;
+  if (error) return <AuthoringPageShell><StatusNotice tone="error" action={<button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => window.location.reload()}>Try Again</button>}>{error} Refresh the workspace after the service is available.</StatusNotice></AuthoringPageShell>;
   if (!packet) return <AuthoringPageShell><StatusNotice>Loading Story Timeline...</StatusNotice></AuthoringPageShell>;
 
   return (
@@ -400,6 +401,7 @@ export default function StoryTimelinePage() {
             <Metric value={placements.length} label="canonical placements" />
             <Metric value={plan.beats.length} label="local planning beats" />
             <Metric value={warnings.length} label="coherence warnings" warning={warnings.length > 0} />
+            <AuthoringHealthSummary blockers={0} warnings={warnings.length} dirty={plan.beats.length > 0} saving={saving} />
             <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={!plan.beats.length || saving} onClick={() => submitPlan(false)}>Review Plan</button>
             <button type="button" className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} disabled={!plan.beats.length} onClick={() => { setPlan({ beats: [] }); setSelection(null); }}>Clear Local Plan</button>
           </div>
@@ -421,6 +423,7 @@ export default function StoryTimelinePage() {
           title="Timeline Lenses And Filters"
           subtitle="Narrow the board without changing saved story order."
           help="Use these controls to focus the canvas by text, timeline, arc, or lens. Filters only change what is visible on this page; they do not save anything."
+          helpExample="Search for a character name, then switch to Issues to inspect only warnings and broken dependency context."
         >
           <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px]">
             <label className="block text-xs font-semibold uppercase text-slate-500">Find Content<input className={`${inputClass} mt-1`} value={search} placeholder="Search the board and library..." onChange={(event) => setSearch(event.target.value)} /></label>
@@ -430,9 +433,10 @@ export default function StoryTimelinePage() {
           <div className="mt-3 flex flex-wrap gap-2">
             {(["story", "cast", "locations", "quests", "runtime", "state", "issues"] as Lens[]).map((value) => <button key={value} type="button" className={`rounded-full border px-3 py-1 text-xs font-semibold ${lens === value ? "border-fuchsia-600 bg-fuchsia-600 text-white" : "border-slate-300 dark:border-slate-700"}`} onClick={() => setLens(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}
           </div>
+          <AuthoringFilterBar value={filterMode} onChange={setFilterMode} issueCount={warnings.length} changedCount={plan.beats.length} className="mt-3" />
         </AuthoringPanel>
 
-        <TimelineNavigator
+        {filterMode !== "issues" && <TimelineNavigator
           timelines={timelines}
           arcs={arcs}
           placements={placements}
@@ -449,10 +453,10 @@ export default function StoryTimelinePage() {
             setArcFocus(nextArcId);
             setLens(nextArcId || nextTimelineId ? lens : "story");
           }}
-        />
+        />}
 
         <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_330px]">
-          <aside className="space-y-4">
+          {filterMode === "issues" ? <aside className="space-y-4"><IssueSection warnings={warnings} dependencyHealth={record(record(packet.health).dependency)} /></aside> : <aside className="space-y-4">
             <AuthoringPanel
               id="timeline-library"
               title="Content Library"
@@ -475,9 +479,13 @@ export default function StoryTimelinePage() {
               </div>
             </AuthoringPanel>
             <UnplacedSummary unplaced={record(packet.unplaced)} />
-          </aside>
+          </aside>}
 
           <main className="min-w-0 space-y-4" data-testid="story-timeline-canvas">
+            {filterMode === "issues" && <EmptyState variant="compact" title="Issue-only view">The board is filtered to warnings and dependency issues. Switch to Show All to continue arranging content.</EmptyState>}
+            {filterMode === "changed" && <TimelineBand timeline={{ id: "", name: "Changed Local Plan", description: "Browser-local beats changed in this workspace." }} arcs={[]} placements={[]} localBeats={plan.beats} lens="story" query={query} onSelect={setSelection} onAddBeat={addBeat} unassigned />}
+            {filterMode === "changed" && plan.beats.length === 0 && <EmptyState title="No changed story beats">The current timeline matches saved content. Add a local planning beat to see it here.</EmptyState>}
+            {filterMode === "all" && <>
             {visibleTimelines.map((timeline) => {
               const timelineArcs = arcs.filter((arc) => text(arc.timeline_id) === text(timeline.id) && (!arcFocus || text(arc.id) === arcFocus));
               return <TimelineBand key={text(timeline.id)} timeline={timeline} arcs={timelineArcs} placements={placements} localBeats={plan.beats} lens={lens} query={query} onSelect={setSelection} onAddBeat={addBeat} />;
@@ -487,6 +495,7 @@ export default function StoryTimelinePage() {
             {lens === "state" && <RelationshipSection title="State & Dependency Context" relationships={dependencyEdges} />}
             {lens === "issues" && <IssueSection warnings={warnings} dependencyHealth={record(record(packet.health).dependency)} />}
             {!timelines.length && !arcs.length && placements.length === 0 && plan.beats.length === 0 && <EmptyState title="The story space is empty." className="text-center">Create timelines and story arcs, or drag library content into Unassigned Story Space to begin a browser-local plan.</EmptyState>}
+            </>}
           </main>
 
           <ContextDock

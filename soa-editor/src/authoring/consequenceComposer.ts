@@ -179,9 +179,9 @@ export function buildConsequenceComposerBundle({
   if (sourceKind && sourceDraft) {
     const key = sourceKeyByKind[sourceKind];
     const normalizedSource = normalizeConsequenceSource(sourceKind, sourceDraft);
-    const { consequence_objective_id: _sourceObjectiveId, ...sourcePayload } = normalizedSource;
+    const sourcePayload = Object.fromEntries(Object.entries(normalizedSource).filter(([field]) => field !== "consequence_objective_id"));
     const normalizedExpected = expectedSource ? normalizeConsequenceSource(sourceKind, expectedSource) : null;
-    const { consequence_objective_id: _expectedObjectiveId, ...expectedPayload } = normalizedExpected || {};
+    const expectedPayload = Object.fromEntries(Object.entries(normalizedExpected || {}).filter(([field]) => field !== "consequence_objective_id"));
     bundle[key] = [{
       ...sourcePayload,
       ...(normalizedExpected ? { expected_previous: expectedPayload } : {}),
