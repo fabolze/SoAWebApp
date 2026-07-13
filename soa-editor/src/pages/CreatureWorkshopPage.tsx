@@ -3,13 +3,16 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import {
   AUTHORING_INPUT_CLASS,
+  AuthoringHealthSummary,
   AuthoringPageShell,
   AuthoringPanel as Panel,
+  EmptyState,
   FieldCaption as Caption,
   NumberField,
   SelectField,
   TextAreaField as TextArea,
   TextField as Field,
+  StatusNotice,
 } from "../components/authoringUi";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useDirtyState } from "../components/useDirtyState";
@@ -103,6 +106,7 @@ export default function CreatureWorkshopPage() {
   const [packet, setPacket] = useState<CreaturePacket>(emptyPacket);
   const [original, setOriginal] = useState<CreaturePacket | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [review, setReview] = useState<BundleReviewResult | null>(null);
@@ -133,6 +137,7 @@ export default function CreatureWorkshopPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadError("");
     const endpoint = isNew ? "/api/ui/creatures/new" : `/api/ui/creatures/${encodeURIComponent(id)}`;
     apiFetch(endpoint)
       .then(async (response) => {
@@ -157,7 +162,9 @@ export default function CreatureWorkshopPage() {
           setOriginal(base);
         }
       })
-      .catch((error) => setNotice(error instanceof Error ? error.message : "Creature Workshop failed to load."))
+      .catch((error) => {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : "Creature Workshop failed to load.");
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -285,7 +292,8 @@ export default function CreatureWorkshopPage() {
     setNotice("Creature Workshop draft reset.");
   };
 
-  if (loading) return <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading Creature Workshop...</div>;
+  if (loading) return <AuthoringPageShell><StatusNotice>Loading Creature Workshop...</StatusNotice></AuthoringPageShell>;
+  if (loadError) return <AuthoringPageShell><StatusNotice tone="error" action={<button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => window.location.reload()}>Try Again</button>}>{loadError} Retry after the authoring service is available.</StatusNotice></AuthoringPageShell>;
 
   return (
     <AuthoringPageShell>
@@ -294,9 +302,10 @@ export default function CreatureWorkshopPage() {
           id="creature-header"
           title={displayText(packet.creature.name, "Creature Workshop")}
           subtitle={`${displayText(packet.combat_profile?.enemy_type, "untyped")} / ${currentAppearances.length} encounters / ${currentHabitats.length} habitats`}
-          actions={<div className="flex gap-2"><button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={reset}>Reset</button><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || localHealth.blockers.length > 0} onClick={() => void preview()}>{saving ? "Reviewing..." : "Review Bundle"}</button></div>}
+          help="Use this workspace to author a creature's identity, combat kit, encounter appearances, and habitat placement as one reviewed bundle. Nothing writes to the project until you commit the review."
+          actions={<div className="flex gap-2"><button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={reset}>Reset Draft</button><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || localHealth.blockers.length > 0 || !dirty} onClick={() => void preview()}>{saving ? "Reviewing..." : "Review Creature Bundle"}</button></div>}
         >
-          <div className="text-xs text-slate-500">{dirty ? "Unsaved creature bundle changes" : "Creature bundle saved"}</div>
+          <AuthoringHealthSummary dirty={dirty} saving={saving} blockers={localHealth.blockers.length} warnings={localHealth.warnings.length} />
         </Panel>
         {notice && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{notice}</div>}
         <BundleReview
@@ -348,7 +357,7 @@ function deriveHealth(packet: CreaturePacket, appearances: EntryRecord[], habita
 
 function Navigator({ packet }: { packet: CreaturePacket }) {
   const navigate = useNavigate();
-  return <Panel id="creature-navigator" title="Creature Navigator" subtitle="Enemy-like characters from the current data.">
+  return <Panel id="creature-navigator" title="Creature Navigator" subtitle="Switch between enemy-like characters in the current project." help="Use this to change the creature being edited or begin a new creature draft. Switching records leaves the current workspace, so review unsaved changes first.">
     <select className={AUTHORING_INPUT_CLASS} value={displayText(packet.creature.id)} onChange={(event) => navigate(`/author/creatures/${encodeURIComponent(event.target.value)}`)}>
       <option value={displayText(packet.creature.id)}>{rowLabel(packet.creature, "Current Creature")}</option>
       {packet.navigator.filter((entry) => displayText(entry.id) !== displayText(packet.creature.id)).map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.id))}</option>)}
@@ -358,7 +367,7 @@ function Navigator({ packet }: { packet: CreaturePacket }) {
 }
 
 function IdentityPanel({ packet, updateCreature }: { packet: CreaturePacket; updateCreature: (patch: EntryRecord) => void }) {
-  return <Panel id="creature-identity" title="Identity And Role" subtitle="Define the enemy-facing record without creating a new creature table.">
+  return <Panel id="creature-identity" title="Identity And Role" subtitle="Define the creature authors and players recognize." help="Use this for the creature's name, level, classification, world anchors, and notes. Combat behavior and placement are edited in the panels below.">
     <div className="grid gap-3 md:grid-cols-2">
       <Field label="Name" value={packet.creature.name} onChange={(name) => updateCreature({ name, slug: displayText(packet.creature.slug) || generateSlug(name) })} />
       <Field label="Slug" value={packet.creature.slug} onChange={(slug) => updateCreature({ slug })} />
@@ -375,10 +384,10 @@ function IdentityPanel({ packet, updateCreature }: { packet: CreaturePacket; upd
 
 function CombatPanel({ packet, updateCombat }: { packet: CreaturePacket; updateCombat: (patch: EntryRecord) => void }) {
   const combat = packet.combat_profile;
-  if (!combat) return <Panel id="creature-combat" title="Combat Kit" subtitle="Creature Workshop expects enemies to have a combat profile.">
-    <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} onClick={() => updateCombat(newCombat(displayText(packet.creature.id)))}>Add Combat Profile</button>
+  if (!combat) return <Panel id="creature-combat" title="Combat Kit" subtitle="Creature Workshop expects enemies to have a combat profile." help="Add a combat profile when this creature should participate in fights. It owns abilities, stat overrides, rewards, and combat behavior.">
+    <EmptyState variant="compact" title="No combat kit yet" action={<button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} onClick={() => updateCombat(newCombat(displayText(packet.creature.id)))}>Add Combat Profile</button>}>That is okay for a non-combat draft. Add one before placing this creature as a hostile encounter participant.</EmptyState>
   </Panel>;
-  return <Panel id="creature-combat" title="Combat Kit" subtitle="Shape how this creature fights and what it drops.">
+  return <Panel id="creature-combat" title="Combat Kit" subtitle="Shape how this creature fights and what it drops." help="Use this for combat classification, abilities, stat overrides, and rewards. Encounter and habitat panels decide where the creature appears.">
     <div className="grid gap-3 md:grid-cols-2">
       <SelectField label="Enemy Type" value={combat.enemy_type} options={ENEMY_TYPES} onChange={(enemy_type) => updateCombat({ enemy_type })} />
       <SelectField label="Aggression" value={combat.aggression} options={AGGRESSION} onChange={(aggression) => updateCombat({ aggression })} />
@@ -414,7 +423,7 @@ function EncounterPanel({ packet, selectedEncounter, setSelectedEncounter, updat
     if (displayText(encounter.id) !== encounterId) return encounter;
     return { ...encounter, participants: rows(encounter.participants).filter((row) => displayText(row.character_id) !== creatureId) };
   }));
-  return <Panel id="creature-world" title="Encounter Appearances" subtitle="Place the creature into existing encounters as a scoped participant change.">
+  return <Panel id="creature-world" title="Encounter Appearances" subtitle="Place the creature into existing encounters as a participant." help="Use this to add or remove the creature from saved encounters and choose its side and contexts. These encounter changes stay in this bundle until review and commit.">
     <div className="space-y-2">
       {appearances.map((encounter) => {
         const participant = rows(encounter.participants).find((row) => displayText(row.character_id) === creatureId) || {};
@@ -426,7 +435,7 @@ function EncounterPanel({ packet, selectedEncounter, setSelectedEncounter, updat
           </div>
         </div>;
       })}
-      {appearances.length === 0 && <div className="text-sm text-slate-500">No encounter appearances staged.</div>}
+      {appearances.length === 0 && <EmptyState variant="compact" title="No encounter appearances yet">That is okay while designing the creature. Add it to an encounter when it should appear in play.</EmptyState>}
     </div>
     <div className="mt-3 flex gap-2">
       <select className={AUTHORING_INPUT_CLASS} value={selectedEncounter} onChange={(event) => setSelectedEncounter(event.target.value)}>
@@ -463,7 +472,7 @@ function HabitatPanel({ packet, appearances, selectedTable, setSelectedTable, up
     if (displayText(table.id) !== tableId) return table;
     return { ...table, encounter_entries: rows(table.encounter_entries).filter((_, rowIndex) => rowIndex !== index) };
   }));
-  return <Panel title="Habitat And Spawn Tables" subtitle="Place creature encounters into location encounter tables.">
+  return <Panel id="creature-habitats" title="Habitat And Spawn Tables" subtitle="Place creature encounters into location encounter tables." help="Use this after the creature appears in an encounter. Adding that encounter to a location table controls where and how often the creature can be encountered." collapsible storageKey={`authoring:creature:${displayText(packet.creature.id)}:habitats`} collapsedSummary={`${habitatRows.length} habitat placement${habitatRows.length === 1 ? "" : "s"}`}>
     <div className="space-y-2">
       {habitatRows.map(({ table, entry, index }) => <div key={`${displayText(table.id)}:${index}`} className="rounded border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
         <div className="mb-2 flex items-start justify-between gap-2"><div><div className="text-sm font-semibold">{rowLabel(table, displayText(table.id))}</div><div className="text-xs text-slate-500">{rowLabel(isRecord(table.location) ? table.location : {}, displayText(table.location_id))}</div></div><button className="text-xs font-semibold text-red-600" onClick={() => remove(displayText(table.id), index)}>Remove</button></div>
@@ -475,7 +484,7 @@ function HabitatPanel({ packet, appearances, selectedTable, setSelectedTable, up
           <TextArea className="md:col-span-4" label="Spawn Notes" value={entry.spawn_notes} onChange={(spawn_notes) => update(displayText(table.id), index, { spawn_notes })} />
         </div>
       </div>)}
-      {habitatRows.length === 0 && <div className="text-sm text-slate-500">No habitat rows staged.</div>}
+      {habitatRows.length === 0 && <EmptyState variant="compact" title="No habitat placements yet">First add the creature to an encounter, then place that encounter in a location table when it should spawn in the world.</EmptyState>}
     </div>
     <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr_auto]">
       <select className={AUTHORING_INPUT_CLASS} value={selectedAppearance} onChange={(event) => setSelectedAppearance(event.target.value)}>
@@ -493,36 +502,36 @@ function HabitatPanel({ packet, appearances, selectedTable, setSelectedTable, up
 }
 
 function HealthPanel({ issues }: { issues: { blockers: string[]; warnings: string[] } }) {
-  return <Panel id="creature-health" title="Creature Health" subtitle={`${issues.blockers.length} blockers / ${issues.warnings.length} warnings`}>
+  return <Panel id="creature-health" title="Creature Health" subtitle={`${issues.blockers.length} blockers / ${issues.warnings.length} warnings`} help="Review blockers before commit and warnings before playtesting. A warning can be acceptable for an early draft; blockers prevent a safe bundle commit." collapsible storageKey="authoring:creature:health" collapsedSummary={`${issues.blockers.length} blockers / ${issues.warnings.length} warnings`}>
     {issues.blockers.map((issue) => <Issue key={issue} tone="red">{issue}</Issue>)}
     {issues.warnings.map((issue) => <Issue key={issue} tone="amber">{issue}</Issue>)}
-    {issues.blockers.length + issues.warnings.length === 0 && <div className="text-sm text-slate-500">No creature health issues.</div>}
+    {issues.blockers.length + issues.warnings.length === 0 && <EmptyState variant="compact" title="No creature health issues">The current draft passes the local creature checks. Bundle review will still validate the records before commit.</EmptyState>}
   </Panel>;
 }
 
 function ContextPanel({ appearances, habitats }: { appearances: EntryRecord[]; habitats: { table: EntryRecord; entry: EntryRecord }[] }) {
-  return <Panel id="creature-context" title="Usage Summary" subtitle="Where this enemy currently participates.">
+  return <Panel id="creature-context" title="Usage Summary" subtitle="Where this enemy currently participates." help="Use this read-only summary to understand the creature's current encounter and habitat reach before changing shared combat or placement details." collapsible storageKey="authoring:creature:usage" collapsedSummary={`${appearances.length} encounters / ${habitats.length} habitats`}>
     <ContextList title="Encounters" entries={appearances} />
     <div className="mt-3">
       <Caption>Habitats</Caption>
       <div className="space-y-1">{habitats.map(({ table, entry }, index) => <div key={`${displayText(table.id)}:${index}`} className="rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-800">{rowLabel(table, displayText(table.id))} / {displayText(entry.encounter_id)} / weight {displayText(entry.weight, "0")}</div>)}</div>
-      {habitats.length === 0 && <div className="text-xs text-slate-500">None.</div>}
+      {habitats.length === 0 && <EmptyState variant="compact" title="No habitat usage yet">Place one of this creature's encounters in a location table when it needs a world habitat.</EmptyState>}
     </div>
   </Panel>;
 }
 
 function AdvancedPanel({ creatureId }: { creatureId: string }) {
-  return <Panel title="Advanced Access" subtitle="Schema-complete fallback editors remain available.">
+  return <Panel id="creature-advanced" title="Advanced Details" subtitle="Schema-complete fallback editors for uncommon fields." help="Use these technical editors only when the focused Creature Workshop does not expose a field you need. They edit the same saved records." collapsible defaultCollapsed storageKey="authoring:creature:advanced" collapsedSummary="Technical fallback editors">
     <div className="flex flex-wrap gap-2">
-      <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={`/characters?selected=${encodeURIComponent(creatureId)}`}>Character Form</Link>
-      <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to="/combat-profiles">Combat Profiles</Link>
-      <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to="/location-encounter-tables">Encounter Tables</Link>
+      <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={`/characters?selected=${encodeURIComponent(creatureId)}`}>Inspect Character Details</Link>
+      <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to="/combat-profiles">Inspect Combat Profiles</Link>
+      <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to="/location-encounter-tables">Inspect Encounter Tables</Link>
     </div>
   </Panel>;
 }
 
 function ContextList({ title, entries }: { title: string; entries: EntryRecord[] }) {
-  return <div><Caption>{title}</Caption><div className="space-y-1">{entries.map((entry) => <div key={displayText(entry.id)} className="rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-800">{rowLabel(entry, displayText(entry.id))}</div>)}</div>{entries.length === 0 && <div className="text-xs text-slate-500">None.</div>}</div>;
+  return <div><Caption>{title}</Caption><div className="space-y-1">{entries.map((entry) => <div key={displayText(entry.id)} className="rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-800">{rowLabel(entry, displayText(entry.id))}</div>)}</div>{entries.length === 0 && <EmptyState variant="compact" title={`No ${title.toLowerCase()} yet`}>Add placement in the matching workspace panel when this creature should be used there.</EmptyState>}</div>;
 }
 
 function ReferenceSelect({ label, value, options, onChange }: { label: string; value: unknown; options: EntryRecord[]; onChange: (value: string) => void }) {

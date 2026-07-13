@@ -4,6 +4,7 @@ import { BUTTON_CLASSES, BUTTON_SIZES } from '../../styles/uiTokens';
 import { asRecord } from '../schemaForm/types';
 import ReferenceDetailsCard from './ReferenceDetailsCard';
 import FloatingReferenceInspector from './FloatingReferenceInspector';
+import { EmptyState } from '../authoringUi';
 
 interface ArrayStringMultiSelectFieldProps {
   label: string;
@@ -411,7 +412,13 @@ export default function ArrayStringMultiSelectField({
           </div>
         )}
         {filteredOptions.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-slate-400">No options available</p>
+          <EmptyState
+            variant="compact"
+            title={normalizedOptions.length === 0 ? `No ${label.toLowerCase()} options yet` : 'No matching options'}
+            action={normalizedOptions.length === 0 && onCreateReference ? <button type="button" className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.xs}`} onClick={handleCreate}>Create new</button> : undefined}
+          >
+            {normalizedOptions.length === 0 ? 'Create a referenced record, then select it here.' : 'Adjust the search or clear it to see the available choices.'}
+          </EmptyState>
         ) : (
           <div
             ref={listRef}

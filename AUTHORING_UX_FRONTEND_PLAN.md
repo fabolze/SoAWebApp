@@ -30,7 +30,7 @@ Last reviewed: 2026-07-13
 |---|---|---|
 | Documentation split | Done | This file is the dedicated UX/frontend companion to the game-design document. |
 | Authoring view full-width audit | Done | All listed `/author/*` workspaces use the shared route shell. `ItemInspectorPage` retains an intentional reading-width cap; non-authoring utility pages and constrained reading surfaces remain outside this dense-workspace standard. |
-| Collapsible authoring panels | In Progress | Shared `AuthoringPanel` now supports collapse/expand, persistent localStorage state, status chips, and collapsed summaries. Item, shop, character, and location immersive panels have initial coverage. |
+| Collapsible authoring panels | Done | Shared `AuthoringPanel` supports collapse/expand, persistent localStorage state, status chips, and collapsed summaries across the audited long authoring workspaces, including Ability Spellcraft Lab and Creature Workshop. |
 | Workspace sections overview | Removed | The persistent workspace-sections overview was removed after UX review; long workspaces now rely on their visible panels, local controls, filters, and context docks without reserving a navigation column. |
 | Contextual help affordance | Done | Shared `AuthoringPanel` now uses the app's Heroicons help icon, accessible labels, hover/focus/click/escape behavior, and optional concrete examples. Major authoring panels have direct help coverage. |
 | Wording and vocabulary cleanup | Done | Primary specialized workflows and lifecycle fields now use authoring intent language; technical metadata remains available in Advanced Details. Cross-workspace actions consistently say Inspect, Review, Commit, Reset, or New Tab. |
@@ -77,7 +77,7 @@ Implementation note, 2026-07-09:
 - `QuestJourneyPage` and `DependencyMapPage` now use the shared route shell for the active quest/dependency workspaces.
 - Shared `SchemaEditor` routes now use `AuthoringPageShell`, so the generic entity editors inherit the shared route container without editing each generated wrapper page.
 - `WorldBuilderPage` now uses `AuthoringPageShell` for its active world authoring workspace.
-- Remaining work: audit non-authoring utility pages and intentionally constrained modals, inspectors, and reading surfaces separately.
+- Done 2026-07-13: audited non-authoring utility pages and intentionally constrained surfaces. Settings retains a deliberate text-form reading width, Item Inspector retains its documented reading cap, and Simulation Sandbox already uses the available utility-page width; none should inherit dense authoring chrome solely for visual uniformity.
 
 ### Collapsible Authoring Panel
 
@@ -137,7 +137,7 @@ Implementation note, 2026-07-09:
 - Character Studio now uses shared route/panel help for the workspace header, creation steps, cast navigator, starters, content library, context dock, and presence trace.
 - Bundle Review change groups now explain what created, changed, deleted, and unlinked records mean before commit.
 - World Builder route/detail panels now use shared helper affordances for map context, story overlays, routes, POIs, encounter placement, travel tuning, creative briefs, and validation issues.
-- Remaining work: add comparable helpers to any remaining long specialized workspaces discovered during the utility-page audit.
+- Done 2026-07-13: Ability Spellcraft Lab and Creature Workshop, the remaining long specialized workspaces found by the final audit, now expose route and major-panel help through the shared helper behavior.
 
 ### Vocabulary And Copy Rules
 
@@ -242,7 +242,7 @@ Implementation note, 2026-07-09:
 - Generic schema array fields and empty reference selects now use shared `EmptyState` copy with next-action guidance.
 - World Builder now uses structured empty states for missing locations, map filters with no matches, route events, story-state overlays, inferred story beats, encounter tables, creative briefs, validation issues, and repeated detail lists.
 - Shared tag, scoped-gate flag, consequence flag, and progression flag pickers now use compact structured empty states instead of terse `None`/`No ... yet` fallbacks.
-- Remaining work: continue migrating any newly found terse empty copy in narrow inline pickers where authors need next-action guidance.
+- Done 2026-07-13: the final narrow-picker audit migrated the generic multi-select no-options/no-results state to structured next-action guidance; remaining `None` values are domain values or compact factual readouts rather than unexplained authoring dead ends.
 
 Implementation update, 2026-07-10:
 
@@ -252,6 +252,16 @@ Implementation update, 2026-07-10:
 - Loading failures in the audited long workspaces now explain recovery and expose a retry action; Story Timeline and dependency navigation preserve explicit inspection wording.
 - Lifecycle placement fields now describe story appearance, player/world change, visible state, and story-beat boundaries in authoring language. Story context links explicitly say when they inspect a full timeline in a new tab.
 - Shared `uiTokens` now include link/icon action variants and standard issue colors. Shared authoring UI tests cover health summaries, filters, semantic panel behavior, and structured empty states.
+
+Implementation closure update, 2026-07-13:
+
+- Ability Spellcraft Lab and Creature Workshop now use retryable shared loading/error notices, compact health summaries, direct route and major-panel help, persistent collapse for low-frequency sections, and structured empty-state guidance.
+- Their route actions now use the shared `Review ... Bundle`, `Commit ... Bundle`, `Reset Draft`, `Advanced Details`, and explicit inspection vocabulary. Ability's primary unlock surface now says `Unlock Requirement` rather than `Unlock Gate`.
+- Ability assignments, testing, advanced details, and unlock requirements, plus Creature habitats, health, usage, and advanced details, retain meaningful collapsed summaries without hiding blockers or draft state.
+- Character presence and World Builder story-context links now say `Inspect ... Timeline in New Tab` and preserve the current authoring workspace.
+- The generic multi-reference picker now distinguishes an empty catalog from an empty search result and provides the relevant create-or-adjust-search next action.
+- The final utility-page audit confirmed deliberate exceptions: Settings is a constrained administrative form, Item Inspector is a bounded reading surface, and Simulation Sandbox is a full-width utility workbench.
+- Verification: `npm run build`, `npm run test:unit`, and `npm run lint` pass in `soa-editor` (16 test files, 78 tests). The production build retains the existing large-chunk advisory.
 
 ## Audit: Game-Design Content That Also Belongs Here
 
@@ -350,7 +360,7 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 
 ### Story Placement
 
-- Continue replacing generic lifecycle wording with entity-specific authoring language.
+- Done 2026-07-13: generic lifecycle wording in the audited primary surfaces has been replaced with entity-specific story appearance, player/world change, and story result language.
 - Keep "Runtime Encounter" understandable as "the playable encounter happens here."
 - Explain that story placement is optional until timeline order, warnings, or aftermath need it.
 - Keep the full Story Timeline as a separate overview, not an embedded duplicate.
@@ -376,7 +386,7 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 
 ### Story Timeline
 
-- Continue improving navigation so authors do not scroll across every lane.
+- Done 2026-07-13: navigator, occurrence tracking, filters/lenses, collapsible panels, and explicit new-tab context links provide the intended alternatives to scrolling every lane.
 - Keep Story Navigator and Entity Occurrences as first-class navigation, not secondary panels.
 - Make lens state and focused entity state obvious.
 

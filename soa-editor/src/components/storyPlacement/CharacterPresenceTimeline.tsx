@@ -82,7 +82,7 @@ export default function CharacterPresenceTimeline({
         <Metric label="Drafts" value={draftCount} />
         <Metric label="Issues" value={issueCount} />
       </div>
-      <Link className="mt-2 inline-block font-semibold text-blue-700 dark:text-blue-300" to={`/author/story-timeline?track=character&entity=${encodeURIComponent(characterId)}`}>Open full timeline</Link>
+      <Link className="mt-2 inline-block font-semibold text-blue-700 dark:text-blue-300" to={`/author/story-timeline?track=character&entity=${encodeURIComponent(characterId)}`} target="_blank" rel="noreferrer">Inspect Full Timeline in New Tab</Link>
     </div>
 
     {storyContext.warnings.map((warning) => (

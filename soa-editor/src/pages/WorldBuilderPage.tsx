@@ -1346,7 +1346,7 @@ function LocationStoryStatePanel({
         <div className="flex flex-wrap gap-1 text-xs">
           <Badge>{sorted.length} canonical occurrence{sorted.length === 1 ? "" : "s"}</Badge>
           <Badge>{warnings.length} warning{warnings.length === 1 ? "" : "s"}</Badge>
-          <Link className="rounded bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-900 hover:bg-blue-200 dark:bg-blue-950 dark:text-blue-100 dark:hover:bg-blue-900" to={`/author/story-timeline?track=location&entity=${encodeURIComponent(locationId)}`}>Open Timeline</Link>
+          <Link className="rounded bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-900 hover:bg-blue-200 dark:bg-blue-950 dark:text-blue-100 dark:hover:bg-blue-900" to={`/author/story-timeline?track=location&entity=${encodeURIComponent(locationId)}`} target="_blank" rel="noreferrer">Inspect Timeline in New Tab</Link>
         </div>
         {warnings.map((warning, index) => (
           <div key={`${text(warning.code)}-${text(warning.entry_id)}-${index}`} className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">

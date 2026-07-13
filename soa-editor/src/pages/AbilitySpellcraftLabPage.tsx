@@ -1,5 +1,5 @@
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import SchemaForm from "../components/SchemaForm";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
@@ -8,8 +8,9 @@ import AbilityLabBench from "../components/abilityLab/AbilityLabBench";
 import { buildAbilityUsageModel } from "../authoring/abilityUsage";
 import {
   AUTHORING_INPUT_CLASS,
+  AuthoringHealthSummary,
   AuthoringPageShell,
-  AuthoringPanel as Panel,
+  AuthoringPanel,
   CheckboxField,
   EmptyState as Empty,
   FieldCaption as Caption,
@@ -17,6 +18,7 @@ import {
   SelectField,
   TextAreaField as TextArea,
   TextField as Field,
+  StatusNotice,
 } from "../components/authoringUi";
 import { useDirtyState } from "../components/useDirtyState";
 import { EditableTagList, ReferenceManageLink, displayText, isRecord, mergeReferenceOptions, rowLabel } from "../authoringViews/controls";
@@ -29,6 +31,22 @@ import { generateSlug, generateUlid } from "../utils/generateId";
 import abilitySchema from "../../../backend/app/schemas/abilities.json";
 
 type Lens = "sentence" | "mix" | "efficiency" | "usage" | "damage" | "issues";
+
+const ABILITY_PANEL_HELP: Record<string, string> = {
+  "Ability Identity": "Use this for the player-facing name, description, design intent, counterplay, mastery, and presentation notes. Mechanical behavior is assembled in the Spellcraft Chain.",
+  "Effect Library & Workshop": "Use recipes to create local effects or reuse saved effects in the payload. Shared effects clone by default before editing so their other consumers remain visible and safe.",
+  "Scaling Stat Tray": "Use this to choose which saved stats scale the ability. Contribution strength is tuned in the Spellcraft Chain.",
+  "Spellcraft Lenses": "Use these read-only lenses to inspect intent, payload mix, efficiency, saved usage, damage typing, and local issues without changing the draft.",
+  "Payload Inspector": "Select a payload effect to inspect and edit its behavior. Existing shared records remain protected until you explicitly duplicate or edit the shared record.",
+  "Context Status Defenses": "Use this to preview and edit resistance or immunity rules on assigned combat profiles. These are shared profile changes included in bundle review.",
+  "Ability Family & Tactical Relationships": "Use this for explicit setup, payoff, recovery, upgrade, counter, or variant relationships between saved abilities.",
+  "Unlock Requirement": "Use this when player state should control access to the ability. The reusable requirement is included in the same bundle review.",
+};
+
+function Panel({ help, ...props }: ComponentProps<typeof AuthoringPanel>) {
+  const fallbackHelp = typeof props.title === "string" ? ABILITY_PANEL_HELP[props.title] : undefined;
+  return <AuthoringPanel {...props} help={help || fallbackHelp} />;
+}
 
 export interface AbilityPacket {
   ability: EntryRecord;
@@ -315,6 +333,7 @@ export default function AbilitySpellcraftLabPage() {
   const [lens, setLens] = useState<Lens>("sentence");
   const [advanced, setAdvanced] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [restored, setRestored] = useState(false);
@@ -339,6 +358,7 @@ export default function AbilitySpellcraftLabPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadError("");
     const endpoint = isNew ? "/api/ui/abilities" : `/api/ui/abilities/${encodeURIComponent(id)}`;
     apiFetch(endpoint).then(async (response) => {
       const body = await response.json();
@@ -368,7 +388,9 @@ export default function AbilitySpellcraftLabPage() {
         setStatusUpserts(statuses);
         setOriginalUpserts({ effects: [], statuses: [] });
       }
-    }).catch((error) => setNotice(error instanceof Error ? error.message : "Ability Spellcraft Lab failed to load."))
+    }).catch((error) => {
+      if (!cancelled) setLoadError(error instanceof Error ? error.message : "Ability Spellcraft Lab failed to load.");
+    })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [id, isNew]);
@@ -504,7 +526,8 @@ export default function AbilitySpellcraftLabPage() {
     if (!isNew) navigate("/author/abilities/new");
   };
 
-  if (loading || !packet) return <div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading Ability Spellcraft Lab...</div>;
+  if (loading) return <AuthoringPageShell><StatusNotice>Loading Ability Spellcraft Lab...</StatusNotice></AuthoringPageShell>;
+  if (loadError || !packet) return <AuthoringPageShell><StatusNotice tone="error" action={<button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => window.location.reload()}>Try Again</button>}>{loadError || "Ability Spellcraft Lab did not return an authoring packet."} Retry after the authoring service is available.</StatusNotice></AuthoringPageShell>;
 
   const allDraftEffects = mergeById(packet.catalogs.effects, effectUpserts);
   const allDraftStatuses = mergeById(packet.catalogs.statuses, statusUpserts);
@@ -566,11 +589,11 @@ export default function AbilitySpellcraftLabPage() {
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <AuthoringPageShell>
         <div className="space-y-4">
-          <Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} advanced={advanced} setAdvanced={setAdvanced} onSave={() => void preview()} onReset={reset} />
+          <Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} warnings={issues.warnings} advanced={advanced} setAdvanced={setAdvanced} onSave={() => void preview()} onReset={reset} />
           {(notice || restored) && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{restored ? "Restored unsaved Ability Spellcraft draft. " : ""}{notice}</div>}
           <AbilitySelector packet={packet} onClone={startVariantDraft} />
           {advanced ? (
-            <Panel title="Advanced Ability Form" subtitle="Schema-complete escape hatch for uncommon fields and debugging.">
+            <Panel title="Advanced Details" subtitle="Schema-complete fallback for uncommon ability fields." help="Use this technical form only when the focused spellcraft workflow does not expose a field you need. It edits the same ability draft." collapsible storageKey={`authoring:ability:${displayText(packet.ability.id)}:advanced`} collapsedSummary="Technical ability fields">
               <SchemaForm schema={abilitySchema as SchemaDefinition} schemaName="abilities" data={packet.ability} onChange={(ability) => setPacket({ ...packet, ability })} />
             </Panel>
           ) : (
@@ -615,9 +638,9 @@ export default function AbilitySpellcraftLabPage() {
              </>
           )}
           <div className="sticky bottom-3 flex justify-end gap-2 rounded-md border border-slate-200 bg-white/95 p-3 shadow dark:border-slate-800 dark:bg-slate-900/95">
-            <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} to={`/abilities?selected=${encodeURIComponent(displayText(packet.ability.id))}`}>Generic Editor</Link>
-            <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={reset}>Reset</button>
-            <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || issues.blockers.length > 0 || !dirty} onClick={() => void preview()}>{saving ? "Reviewing..." : "Review & Save"}</button>
+            <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} to={`/abilities?selected=${encodeURIComponent(displayText(packet.ability.id))}`}>Inspect In Generic Editor</Link>
+            <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={reset}>Reset Draft</button>
+            <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || issues.blockers.length > 0 || !dirty} onClick={() => void preview()}>{saving ? "Reviewing..." : "Review Ability Bundle"}</button>
           </div>
           {review && <BundleReview result={review} title="Ability Bundle Review" description="Preview validates the complete canonical change before it commits atomically." variant="modal" commitLabel="Commit Bundle" saving={saving} error={reviewError} additionalWarnings={issues.warnings} additionalBlockers={issues.blockers} onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={() => void save()} />}
          </div>
@@ -626,11 +649,11 @@ export default function AbilitySpellcraftLabPage() {
   );
 }
 
-function Header({ packet, dirty, saving, blockers, advanced, setAdvanced, onSave, onReset }: { packet: AbilityPacket; dirty: boolean; saving: boolean; blockers: string[]; advanced: boolean; setAdvanced: (value: boolean) => void; onSave: () => void; onReset: () => void }) {
-  return <Panel id="ability-header" title={displayText(packet.ability.name, "Ability Spellcraft Lab")} subtitle={`${strings(packet.ability.effects).length} effects / ${rows(packet.ability.scaling).length} scaling stats / ${packet.assigned_combat_profile_ids.length} combat profiles`}>
+function Header({ packet, dirty, saving, blockers, warnings, advanced, setAdvanced, onSave, onReset }: { packet: AbilityPacket; dirty: boolean; saving: boolean; blockers: string[]; warnings: string[]; advanced: boolean; setAdvanced: (value: boolean) => void; onSave: () => void; onReset: () => void }) {
+  return <Panel id="ability-header" title={displayText(packet.ability.name, "Ability Spellcraft Lab")} subtitle={`${strings(packet.ability.effects).length} effects / ${rows(packet.ability.scaling).length} scaling stats / ${packet.assigned_combat_profile_ids.length} combat profiles`} help="Use this workspace to build an ability's trigger, reach, payload, scaling, cost, combat assignments, and unlock rule as one reviewed bundle.">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex items-center gap-2 text-xs text-slate-500"><span>{dirty ? "Unsaved bundle changes" : "Bundle saved"}</span>{blockers.length > 0 && <span className="text-red-700">{blockers.length} save blocker(s)</span>}</div>
-      <div className="flex gap-2"><button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} onClick={() => setAdvanced(!advanced)}>{advanced ? "Return To Forge" : "Advanced Form"}</button><button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={onReset}>Reset</button><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || blockers.length > 0 || !dirty} onClick={onSave}>{saving ? "Saving..." : "Save All"}</button></div>
+      <AuthoringHealthSummary dirty={dirty} saving={saving} blockers={blockers.length} warnings={warnings.length} />
+      <div className="flex gap-2"><button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} onClick={() => setAdvanced(!advanced)}>{advanced ? "Return To Spellcraft" : "Advanced Details"}</button><button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={onReset}>Reset Draft</button><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || blockers.length > 0 || !dirty} onClick={onSave}>{saving ? "Reviewing..." : "Review Ability Bundle"}</button></div>
     </div>
   </Panel>;
 }
@@ -642,7 +665,7 @@ function AbilitySelector({ packet, onClone }: { packet: AbilityPacket; onClone: 
   const [selectedId, setSelectedId] = useState(currentId);
   useEffect(() => setSelectedId(currentId), [currentId]);
   const selectedAbility = options.find((entry) => displayText(entry.id) === selectedId) || packet.ability;
-  return <Panel id="ability-selector" title="Ability Selector" subtitle="Open an existing ability or create a copied variant draft."><div className="flex flex-wrap gap-2"><select className={`${AUTHORING_INPUT_CLASS} min-w-64 flex-1`} value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{options.map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.id))}</option>)}</select><button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm} whitespace-nowrap`} disabled={!selectedId || selectedId === currentId} onClick={() => navigate(`/author/abilities/${encodeURIComponent(selectedId)}`)}>Open</button><button type="button" className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm} whitespace-nowrap`} disabled={!selectedId} onClick={() => onClone(selectedAbility)}>Clone Variant</button><Link className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm} whitespace-nowrap`} to="/author/abilities/new">New Ability</Link></div></Panel>;
+  return <Panel id="ability-selector" title="Ability Selector" subtitle="Inspect an existing ability or create a copied variant draft." help="Use this to switch the focused ability. Clone Variant creates a local copy with duplicated payload records; it does not commit until bundle review."><div className="flex flex-wrap gap-2"><select className={`${AUTHORING_INPUT_CLASS} min-w-64 flex-1`} value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{options.map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.id))}</option>)}</select><button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm} whitespace-nowrap`} disabled={!selectedId || selectedId === currentId} onClick={() => navigate(`/author/abilities/${encodeURIComponent(selectedId)}`)}>Inspect Ability</button><button type="button" className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm} whitespace-nowrap`} disabled={!selectedId} onClick={() => onClone(selectedAbility)}>Clone Variant</button><Link className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm} whitespace-nowrap`} to="/author/abilities/new">New Ability</Link></div></Panel>;
 }
 
 function IdentityPanel({ packet, updateAbility }: { packet: AbilityPacket; updateAbility: (patch: EntryRecord) => void }) {
@@ -724,7 +747,7 @@ function AssignmentPanel({ packet, onToggleProfile }: { packet: AbilityPacket; o
     encounters: packet.catalogs.encounters,
     assignedProfileIds: packet.assigned_combat_profile_ids,
   }), [packet]);
-  return <Panel id="ability-links" title="Usage & Combat Assignment" subtitle="Drop the current ability onto a profile or encounter participant context. Saving writes combat profile move kits only.">
+  return <Panel id="ability-links" title="Usage & Combat Assignment" subtitle="Assign the ability to combat profiles and inspect encounter context." help="Use this to add or remove the ability from combat-profile move kits. Encounter cards explain where those profiles participate; this panel does not edit encounter participants." collapsible storageKey={`authoring:ability:${displayText(packet.ability.id)}:assignments`} collapsedSummary={`${model.draftAssignmentCount} draft profile assignments`}>
     <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto]">
       <DraggableCard id="ability-current" compact>
         <div className="text-xs font-semibold">{displayText(packet.ability.name, "Current Ability")}</div>
@@ -742,7 +765,7 @@ function AssignmentPanel({ packet, onToggleProfile }: { packet: AbilityPacket; o
       {model.classRows.map((entry) => <div key={`class-${displayText(entry.id)}`}>Class: {rowLabel(entry, displayText(entry.id))}</div>)}
       {model.talentRows.map((entry) => <div key={`talent-${displayText(entry.id)}`}>Talent: {rowLabel(entry, displayText(entry.id))}</div>)}
     </div>}
-    <div className="mt-2 space-y-2">{model.profileRows.length === 0 ? <Empty>No combat profiles.</Empty> : model.profileRows.map((row) => <ProfileAssignmentDrop key={row.profileId} row={row} onToggle={onToggleProfile} />)}</div>
+    <div className="mt-2 space-y-2">{model.profileRows.length === 0 ? <Empty title="No combat profiles available">Create a combat profile before assigning this ability to a character or creature move kit.</Empty> : model.profileRows.map((row) => <ProfileAssignmentDrop key={row.profileId} row={row} onToggle={onToggleProfile} />)}</div>
     {model.encounterRoleRows.length > 0 && <div className="mt-4">
       <Caption>Encounter Role Usage</Caption>
       <div className="mt-2 grid gap-2">
@@ -833,12 +856,19 @@ function RequirementPanel({ packet, setPacket }: { packet: AbilityPacket; setPac
     const requirement = { id, slug: generateSlug(`${displayText(packet.ability.name, "ability")}-gate`), required_flags: [], forbidden_flags: [], min_faction_reputation: [], tags: [] };
     setPacket((current) => current ? ({ ...current, ability: { ...current.ability, requirements_id: id }, requirement }) : current);
   };
-  return <Panel title="Unlock Gate" subtitle="Link or create the reusable requirement that unlocks this ability."><select className={AUTHORING_INPUT_CLASS} value={displayText(packet.ability.requirements_id)} onChange={(event) => select(event.target.value)}><option value="">Unassigned</option>{packet.catalogs.requirements.map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.slug, displayText(entry.id)))}</option>)}</select>{!packet.requirement && <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs} mt-2`} onClick={create}>Create Ability Requirement</button>}{packet.requirement && <div className="mt-2 rounded border border-slate-200 p-2 text-xs dark:border-slate-800">Requirement: {displayText(packet.requirement.slug, displayText(packet.requirement.id))}<button className="ml-2 text-red-700" onClick={() => select("")}>Clear</button></div>}</Panel>;
+  return <Panel title="Unlock Requirement" subtitle="Link or create the reusable rule that unlocks this ability." collapsible storageKey={`authoring:ability:${displayText(packet.ability.id)}:requirement`} collapsedSummary={packet.requirement ? `Uses ${displayText(packet.requirement.slug, displayText(packet.requirement.id))}` : "No unlock requirement"}>
+    <select className={AUTHORING_INPUT_CLASS} value={displayText(packet.ability.requirements_id)} onChange={(event) => select(event.target.value)}>
+      <option value="">No unlock requirement</option>
+      {packet.catalogs.requirements.map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.slug, displayText(entry.id)))}</option>)}
+    </select>
+    {!packet.requirement && <Empty title="No unlock requirement selected" action={<button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={create}>Create Ability Requirement</button>}>That is fine for an ability available by default. Create or select a rule when saved player state should control access.</Empty>}
+    {packet.requirement && <div className="mt-2 rounded border border-slate-200 p-2 text-xs dark:border-slate-800">Requirement: {displayText(packet.requirement.slug, displayText(packet.requirement.id))}<button className="ml-2 text-red-700" onClick={() => select("")}>Clear</button></div>}
+  </Panel>;
 }
 
 function TestBench({ packet, draftEffects }: { packet: AbilityPacket; draftEffects: EntryRecord[] }) {
   const profiles = packet.catalogs.combat_profiles.filter((profile) => packet.assigned_combat_profile_ids.includes(displayText(profile.id))).map((profile) => ({ ...profile, custom_abilities: [...strings(profile.custom_abilities).filter((id) => id !== displayText(packet.ability.id)), displayText(packet.ability.id)] }));
-  return <Panel id="ability-test" title="Ability Test Bench" subtitle="Auto-simulate the current draft and its unsaved payload under selectable combat pressures."><SimulationWorkbench fixedSchemaName="abilities" draftEntity={packet.ability} title="Current Draft Simulation" datasetOverlays={{ abilities: [packet.ability], effects: draftEffects, combat_profiles: profiles }} />{profiles.length > 0 && <div className="mt-3 text-xs text-slate-500">Assignment preview overlays {profiles.length} selected combat profile(s) into the simulation datasets.</div>}</Panel>;
+  return <Panel id="ability-test" title="Ability Test Bench" subtitle="Auto-simulate the current draft under selectable combat pressures." help="Use this for temporary balance experiments. The bench overlays the unsaved ability, payload, and assigned profiles without committing simulation state." collapsible storageKey={`authoring:ability:${displayText(packet.ability.id)}:test`} collapsedSummary={`${profiles.length} assigned profile${profiles.length === 1 ? "" : "s"} in simulation context`}><SimulationWorkbench fixedSchemaName="abilities" draftEntity={packet.ability} title="Current Draft Simulation" datasetOverlays={{ abilities: [packet.ability], effects: draftEffects, combat_profiles: profiles }} />{profiles.length > 0 && <div className="mt-3 text-xs text-slate-500">Assignment preview overlays {profiles.length} selected combat profile(s) into the simulation datasets.</div>}</Panel>;
 }
 
 function createEffect(recipe: { label: string; data: EntryRecord }, packet: AbilityPacket, setPacket: React.Dispatch<React.SetStateAction<AbilityPacket | null>>, setEffectUpserts: React.Dispatch<React.SetStateAction<EntryRecord[]>>, setSelectedEffectId: (id: string) => void) {
