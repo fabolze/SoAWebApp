@@ -41,6 +41,7 @@ class DialogueNodeRoute(BaseRoute):
         node.speaker = data["speaker"]
         node.speaker_character_id = data.get("speaker_character_id") or None
         node.text = data["text"]
+        node.is_terminal = bool(data.get("is_terminal", False))
         
         # Optional relationship
         node.requirements_id = data.get("requirements_id") or None

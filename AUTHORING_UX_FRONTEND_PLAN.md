@@ -24,7 +24,7 @@ When adding or changing an authoring view:
 
 ## UX Status Index
 
-Last reviewed: 2026-07-10
+Last reviewed: 2026-07-13
 
 | Area | Status | Notes |
 |---|---|---|
@@ -40,6 +40,7 @@ Last reviewed: 2026-07-10
 | Responsive behavior | Done for complex workspaces | Section navigation becomes a horizontal sticky rail below wide desktop, while dense authoring areas retain grid-based layouts that reflow at laptop/tablet breakpoints. |
 | Accessibility and keyboard use | Done for shared authoring primitives | Help, section links, collapse controls, status notices, filter controls, and icon affordances have semantic names, focus styles, keyboard escape behavior, and state attributes. |
 | Empty/error/loading states | Done for audited authoring workspaces | Shared structured empty states and retryable notices cover the listed specialized workspaces and generic schema array/reference states; load failures now explain recovery and expose Try Again where the route owns a retryable load. |
+| Dialogue writing workflow | Done for limited prototype | Dialogue Scene Room now starts new scenes in a branch-aware Script view, keeps Flow/Rehearsal/Impact available, supports Focus mode and remembered progressive disclosure, exposes keyboard commands and undo/redo, distinguishes local drafts from committed state, and stages reviewed DLG/1 imports only into empty local drafts. |
 
 ## Core UX Principles
 
@@ -304,6 +305,7 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 - Done 2026-07-10: collapse low-frequency sections with persistent state and meaningful summaries.
 - Done 2026-07-10: Story Timeline now provides working Show Issues and Show Changed modes; domain-specific lenses remain available where a workspace already has a more precise filter model.
 - Done 2026-07-10: retain `VirtualizedTable` and virtualized searchable pickers as the repeated-row strategy for datasets that can grow; audited specialized cards remain bounded/scrollable.
+- Done 2026-07-13 for Dialogue Flow: make the writing workbench primary, move Scene Brief/Story Beats/Story Placement behind remembered Scene setup, allow library and inspector collapse, and provide a Focus mode that retains the script, context strip, save state, and exit action.
 
 ### P1: Empty, Loading, And Error States
 
@@ -318,6 +320,7 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 - Done 2026-07-10: header help and action labels identify whether an action opens review or writes immediately; Bundle Review remains the commit gate for multi-record bundles.
 - Done 2026-07-10: compact health summaries expose draft state and issue counts before review; Bundle Review continues to show record-level changes.
 - Done 2026-07-10: retryable preview/commit errors stay in Bundle Review where supported, and route-load errors expose Try Again.
+- Done 2026-07-13 for Dialogue Flow: distinguish "Saved locally" from "Committed to project", preserve automatic local draft recovery, add named/pre-import snapshots and granular undo/redo, and keep imported candidates behind the unchanged rollback-only preview and atomic bundle commit.
 
 ### P1: Accessibility And Responsive Pass
 
@@ -326,6 +329,7 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 - Done 2026-07-10: collapsible panels use semantic sections/headings, buttons, `aria-expanded`, and `aria-controls`.
 - Done 2026-07-10: responsive grid breakpoints keep dense authoring layouts usable without fixed desktop-only navigation.
 - Done 2026-07-10: wide desktop surfaces use the extra width for navigation, main authoring areas, context docks, or bounded reading columns.
+- Done 2026-07-13 for Dialogue Flow: provide a keyboard-complete Script authoring route, labeled line/branch/start/end actions, visible shortcut help, resizable line editors, focus handoff after creation, searchable node navigation, and non-pointer branch creation.
 
 ## Workspace-Specific UX Notes
 
@@ -385,10 +389,12 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 
 ### Dialogue Flow
 
-- Keep the dialogue graph, rehearsal, impact, story beats, and context dock in one full-width authoring workspace.
+- Keep Script, dialogue graph, rehearsal, impact, story beats, and context dock in one full-width authoring workspace.
+- Treat Script as the primary prose-writing surface and Flow as the topology/debugging surface; selection and canonical start/end meaning must remain synchronized.
 - Make save/review language clear because dialogue lines, story beats, and beat unlinks commit as one bundle.
 - Explain that rehearsal player state is temporary and does not save flags or reputation.
 - Keep generic dialogue editing available as an explicit fallback, not the primary workflow.
+- Keep model-assisted import visibly human-reviewed and local-only: show the exact outgoing prompt, require provider-policy confirmation, diagnose pasted DLG/1 source, and never allow import to bypass rehearsal, preview, or commit review.
 
 2026-07-09 update:
 
@@ -396,6 +402,18 @@ Migration rule: do not delete useful game-design content just to reduce duplicat
 - Route actions now use explicit labels: "Inspect In Generic Editor", "Reset Draft", and "Review Dialogue Bundle".
 - Scene Brief, Story Beat Track, Dialogue Library, Context Dock, Rehearsal Controls, and World Echo panels now have helper copy.
 - Empty states for missing dialogues, story beats, participants, rehearsal lines, transcripts, world echo state, downstream consumers, and context links now use structured next-action copy.
+
+2026-07-13 update:
+
+- New dialogues open in a branch-aware Script view with continuous text editing, recent/canonical speaker suggestions, predicted next speakers, inline continuations and choices, branch duplication/reordering, immediate focus handoff, and synchronized Flow selection.
+- Canonical `starting_node_id` and typed terminal state now drive Start/Ending badges, rehearsal, health feedback, and Set as start/Mark as ending actions. Intentional endings no longer appear as generic dead-end warnings.
+- Scene setup, dialogue library, and context inspector can be hidden independently and remember their state per dialogue. Focus mode removes planning/library/advanced inspector competition while preserving the active writing surface and compact ambient voice/relationship/state context.
+- Dialogue/library and node/speaker/text search reduce navigation cost in larger scenes. Script lines expose localized invalid-state styling and requirement/flag chips; Health remains a navigable issue surface rather than a required writing tab.
+- The command palette and visible shortcut reference cover continuation, choice creation, rehearsal, Focus mode, import, snapshots, undo, and redo. Script view provides the full create/edit/connect workflow without graph dragging.
+- Draft status distinguishes browser-local persistence from project commit. Coalesced undo/redo, named local snapshots, and automatic pre-import snapshots supplement the existing local recovery and atomic bundle review.
+- The DLG/1 import modal supports topology-first and prose-second prompts, minimum approved-context selection, exact outgoing-prompt preview, explicit provider/workspace policy confirmation, source diagnostics, speaker resolution, semantic review prompts, graph summary, and empty-dialogue-only local staging. Cancel does not mutate the draft and staging does not commit.
+- Current route actions use concise labels such as "Generic Editor", "Reset Draft", "Review Dialogue Bundle", "Focus mode", "Scene setup", and "Import DLG/1". The command palette exposes its `Ctrl/Cmd+K` shortcut in the UI.
+- Production AI rollout remains outside UX-cleanup completion until representative writer testing demonstrates value and the project supplies approved provider, retention, unpublished-content, and provenance policy.
 
 ### Character Studio
 

@@ -1,0 +1,7 @@
+!DLG 1
+@title Missing Target
+@start opening
+:: opening
+@speaker Mara
+| Go.
+> absent

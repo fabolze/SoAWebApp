@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import os
 from threading import RLock
 from typing import Tuple
@@ -196,6 +197,38 @@ def _upgrade_sqlite_schema(active_engine) -> None:
                 dialogue_node_columns = {column["name"] for column in inspector.get_columns("dialogue_nodes")}
                 if "speaker_character_id" not in dialogue_node_columns:
                     connection.execute(text("ALTER TABLE dialogue_nodes ADD COLUMN speaker_character_id VARCHAR"))
+                if "is_terminal" not in dialogue_node_columns:
+                    connection.execute(text("ALTER TABLE dialogue_nodes ADD COLUMN is_terminal BOOLEAN DEFAULT 0 NOT NULL"))
+
+            if "dialogues" in table_names:
+                dialogue_columns = {column["name"] for column in inspector.get_columns("dialogues")}
+                if "starting_node_id" not in dialogue_columns:
+                    connection.execute(text("ALTER TABLE dialogues ADD COLUMN starting_node_id VARCHAR"))
+
+            if "dialogues" in table_names and "dialogue_nodes" in table_names:
+                # Backfill portable graph meaning for legacy databases. Ambiguous
+                # cyclic/multi-root graphs remain unset and are repaired in the UI.
+                graph_rows = list(connection.execute(text("SELECT id, dialogue_id, choices FROM dialogue_nodes")).mappings())
+                by_dialogue = {}
+                for row in graph_rows:
+                    raw_choices = row["choices"]
+                    try:
+                        choices = json.loads(raw_choices) if isinstance(raw_choices, str) else (raw_choices or [])
+                    except (TypeError, ValueError):
+                        choices = []
+                    by_dialogue.setdefault(row["dialogue_id"], []).append((row["id"], choices))
+                    if not choices:
+                        connection.execute(text("UPDATE dialogue_nodes SET is_terminal = 1 WHERE id = :id"), {"id": row["id"]})
+                for dialogue_id, nodes in by_dialogue.items():
+                    inbound = {node_id: 0 for node_id, _choices in nodes}
+                    for _node_id, choices in nodes:
+                        for choice in choices if isinstance(choices, list) else []:
+                            target = choice.get("next_node_id") if isinstance(choice, dict) else None
+                            if target in inbound:
+                                inbound[target] += 1
+                    roots = [node_id for node_id, count in inbound.items() if count == 0]
+                    if len(roots) == 1:
+                        connection.execute(text("UPDATE dialogues SET starting_node_id = :start WHERE id = :dialogue AND starting_node_id IS NULL"), {"start": roots[0], "dialogue": dialogue_id})
 
             if "character_story_beats" in table_names:
                 beat_columns = {column["name"] for column in inspector.get_columns("character_story_beats")}

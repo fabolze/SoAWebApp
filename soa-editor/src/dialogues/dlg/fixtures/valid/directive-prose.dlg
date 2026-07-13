@@ -1,0 +1,10 @@
+!DLG 1
+@title Directive Prose
+@start opening
+
+:: opening
+@speaker System
+| @end is text here.
+|
+| ? "Still text" -> nowhere
+@end

@@ -241,7 +241,7 @@ def _require_rows(payload, key):
     return rows
 
 
-def _validate_node_graph(db_session, dialogue_id, rows, deletion_ids):
+def _validate_node_graph(db_session, dialogue_id, dialogue_data, rows, deletion_ids):
     final_ids = {row["id"] for row in rows}
     existing_ids = {
         node_id for node_id, in db_session.query(DialogueNode.id).filter(DialogueNode.dialogue_id == dialogue_id).all()
@@ -249,6 +249,7 @@ def _validate_node_graph(db_session, dialogue_id, rows, deletion_ids):
     omitted_ids = existing_ids - final_ids - set(deletion_ids)
     if omitted_ids:
         abort(400, description=f"nodes must include or explicitly delete every saved node: {', '.join(sorted(omitted_ids))}")
+    inbound = {node_id: 0 for node_id in final_ids}
     for index, row in enumerate(rows):
         existing = db_session.get(DialogueNode, row["id"])
         if existing and existing.dialogue_id != dialogue_id:
@@ -267,6 +268,25 @@ def _validate_node_graph(db_session, dialogue_id, rows, deletion_ids):
                 abort(400, description=f"{path}.next_node_id is required")
             if target_id not in final_ids:
                 abort(400, description=f"{path}.next_node_id must target a node in this dialogue")
+            inbound[target_id] += 1
+        explicit_terminal = row.get("is_terminal")
+        if explicit_terminal is True and choices:
+            abort(400, description=f"nodes[{index}].is_terminal cannot be true when the node has outgoing choices")
+        if explicit_terminal is False and not choices:
+            abort(400, description=f"nodes[{index}].is_terminal must be true when the node has no outgoing choices")
+        # Compatibility for pre-migration clients: canonicalize leaf nodes on write.
+        row["is_terminal"] = not choices
+    start_id = dialogue_data.get("starting_node_id")
+    if rows and not start_id:
+        roots = [node_id for node_id, count in inbound.items() if count == 0]
+        if len(roots) != 1:
+            abort(400, description="dialogue.starting_node_id is required when the graph does not have exactly one inferred start")
+        start_id = roots[0]
+        dialogue_data["starting_node_id"] = start_id
+    if start_id and start_id not in final_ids:
+        abort(400, description="dialogue.starting_node_id must target a node in this dialogue")
+    if not rows:
+        dialogue_data["starting_node_id"] = None
     for node_id in deletion_ids:
         existing = db_session.get(DialogueNode, node_id)
         if existing and existing.dialogue_id != dialogue_id:
@@ -303,7 +323,7 @@ def _reconcile(db_session, payload, commit):
 
     review = {"created": [], "changed": [], "deleted": [], "unlinked": []}
     warnings = []
-    _validate_node_graph(db_session, dialogue_id, rows, deletion_ids)
+    _validate_node_graph(db_session, dialogue_id, dialogue_data, rows, deletion_ids)
     existing_node_ids = {
         node_id for node_id, in db_session.query(DialogueNode.id).filter(DialogueNode.dialogue_id == dialogue_id).all()
     }
@@ -316,7 +336,7 @@ def _reconcile(db_session, payload, commit):
             db_session.add(DialogueNode(
                 id=row["id"], slug=row.get("slug") or row["id"], dialogue_id=dialogue_id,
                 speaker=row.get("speaker") or "Speaker", text=row.get("text") or "",
-                choices=[], set_flags=[], tags=[],
+                choices=[], set_flags=[], tags=[], is_terminal=bool(row.get("is_terminal")),
             ))
     db_session.flush()
 

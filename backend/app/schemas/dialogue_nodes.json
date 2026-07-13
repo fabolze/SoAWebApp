@@ -52,6 +52,14 @@
         "label": "Dialogue Text"
       }
     },
+    "is_terminal": {
+      "type": "boolean",
+      "description": "Marks this line as an intentional end of the conversation.",
+      "ui": {
+        "widget": "checkbox",
+        "label": "Ending"
+      }
+    },
     "choices": {
       "type": "array",
       "description": "List of choices or automatic next nodes",

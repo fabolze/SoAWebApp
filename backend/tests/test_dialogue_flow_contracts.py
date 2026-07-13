@@ -58,6 +58,41 @@ def _node(node_id, dialogue_id="dialogue-1", choices=None, requirement_id=None):
     }
 
 
+def test_bundle_persists_canonical_start_and_terminal_semantics(monkeypatch):
+    client, Session = _client(monkeypatch)
+    response = client.post("/api/ui/dialogues/bundle", json={
+        "dialogue": {**_dialogue(), "starting_node_id": "node-1"},
+        "nodes": [
+            {**_node("node-1", choices=[{"next_node_id": "node-2"}]), "is_terminal": False},
+            {**_node("node-2"), "is_terminal": True},
+        ],
+    })
+    assert response.status_code == 200
+    session = Session()
+    assert session.get(Dialogue, "dialogue-1").starting_node_id == "node-1"
+    assert session.get(DialogueNode, "node-2").is_terminal is True
+    session.close()
+
+
+def test_bundle_rejects_invalid_start_and_terminal_conflicts(monkeypatch):
+    client, _Session = _client(monkeypatch)
+    missing_start = client.post("/api/ui/dialogues/preview", json={
+        "dialogue": {**_dialogue(), "starting_node_id": "absent"},
+        "nodes": [{**_node("node-1"), "is_terminal": True}],
+    })
+    terminal_with_edge = client.post("/api/ui/dialogues/preview", json={
+        "dialogue": {**_dialogue(), "starting_node_id": "node-1"},
+        "nodes": [
+            {**_node("node-1", choices=[{"next_node_id": "node-2"}]), "is_terminal": True},
+            {**_node("node-2"), "is_terminal": True},
+        ],
+    })
+    assert missing_start.status_code == 400
+    assert "starting_node_id" in missing_start.get_json()["message"]
+    assert terminal_with_edge.status_code == 400
+    assert "is_terminal" in terminal_with_edge.get_json()["message"]
+
+
 def test_dialogue_packet_includes_graph_playthrough_data_and_context(monkeypatch):
     client, Session = _client(monkeypatch)
     session = Session()

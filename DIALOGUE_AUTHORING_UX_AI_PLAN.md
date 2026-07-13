@@ -1,8 +1,29 @@
 # Dialogue Authoring UX and AI Import Plan
 
-Status: revised limited-prototype proposal; production implementation gated
+Status: limited prototype implemented on 2026-07-13; production rollout and revision import remain gated
 Scope reviewed: `/author/dialogues`, `/author/dialogues/new`, `/author/dialogues/:id`  
 Primary implementation: `soa-editor/src/pages/DialogueFlowPage.tsx` and `backend/app/routes/r_ui_dialogues.py`
+
+## Implementation tracker
+
+This document now distinguishes shipped prototype engineering from gates that require product policy, user research, or a later revision protocol. There are no untracked engineering TODOs in Phases 0–3; deferred work is listed explicitly rather than implied by proposal language.
+
+| Area | Status | Implemented / evidence |
+|---|---|---|
+| Canonical graph meaning | Complete | `dialogues.starting_node_id` and `dialogue_nodes.is_terminal`, additive SQLite migration, schemas, seed headers, preview/commit validation, compatibility normalization, and backend contract tests |
+| Writing hierarchy | Complete | Collapsible remembered Scene setup, searchable/collapsible library, collapsible inspector, Focus mode, compact local/committed status, and Script-first new-scene flow |
+| Script authoring | Complete for pilot | Branch-aware keyboard-editable outline, speaker suggestions/prediction, immediate focus handoff, inline choices/continuations, start/end actions, reorder, branch duplication, synchronized selection, issue highlighting, and state/context chips |
+| Authoring safety | Complete for pilot | Coalesced undo/redo, keyboard shortcuts, named local snapshots, automatic pre-import snapshot, local draft recovery, and non-mutating import cancel |
+| Navigation/accessibility | Complete for pilot | Node/speaker/text search, navigable outline and health issues, labeled actions, keyboard-only Script workflow, shortcut reference, resizable text areas, and normalized arrow rendering |
+| DLG/1 specification | Complete for prototype | Formal grammar/semantics/compatibility/normalization/limits document, source-spanned parser diagnostics, serializer, golden fixtures, round-trip/generated/limit tests, and strict rejection of unsupported state directives |
+| Prompt/import pilot UI | Complete | Minimum-context selection, topology-first/prose-second prompts, exact prompt preview, explicit policy confirmation before copy, paste diagnostics, deterministic local resolution/staging, stable generated IDs, graph summary, semantic review checklist, and empty-dialogue-only staging |
+| Persistence authority | Complete | Import has no backend parser or commit authority; normal client Health, rehearsal, rollback-only backend preview, and atomic bundle commit remain mandatory |
+| Comparative writer pilot | Pending external evaluation | Requires representative writers/scenes and measurement against manual Script authoring; no code change can manufacture this evidence |
+| Organization provider/provenance policy | Pending organization decision | The UI requires confirmation and sends only selected context. Approved provider/workspace, retention, and provenance rules must be supplied by the project owner before production rollout |
+| Existing-dialogue reimport/export revision protocol | Deferred by Phase 4 gate | Requires immutable identity, canonical revisioning, stale-write handling, reviewed create/update/delete diffs, and recovery semantics |
+| Direct provider integration | Deferred by Phase 5 gate | Optional only after the comparative pilot demonstrates material value |
+
+Verification on 2026-07-13: backend `190 passed`; frontend `78 passed`; ESLint clean; TypeScript/Vite production build successful.
 
 ## Goal
 
@@ -341,11 +362,11 @@ Because the V1 AI profile contains no gameplay-state references, flag and requir
 
 ### Phase 0: schema and continuity prerequisites
 
-1. Decide and migrate canonical start and terminal semantics.
-2. Enforce those semantics and all project ownership/reference/uniqueness invariants in backend preview and commit.
-3. Add Set as start, Mark as ending, focus handoff, predicted next speaker, collapsible panels, and library search.
-4. Add granular undo/redo and automatic local snapshots for risky operations.
-5. Fix source encoding/mojibaked arrows and verify accessible labels and focus order.
+- [x] Decide and migrate canonical start and terminal semantics.
+- [x] Enforce those semantics and available ownership/reference/uniqueness invariants in backend preview and commit. The current data model has no project identifier; cross-dialogue ownership and all canonical references are enforced.
+- [x] Add Set as start, Mark as ending, focus handoff, predicted next speaker, collapsible panels, and library search.
+- [x] Add granular undo/redo and automatic local snapshots for risky operations.
+- [x] Fix source encoding/mojibaked arrows and verify accessible labels and focus order.
 
 Acceptance checks:
 
@@ -363,33 +384,33 @@ Suggested modules remain:
 - `soa-editor/src/dialogues/history.ts`
 - shared typed mutation helpers extracted from `DialogueFlowPage.tsx`
 
-Implement the branch-aware outline, inline create/edit/remove/reorder actions, speaker prediction, pinned context, Focus mode, selection synchronization, keyboard access, and undo/redo tests before investing heavily in AI import. This provides the baseline against which AI-assisted drafting must demonstrate additional value.
+Status: **complete for the limited prototype.** The branch-aware outline, inline create/edit/remove/reorder actions, branch duplication, speaker prediction, ambient voice/relationship/state context, Focus mode, selection synchronization, keyboard access, command palette, and tested history primitives are implemented. This is now the baseline against which AI-assisted drafting must demonstrate additional value.
 
 ### Phase 2: DLG/1 specification and parser prototype
 
-1. Publish the formal grammar, semantic rules, safe-normalization policy, version compatibility policy, and golden fixture corpus.
-2. Implement tokenizer/parser, source spans, AST, semantic validation, serializer, and resource limits.
-3. Test directive-looking prose, blank paragraphs, escapes, smart punctuation, multiple fences, forward references, cycles, duplicate/missing targets, terminal conflicts, truncation, and unknown directives.
-4. Add semantic round-trip, property/fuzz, and denial-of-service tests.
-5. Decide from the prototype whether DLG has durable human value; otherwise replace it with an internal structured format before UI integration.
+- [x] Publish the formal grammar, semantic rules, safe-normalization policy, version compatibility policy, and golden fixture corpus in `soa-editor/src/dialogues/dlg/DLG1_SPEC.md` and `fixtures/`.
+- [x] Implement parser, source spans, AST, semantic validation, serializer, and resource limits.
+- [x] Test directive-looking prose, blank paragraphs, escapes, smart punctuation, multiple fences, forward references, cycles, duplicate/missing targets, terminal conflicts, truncation, and unknown directives.
+- [x] Add semantic round-trip, generated property-style, malformed-input, and denial-of-service limit tests.
+- [x] Retain DLG for the limited pilot because it is readable/repairable by authors and round-trips semantically. Durable production ownership remains contingent on pilot results.
 
 ### Phase 3: limited prompt/import pilot
 
-1. Add the structured brief, exact outgoing-context preview, project policy notice, and Copy prompt action.
-2. Prompt for topology first and prose second for important scenes; never request gameplay effects.
-3. Add paste, diagnostics, speaker resolution, graph/change preview, stable generated IDs, and **Stage local draft** for empty dialogues.
-4. Prove cancel does not mutate state and staging does not commit project data.
-5. Run a pilot comparing the full workflow with manual Script-view authoring.
+- [x] Add the structured brief, exact outgoing-context preview, explicit project-policy confirmation, and Copy prompt action.
+- [x] Prompt for topology first and prose second for important scenes; never request gameplay effects.
+- [x] Add paste, diagnostics, speaker resolution, graph/change preview, stable generated IDs, and **Stage local draft** for empty dialogues.
+- [x] Keep cancel non-mutating and staging local-only; backend persistence remains behind the existing preview/commit flow.
+- [ ] Run a pilot comparing the full workflow with manual Script-view authoring. **External evaluation gate:** needs representative writers and scenes; this is the only remaining Phase 3 activity.
 
 No backend parser endpoint is needed for the pilot. Existing preview/commit endpoints remain persistence authorities; a server parser is justified only for later CLI/batch use or shared format enforcement.
 
 ### Phase 4: export and revision identity
 
-Plain DLG export may be added for inspection and backup after semantic round-trip tests pass. AI reimport into existing dialogue remains blocked until immutable identity, export revision, stale-write handling, reviewed create/update/delete diffs, and snapshot recovery are implemented.
+Status: **intentionally deferred.** Plain serialization exists for inspection and tests, but no existing-dialogue export/reimport UI is exposed. Revision import remains blocked until immutable identity, export revision, stale-write handling, reviewed create/update/delete diffs, and snapshot recovery are designed together.
 
 ### Phase 5: optional direct AI integration
 
-Proceed only if the pilot demonstrates material value. A direct provider should produce a schema-constrained internal JSON AST where the provider supports it, then serialize to DLG/1 for human inspection. Generated-in-app and pasted candidates must converge on the same resolution, preview, staging, rehearsal, and commit flow. The model never receives commit authority.
+Status: **intentionally deferred.** Proceed only if the comparative pilot demonstrates material value. A direct provider should produce a schema-constrained internal JSON AST where the provider supports it, then serialize to DLG/1 for human inspection. Generated-in-app and pasted candidates must converge on the same resolution, preview, staging, rehearsal, and commit flow. The model never receives commit authority.
 
 ## Suggested delivery priority
 

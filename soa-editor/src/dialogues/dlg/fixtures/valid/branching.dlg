@@ -1,0 +1,23 @@
+!DLG 1
+@title The Bell Below
+@slug the-bell-below
+@owner Mara Venn
+@location Flooded Archive
+@direction Mara needs the player to recover a bell.
+@start opening
+
+:: opening
+@speaker Mara Venn
+| The water is rising.
+? "Why does it matter?" -> confession
+? "Tell me where it is." -> route
+
+:: confession
+@speaker Mara Venn
+| My brother carried it below.
+> route
+
+:: route
+@speaker Mara Venn
+| Take the eastern stair.
+@end

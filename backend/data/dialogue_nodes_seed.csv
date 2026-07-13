@@ -1,1 +1,1 @@
-Name,id,slug,dialogue_id,speaker,speaker_character_id,text,choices,requirements_id,set_flags,tags
+Name,id,slug,dialogue_id,speaker,speaker_character_id,text,is_terminal,choices,requirements_id,set_flags,tags

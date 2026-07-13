@@ -1,6 +1,6 @@
 # backend/app/models/m_dialogue_nodes.py
 
-from sqlalchemy import Column, String, Text, JSON, ForeignKey
+from sqlalchemy import Boolean, Column, String, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
 from backend.app.utils.id import generate_ulid
@@ -16,6 +16,7 @@ class DialogueNode(Base):
     speaker = Column(String, nullable=False)
     speaker_character_id = Column(String, ForeignKey('characters.id'))
     text = Column(Text, nullable=False)
+    is_terminal = Column(Boolean, nullable=False, default=False)
 
     requirements_id = Column(String, ForeignKey('requirements.id'))
 

@@ -167,7 +167,7 @@ def create_app(startup_recovery: bool = True) -> Flask:
     
     for blueprint in blueprints:
         app.register_blueprint(blueprint)
-        print(f"âœ… Registered {blueprint.name} blueprint")
+        print(f"Registered {blueprint.name} blueprint")
 
     if startup_recovery:
         run_startup_recovery(app)

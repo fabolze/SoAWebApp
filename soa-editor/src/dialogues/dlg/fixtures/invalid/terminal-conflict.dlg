@@ -1,0 +1,8 @@
+!DLG 1
+@title Terminal Conflict
+@start opening
+:: opening
+@speaker Mara
+| Go.
+@end
+> opening

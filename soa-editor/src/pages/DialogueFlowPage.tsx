@@ -26,8 +26,11 @@ import { formatApiError } from "../lib/apiErrors";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import type { EntryRecord } from "../types/editorQol";
 import { generateSlug, generateUlid } from "../utils/generateId";
+import DialogueScriptView from "../dialogues/script/DialogueScriptView";
+import DialogueImportDialog from "../dialogues/dlg/DialogueImportDialog";
+import { readSnapshots, saveSnapshot, type LocalSnapshot } from "../dialogues/history";
 
-type CenterView = "flow" | "rehearsal" | "impact";
+type CenterView = "script" | "flow" | "rehearsal" | "impact";
 type Lens = "choices" | "consequences" | "locks" | "speakers" | "reachability" | "world";
 type InspectorTab = "edit" | "beat" | "health" | "context";
 type Point = { x: number; y: number };
@@ -78,10 +81,13 @@ interface CardData extends Record<string, unknown> {
   health: Health;
   grouped: boolean;
   queued: boolean;
+  isStart: boolean;
   speakerHue: number;
   onSelect: () => void;
   onText: (value: string) => void;
   onAdd: (automatic: boolean) => void;
+  onStart: () => void;
+  onTerminal: () => void;
 }
 
 const inputClass = "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
@@ -101,9 +107,9 @@ const text = (value: unknown, fallback = "") => displayText(value, fallback);
 const stable = (value: unknown) => JSON.stringify(value ?? null);
 const label = (entry: EntryRecord | null | undefined, fallback = "Untitled") => entry ? text(entry.name, text(entry.title, text(entry.slug, text(entry.id, fallback)))) : fallback;
 const layoutKey = (id: string) => `soa.dialogue-flow.layout.${id}`;
-const startKey = (id: string) => `soa.dialogue-flow.start.${id}`;
 const draftKey = (id: string) => `soa.draft.dialogue_flow.${id}`;
 const groupKey = (id: string) => `soa.dialogue-flow.beat-groups.${id}`;
+const uiKey = (id: string) => `soa.dialogue-flow.ui.${id}`;
 
 function readRecord(key: string): Record<string, Point> {
   try {
@@ -121,14 +127,14 @@ function readGroups(id: string): Record<string, string> {
 
 function emptyDialogue(): EntryRecord {
   const id = generateUlid();
-  return { id, slug: `new-dialogue-${id.slice(-6).toLowerCase()}`, title: "New Dialogue", description: "", tags: [] };
+  return { id, slug: `new-dialogue-${id.slice(-6).toLowerCase()}`, title: "New Dialogue", description: "", tags: [], starting_node_id: null };
 }
 
 function emptyNode(dialogueId: string, index: number, speaker = "NPC"): EntryRecord {
   const id = generateUlid();
   return {
     id, slug: generateSlug(`new-line-${index}-${id.slice(-5)}`), dialogue_id: dialogueId, speaker,
-    text: "", choices: [], set_flags: [], tags: [], __new: true,
+    text: "", choices: [], set_flags: [], tags: [], is_terminal: true, __new: true,
   };
 }
 
@@ -217,12 +223,16 @@ function analyze(nodes: EntryRecord[], packet: DialoguePacket, groups: Record<st
       if (consequences.has(signature)) warnings.push(`${label(node)} has choices with identical consequences.`);
       consequences.add(signature);
     });
-    if (rows(node.choices).length === 0) warnings.push(`${label(node)} is a dead end.`);
+    if (rows(node.choices).length === 0 && !node.is_terminal) blockers.push(`${label(node)} has no outgoing connection and is not marked as an ending.`);
+    if (rows(node.choices).length > 0 && node.is_terminal) blockers.push(`${label(node)} is marked as an ending but has outgoing connections.`);
   });
   const roots = [...inbound.entries()].filter(([, count]) => count === 0).map(([id]) => id);
-  if (nodes.length && roots.length !== 1) warnings.push(roots.length ? "Multiple inferred start nodes make rehearsal ambiguous." : "No inferred start node; the graph may be fully cyclic.");
+  const canonicalStart = text(packet.dialogue.starting_node_id);
+  if (nodes.length && !canonicalStart) blockers.push("Choose a canonical starting line.");
+  if (canonicalStart && !ids.has(canonicalStart)) blockers.push("The canonical starting line is missing from this dialogue.");
+  if (nodes.length && roots.length !== 1) warnings.push(roots.length ? "Multiple root lines exist; the canonical start controls rehearsal." : "The graph has no root line and may be fully cyclic.");
   const reachable = new Set<string>();
-  const queue = roots.length === 1 ? [...roots] : [];
+  const queue = canonicalStart && ids.has(canonicalStart) ? [canonicalStart] : roots.length === 1 ? [...roots] : [];
   while (queue.length) {
     const id = queue.shift()!;
     if (reachable.has(id)) continue;
@@ -230,7 +240,7 @@ function analyze(nodes: EntryRecord[], packet: DialoguePacket, groups: Record<st
     adjacency.get(id)?.forEach((target) => queue.push(target));
   }
   const unreachable = new Set([...ids].filter((id) => !reachable.has(id)));
-  if (unreachable.size) warnings.push(`${unreachable.size} node(s) are unreachable from the inferred start.`);
+  if (unreachable.size) warnings.push(`${unreachable.size} node(s) are unreachable from the canonical start.`);
   const cycles = new Set<string>();
   const visiting = new Set<string>();
   const visited = new Set<string>();
@@ -286,7 +296,7 @@ function DialogueCard({ data, selected }: NodeProps<Node<CardData>>) {
               : "border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900";
   return <div data-testid={`dialogue-node-${id}`} className={`w-[275px] rounded-lg border p-3 shadow-md ${tone}`} style={data.lens === "speakers" ? { borderLeftColor: `hsl(${data.speakerHue} 70% 50%)`, borderLeftWidth: 7 } : undefined} onClick={data.onSelect}>
     <Handle type="target" position={FlowPosition.Left} />
-    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{data.speaker}</div>
+    <div className="flex justify-between text-[10px] font-semibold uppercase tracking-wide text-slate-500"><span>{data.speaker}</span><span>{data.isStart ? "Start" : node.is_terminal ? "Ending" : ""}</span></div>
     <textarea
       aria-label={`Dialogue text ${id}`}
       className="nodrag mt-1 min-h-20 w-full resize-none rounded border border-transparent bg-transparent p-1 text-sm focus:border-blue-400 focus:outline-none"
@@ -300,8 +310,10 @@ function DialogueCard({ data, selected }: NodeProps<Node<CardData>>) {
       <span>{rows(node.choices).length} choices</span>{locked && <span>Locked</span>}{strings(node.set_flags).length > 0 && <span>{strings(node.set_flags).length} flags</span>}
     </div>
     <div className="nodrag mt-2 flex gap-1">
-      <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={(event) => { event.stopPropagation(); data.onAdd(false); }}>+ Choice</button>
-      <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={(event) => { event.stopPropagation(); data.onAdd(true); }}>+ Continue</button>
+      <button aria-label={`Add choice after ${data.speaker}`} className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={(event) => { event.stopPropagation(); data.onAdd(false); }}>+ Choice</button>
+      <button aria-label={`Add continuation after ${data.speaker}`} className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={(event) => { event.stopPropagation(); data.onAdd(true); }}>+ Continue</button>
+      <button aria-label="Set as dialogue start" title="Set as start" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={(event) => { event.stopPropagation(); data.onStart(); }}>Start</button>
+      <button aria-label="Mark as dialogue ending" title="Mark as ending" disabled={rows(node.choices).length > 0} className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={(event) => { event.stopPropagation(); data.onTerminal(); }}>End</button>
     </div>
     <Handle type="source" position={FlowPosition.Right} />
   </div>;
@@ -328,7 +340,7 @@ export default function DialogueFlowPage() {
   const [selectedBeatId, setSelectedBeatId] = useState("");
   const [beatUnlinks, setBeatUnlinks] = useState<EntryRecord[]>([]);
   const [deletions, setDeletions] = useState<string[]>([]);
-  const [view, setView] = useState<CenterView>("flow");
+  const [view, setView] = useState<CenterView>(isNew ? "script" : "flow");
   const [lens, setLens] = useState<Lens>("choices");
   const [tab, setTab] = useState<InspectorTab>("edit");
   const [loading, setLoading] = useState(true);
@@ -338,12 +350,28 @@ export default function DialogueFlowPage() {
   const [review, setReview] = useState<BundleReviewResult | null>(null);
   const [previewMutation, setPreviewMutation] = useState<EntryRecord | null>(null);
   const [reviewError, setReviewError] = useState("");
+  const [setupOpen, setSetupOpen] = useState(isNew);
+  const [libraryOpen, setLibraryOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [focusMode, setFocusMode] = useState(false);
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [nodeQuery, setNodeQuery] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [localSavedAt, setLocalSavedAt] = useState<number | null>(null);
+  const [snapshots, setSnapshots] = useState<LocalSnapshot<DialoguePacket>[]>([]);
   const dirtySource = useRef(`dialogue-flow-${id || "index"}`);
+  const undoStack = useRef<DialoguePacket[]>([]);
+  const redoStack = useRef<DialoguePacket[]>([]);
+  const mutationGroup = useRef({ name: "", at: 0 });
   const { setDirty } = useDirtyState();
 
   const currentId = text(packet.dialogue.id);
   const activeNodes = useMemo(() => packet.nodes.filter((node) => !deletions.includes(text(node.id))), [deletions, packet.nodes]);
   const selectedNode = packet.nodes.find((node) => text(node.id) === selectedNodeId);
+  const selectedCharacter = packet.characters.find((entry) => text(entry.id) === text(selectedNode?.speaker_character_id));
+  const selectedVoice = packet.context.story_profiles.find((entry) => text(entry.character_id) === text(selectedNode?.speaker_character_id));
+  const selectedRelationship = packet.context.relationships.find((entry) => [text(entry.from_character_id), text(entry.to_character_id)].includes(text(selectedNode?.speaker_character_id)));
   const selectedConsequenceNode = selectedNode || (selectedChoice ? packet.nodes.find((node) => text(node.id) === selectedChoice.nodeId) : undefined);
   const originalConsequenceNode = original?.nodes.find((node) => text(node.id) === text(selectedConsequenceNode?.id));
   const selectedChoiceRow = selectedChoice ? rows(packet.nodes.find((node) => text(node.id) === selectedChoice.nodeId)?.choices)[selectedChoice.index] : undefined;
@@ -393,6 +421,11 @@ export default function DialogueFlowPage() {
       const storedPositions = readRecord(layoutKey(text(base.dialogue.id)));
       setPositions({ ...autoLayout(restored.nodes), ...storedPositions });
       setGroups(readGroups(text(base.dialogue.id)));
+      setSnapshots(readSnapshots<DialoguePacket>(text(base.dialogue.id)));
+      try {
+        const ui = JSON.parse(localStorage.getItem(uiKey(text(base.dialogue.id))) || "{}");
+        if (isRecord(ui)) { setSetupOpen(Boolean(ui.setupOpen)); setLibraryOpen(ui.libraryOpen !== false); setInspectorOpen(ui.inspectorOpen !== false); }
+      } catch { /* use defaults */ }
       setSelectedNodeId(text(restored.nodes[0]?.id));
     }).catch((error) => {
       const message = error instanceof Error ? error.message : "Dialogue Scene Room failed to load.";
@@ -408,32 +441,95 @@ export default function DialogueFlowPage() {
     const timer = window.setTimeout(() => {
       localStorage.setItem(draftKey(currentId), JSON.stringify({ dialogue: packet.dialogue, nodes: packet.nodes, story_beats: packet.story_beats, deletions, beatUnlinks, ts: Date.now() }));
       if (isNew) localStorage.setItem(NEW_DRAFT_POINTER, currentId);
+      setLocalSavedAt(Date.now());
     }, 300);
     return () => window.clearTimeout(timer);
   }, [beatUnlinks, currentId, deletions, dirty, isNew, original, packet.dialogue, packet.nodes, packet.story_beats]);
 
-  const updateDialogue = (patch: EntryRecord) => setPacket((current) => ({ ...current, dialogue: { ...current.dialogue, ...patch } }));
-  const updateNode = useCallback((nodeId: string, patch: EntryRecord) => setPacket((current) => ({ ...current, nodes: current.nodes.map((node) => text(node.id) === nodeId ? { ...node, ...patch } : node) })), []);
+  useEffect(() => {
+    if (!currentId) return;
+    localStorage.setItem(uiKey(currentId), JSON.stringify({ setupOpen, libraryOpen, inspectorOpen }));
+  }, [currentId, inspectorOpen, libraryOpen, setupOpen]);
+
+  const mutatePacket = useCallback((updater: (current: DialoguePacket) => DialoguePacket, group = "mutation") => {
+    setPacket((current) => {
+      const now = Date.now();
+      if (mutationGroup.current.name !== group || now - mutationGroup.current.at > 750) undoStack.current.push(current);
+      mutationGroup.current = { name: group, at: now }; redoStack.current = [];
+      return updater(current);
+    });
+  }, []);
+  const undo = useCallback(() => setPacket((current) => {
+    const previous = undoStack.current.pop(); if (!previous) return current;
+    redoStack.current.push(current); mutationGroup.current = { name: "", at: 0 }; return previous;
+  }), []);
+  const redo = useCallback(() => setPacket((current) => {
+    const next = redoStack.current.pop(); if (!next) return current;
+    undoStack.current.push(current); mutationGroup.current = { name: "", at: 0 }; return next;
+  }), []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const modifier = event.ctrlKey || event.metaKey;
+      if (modifier && event.key.toLowerCase() === "k") { event.preventDefault(); setCommandOpen((open) => !open); }
+      if (modifier && event.key.toLowerCase() === "z") { event.preventDefault(); if (event.shiftKey) redo(); else undo(); }
+      if (modifier && event.key.toLowerCase() === "y") { event.preventDefault(); redo(); }
+    };
+    window.addEventListener("keydown", onKeyDown); return () => window.removeEventListener("keydown", onKeyDown);
+  }, [redo, undo]);
+
+  const updateDialogue = (patch: EntryRecord) => mutatePacket((current) => ({ ...current, dialogue: { ...current.dialogue, ...patch } }), "dialogue");
+  const updateNode = useCallback((nodeId: string, patch: EntryRecord) => mutatePacket((current) => ({ ...current, nodes: current.nodes.map((node) => text(node.id) === nodeId ? { ...node, ...patch } : node) }), `node:${nodeId}`), [mutatePacket]);
   const updateChoice = (nodeId: string, index: number, patch: EntryRecord) => {
     const node = packet.nodes.find((entry) => text(entry.id) === nodeId);
     updateNode(nodeId, { choices: rows(node?.choices).map((choice, choiceIndex) => choiceIndex === index ? { ...choice, ...patch } : choice) });
   };
   const addLinkedNode = useCallback((sourceId: string, automatic: boolean) => {
     const source = packet.nodes.find((node) => text(node.id) === sourceId);
-    const node = emptyNode(currentId, packet.nodes.length + 1, text(source?.speaker, "NPC"));
-    node.speaker_character_id = source?.speaker_character_id || null;
-    setPacket((current) => ({
+    const sourceIndex = packet.nodes.findIndex((node) => text(node.id) === sourceId);
+    const recentDistinct = [...packet.nodes.slice(0, Math.max(0, sourceIndex)).reverse(), ...packet.nodes.slice(sourceIndex + 1).reverse()].find((node) => text(node.speaker) && text(node.speaker) !== text(source?.speaker));
+    const node = emptyNode(currentId, packet.nodes.length + 1, text(recentDistinct?.speaker, text(source?.speaker, "NPC")));
+    node.speaker_character_id = recentDistinct?.speaker_character_id || source?.speaker_character_id || null;
+    mutatePacket((current) => ({
       ...current,
-      nodes: [...current.nodes.map((entry) => text(entry.id) === sourceId ? { ...entry, choices: [...rows(entry.choices), { choice_text: automatic ? "" : "New response", next_node_id: node.id, set_flags: [] }] } : entry), node],
-    }));
+      nodes: [...current.nodes.map((entry) => text(entry.id) === sourceId ? { ...entry, is_terminal: false, choices: [...rows(entry.choices), { choice_text: automatic ? "" : "New response", next_node_id: node.id, set_flags: [] }] } : entry), node],
+    }), `add:${sourceId}`);
     const sourcePosition = positions[sourceId] || { x: 50, y: 50 };
     setPositions((current) => ({ ...current, [text(node.id)]: { x: sourcePosition.x + 330, y: sourcePosition.y + rows(source?.choices).length * 190 } }));
     setSelectedNodeId(text(node.id)); setSelectedChoice(null);
-  }, [currentId, packet.nodes, positions]);
+    window.setTimeout(() => document.getElementById(`script-line-${text(node.id)}`)?.querySelector("textarea")?.focus(), 0);
+  }, [currentId, mutatePacket, packet.nodes, positions]);
+  const addChoiceNode = useCallback((sourceId: string, choiceLabel: string) => {
+    const source = packet.nodes.find((node) => text(node.id) === sourceId);
+    const node = emptyNode(currentId, packet.nodes.length + 1, text(packet.nodes.slice().reverse().find((entry) => text(entry.speaker) !== text(source?.speaker))?.speaker, text(source?.speaker, "NPC")));
+    mutatePacket((current) => ({ ...current, nodes: [...current.nodes.map((entry) => text(entry.id) === sourceId ? { ...entry, is_terminal: false, choices: [...rows(entry.choices), { choice_text: choiceLabel, next_node_id: node.id, set_flags: [] }] } : entry), node] }), `choice:${sourceId}`);
+    setSelectedNodeId(text(node.id)); setSelectedChoice(null);
+    window.setTimeout(() => document.getElementById(`script-line-${text(node.id)}`)?.querySelector("textarea")?.focus(), 0);
+  }, [currentId, mutatePacket, packet.nodes]);
+  const addFirstLine = useCallback(() => {
+    const node = emptyNode(currentId, 1);
+    mutatePacket((current) => ({ ...current, dialogue: { ...current.dialogue, starting_node_id: node.id }, nodes: [node] }), "first-line");
+    setSelectedNodeId(text(node.id));
+    window.setTimeout(() => document.getElementById(`script-line-${text(node.id)}`)?.querySelector("textarea")?.focus(), 0);
+  }, [currentId, mutatePacket]);
+  const moveLine = useCallback((nodeId: string, direction: -1 | 1) => mutatePacket((current) => {
+    const nodes = [...current.nodes]; const from = nodes.findIndex((node) => text(node.id) === nodeId); const to = from + direction;
+    if (from < 0 || to < 0 || to >= nodes.length) return current;
+    [nodes[from], nodes[to]] = [nodes[to], nodes[from]]; return { ...current, nodes };
+  }, `move:${nodeId}`), [mutatePacket]);
+  const duplicateBranch = useCallback((sourceId: string, choiceIndex: number) => mutatePacket((current) => {
+    const source = current.nodes.find((node) => text(node.id) === sourceId); const choice = rows(source?.choices)[choiceIndex]; const targetId = text(choice?.next_node_id);
+    if (!source || !choice || !targetId) return current;
+    const byId = new Map(current.nodes.map((node) => [text(node.id), node])); const branch = new Set<string>(); const queue = [targetId];
+    while (queue.length && branch.size < 100) { const id = queue.shift()!; if (branch.has(id) || !byId.has(id)) continue; branch.add(id); rows(byId.get(id)?.choices).forEach((edge) => queue.push(text(edge.next_node_id))); }
+    const mapped = Object.fromEntries([...branch].map((id) => [id, generateUlid()]));
+    const copies = [...branch].map((id, index) => { const node = byId.get(id)!; return { ...node, id: mapped[id], slug: generateSlug(`${text(node.slug, "line")}-copy-${index + 1}-${mapped[id].slice(-4)}`), choices: rows(node.choices).map((edge) => ({ ...edge, next_node_id: mapped[text(edge.next_node_id)] || edge.next_node_id })), __new: true }; });
+    return { ...current, nodes: [...current.nodes.map((node) => text(node.id) === sourceId ? { ...node, choices: [...rows(node.choices), { ...choice, choice_text: `Copy: ${text(choice.choice_text, "Continue")}`, next_node_id: mapped[targetId] }] } : node), ...copies] };
+  }, `duplicate:${sourceId}:${choiceIndex}`), [mutatePacket]);
   const connect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target || connection.source === connection.target) return;
     const source = packet.nodes.find((node) => text(node.id) === connection.source);
-    updateNode(connection.source, { choices: [...rows(source?.choices), { choice_text: "New response", next_node_id: connection.target, set_flags: [] }] });
+    updateNode(connection.source, { is_terminal: false, choices: [...rows(source?.choices), { choice_text: "New response", next_node_id: connection.target, set_flags: [] }] });
   }, [packet.nodes, updateNode]);
 
   const flowNodes = useMemo<Node<CardData>[]>(() => activeNodes.map((node) => ({
@@ -442,12 +538,15 @@ export default function DialogueFlowPage() {
     data: {
       entry: node, speaker: speakerLabel(node, packet.characters), selectedChoice, lens, health,
       grouped: Boolean(selectedBeatId && groups[text(node.id)] === selectedBeatId), queued: deletions.includes(text(node.id)),
+      isStart: text(packet.dialogue.starting_node_id) === text(node.id),
       speakerHue: [...speakerLabel(node, packet.characters)].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 360,
       onSelect: () => { setSelectedNodeId(text(node.id)); setSelectedChoice(null); setTab("edit"); },
       onText: (value: string) => updateNode(text(node.id), { text: value }),
       onAdd: (automatic: boolean) => addLinkedNode(text(node.id), automatic),
+      onStart: () => mutatePacket((current) => ({ ...current, dialogue: { ...current.dialogue, starting_node_id: node.id } }), "dialogue-start"),
+      onTerminal: () => updateNode(text(node.id), { is_terminal: true }),
     },
-  })), [activeNodes, addLinkedNode, deletions, groups, health, lens, packet.characters, positions, selectedBeatId, selectedChoice, selectedNodeId, updateNode]);
+  })), [activeNodes, addLinkedNode, deletions, groups, health, lens, mutatePacket, packet.characters, packet.dialogue.starting_node_id, positions, selectedBeatId, selectedChoice, selectedNodeId, updateNode]);
 
   const flowEdges = useMemo<Edge[]>(() => activeNodes.flatMap((node) => rows(node.choices).map((choice, index) => {
     const selected = selectedChoice?.nodeId === text(node.id) && selectedChoice.index === index;
@@ -533,7 +632,8 @@ export default function DialogueFlowPage() {
       const a = make("It is over. Are you hurt?"); const b = make("Then let us decide what comes next."); const c = make("We should move.");
       a.choices = [{ choice_text: "Discuss what happened", next_node_id: b.id, set_flags: [] }, { choice_text: "Move on", next_node_id: c.id, set_flags: [] }]; b.choices = [{ choice_text: "Continue", next_node_id: c.id, set_flags: [] }]; created = [a, b, c];
     }
-    setPacket((current) => ({ ...current, nodes: created }));
+    created = created.map((node) => ({ ...node, is_terminal: rows(node.choices).length === 0 }));
+    mutatePacket((current) => ({ ...current, dialogue: { ...current.dialogue, starting_node_id: created[0]?.id || null }, nodes: created }), "recipe");
     setPositions(autoLayout(created)); setSelectedNodeId(text(created[0]?.id)); setNotice(`${recipe} starter staged.`);
   };
 
@@ -546,10 +646,10 @@ export default function DialogueFlowPage() {
       beat_type: "Other", sort_order: next, summary: "", state_before: "", state_after: "", player_impact: "", world_impact: "",
       required_flags: [], forbidden_flags: [], expected_output_flags: [], relationship_changes: [], tags: [], __new: true,
     };
-    setPacket((current) => ({ ...current, story_beats: [...current.story_beats, beat] })); setSelectedBeatId(text(beat.id)); setTab("beat");
+    mutatePacket((current) => ({ ...current, story_beats: [...current.story_beats, beat] }), "beat-create"); setSelectedBeatId(text(beat.id)); setTab("beat");
   };
 
-  const updateBeat = (beatId: string, patch: EntryRecord) => setPacket((current) => ({ ...current, story_beats: current.story_beats.map((beat) => text(beat.id) === beatId ? { ...beat, ...patch } : beat) }));
+  const updateBeat = (beatId: string, patch: EntryRecord) => mutatePacket((current) => ({ ...current, story_beats: current.story_beats.map((beat) => text(beat.id) === beatId ? { ...beat, ...patch } : beat) }), `beat:${beatId}`);
   const unlinkBeat = (beat: EntryRecord) => {
     if (!beat.__new) {
       const originalBeat = original?.story_beats.find((entry) => text(entry.id) === text(beat.id));
@@ -568,9 +668,9 @@ export default function DialogueFlowPage() {
       <AuthoringPanel
         id="dialogue-header"
         title={label(packet.dialogue)}
-        subtitle={`${activeNodes.length} lines / ${packet.story_beats.length} beats / ${health.blockers.length} blockers / ${health.warnings.length} warnings / ${dirty ? "Unsaved" : "Saved"}`}
+        subtitle={`${activeNodes.length} lines / ${packet.story_beats.length} beats / ${health.blockers.length} blockers / ${health.warnings.length} warnings / ${dirty ? localSavedAt ? "Saved locally" : "Unsaved locally" : "Committed to project"}`}
         help="Use this workspace to write a dialogue graph, rehearse choices, connect story beats, and review the saved bundle. Editing here drafts dialogue lines and beat links until you preview and commit."
-        actions={<div className="flex flex-wrap gap-2"><Link className={inactive} to="/dialogues">Inspect In Generic Editor</Link><button className={inactive} disabled={!dirty || saving} onClick={reset}>Reset Draft</button><button className={active} disabled={saving || saveBlocked || !dirty} onClick={() => void preview()}>{saving ? "Reviewing..." : "Review Dialogue Bundle"}</button></div>}
+        actions={<div className="flex flex-wrap gap-2"><button className={inactive} onClick={undo} aria-label="Undo dialogue change">Undo</button><button className={inactive} onClick={redo} aria-label="Redo dialogue change">Redo</button><button className={inactive} onClick={() => setCommandOpen(true)}>Commands <kbd>Ctrl K</kbd></button><button className={inactive} onClick={() => setFocusMode((value) => !value)}>{focusMode ? "Exit focus" : "Focus mode"}</button><button className={inactive} onClick={() => setSetupOpen((value) => !value)}>Scene setup</button><button className={inactive} onClick={() => setImportOpen(true)} disabled={activeNodes.length > 0} title={activeNodes.length ? "V1 import is limited to empty dialogues." : "Import DLG/1"}>Import DLG/1</button><Link className={inactive} to="/dialogues">Generic Editor</Link><button className={inactive} disabled={!dirty || saving} onClick={reset}>Reset Draft</button><button className={active} disabled={saving || saveBlocked || !dirty} onClick={() => void preview()}>{saving ? "Reviewing..." : "Review Dialogue Bundle"}</button></div>}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><div className="text-xs font-semibold uppercase text-violet-600">Dialogue Scene Room</div><h1 className="sr-only">{label(packet.dialogue)}</h1><AuthoringHealthSummary blockers={health.blockers.length} warnings={health.warnings.length} dirty={dirty} saving={saving} /></div>
@@ -580,29 +680,34 @@ export default function DialogueFlowPage() {
       </AuthoringPanel>
 
       <main className="space-y-4">
-          <div id="dialogue-brief" className="scroll-mt-24"><SceneBrief packet={packet} onChange={updateDialogue} onRecipe={applyRecipe} /></div>
+          {setupOpen && !focusMode && <div className="space-y-4"><div id="dialogue-brief" className="scroll-mt-24"><SceneBrief packet={packet} onChange={updateDialogue} onRecipe={applyRecipe} /></div>
           <div id="dialogue-beats" className="scroll-mt-24"><BeatTrack packet={packet} selectedBeatId={selectedBeatId} setSelectedBeatId={(beatId) => { setSelectedBeatId(beatId); setTab("beat"); }} onCreate={createBeat} /></div>
-          {!isNew && currentId && <StoryPlacementPanel entityKind="dialogue" entityId={currentId} entityLabel={label(packet.dialogue)} entity={{ ...packet.dialogue, nodes: packet.nodes }} enableCrossEntityConsequenceActions />}
+          {!isNew && currentId && <StoryPlacementPanel entityKind="dialogue" entityId={currentId} entityLabel={label(packet.dialogue)} entity={{ ...packet.dialogue, nodes: packet.nodes }} enableCrossEntityConsequenceActions />}</div>}
 
-      <div id="dialogue-workbench" className="grid scroll-mt-24 gap-4 xl:grid-cols-[235px_minmax(0,1fr)_390px]">
-        <Panel
+      <div id="dialogue-workbench" className={`grid scroll-mt-24 gap-4 ${!focusMode && libraryOpen && inspectorOpen ? "xl:grid-cols-[minmax(210px,280px)_minmax(0,1fr)_minmax(300px,390px)]" : !focusMode && (libraryOpen || inspectorOpen) ? "xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]" : "grid-cols-1"}`}>
+        {!focusMode && libraryOpen && <Panel
           id="dialogue-library"
           title="Dialogue Library"
           subtitle="Switch scenes without leaving the dialogue authoring workspace."
           help="Use this to move between saved dialogues. Dirty-state protection still applies through the app shell, so review or reset drafts before switching when needed."
         >
-          <Link className={`${active} mb-3 block text-center`} to="/author/dialogues/new">New Dialogue</Link>
-          <div className="max-h-[760px] space-y-1 overflow-y-auto">{dialogues.map((dialogue) => <Link key={text(dialogue.id)} to={`/author/dialogues/${encodeURIComponent(text(dialogue.id))}`} className={`block rounded border px-3 py-2 text-sm ${text(dialogue.id) === currentId ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-slate-200 dark:border-slate-800"}`}>{label(dialogue)}</Link>)}{!dialogues.length && <Empty title="No saved dialogues loaded.">Create a new dialogue or retry after the dialogue list is available.</Empty>}</div>
-        </Panel>
+          <div className="mb-3 flex gap-2"><Link className={`${active} flex-1 text-center`} to="/author/dialogues/new">New Dialogue</Link><button className={inactive} onClick={() => setLibraryOpen(false)} aria-label="Close dialogue library">Hide</button></div>
+          <input aria-label="Search dialogue library" className={`${inputClass} mb-3`} placeholder="Search title, slug, tags…" value={libraryQuery} onChange={(event) => setLibraryQuery(event.target.value)} />
+          <div className="max-h-[700px] space-y-1 overflow-y-auto">{dialogues.filter((dialogue) => stable([dialogue.title, dialogue.slug, dialogue.tags, dialogue.character_id, dialogue.location_id]).toLowerCase().includes(libraryQuery.toLowerCase())).map((dialogue) => <Link key={text(dialogue.id)} to={`/author/dialogues/${encodeURIComponent(text(dialogue.id))}`} className={`block rounded border px-3 py-2 text-sm ${text(dialogue.id) === currentId ? "border-blue-500 bg-blue-50 dark:bg-blue-950" : "border-slate-200 dark:border-slate-800"}`}>{label(dialogue)}<span className="block truncate text-[10px] text-slate-500">{text(dialogue.slug)}</span></Link>)}{!dialogues.length && <Empty title="No saved dialogues loaded.">Create a new dialogue or retry after the dialogue list is available.</Empty>}</div>
+        </Panel>}
 
         <section id="dialogue-canvas" className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 scroll-mt-24">
           <div className="border-b border-slate-200 p-3 dark:border-slate-800">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex gap-1">{(["flow", "rehearsal", "impact"] as CenterView[]).map((item) => <button key={item} className={view === item ? active : inactive} onClick={() => setView(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>
+              <div className="flex gap-1">{(["script", "flow", "rehearsal", "impact"] as CenterView[]).map((item) => <button key={item} className={view === item ? active : inactive} onClick={() => setView(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>
+              <div className="flex gap-1">{!libraryOpen && !focusMode && <button className={inactive} onClick={() => setLibraryOpen(true)}>Library</button>}{!inspectorOpen && !focusMode && <button className={inactive} onClick={() => setInspectorOpen(true)}>Inspector</button>}{activeNodes.length === 0 && <button className={active} onClick={addFirstLine}>Add first line</button>}</div>
               {view === "flow" && <button className={inactive} onClick={() => { const next = autoLayout(activeNodes); setPositions(next); localStorage.setItem(layoutKey(currentId), JSON.stringify(next)); }}>Auto Layout</button>}
             </div>
             {view === "flow" && <div className="mt-2 flex flex-wrap gap-1">{(["choices", "consequences", "locks", "speakers", "reachability", "world"] as Lens[]).map((item) => <button key={item} className={lens === item ? active : inactive} onClick={() => setLens(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>}
+            <div className="relative mt-2"><input aria-label="Search dialogue nodes" className={inputClass} placeholder="Find a speaker, line, or node slug…" value={nodeQuery} onChange={(event) => setNodeQuery(event.target.value)} />{nodeQuery && <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded border bg-white p-1 shadow-lg dark:bg-slate-950">{activeNodes.filter((node) => stable([node.speaker, node.text, node.slug]).toLowerCase().includes(nodeQuery.toLowerCase())).slice(0, 20).map((node) => <button type="button" key={text(node.id)} className="block w-full rounded p-2 text-left text-xs hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { setSelectedNodeId(text(node.id)); setSelectedChoice(null); setNodeQuery(""); if (view === "script") window.setTimeout(() => document.getElementById(`script-line-${text(node.id)}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0); }}>{speakerLabel(node, packet.characters)}: {text(node.text, "Empty line")}</button>)}</div>}</div>
+            {selectedNode && <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-violet-200 bg-violet-50 px-3 py-2 text-xs dark:bg-violet-950/30"><b>{label(selectedCharacter, text(selectedNode.speaker, "Speaker"))}</b>{text(selectedVoice?.want) && <span>Wants: {text(selectedVoice?.want)}</span>}{text(selectedVoice?.voice_notes) && <span>Voice: {text(selectedVoice?.voice_notes)}</span>}{text(selectedRelationship?.summary) && <span>Relationship: {text(selectedRelationship?.summary)}</span>}<span className="ml-auto">{text(selectedNode.requirements_id) ? "1 requirement in" : "No line requirement"} · {strings(selectedNode.set_flags).length + rows(selectedNode.choices).flatMap((choice) => strings(choice.set_flags)).length} flags out</span></div>}
           </div>
+          {view === "script" && <DialogueScriptView nodes={activeNodes} startId={text(packet.dialogue.starting_node_id)} characters={packet.characters} selectedNodeId={selectedNodeId} onSelect={(nodeId) => { setSelectedNodeId(nodeId); setSelectedChoice(null); }} onChange={updateNode} onAdd={(nodeId) => addLinkedNode(nodeId, true)} onAddChoice={addChoiceNode} onDelete={(nodeId) => { const node = packet.nodes.find((entry) => text(entry.id) === nodeId); if (node?.__new) mutatePacket((current) => ({ ...current, nodes: current.nodes.filter((entry) => text(entry.id) !== nodeId) }), `delete:${nodeId}`); else setDeletions((current) => [...new Set([...current, nodeId])]); }} onSetStart={(nodeId) => updateDialogue({ starting_node_id: nodeId })} onMove={moveLine} onDuplicateBranch={duplicateBranch} />}
           {view === "flow" && <div data-testid="dialogue-canvas" className="dialogue-flow-canvas h-[760px]">
             <ReactFlow
               nodes={flowNodes} edges={flowEdges} nodeTypes={nodeTypes} fitView minZoom={0.2} maxZoom={1.8}
@@ -618,13 +723,13 @@ export default function DialogueFlowPage() {
           {view === "impact" && <ImpactView packet={packet} selectedNodeId={selectedNodeId || selectedChoice?.nodeId || ""} />}
         </section>
 
-        <Panel
+        {!focusMode && inspectorOpen && <Panel
           id="dialogue-context"
           title="Context Dock"
           subtitle="Edit the selected line, story beat, health issue, or scene context."
           help="The dock changes with the selected tab. Edit works on the selected node or choice, Beat edits story milestones, Health explains blockers and warnings, and Context shows linked world records."
         >
-          <div className="mb-3 flex flex-wrap gap-1">{(["edit", "beat", "health", "context"] as InspectorTab[]).map((item) => <button key={item} className={tab === item ? active : inactive} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>
+          <div className="mb-3 flex flex-wrap gap-1">{(["edit", "beat", "health", "context"] as InspectorTab[]).map((item) => <button key={item} className={tab === item ? active : inactive} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}<button className={inactive} onClick={() => setInspectorOpen(false)} aria-label="Close context dock">Hide</button></div>
           {tab === "edit" && selectedChoice && selectedChoiceRow ? <ChoiceEditor choice={selectedChoiceRow} nodes={packet.nodes} deletions={deletions} onChange={(patch) => updateChoice(selectedChoice.nodeId, selectedChoice.index, patch)} onRemove={() => { const node = packet.nodes.find((entry) => text(entry.id) === selectedChoice.nodeId); updateNode(selectedChoice.nodeId, { choices: rows(node?.choices).filter((_, index) => index !== selectedChoice.index) }); setSelectedChoice(null); }} />
             : tab === "edit" && selectedNode ? <NodeEditor node={selectedNode} packet={packet} groupedBeatId={groups[text(selectedNode.id)] || ""} selectedBeatId={selectedBeatId} onChange={(patch) => updateNode(text(selectedNode.id), patch)} onGroup={(beatId) => { const next = { ...groups, [text(selectedNode.id)]: beatId }; if (!beatId) delete next[text(selectedNode.id)]; setGroups(next); localStorage.setItem(groupKey(currentId), JSON.stringify(next)); }} onDelete={() => selectedNode.__new ? setPacket((current) => ({ ...current, nodes: current.nodes.filter((entry) => text(entry.id) !== text(selectedNode.id)) })) : setDeletions((current) => [...new Set([...current, text(selectedNode.id)])])} />
               : tab === "edit" ? <DialogueEditor dialogue={packet.dialogue} onChange={updateDialogue} /> : null}
@@ -645,10 +750,25 @@ export default function DialogueFlowPage() {
           {tab === "beat" && selectedBeat ? <BeatEditor beat={selectedBeat} packet={packet} coverage={packet.beat_coverage[text(selectedBeat.id)]} onChange={(patch) => updateBeat(text(selectedBeat.id), patch)} onUnlink={() => unlinkBeat(selectedBeat)} /> : tab === "beat" ? <Empty title="No story beat selected.">Select an existing beat or add one from the Story Beat Track to edit its milestone details.</Empty> : null}
           {tab === "health" && <HealthPanel health={health} onSelect={(nodeId) => { setSelectedNodeId(nodeId); setView("flow"); }} />}
           {tab === "context" && <ContextPanel packet={packet} />}
-        </Panel>
+        </Panel>}
        </div>
          </main>
      </div>
+    {commandOpen && <div role="dialog" aria-modal="true" aria-label="Dialogue commands" className="fixed inset-0 z-50 bg-slate-950/50 p-4" onMouseDown={() => setCommandOpen(false)}><div className="mx-auto mt-20 max-w-lg rounded-xl bg-white p-4 shadow-2xl dark:bg-slate-900" onMouseDown={(event) => event.stopPropagation()}><div className="mb-3 flex items-center justify-between"><b>Dialogue commands</b><button onClick={() => setCommandOpen(false)} aria-label="Close commands">✕</button></div><div className="grid gap-2">
+      <button className={inactive} disabled={!selectedNodeId} onClick={() => { if (selectedNodeId) addLinkedNode(selectedNodeId, true); setCommandOpen(false); }}>Add continuation</button>
+      <button className={inactive} disabled={!selectedNodeId} onClick={() => { const choice = window.prompt("Player choice label"); if (selectedNodeId && choice?.trim()) addChoiceNode(selectedNodeId, choice.trim()); setCommandOpen(false); }}>Add choice</button>
+      <button className={inactive} onClick={() => { setFocusMode((value) => !value); setCommandOpen(false); }}>Toggle focus mode</button>
+      <button className={inactive} onClick={() => { setView("rehearsal"); setCommandOpen(false); }}>Rehearse from canonical start</button>
+      <button className={inactive} disabled={activeNodes.length > 0} onClick={() => { setImportOpen(true); setCommandOpen(false); }}>Import dialogue text</button>
+      <button className={inactive} onClick={() => { const name = window.prompt("Snapshot name", `Snapshot ${new Date().toLocaleString()}`); if (name?.trim()) { const snapshot = { id: generateUlid(), name: name.trim(), createdAt: Date.now(), value: packet }; setSnapshots(saveSnapshot(currentId, snapshot)); setNotice(`Local snapshot '${name.trim()}' created.`); } setCommandOpen(false); }}>Create local snapshot</button>
+      {snapshots.slice().reverse().map((snapshot) => <button key={snapshot.id} className={inactive} onClick={() => { mutatePacket(() => snapshot.value, `snapshot:${snapshot.id}`); setCommandOpen(false); setNotice(`Restored local snapshot '${snapshot.name}'.`); }}>Restore: {snapshot.name}</button>)}
+    </div><div className="mt-3 text-xs text-slate-500">Ctrl/Cmd+K commands · Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z redo · Script: Ctrl/Cmd+Enter continue, Alt+Enter choice</div></div></div>}
+    {importOpen && <DialogueImportDialog dialogueId={currentId} characters={packet.characters} onCancel={() => setImportOpen(false)} onStage={(candidate) => {
+      const snapshot = { id: generateUlid(), name: "Before DLG/1 import", createdAt: Date.now(), value: packet };
+      setSnapshots(saveSnapshot(currentId, snapshot));
+      mutatePacket((current) => ({ ...current, dialogue: { ...current.dialogue, ...candidate.dialogue }, nodes: candidate.nodes }), "dlg-import");
+      setPositions(autoLayout(candidate.nodes)); setSelectedNodeId(text(candidate.dialogue.starting_node_id)); setView("script"); setImportOpen(false); setNotice("DLG/1 candidate staged as a local draft. Review, rehearse, and preview before committing.");
+    }} />}
     {review && <BundleReview result={review} title="Dialogue Scene Bundle Review" description="Dialogue, lines, and story beats will commit atomically." variant="modal" commitLabel="Commit Bundle" saving={saving} error={reviewError} warningAcknowledgement="required" onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={(acceptedWarningIds) => void commit(acceptedWarningIds)} />}
   </AuthoringPageShell>;
 }
@@ -692,8 +812,8 @@ function BeatEditor({ beat, packet, coverage, onChange, onUnlink }: { beat: Entr
 }
 
 function Rehearsal({ packet, health, groups, selectedBeatId, onBeat }: { packet: DialoguePacket; health: Health; groups: Record<string, string>; selectedBeatId: string; onBeat: (id: string) => void }) {
-  const localStart = localStorage.getItem(startKey(text(packet.dialogue.id))) || "";
-  const start = packet.nodes.some((node) => text(node.id) === localStart) ? localStart : health.roots.length === 1 ? health.roots[0] : text(packet.nodes[0]?.id);
+  const canonicalStart = text(packet.dialogue.starting_node_id);
+  const start = packet.nodes.some((node) => text(node.id) === canonicalStart) ? canonicalStart : health.roots.length === 1 ? health.roots[0] : text(packet.nodes[0]?.id);
   const defaults = packet.flags.filter((flag) => Boolean(flag.default_value)).map((flag) => text(flag.id));
   const [currentId, setCurrentId] = useState(start);
   const [flags, setFlags] = useState<Set<string>>(new Set(defaults));

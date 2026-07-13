@@ -42,6 +42,7 @@ class DialogueRoute(BaseRoute):
         dialogue.character_id = data.get("character_id") or None
         dialogue.location_id = data.get("location_id") or None
         dialogue.requirements_id = data.get("requirements_id") or None
+        dialogue.starting_node_id = data.get("starting_node_id") or None
 
         if dialogue.character_id:
             profile = db_session.query(InteractionProfile).filter_by(character_id=dialogue.character_id).first()
