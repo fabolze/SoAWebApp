@@ -17,7 +17,9 @@ class Dialogue(Base):
     character_id = Column(String, ForeignKey("characters.id"))
     location_id = Column(String, ForeignKey("locations.id"))
     requirements_id = Column(String, ForeignKey("requirements.id"))
-    starting_node_id = Column(String, ForeignKey("dialogue_nodes.id", use_alter=True, name="fk_dialogue_starting_node"))
+    # Kept as a validated string rather than an FK so an atomic bundle can
+    # insert the dialogue before inserting its new nodes.
+    starting_node_id = Column(String, nullable=True)
 
     description = Column(Text)  # Notes or context for writers
     tags = Column(JSON)         # List of string tags
@@ -28,4 +30,4 @@ class Dialogue(Base):
     requirements = relationship("Requirement", foreign_keys=[requirements_id])
 
 
-    nodes = relationship("DialogueNode", backref="dialogue", cascade="all, delete-orphan", foreign_keys="DialogueNode.dialogue_id")
+    nodes = relationship("DialogueNode", backref="dialogue", cascade="all, delete-orphan")

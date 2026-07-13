@@ -10,7 +10,7 @@ This document now distinguishes shipped prototype engineering from gates that re
 
 | Area | Status | Implemented / evidence |
 |---|---|---|
-| Canonical graph meaning | Complete | `dialogues.starting_node_id` and `dialogue_nodes.is_terminal`, additive SQLite migration, schemas, seed headers, preview/commit validation, compatibility normalization, and backend contract tests |
+| Canonical graph meaning | Complete | Validated nullable-string `dialogues.starting_node_id` and non-null/default-false `dialogue_nodes.is_terminal`, non-inferential additive SQLite migration, schemas, seed headers, preview/commit validation, compatibility normalization, CSV/UE preservation, and backend contract tests |
 | Writing hierarchy | Complete | Collapsible remembered Scene setup, searchable/collapsible library, collapsible inspector, Focus mode, compact local/committed status, and Script-first new-scene flow |
 | Script authoring | Complete for pilot | Branch-aware keyboard-editable outline, speaker suggestions/prediction, immediate focus handoff, inline choices/continuations, start/end actions, reorder, branch duplication, synchronized selection, issue highlighting, and state/context chips |
 | Authoring safety | Complete for pilot | Coalesced undo/redo, keyboard shortcuts, named local snapshots, automatic pre-import snapshot, local draft recovery, and non-mutating import cancel |

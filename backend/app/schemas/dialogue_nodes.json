@@ -54,10 +54,11 @@
     },
     "is_terminal": {
       "type": "boolean",
-      "description": "Marks this line as an intentional end of the conversation.",
+      "description": "Marks this node as an intentional ending. Terminal nodes cannot have outgoing choices.",
+      "default": false,
       "ui": {
         "widget": "checkbox",
-        "label": "Ending"
+        "label": "Terminal Node"
       }
     },
     "choices": {
