@@ -9,6 +9,7 @@ from backend.app.models.m_combat_profiles import CombatProfile
 from backend.app.models.m_content_packs import ContentPack
 from backend.app.models.m_encounters import Encounter, EncounterType
 from backend.app.models.m_events import Event, EventType
+from backend.app.models.m_factions import Alignment, Faction
 from backend.app.models.m_flags import Flag, FlagType
 from backend.app.models.m_interaction_profiles import InteractionProfile
 from backend.app.models.m_items import Item, ItemType
@@ -16,7 +17,7 @@ from backend.app.models.m_location_pois import LocationPoi, PoiType
 from backend.app.models.m_locations import Location
 from backend.app.models.m_quests import Quest
 from backend.app.models.m_story_arcs import ArcType, StoryArc
-from backend.app.models.m_requirements import Requirement, RequirementRequiredFlag
+from backend.app.models.m_requirements import Requirement, RequirementMinFactionReputation, RequirementRequiredFlag
 from backend.app.models.m_shops import Shop
 from backend.app.models.m_shop_inventory import ShopInventory
 from backend.app.routes import r_ui_dependencies, r_ui_item_ecosystem, r_ui_quests
@@ -121,6 +122,8 @@ def test_item_ecosystem_packet_includes_analysis_labels_and_pricing(monkeypatch)
     assert payload["catalogs"]["shops"][0]["requirements_id"] == "req-1"
     assert payload["catalogs"]["characters"][0]["level"] == 1
     assert payload["sources"]["shop_inventory"][0]["pricing"]["buy_price"] == 7
+    assert any(row["channel"] == "quest_rewards" and row["owner_id"] == "quest-1" for row in payload["analysis"]["provenance"])
+    assert payload["analysis"]["families"][0]["item"]["id"] == "item-2"
 
 
 def test_item_ecosystem_analysis_reports_acquisition_channels_for_important_items(monkeypatch):
@@ -245,6 +248,27 @@ def test_dependency_index_marks_flag_source(monkeypatch):
     _seed(Session)
     payload = client.get("/api/ui/dependencies").get_json()
     assert any(edge["relation"] == "sets" and edge["source"] == "quests:quest-1" for edge in payload["edges"])
+
+
+def test_dependency_index_exposes_reputation_rewards_and_gates(monkeypatch):
+    client, Session = _client(monkeypatch, r_ui_dependencies)
+    _seed(Session)
+    session = Session()
+    session.add(Faction(id="faction-1", slug="wardens", name="Wardens", alignment=Alignment.Neutral, relationships={}, reputation_config={}, tags=[]))
+    session.add(Requirement(id="req-reputation", slug="trusted-by-wardens", tags=[]))
+    session.flush()
+    session.add(RequirementMinFactionReputation(id="req-reputation-row", requirement_id="req-reputation", faction_id="faction-1", min_value=10))
+    quest = session.get(Quest, "quest-1")
+    quest.reputation_rewards = [{"faction_id": "faction-1", "amount": 12}]
+    session.get(Event, "event-1").requirements_id = "req-reputation"
+    session.commit()
+    session.close()
+
+    payload = client.get("/api/ui/dependencies").get_json()
+
+    assert any(node["id"] == "faction_reputation:faction-1" for node in payload["nodes"])
+    assert any(edge["relation"] == "grants_reputation" and edge["metadata"]["amount"] == 12 for edge in payload["edges"])
+    assert any(edge["relation"] == "reputation_required_by" and edge["metadata"]["minimum"] == 10 for edge in payload["edges"])
 
 
 def test_dependency_index_adds_inferred_unlocks_and_cycles(monkeypatch):

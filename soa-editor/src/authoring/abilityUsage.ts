@@ -37,6 +37,7 @@ export interface AbilityUsageEncounterRoleRow {
   missingProfile: boolean;
   bossLike: boolean;
   signatureAbility: boolean;
+  tacticalWarnings: string[];
 }
 
 export interface AbilityUsageModel {
@@ -109,6 +110,13 @@ function abilityEffectLinks(ability: EntryRecord): EntryRecord[] {
   return strings(ability.effects).map((effect_id, sort_order) => ({ effect_id, phase: "Impact", turn_offset: 0, sort_order }));
 }
 
+function sideGroup(side: string): "friendly" | "hostile" | "neutral" {
+  const value = side.toLowerCase();
+  if (["friendly", "ally", "allied", "player"].includes(value)) return "friendly";
+  if (["hostile", "enemy", "boss"].includes(value)) return "hostile";
+  return "neutral";
+}
+
 export function buildAbilityUsageModel({
   ability,
   usage,
@@ -172,6 +180,18 @@ export function buildAbilityUsageModel({
       const isAssigned = profileId ? assigned.has(profileId) : false;
       const enemyType = text(profile?.enemy_type, "other");
       const combatSide = text(participant.combat_side, "Neutral");
+      const participantRows = rows(encounter.participants);
+      const group = sideGroup(combatSide);
+      const allies = participantRows.filter((candidate) => sideGroup(text(candidate.combat_side, "Neutral")) === group).length;
+      const opponents = participantRows.filter((candidate) => {
+        const candidateGroup = sideGroup(text(candidate.combat_side, "Neutral"));
+        return group !== "neutral" && candidateGroup !== "neutral" && candidateGroup !== group;
+      }).length;
+      const tacticalWarnings: string[] = [];
+      const targeting = text(ability.targeting);
+      if (isAssigned && targeting === "Enemies" && opponents === 0) tacticalWarnings.push("No modeled opposing-side participant for this enemy-targeted ability.");
+      if (isAssigned && targeting === "Allies" && allies <= 1) tacticalWarnings.push("No second same-side participant for this ally-targeted ability.");
+      if (isAssigned && targeting === "Area" && participantRows.length < 2) tacticalWarnings.push("Area targeting has no multi-participant encounter pressure here.");
       return {
         id: `${encounterId || "encounter"}:${characterId || "participant"}:${index}`,
         encounterId,
@@ -190,6 +210,7 @@ export function buildAbilityUsageModel({
         missingProfile: !profileId,
         bossLike: enemyType === "boss" || strings(encounter.tags).map((tag) => tag.toLowerCase()).includes("boss") || combatSide.toLowerCase() === "boss",
         signatureAbility,
+        tacticalWarnings,
       };
     });
   }).sort((a, b) => a.encounterLabel.localeCompare(b.encounterLabel) || a.characterLabel.localeCompare(b.characterLabel));
@@ -201,6 +222,10 @@ export function buildAbilityUsageModel({
   if (persistedUsageCount === 0 && draftAssignmentCount === 0) warnings.push("Ability is unused by combat profiles, classes, and talent nodes.");
   if (signatureAbility && draftAssignmentCount === 0) warnings.push("Signature ability is not assigned to any combat profile.");
   if (encounterRoleRows.some((row) => row.missingProfile)) warnings.push("Some encounter participants cannot receive this ability because they have no combat profile.");
+  encounterRoleRows.flatMap((row) => row.tacticalWarnings.map((warning) => `${row.encounterLabel} / ${row.characterLabel}: ${warning}`)).forEach((warning) => warnings.push(warning));
+  if (signatureAbility && encounterRoleRows.some((row) => row.bossLike) && !encounterRoleRows.some((row) => row.bossLike && row.assigned)) {
+    warnings.push("A boss-like encounter role exists, but this signature ability is not assigned to that role.");
+  }
   return { profileRows, encounterRoleRows, classRows, talentRows, persistedUsageCount, draftAssignmentCount, warnings };
 }
 

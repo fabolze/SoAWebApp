@@ -34,6 +34,7 @@ interface ScopedGateBuilderProps {
   targetId: string;
   setTargetId: (id: string) => void;
   directCommit?: boolean;
+  fixedTarget?: boolean;
   onPacketChange?: (packet: ScopedGatePacket) => void;
   onCommitted?: (packet: ScopedGatePacket, requirementId: string, attachment: EntryRecord | null) => void;
   title?: string;
@@ -57,6 +58,7 @@ export default function ScopedGateBuilder({
   targetId,
   setTargetId,
   directCommit = false,
+  fixedTarget = false,
   onPacketChange,
   onCommitted,
   title = "Gate Builder",
@@ -185,10 +187,15 @@ export default function ScopedGateBuilder({
         </div>}
       </div>
     </div>
-    <div className="mt-4 grid gap-3 lg:grid-cols-[220px_1fr]">
+    {!fixedTarget && <div className="mt-4 grid gap-3 lg:grid-cols-[220px_1fr]">
       <label><Caption>Attach Gate To</Caption><select className={inputClass} value={targetSchema} onChange={(event) => { setTargetSchema(event.target.value); setTargetId(""); clearReview(); }}>{packet.requirement_targets.map((group) => <option key={group.schema_name} value={group.schema_name}>{group.schema_name.replace(/_/g, " ")}</option>)}</select></label>
       <label><Caption>Target Content</Caption><select className={inputClass} value={targetId} onChange={(event) => { setTargetId(event.target.value); clearReview(); }}><option value="">Do not attach yet</option>{targetEntries.map((entry) => <option key={gateText(entry.id)} value={gateText(entry.id)}>{gateLabel(entry, gateText(entry.id))}</option>)}</select></label>
-    </div>
+    </div>}
+    {fixedTarget && <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+      <Caption>Gate Target</Caption>
+      <div className="font-semibold">{gateLabel(targetEntries.find((entry) => gateText(entry.id) === targetId), targetId || "No saved target")}</div>
+      <div className="mt-1 text-xs text-slate-500">{targetSchema.replace(/_/g, " ")}</div>
+    </div>}
     <div className="mt-3 grid gap-3 md:grid-cols-2">
       <UsageList title="Requirement Usage" rows={selectedRequirementUsage} />
       <UsageList title="Selected Flag Usage" rows={gateStrings(selectedRequirement?.required_flags).flatMap((flagId) => [...(packet.flag_usage_by_id[flagId]?.producers || []), ...(packet.flag_usage_by_id[flagId]?.consumers || [])])} />

@@ -117,6 +117,34 @@ describe("ability usage authoring helpers", () => {
     expect(model.warnings).toContain("Ability is unused by combat profiles, classes, and talent nodes.");
     expect(model.warnings).toContain("Signature ability is not assigned to any combat profile.");
   });
+
+  it("validates assigned targeting against modeled encounter sides", () => {
+    const model = buildAbilityUsageModel({
+      ability: { id: "ability-1", name: "Volley", targeting: "Enemies" },
+      usage: { combat_profiles: [], characterclasses: [], talent_nodes: [] },
+      assignedProfileIds: ["profile-archer"],
+      profiles: [{ id: "profile-archer", character_id: "char-archer", character: { name: "Archer" }, custom_abilities: [] }],
+      encounters: [{ id: "encounter-1", name: "Empty Range", participants: [{ character_id: "char-archer", combat_side: "Friendly", contexts: ["Combat"] }] }],
+    });
+
+    expect(model.encounterRoleRows[0].tacticalWarnings).toContain("No modeled opposing-side participant for this enemy-targeted ability.");
+    expect(model.warnings).toContain("Empty Range / Archer: No modeled opposing-side participant for this enemy-targeted ability.");
+  });
+
+  it("warns when a signature ability misses a present boss role", () => {
+    const model = buildAbilityUsageModel({
+      ability: { id: "ability-1", name: "Finale", tags: ["signature"], targeting: "Self" },
+      usage: { combat_profiles: [], characterclasses: [], talent_nodes: [] },
+      assignedProfileIds: ["profile-minion"],
+      profiles: [
+        { id: "profile-boss", character_id: "char-boss", character: { name: "Boss" }, enemy_type: "boss", custom_abilities: [] },
+        { id: "profile-minion", character_id: "char-minion", character: { name: "Minion" }, custom_abilities: [] },
+      ],
+      encounters: [{ id: "encounter-1", name: "Finale", participants: [{ character_id: "char-boss", combat_side: "Hostile" }, { character_id: "char-minion", combat_side: "Hostile" }] }],
+    });
+
+    expect(model.warnings).toContain("A boss-like encounter role exists, but this signature ability is not assigned to that role.");
+  });
 });
 
 describe("ability rhythm authoring helpers", () => {

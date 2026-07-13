@@ -1181,6 +1181,88 @@ def _location_introduction_warnings(occurrences, events, locations_by_id):
     return warnings
 
 
+def _faction_warnings(occurrences, factions_by_id, quests, events, encounters):
+    warnings = []
+    grouped = _group_occurrences(occurrences, "faction")
+    for (faction_id, _continuity, scope_kind, scope_id), rows in grouped.items():
+        disrupted = False
+        for row in rows:
+            change = row["change_type"]
+            if change in {"unavailable", "destroyed", "changed"}:
+                disrupted = True
+            elif change == "restored":
+                if not disrupted:
+                    faction = factions_by_id.get(faction_id)
+                    warnings.append(_warning(
+                        "faction_restored_without_prior_disruption",
+                        "adventure_beat_links",
+                        row["link"].id,
+                        "faction",
+                        faction_id,
+                        f"Faction {_label(faction) if faction else faction_id} is restored without an earlier changed or unavailable state in this story lane.",
+                        scope_kind=scope_kind,
+                        scope_id=scope_id,
+                        adventure_beat_id=row["beat"].id,
+                    ))
+                disrupted = False
+            elif change == "active" and disrupted:
+                faction = factions_by_id.get(faction_id)
+                warnings.append(_warning(
+                    "faction_active_after_disruption_without_restoration",
+                    "adventure_beat_links",
+                    row["link"].id,
+                    "faction",
+                    faction_id,
+                    f"Faction {_label(faction) if faction else faction_id} becomes active after disruption without an explicit restored or transformed state in this story lane.",
+                    scope_kind=scope_kind,
+                    scope_id=scope_id,
+                    adventure_beat_id=row["beat"].id,
+                ))
+
+    faction_scopes = {
+        (row["target_id"], row["scope_kind"], row["scope_id"])
+        for row in occurrences
+        if row["target_type"] == "faction"
+    }
+    sources = []
+    for quest in quests:
+        sources.append(("quest", quest, quest.reputation_rewards or []))
+    for event in events:
+        sources.append(("event", event, event.reputation_rewards or []))
+    for encounter in encounters:
+        rewards = encounter.rewards if isinstance(encounter.rewards, dict) else {}
+        sources.append(("encounter", encounter, rewards.get("reputation", []) or []))
+    for source_type, source, rewards in sources:
+        source_rows = [row for row in occurrences if row["target_type"] == source_type and row["target_id"] == source.id]
+        if not source_rows:
+            continue
+        for index, reward in enumerate(rewards):
+            if not isinstance(reward, dict) or not reward.get("faction_id"):
+                continue
+            faction_id = reward["faction_id"]
+            for source_row in source_rows:
+                scope_key = (faction_id, source_row["scope_kind"], source_row["scope_id"])
+                if scope_key in faction_scopes:
+                    continue
+                faction = factions_by_id.get(faction_id)
+                warnings.append(_warning(
+                    "story_placed_reputation_change_missing_faction_state",
+                    source.__tablename__,
+                    source.id,
+                    "faction",
+                    faction_id,
+                    f"Story-placed {source_type} {_label(source)} changes reputation with {_label(faction) if faction else faction_id}, but that faction has no state placement in the same story lane.",
+                    scope_kind=source_row["scope_kind"],
+                    scope_id=source_row["scope_id"],
+                    adventure_beat_id=source_row["beat"].id,
+                    source_type=source_type,
+                    source_id=source.id,
+                    reward_index=index,
+                    amount=reward.get("amount", 0),
+                ))
+    return warnings
+
+
 def build_adventure_timeline_coherence_warnings(
     *,
     adventure_beats,
@@ -1198,12 +1280,14 @@ def build_adventure_timeline_coherence_warnings(
     combat_profiles,
     interaction_profiles,
     locations,
+    factions,
 ):
     occurrences = _canonical_occurrences(adventure_beats, adventure_beat_links)
     characters_by_id = {item.id: item for item in characters}
     items_by_id = {item.id: item for item in items}
     dialogues_by_id = {item.id: item for item in dialogues}
     locations_by_id = {item.id: item for item in locations}
+    factions_by_id = {item.id: item for item in factions}
     placed_event_ids = _placed_event_ids(occurrences, character_story_beats, events)
     warnings = []
     warnings.extend(_character_warnings(occurrences, characters_by_id))
@@ -1235,4 +1319,5 @@ def build_adventure_timeline_coherence_warnings(
     ))
     warnings.extend(_location_warnings(occurrences, locations_by_id))
     warnings.extend(_location_introduction_warnings(occurrences, events, locations_by_id))
+    warnings.extend(_faction_warnings(occurrences, factions_by_id, quests, events, encounters))
     return warnings

@@ -495,6 +495,7 @@ def build_adventure_timeline(db_session):
         combat_profiles=combat_profiles,
         interaction_profiles=interaction_profiles,
         locations=locations,
+        factions=factions,
     ))
     timeline_payload = []
     for timeline in timelines:

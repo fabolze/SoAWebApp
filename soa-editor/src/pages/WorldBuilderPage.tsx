@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type PointerEvent, type ReactNode, type SetStateAction } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
+import ScopedGateSection from "../components/authoring/ScopedGateSection";
 import { AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import {
   packetStoryPlacementWarningRecords,
@@ -1128,6 +1129,7 @@ export default function WorldBuilderPage() {
                 encountersById={encountersById}
                 storyBeats={selectedRouteStoryBeats}
                 onCreateEncounterEvent={() => createRouteEncounterEventDraft(selectedRoute)}
+                onRequirementCommitted={(requirements_id) => setPayload((current) => current ? { ...current, routes: current.routes.map((route) => entryId(route) === entryId(selectedRoute) ? { ...route, requirements_id } : route) } : current)}
               />
             ) : selectedLocation ? (
               <div className="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4">
@@ -1165,6 +1167,7 @@ export default function WorldBuilderPage() {
                   onCreateRoute={startRouteFromSelected}
                   onCreatePoi={() => selected && createPoiDraft(selected)}
                   onChainCreated={load}
+                  onPoiRequirementCommitted={(poiId, requirements_id) => setPayload((current) => current ? { ...current, pois: current.pois.map((poi) => entryId(poi) === poiId ? { ...poi, requirements_id } : poi) } : current)}
                 />
               </div>
             ) : (
@@ -1240,6 +1243,7 @@ function RouteDetails({
   encountersById,
   storyBeats,
   onCreateEncounterEvent,
+  onRequirementCommitted,
 }: {
   route: EntryRecord;
   bindings: EntryRecord[];
@@ -1248,6 +1252,7 @@ function RouteDetails({
   encountersById: Map<string, EntryRecord>;
   storyBeats: StoryBeat[];
   onCreateEncounterEvent: () => void;
+  onRequirementCommitted: (requirementsId: string) => void;
 }) {
   const id = entryId(route);
   const hasEncounter = routeHasEncounterEvent(bindings, eventsById);
@@ -1274,6 +1279,17 @@ function RouteDetails({
       {text(route.description) && <Panel title="Route Notes"><p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{text(route.description)}</p></Panel>}
 
       <StoryBeatPanel beats={storyBeats} />
+
+      <ScopedGateSection
+        targetSchema="location_routes"
+        targetId={id}
+        targetLabel={routeLabel(route, locationsById)}
+        requirementId={text(route.requirements_id)}
+        title="Route Access Gate"
+        subtitle="Create or reuse the player-state requirement that controls travel along this route."
+        tag="route-gate"
+        onRequirementCommitted={onRequirementCommitted}
+      />
 
       <Panel title="Route Events" link={withReturnTo("/route-event-bindings")}>
         {bindings.length === 0 ? <EmptyState variant="compact" title="No route events">Add a route event binding when this route should trigger events, encounters, or story beats.</EmptyState> : (
@@ -1478,6 +1494,7 @@ function InlineWorldPacketEditor({
   briefs,
   encountersById,
   onSave,
+  onPoiRequirementCommitted,
 }: {
   location: EntryRecord;
   pois: EntryRecord[];
@@ -1485,12 +1502,14 @@ function InlineWorldPacketEditor({
   briefs: EntryRecord[];
   encountersById: Map<string, EntryRecord>;
   onSave: (patch: WorldBundlePatch) => Promise<boolean>;
+  onPoiRequirementCommitted: (poiId: string, requirementsId: string) => void;
 }) {
   const [poiDrafts, setPoiDrafts] = useState<EntryRecord[]>(pois);
   const [tableDrafts, setTableDrafts] = useState<EntryRecord[]>(encounterTables);
   const [briefDrafts, setBriefDrafts] = useState<EntryRecord[]>(briefs);
   const [deletions, setDeletions] = useState<WorldBundlePatch["deletions"]>({});
   const [saving, setSaving] = useState(false);
+  const [gatePoiId, setGatePoiId] = useState("");
   const original = JSON.stringify({ pois, encounterTables, briefs });
   const dirty = JSON.stringify({ pois: poiDrafts, encounterTables: tableDrafts, briefs: briefDrafts }) !== original || Object.values(deletions || {}).some((ids) => ids && ids.length > 0);
   const locationId = entryId(location);
@@ -1575,9 +1594,26 @@ function InlineWorldPacketEditor({
               <input className={inputClass} value={editableText(poi.discovery_hint)} onChange={(event) => updateRow(setPoiDrafts, index, { discovery_hint: event.target.value })} placeholder="Discovery hint" />
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(poi.is_discoverable)} onChange={(event) => updateRow(setPoiDrafts, index, { is_discoverable: event.target.checked })} /> Discoverable</label>
               <button type="button" className="text-left text-xs font-medium text-red-600 dark:text-red-300" onClick={() => removeOwnedRow("pois", poi, setPoiDrafts)}>Delete POI on save</button>
+              {pois.some((savedPoi) => entryId(savedPoi) === entryId(poi)) && <button type="button" className="text-left text-xs font-medium text-blue-700 dark:text-blue-300" onClick={() => setGatePoiId(entryId(poi))}>Edit Access Gate</button>}
             </div>
           ))}
           <button type="button" className={inactiveButton} onClick={addPoi}>Add POI</button>
+          {gatePoiId && (() => {
+            const poi = poiDrafts.find((row) => entryId(row) === gatePoiId);
+            return poi ? <ScopedGateSection
+              targetSchema="location_pois"
+              targetId={gatePoiId}
+              targetLabel={label(poi, gatePoiId)}
+              requirementId={text(poi.requirements_id)}
+              title="POI Access Gate"
+              subtitle="Create or reuse the player-state requirement that controls this point of interest."
+              tag="poi-gate"
+              onRequirementCommitted={(requirements_id) => {
+                setPoiDrafts((current) => current.map((row) => entryId(row) === gatePoiId ? { ...row, requirements_id } : row));
+                onPoiRequirementCommitted(gatePoiId, requirements_id);
+              }}
+            /> : null;
+          })()}
         </div>
       </details>
 
@@ -1813,6 +1849,7 @@ function LocationDetails({
   onCreateRoute,
   onCreatePoi,
   onChainCreated,
+  onPoiRequirementCommitted,
 }: {
   location: EntryRecord;
   isDraft?: boolean;
@@ -1837,6 +1874,7 @@ function LocationDetails({
   onCreateRoute: () => void;
   onCreatePoi: () => void;
   onChainCreated: () => void;
+  onPoiRequirementCommitted: (poiId: string, requirementsId: string) => void;
 }) {
   const id = entryId(location);
   const coordinates = coordinatesFromEntry(location);
@@ -1874,6 +1912,7 @@ function LocationDetails({
           briefs={briefs}
           encountersById={encountersById}
           onSave={onSavePacket}
+          onPoiRequirementCommitted={onPoiRequirementCommitted}
         />
       )}
       {!isDraft && (

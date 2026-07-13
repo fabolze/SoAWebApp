@@ -462,9 +462,14 @@ function RequirementEditor({ packet, setPacket }: { packet: EncounterPacket; set
 }
 
 function Stage({ packet, setPacket, selectedCharacter, setSelectedCharacter }: { packet: EncounterPacket; setPacket: React.Dispatch<React.SetStateAction<EncounterPacket>>; selectedCharacter: string; setSelectedCharacter: (id: string) => void }) {
+  const navigate = useNavigate();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [addCharacterId, setAddCharacterId] = useState("");
   const [addSide, setAddSide] = useState<Side>("Neutral");
+  const [missingRole, setMissingRole] = useState("");
+  const [missingRoleContext, setMissingRoleContext] = useState("Combat");
+  const [missingRoleSide, setMissingRoleSide] = useState<Side>("Hostile");
+  const savedEncounter = packet.encounters.some((encounter) => displayText(encounter.id) === displayText(packet.encounter.id));
   const assigned = new Set(rows(packet.encounter.participants).map((row) => displayText(row.character_id)));
   const unassignedCharacters = packet.characters.filter((entry) => !assigned.has(characterId(entry)));
   const characterOptions = packet.characters.map((entry) => {
@@ -529,6 +534,21 @@ function Stage({ packet, setPacket, selectedCharacter, setSelectedCharacter }: {
         Already assigned characters remain searchable but disabled so you can see why they cannot be selected again.
       </div>
     </div>
+    <div className="mb-3 rounded-md border border-dashed border-violet-300 bg-violet-50 p-3 dark:border-violet-900 dark:bg-violet-950/30">
+      <Caption>Missing Role Handoff</Caption>
+      <div className="grid gap-2 lg:grid-cols-[1fr_150px_140px_auto]">
+        <input className={inputClass} value={missingRole} onChange={(event) => setMissingRole(event.target.value)} placeholder="e.g. ranged pressure, witness, healer" />
+        <select className={inputClass} value={missingRoleContext} onChange={(event) => setMissingRoleContext(event.target.value)}><option>Combat</option><option>Interaction</option></select>
+        <select className={inputClass} value={missingRoleSide} onChange={(event) => setMissingRoleSide(event.target.value as Side)}>{SIDES.map((side) => <option key={side}>{side}</option>)}</select>
+        <button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} disabled={!missingRole.trim() || !savedEncounter} onClick={() => navigate(`/author/creatures/new?encounter=${encodeURIComponent(displayText(packet.encounter.id))}&role=${encodeURIComponent(missingRole.trim())}&side=${encodeURIComponent(missingRoleSide)}&context=${encodeURIComponent(missingRoleContext)}`)}>Open Creature Draft</button>
+      </div>
+      <p className="mt-2 text-xs text-violet-800 dark:text-violet-200">{savedEncounter ? "The Creature Workshop will stage a local creature and its participation in this encounter; review and commit there." : "Save this encounter before handing a missing role to Creature Workshop."}</p>
+    </div>
+    <EncounterCombinationBench packet={packet} onApply={(ids, side, contexts) => {
+      const current = rows(packet.encounter.participants);
+      const existing = new Set(current.map((row) => displayText(row.character_id)));
+      updateParticipants([...current, ...ids.filter((id) => !existing.has(id)).map((character_id) => ({ character_id, combat_side: side, contexts }))]);
+    }} />
     <DndContext sensors={sensors} onDragEnd={dragEnd}>
       <div className="mb-3 flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
         <div className="basis-full text-[11px] font-semibold uppercase text-slate-500">Available Cast</div>
@@ -578,6 +598,47 @@ function ParticipantCard({ id, participant, packet, selected, onSelect, onChange
       <div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">Used As</div>
       <div className="flex gap-1">{["Combat", "Interaction"].map((context) => <button type="button" key={context} className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${contexts.includes(context) ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 dark:border-slate-700"}`} onClick={(event) => { event.stopPropagation(); toggle(context); }}>{context}{context === "Combat" && !packet?.combat_profile ? " !" : context === "Interaction" && !packet?.interaction_profile ? " !" : ""}</button>)}</div>
     </div>
+  </div>;
+}
+
+function inferredParticipantRoles(entry: CharacterPacket): string[] {
+  const roles: string[] = [];
+  const combat = entry.combat_profile;
+  const interaction = entry.interaction_profile;
+  const enemyType = displayText(combat?.enemy_type).toLowerCase();
+  if (combat) roles.push("combat-ready");
+  if (interaction) roles.push("interaction-ready");
+  if (["boss", "giant", "dragon"].includes(enemyType)) roles.push("anchor-threat");
+  if (["beast", "humanoid", "machine"].includes(enemyType)) roles.push("direct-pressure");
+  if (["elemental", "spirit", "emanation", "demon"].includes(enemyType)) roles.push("special-pressure");
+  if (strings(combat?.custom_abilities).length >= 3) roles.push("ability-rich");
+  if (!roles.length) roles.push("unprofiled");
+  return roles;
+}
+
+function EncounterCombinationBench({ packet, onApply }: { packet: EncounterPacket; onApply: (ids: string[], side: Side, contexts: string[]) => void }) {
+  const [candidateIds, setCandidateIds] = useState<string[]>([]);
+  const [side, setSide] = useState<Side>("Hostile");
+  const [contexts, setContexts] = useState<string[]>(["Combat"]);
+  const assigned = new Set(rows(packet.encounter.participants).map((row) => displayText(row.character_id)));
+  const candidates = packet.characters.filter((entry) => !assigned.has(characterId(entry)));
+  const selected = candidates.filter((entry) => candidateIds.includes(characterId(entry)));
+  const roleCounts = selected.flatMap(inferredParticipantRoles).reduce<Record<string, number>>((counts, role) => ({ ...counts, [role]: (counts[role] || 0) + 1 }), {});
+  const totalLevel = selected.reduce((sum, entry) => sum + Number(entry.character.level || 0), 0);
+  const warnings = [
+    contexts.includes("Combat") && selected.some((entry) => !entry.combat_profile) ? "One or more candidates lack a combat profile." : "",
+    contexts.includes("Interaction") && selected.some((entry) => !entry.interaction_profile) ? "One or more candidates lack an interaction profile." : "",
+    selected.length > 1 && Object.keys(roleCounts).filter((role) => role !== "combat-ready" && role !== "interaction-ready").length <= 1 ? "The combination has little inferred role variety." : "",
+  ].filter(Boolean);
+  return <div className="mb-3 rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+    <div className="mb-2"><Caption>Encounter Combination Bench</Caption><p className="text-xs text-slate-500">Compare unassigned candidates locally, then stage their real participant rows into this encounter draft.</p></div>
+    <div className="grid gap-2 lg:grid-cols-[1fr_130px_180px_auto]">
+      <select multiple className={`${inputClass} min-h-28`} value={candidateIds} onChange={(event) => setCandidateIds(Array.from(event.target.selectedOptions).map((option) => option.value))}>{candidates.map((entry) => <option key={characterId(entry)} value={characterId(entry)}>{rowLabel(entry.character, characterId(entry))} / {inferredParticipantRoles(entry).join(", ")}</option>)}</select>
+      <select className={inputClass} value={side} onChange={(event) => setSide(event.target.value as Side)}>{SIDES.map((value) => <option key={value}>{value}</option>)}</select>
+      <div className="flex flex-wrap content-start gap-1">{["Combat", "Interaction"].map((context) => <button type="button" key={context} className={`${contexts.includes(context) ? BUTTON_CLASSES.primary : BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => setContexts((current) => current.includes(context) ? current.filter((value) => value !== context) : [...current, context])}>{context}</button>)}</div>
+      <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={!candidateIds.length || !contexts.length} onClick={() => { onApply(candidateIds, side, contexts); setCandidateIds([]); }}>Stage Combination</button>
+    </div>
+    {selected.length > 0 && <div className="mt-3 rounded bg-slate-50 p-2 text-xs dark:bg-slate-950"><div>{selected.length} candidates / combined level {totalLevel}</div><div className="mt-1 flex flex-wrap gap-1">{Object.entries(roleCounts).map(([role, count]) => <span key={role} className="rounded-full bg-blue-100 px-2 py-1 font-semibold text-blue-800 dark:bg-blue-950 dark:text-blue-200">{role} {count}</span>)}</div>{warnings.map((warning) => <div key={warning} className="mt-2 text-amber-700 dark:text-amber-300">{warning}</div>)}</div>}
   </div>;
 }
 

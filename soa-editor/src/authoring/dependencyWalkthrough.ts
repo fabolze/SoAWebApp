@@ -13,6 +13,21 @@ export interface DependencyWalkthroughTrigger {
   label: string;
   node: DependencyNode;
   flagsSet: string[];
+  reputationChanges: DependencyReputationChange[];
+}
+
+export interface DependencyReputationChange {
+  factionId: string;
+  label: string;
+  amount: number;
+}
+
+export interface DependencyReputationGate {
+  factionId: string;
+  label: string;
+  minimum: number;
+  current: number;
+  met: boolean;
 }
 
 export interface DependencyGateStatus {
@@ -23,6 +38,7 @@ export interface DependencyGateStatus {
   forbiddenFlags: string[];
   missingRequiredFlags: string[];
   presentForbiddenFlags: string[];
+  reputationGates: DependencyReputationGate[];
   open: boolean;
 }
 
@@ -33,6 +49,9 @@ export interface DependencyWalkthroughStep {
   flagsBefore: string[];
   flagsGained: string[];
   flagsAfter: string[];
+  reputationBefore: Record<string, number>;
+  reputationGained: DependencyReputationChange[];
+  reputationAfter: Record<string, number>;
   openGates: DependencyGateStatus[];
   newlyOpenGates: DependencyGateStatus[];
   blockedGates: DependencyGateStatus[];
@@ -40,9 +59,11 @@ export interface DependencyWalkthroughStep {
 
 export interface DependencyWalkthroughModel {
   flags: DependencyNode[];
+  reputations: DependencyNode[];
   triggers: DependencyWalkthroughTrigger[];
   steps: DependencyWalkthroughStep[];
   finalFlags: string[];
+  finalReputation: Record<string, number>;
   gates: DependencyGateStatus[];
 }
 
@@ -70,10 +91,20 @@ function compareLabel(left: { label: string; id: string }, right: { label: strin
   return left.label.localeCompare(right.label) || left.id.localeCompare(right.id);
 }
 
-function gateStatuses(nodesById: Map<string, DependencyNode>, edges: EntryRecord[], flags: Set<string>): DependencyGateStatus[] {
+function numberValue(value: unknown): number {
+  const candidate = Number(value);
+  return Number.isFinite(candidate) ? candidate : 0;
+}
+
+function metadata(edge: EntryRecord): EntryRecord {
+  return typeof edge.metadata === "object" && edge.metadata !== null && !Array.isArray(edge.metadata) ? edge.metadata as EntryRecord : {};
+}
+
+function gateStatuses(nodesById: Map<string, DependencyNode>, edges: EntryRecord[], flags: Set<string>, reputation: Record<string, number>): DependencyGateStatus[] {
   const requiredByRequirement = new Map<string, Set<string>>();
   const forbiddenByRequirement = new Map<string, Set<string>>();
   const gatedContentByRequirement = new Map<string, Set<string>>();
+  const reputationByRequirement = new Map<string, DependencyReputationGate[]>();
 
   edges.forEach((edge) => {
     const relation = text(edge.relation);
@@ -91,6 +122,20 @@ function gateStatuses(nodesById: Map<string, DependencyNode>, edges: EntryRecord
       if (!gatedContentByRequirement.has(source)) gatedContentByRequirement.set(source, new Set());
       gatedContentByRequirement.get(source)?.add(target);
     }
+    if (relation === "reputation_required_by") {
+      const details = metadata(edge);
+      const reputationNode = nodesById.get(source);
+      const factionId = text(details.faction_id) || reputationNode?.entryId || source;
+      const minimum = numberValue(details.minimum);
+      const current = numberValue(reputation[factionId]);
+      reputationByRequirement.set(target, [...(reputationByRequirement.get(target) || []), {
+        factionId,
+        label: reputationNode?.label || factionId,
+        minimum,
+        current,
+        met: current >= minimum,
+      }]);
+    }
   });
 
   return [...gatedContentByRequirement.entries()].flatMap(([requirementId, contentIds]) => {
@@ -103,6 +148,7 @@ function gateStatuses(nodesById: Map<string, DependencyNode>, edges: EntryRecord
       if (!content) return [];
       const missingRequiredFlags = requiredFlags.filter((flag) => !flags.has(flag));
       const presentForbiddenFlags = forbiddenFlags.filter((flag) => flags.has(flag));
+      const reputationGates = reputationByRequirement.get(requirementId) || [];
       return [{
         id: `${requirementId}>gates>${contentId}`,
         requirement,
@@ -111,48 +157,65 @@ function gateStatuses(nodesById: Map<string, DependencyNode>, edges: EntryRecord
         forbiddenFlags,
         missingRequiredFlags,
         presentForbiddenFlags,
-        open: missingRequiredFlags.length === 0 && presentForbiddenFlags.length === 0,
+        reputationGates,
+        open: missingRequiredFlags.length === 0 && presentForbiddenFlags.length === 0 && reputationGates.every((gate) => gate.met),
       }];
     });
   }).sort((left, right) => compareLabel(left.content, right.content));
 }
 
-export function buildDependencyWalkthrough(index: EntryRecord, initialFlags: string[], triggerIds: string[]): DependencyWalkthroughModel {
+export function buildDependencyWalkthrough(index: EntryRecord, initialFlags: string[], triggerIds: string[], initialReputation: Record<string, number> = {}): DependencyWalkthroughModel {
   const nodes = rows(index.nodes).map(dependencyNode).filter((node) => node.id);
   const edges = rows(index.edges);
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
   const flags = nodes.filter((node) => node.kind === "flag").sort(compareLabel);
+  const reputations = nodes.filter((node) => node.kind === "faction_reputation").sort(compareLabel);
   const setsBySource = new Map<string, Set<string>>();
+  const reputationBySource = new Map<string, DependencyReputationChange[]>();
 
   edges.forEach((edge) => {
-    if (text(edge.relation) !== "sets") return;
     const source = text(edge.source);
     const target = text(edge.target);
     if (!nodesById.has(source) || !nodesById.has(target)) return;
-    if (!setsBySource.has(source)) setsBySource.set(source, new Set());
-    setsBySource.get(source)?.add(target);
+    if (text(edge.relation) === "sets") {
+      if (!setsBySource.has(source)) setsBySource.set(source, new Set());
+      setsBySource.get(source)?.add(target);
+    }
+    if (text(edge.relation) === "grants_reputation") {
+      const details = metadata(edge);
+      const targetNode = nodesById.get(target);
+      const factionId = text(details.faction_id) || targetNode?.entryId || target;
+      reputationBySource.set(source, [...(reputationBySource.get(source) || []), {
+        factionId,
+        label: targetNode?.label || factionId,
+        amount: numberValue(details.amount),
+      }]);
+    }
   });
 
-  const triggers = [...setsBySource.entries()]
-    .map(([sourceId, sourceFlags]) => {
+  const sourceIds = new Set([...setsBySource.keys(), ...reputationBySource.keys()]);
+  const triggers = [...sourceIds]
+    .map((sourceId) => {
       const node = nodesById.get(sourceId);
       if (!node) return null;
       return {
         id: sourceId,
         label: node.label,
         node,
-        flagsSet: [...sourceFlags].sort(),
+        flagsSet: [...(setsBySource.get(sourceId) || [])].sort(),
+        reputationChanges: reputationBySource.get(sourceId) || [],
       } satisfies DependencyWalkthroughTrigger;
     })
     .filter((trigger): trigger is DependencyWalkthroughTrigger => Boolean(trigger))
     .sort(compareLabel);
   const triggerById = new Map(triggers.map((trigger) => [trigger.id, trigger]));
   const activeFlags = new Set(initialFlags.filter((flag) => nodesById.get(flag)?.kind === "flag"));
+  const activeReputation = Object.fromEntries(Object.entries(initialReputation).map(([id, value]) => [id, numberValue(value)]));
   let previousOpenGateIds = new Set<string>();
   const steps: DependencyWalkthroughStep[] = [];
 
-  const appendStep = (id: string, title: string, trigger: DependencyWalkthroughTrigger | undefined, flagsBefore: string[], flagsGained: string[]) => {
-    const gates = gateStatuses(nodesById, edges, activeFlags);
+  const appendStep = (id: string, title: string, trigger: DependencyWalkthroughTrigger | undefined, flagsBefore: string[], flagsGained: string[], reputationBefore: Record<string, number>, reputationGained: DependencyReputationChange[]) => {
+    const gates = gateStatuses(nodesById, edges, activeFlags, activeReputation);
     const openGates = gates.filter((gate) => gate.open);
     const newlyOpenGates = openGates.filter((gate) => !previousOpenGateIds.has(gate.id));
     steps.push({
@@ -162,6 +225,9 @@ export function buildDependencyWalkthrough(index: EntryRecord, initialFlags: str
       flagsBefore,
       flagsGained,
       flagsAfter: [...activeFlags],
+      reputationBefore,
+      reputationGained,
+      reputationAfter: { ...activeReputation },
       openGates,
       newlyOpenGates,
       blockedGates: gates.filter((gate) => !gate.open),
@@ -169,17 +235,33 @@ export function buildDependencyWalkthrough(index: EntryRecord, initialFlags: str
     previousOpenGateIds = new Set(openGates.map((gate) => gate.id));
   };
 
-  appendStep("initial", "Initial State", undefined, [], []);
+  appendStep("initial", "Initial State", undefined, [], [], { ...activeReputation }, []);
 
   triggerIds.forEach((triggerId, index) => {
     const trigger = triggerById.get(triggerId);
     if (!trigger) return;
     const before = [...activeFlags];
     const gained = trigger.flagsSet.filter((flag) => !activeFlags.has(flag));
+    const reputationBefore = { ...activeReputation };
     trigger.flagsSet.forEach((flag) => activeFlags.add(flag));
-    appendStep(`trigger-${index}-${trigger.id}`, trigger.label, trigger, before, gained);
+    trigger.reputationChanges.forEach((change) => { activeReputation[change.factionId] = numberValue(activeReputation[change.factionId]) + change.amount; });
+    appendStep(`trigger-${index}-${trigger.id}`, trigger.label, trigger, before, gained, reputationBefore, trigger.reputationChanges);
   });
 
-  const gates = gateStatuses(nodesById, edges, activeFlags);
-  return { flags, triggers, steps, finalFlags: [...activeFlags], gates };
+  const gates = gateStatuses(nodesById, edges, activeFlags, activeReputation);
+  return { flags, reputations, triggers, steps, finalFlags: [...activeFlags], finalReputation: { ...activeReputation }, gates };
+}
+
+export function buildReachableTriggerSequence(index: EntryRecord, initialFlags: string[] = [], initialReputation: Record<string, number> = {}): string[] {
+  const sequence: string[] = [];
+  while (true) {
+    const model = buildDependencyWalkthrough(index, initialFlags, sequence, initialReputation);
+    const next = model.triggers.find((trigger) => {
+      if (sequence.includes(trigger.id)) return false;
+      const sourceGates = model.gates.filter((gate) => gate.content.id === trigger.id);
+      return sourceGates.length === 0 || sourceGates.every((gate) => gate.open);
+    });
+    if (!next) return sequence;
+    sequence.push(next.id);
+  }
 }

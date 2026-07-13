@@ -5,6 +5,7 @@ from backend.app.models.m_dialogue_nodes import DialogueNode
 from backend.app.models.m_character_narrative import CharacterStoryBeat
 from backend.app.models.m_encounters import Encounter
 from backend.app.models.m_events import Event
+from backend.app.models.m_factions import Faction
 from backend.app.models.m_flags import Flag
 from backend.app.models.m_interaction_profiles import InteractionProfile
 from backend.app.models.m_quests import Quest
@@ -32,14 +33,16 @@ def build_dependency_index(db_session):
         }
         return key
 
-    def edge(source, target, relation, explicit=True, path=""):
+    def edge(source, target, relation, explicit=True, path="", metadata=None):
         edges.append({
             "id": f"{source}>{relation}>{target}>{path}", "source": source, "target": target,
-            "relation": relation, "explicit": explicit, "path": path,
+            "relation": relation, "explicit": explicit, "path": path, "metadata": metadata or {},
         })
 
     for flag in db_session.query(Flag).all():
         node("flag", flag)
+    for faction in db_session.query(Faction).all():
+        node("faction_reputation", faction, faction_id=faction.id)
     for beat in db_session.query(CharacterStoryBeat).all():
         beat_id = node("character_story_beats", beat)
         for flag_id in beat.required_flags or []:
@@ -55,6 +58,15 @@ def build_dependency_index(db_session):
             edge(_node_id("flag", row.flag_id), req_id, "required_by", True, "required_flags")
         for row in requirement.forbidden_flags:
             edge(_node_id("flag", row.flag_id), req_id, "forbidden_by", True, "forbidden_flags")
+        for row in requirement.min_faction_reputation:
+            edge(
+                _node_id("faction_reputation", row.faction_id),
+                req_id,
+                "reputation_required_by",
+                True,
+                "min_faction_reputation",
+                {"faction_id": row.faction_id, "minimum": row.min_value},
+            )
 
     for model in ALL_MODELS:
         if model is Requirement or not hasattr(model, "requirements_id"):
@@ -89,6 +101,39 @@ def build_dependency_index(db_session):
         source_id = node("encounters", encounter)
         for flag_id in (encounter.rewards or {}).get("flags_set", []) if isinstance(encounter.rewards, dict) else []:
             edge(source_id, _node_id("flag", flag_id), "sets", True, "rewards.flags_set")
+
+    reputation_sources = [
+        (Quest, "reputation_rewards", "reputation_rewards"),
+        (Event, "reputation_rewards", "reputation_rewards"),
+    ]
+    for model, field, path in reputation_sources:
+        for item in db_session.query(model).all():
+            source_id = node(model.__tablename__, item)
+            for index, reward in enumerate(getattr(item, field) or []):
+                if not isinstance(reward, dict) or not reward.get("faction_id"):
+                    continue
+                edge(
+                    source_id,
+                    _node_id("faction_reputation", reward["faction_id"]),
+                    "grants_reputation",
+                    True,
+                    f"{path}[{index}]",
+                    {"faction_id": reward["faction_id"], "amount": reward.get("amount", 0)},
+                )
+    for encounter in db_session.query(Encounter).all():
+        source_id = node("encounters", encounter)
+        rewards = encounter.rewards if isinstance(encounter.rewards, dict) else {}
+        for index, reward in enumerate(rewards.get("reputation", []) or []):
+            if not isinstance(reward, dict) or not reward.get("faction_id"):
+                continue
+            edge(
+                source_id,
+                _node_id("faction_reputation", reward["faction_id"]),
+                "grants_reputation",
+                True,
+                f"rewards.reputation[{index}]",
+                {"faction_id": reward["faction_id"], "amount": reward.get("amount", 0)},
+            )
 
     for dialogue in db_session.query(DialogueNode).all():
         source_id = node("dialogue_nodes", dialogue)

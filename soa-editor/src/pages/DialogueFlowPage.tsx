@@ -18,6 +18,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { EditableTagList, ReferenceChipPicker, displayText, isRecord } from "../authoringViews/controls";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
+import ScopedGateSection from "../components/authoring/ScopedGateSection";
 import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useDirtyState } from "../components/useDirtyState";
@@ -479,6 +480,10 @@ export default function DialogueFlowPage() {
   }, [redo, undo]);
 
   const updateDialogue = (patch: EntryRecord) => mutatePacket((current) => ({ ...current, dialogue: { ...current.dialogue, ...patch } }), "dialogue");
+  const syncCommittedGate = (requirements_id: string) => {
+    setPacket((current) => ({ ...current, dialogue: { ...current.dialogue, requirements_id } }));
+    setOriginal((current) => current ? { ...current, dialogue: { ...current.dialogue, requirements_id } } : current);
+  };
   const updateNode = useCallback((nodeId: string, patch: EntryRecord) => mutatePacket((current) => ({ ...current, nodes: current.nodes.map((node) => text(node.id) === nodeId ? { ...node, ...patch } : node) }), `node:${nodeId}`), [mutatePacket]);
   const updateChoice = (nodeId: string, index: number, patch: EntryRecord) => {
     const node = packet.nodes.find((entry) => text(entry.id) === nodeId);
@@ -682,7 +687,8 @@ export default function DialogueFlowPage() {
       <main className="space-y-4">
           {setupOpen && !focusMode && <div className="space-y-4"><div id="dialogue-brief" className="scroll-mt-24"><SceneBrief packet={packet} onChange={updateDialogue} onRecipe={applyRecipe} /></div>
           <div id="dialogue-beats" className="scroll-mt-24"><BeatTrack packet={packet} selectedBeatId={selectedBeatId} setSelectedBeatId={(beatId) => { setSelectedBeatId(beatId); setTab("beat"); }} onCreate={createBeat} /></div>
-          {!isNew && currentId && <StoryPlacementPanel entityKind="dialogue" entityId={currentId} entityLabel={label(packet.dialogue)} entity={{ ...packet.dialogue, nodes: packet.nodes }} enableCrossEntityConsequenceActions />}</div>}
+          {!isNew && currentId && <StoryPlacementPanel entityKind="dialogue" entityId={currentId} entityLabel={label(packet.dialogue)} entity={{ ...packet.dialogue, nodes: packet.nodes }} enableCrossEntityConsequenceActions />}
+          {!isNew && currentId && <ScopedGateSection targetSchema="dialogues" targetId={currentId} targetLabel={label(packet.dialogue)} requirementId={text(packet.dialogue.requirements_id)} title="Dialogue Access Gate" subtitle="Create or reuse the player-state requirement that makes this scene available." tag="dialogue-gate" onRequirementCommitted={syncCommittedGate} />}</div>}
 
       <div id="dialogue-workbench" className={`grid scroll-mt-24 gap-4 ${!focusMode && libraryOpen && inspectorOpen ? "xl:grid-cols-[minmax(210px,280px)_minmax(0,1fr)_minmax(300px,390px)]" : !focusMode && (libraryOpen || inspectorOpen) ? "xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]" : "grid-cols-1"}`}>
         {!focusMode && libraryOpen && <Panel
@@ -744,6 +750,21 @@ export default function DialogueFlowPage() {
               onSourceCommitted={(savedNode) => {
                 setPacket((current) => ({ ...current, nodes: current.nodes.map((node) => text(node.id) === text(savedNode.id) ? savedNode : node) }));
                 setOriginal((current) => current ? { ...current, nodes: current.nodes.map((node) => text(node.id) === text(savedNode.id) ? savedNode : node) } : current);
+              }}
+            />
+          </div>}
+          {tab === "edit" && selectedNode && !selectedNode.__new && <div className="mt-3">
+            <ScopedGateSection
+              targetSchema="dialogue_nodes"
+              targetId={text(selectedNode.id)}
+              targetLabel={label(selectedNode, text(selectedNode.text, text(selectedNode.id)))}
+              requirementId={text(selectedNode.requirements_id)}
+              title="Line Access Gate"
+              subtitle="Create or reuse the player-state requirement that controls this dialogue line."
+              tag="dialogue-node-gate"
+              onRequirementCommitted={(requirements_id) => {
+                setPacket((current) => ({ ...current, nodes: current.nodes.map((node) => text(node.id) === text(selectedNode.id) ? { ...node, requirements_id } : node) }));
+                setOriginal((current) => current ? { ...current, nodes: current.nodes.map((node) => text(node.id) === text(selectedNode.id) ? { ...node, requirements_id } : node) } : current);
               }}
             />
           </div>}

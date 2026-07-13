@@ -6,6 +6,7 @@ import {
   MapPinIcon,
 } from "@heroicons/react/24/outline";
 import SchemaForm from "../components/SchemaForm";
+import ScopedGateSection from "../components/authoring/ScopedGateSection";
 import { AuthoringPageShell, AuthoringPanel, AuthoringStatusChip, EmptyState } from "../components/authoringUi";
 import { useDirtyState } from "../components/useDirtyState";
 import { apiFetch, buildApiUrl } from "../lib/api";
@@ -472,6 +473,19 @@ function ImmersiveAuthoringPage({ config }: { config: AuthoringConfig }) {
               isDirty={isDirty}
               focusField={focusField}
             />
+            {config.kind === "shop" && !isNewDraft && displayText(data.id) && <ScopedGateSection
+              targetSchema="shops"
+              targetId={displayText(data.id)}
+              targetLabel={displayText(data.name, displayText(data.id))}
+              requirementId={displayText(data.requirements_id)}
+              title="Shop Access Gate"
+              subtitle="Create or reuse the player-state requirement that unlocks this merchant."
+              tag="shop-gate"
+              onRequirementCommitted={(requirements_id) => {
+                setData((current) => ({ ...current, requirements_id }));
+                setOriginal((current) => ({ ...current, requirements_id }));
+              }}
+            />}
           </div>
         )}
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDependencyWalkthrough } from "./dependencyWalkthrough";
+import { buildDependencyWalkthrough, buildReachableTriggerSequence } from "./dependencyWalkthrough";
 
 const index = {
   nodes: [
@@ -57,5 +57,34 @@ describe("buildDependencyWalkthrough", () => {
 
     expect(blockedGate?.presentForbiddenFlags).toEqual(["flag:alarm-raised"]);
     expect(blockedGate?.open).toBe(false);
+  });
+
+  it("auto-steps only sources reachable from the current temporary state", () => {
+    expect(buildReachableTriggerSequence(index, [])).toEqual(["events:event-2"]);
+    expect(buildReachableTriggerSequence(index, ["flag:intro-done"])).toEqual(["events:event-2", "quests:quest-1"]);
+  });
+
+  it("applies reputation rewards and opens reputation gates", () => {
+    const reputationIndex = {
+      ...index,
+      nodes: [
+        ...index.nodes,
+        { id: "faction_reputation:wardens", kind: "faction_reputation", entry_id: "wardens", label: "Wardens", schema_name: "factions" },
+        { id: "requirement:req-trusted", kind: "requirement", entry_id: "req-trusted", label: "Trusted", schema_name: "requirements" },
+        { id: "events:event-3", kind: "events", entry_id: "event-3", label: "Warden Vault", schema_name: "events" },
+      ],
+      edges: [
+        ...index.edges,
+        { id: "quest-reputation", source: "quests:quest-1", target: "faction_reputation:wardens", relation: "grants_reputation", explicit: true, path: "reputation_rewards[0]", metadata: { faction_id: "wardens", amount: 12 } },
+        { id: "reputation-gate", source: "faction_reputation:wardens", target: "requirement:req-trusted", relation: "reputation_required_by", explicit: true, path: "min_faction_reputation", metadata: { faction_id: "wardens", minimum: 10 } },
+        { id: "trusted-event", source: "requirement:req-trusted", target: "events:event-3", relation: "gates", explicit: true, path: "requirements_id" },
+      ],
+    };
+
+    const model = buildDependencyWalkthrough(reputationIndex, ["flag:intro-done"], ["quests:quest-1"]);
+
+    expect(model.finalReputation).toEqual({ wardens: 12 });
+    expect(model.steps[1].reputationGained[0]).toMatchObject({ factionId: "wardens", amount: 12 });
+    expect(model.gates.find((gate) => gate.content.id === "events:event-3")?.open).toBe(true);
   });
 });

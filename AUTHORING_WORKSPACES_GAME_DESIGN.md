@@ -30,25 +30,25 @@ The status index is the only place that records delivery status. When a new auth
 
 ## Workspace Status
 
-Last reviewed: 2026-07-07
+Last reviewed: 2026-07-13
 
 | Workspace | Status |
 |---|---|
-| World Builder | Implemented; foundation for the shared authoring language; selected-location story placement create/edit/remove, semantic location presets including introduction/state changes, canonical location story/state overlay filters, route event bindings, travel tuning, creative briefs, route/story filters, validation, and atomic world bundle saves integrated |
+| World Builder | Implemented; foundation for the shared authoring language; selected-location story placement create/edit/remove, semantic location presets including introduction/state changes, canonical location story/state overlay filters, shared scoped route/POI gate authoring, route event bindings, travel tuning, creative briefs, route/story filters, validation, and atomic world bundle saves integrated |
 | Location Atlas | Implemented standalone map review mode for arranging and inspecting existing locations through `/author/locations/map` |
 | Location Authoring | Implemented standalone location creation route for hierarchy, ecology, map placement, POIs, routes, encounter hooks, and validation through `/author/locations/new` |
 | Character Studio And Character Web | Implemented replacement route with constellation, narrative records, Presence Trace, dedicated Character Presence Timeline in the context dock, staged preview/commit through the shared canonical bundle review, ensemble editing, character story placement create/edit/remove, semantic character presets, scoped introduction-coverage warnings, and cross-entity character consequence actions |
-| Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, selected-dialogue presets, shared node/choice flag Consequence Composer, and explicit-target character/faction/item/location consequence actions |
-| Encounter Stage | Implemented MVP with participant composition, shared scoped gate embed for saved encounters, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, selected-encounter presets, shared encounter aftermath Consequence Composer, explicit-target reward/injury/faction/location consequence actions, aftermath preview, and important reward item journey warnings |
-| Progression Flow And Gate Builder | Implemented MVP with linked authoring for flags, requirements, event payloads, event outcome flags, next-event links, encounter reward flags, shared Consequence Composer for saved event outcomes, shared scoped gate component extraction, gate attachment to supported `requirements_id` records, compact selected-seed flow preview, temporary flag-state walkthrough, dependency usage context, and rollback-preview/atomic-commit bundle review |
-| Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, shared quest completion and objective flag Consequence Composer, story path objective-to-beat visualization, branch path diagnostics, temporary flag-state walkthrough, arc-order flag/item coherence warnings, and runtime-event placement window warnings; full mixed-content Quest Loom is future vision |
+| Dialogue Scene Room | Implemented focused V1 with story-beat track, rehearsal, World Echo, recipes, shared canonical bundle review, graph authoring, dialogue story placement create/edit/remove, selected-dialogue presets, shared node/choice flag Consequence Composer, explicit-target character/faction/item/location consequence actions, and shared scoped gate authoring for saved dialogues and dialogue nodes |
+| Encounter Stage | Implemented MVP with participant composition, local multi-candidate role/combination bench, direct missing-role handoff into staged Creature Workshop drafts, shared scoped gate embed for saved encounters, rewards, location-table placement, draft restore/reset, health warnings, simulation, peer comparison, encounter story placement create/edit/remove, selected-encounter presets, shared encounter aftermath Consequence Composer, explicit-target reward/injury/faction/location consequence actions, aftermath preview, and important reward item journey warnings |
+| Progression Flow And Gate Builder | Implemented MVP with linked authoring for flags, requirements, event payloads, event outcome flags, next-event links, encounter reward flags, shared Consequence Composer for saved event outcomes, shared scoped gate component extraction, gate attachment to supported `requirements_id` records, compact selected-seed flow preview, ordered temporary source stepping, automatic reachable-source traversal, faction-reputation-aware gate evaluation, dependency usage context, and rollback-preview/atomic-commit bundle review |
+| Quest Journey Board And Quest Loom | Journey Board MVP with quest story placement create/edit/remove, semantic journey presets, visible objective state/reward trays, shared quest completion and objective flag Consequence Composer, shared scoped quest gate authoring, structured branch outcome editing/review/acknowledgement, story path objective-to-beat visualization, branch path diagnostics, temporary flag-state walkthrough, arc-order flag/item coherence warnings, and runtime-event placement window warnings; full mixed-content Quest Loom is future vision |
 | Item Authoring | Implemented standalone item creation route for player-facing mechanics and presentation through `/author/items/new` |
-| Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove, semantic item lifecycle presets, Item Journey source/story track, estimated acquisition-source ordering from levels/locations/gates, unplaced acquisition-source warnings, same-lane requirement-before-acquisition warnings, acquisition-channel analysis, obtained-never-used warning, multiple-source explanation warning, and continuity/version guidance; future work can deepen fantasy, provenance, families, and authored transformations |
-| Shop Authoring | Implemented standalone merchant-facing route for creating shops and inventory together through `/author/shops/new` |
-| Creature Workshop | Implemented MVP as focused enemy creator over characters, combat profiles, encounter participants, location encounter tables, local draft restore/reset, stale-protected scoped placement changes, and optional character story placement |
-| Ability Spellcraft Lab | Implemented expanded lab with trace bench, rhythm timeline, lifecycle workshop, shared effect/status clone-edit flows, local status playground, variants, relationships, Create Related Draft, contextual testing, encounter-role usage through combat-profile assignment, status defense rules, and shared rollback-preview/atomic-commit review |
-| Story Timeline And Adventure Board | Interactive MVP implemented with scoped lanes, lenses, drag/drop local planning, canonical adventure beats/lifecycle-aware typed links, backend-complete tracks and query-driven focus for all ten target types, scoped lifecycle-coherence warnings, reusable frontend placement helpers, and shared preview/commit review |
-| Adventure Dependency Map | Implemented MVP with actionable health groups, issue focusing, broken-edge display, inferred unlock edges, cycle detection, node/relationship metrics, explicit versus inferred relationship styling, and temporary flag-state walkthrough |
+| Item Ecosystem And Item Forge | Implemented MVP with item story placement create/edit/remove, semantic item lifecycle presets, shared scoped item gate authoring, derived canonical provenance trail and mechanical family comparison, browser-local fantasy/transformation intent, Item Journey source/story track, estimated acquisition-source ordering from levels/locations/gates, unplaced acquisition-source warnings, same-lane requirement-before-acquisition warnings, acquisition-channel analysis, obtained-never-used warning, multiple-source explanation warning, and continuity/version guidance |
+| Shop Authoring | Implemented standalone merchant-facing route for creating shops and inventory together, including shared scoped access-gate authoring for saved shops, through `/author/shops/new` |
+| Creature Workshop | Implemented MVP as focused enemy creator over characters, combat profiles, encounter participants, location encounter tables, Encounter Stage missing-role draft intake, derived family/nearby-threat comparison, browser-local behavior-rhythm sketches, boss payoff trace across story placements and important-item journeys, local draft restore/reset, stale-protected scoped placement changes, and optional character story placement |
+| Ability Spellcraft Lab | Implemented expanded lab with trace bench, rhythm timeline, lifecycle workshop, shared effect/status clone-edit flows, local status playground, variants, relationships, Create Related Draft, contextual testing, encounter-role usage through combat-profile assignment, encounter-side/area/ally targeting diagnostics, boss-signature role checks, status defense rules, shared scoped ability gate authoring, and shared rollback-preview/atomic-commit review |
+| Story Timeline And Adventure Board | Interactive MVP implemented with scoped lanes, lenses, drag/drop local planning, direct stale-protected canonical typed-link lifecycle editing, same-lane duration spans, local scoped lane comparison, canonical adventure beats/lifecycle-aware typed links, backend-complete tracks and query-driven focus for all ten target types, scoped lifecycle-coherence warnings, reusable frontend placement helpers, and shared preview/commit review |
+| Adventure Dependency Map | Implemented MVP with actionable health groups, issue focusing, broken-edge display, inferred unlock edges, cycle detection, node/relationship metrics, explicit versus inferred relationship styling, ordered temporary trigger stepping, deterministic reachable-source flood fill, faction-reputation-aware gates/rewards, and side-by-side local path comparison |
 
 The workspace descriptions below contain both current-model implementation contracts and future-facing design. A feature is not implemented merely because it appears in this document; the status table is authoritative.
 
@@ -88,7 +88,7 @@ Shared rules:
 - Style unsaved packet links as dotted local proposals until the bundle review succeeds.
 - Prefer small scoped packets over a universal "everything editor."
 
-Planned reusable packets:
+Reusable packet inventory (names beyond the two shared components describe current owner-workspace capabilities or conditional future extractions; they are not automatically open implementation tasks):
 
 | Packet | Purpose | Current-Model Writes | Primary Hosts |
 |---|---|---|---|
@@ -109,7 +109,7 @@ Delivery order should be conservative:
 
 1. Extract the implemented Gate Builder behavior from Progression Flow into an embeddable scoped packet. Implemented as `ScopedGateBuilder`, shared frontend helpers, and `/api/ui/scoped-gates`; first external embed is saved Encounter Stage records.
 2. Extract a shared Consequence Composer for flags, rewards, reputation, next-event links, and supported story placements. Implemented as `ConsequenceComposer`, shared frontend helpers, and `/api/ui/consequences`; first embeds are Dialogue Scene Room node/choice flags, Encounter Stage aftermath, Quest Journey Board completion payoff and objective flags, Progression Flow saved event outcomes, and Story Placement cross-entity consequences.
-3. Continue embedding Scoped Gate Builder and Consequence Composer first in Dialogue Scene Room, Encounter Stage, Quest Journey Board, Item Ecosystem, and World/Location authoring where the need is already visible.
+3. Continue embedding Scoped Gate Builder and Consequence Composer first in Dialogue Scene Room, Encounter Stage, Quest Journey Board, Item Ecosystem, and World/Location authoring where the need is already visible. Implemented: shared scoped gates are embedded for saved dialogues, dialogue nodes, encounters, quests, items, location routes, POIs, abilities, shops, and progression-flow targets.
 4. Add specialized package builders only when the shared packets still leave repeated naming/linking work unresolved.
 5. Add new canonical concepts only after the current record model can no longer express the authoring need honestly.
 
@@ -159,6 +159,7 @@ When a Codex agent is asked to continue this work, start here. Do not begin from
 - The panel exposes lifecycle fields: role, occurrence kind, change type, state label, start/end beat, continuity group, and importance.
 - `PlacementTray` exposes selected-entity semantic presets for characters, items, quests, locations, dialogues, and encounters above the unchanged generic placement roles. Presets patch the existing lifecycle fields and remain editable before preview.
 - `BundleReview` provides the shared canonical review surface for Story Timeline, Story Placement, Character Studio, Dialogue Scene Room, Creature Workshop, and Ability Spellcraft. Inline and modal shells preserve workspace context while sharing change summaries, warnings, blockers, acknowledgement gates, and retryable commit errors.
+- `ScopedGateSection` provides a fixed-target, self-loading embed around `ScopedGateBuilder`. It is used by saved dialogues, dialogue nodes, quests, and items so those workspaces share the same usage context, rollback preview, and atomic commit flow without duplicating packet state.
 - Backend coherence warnings cover scoped character introduction coverage with explicit usage evidence, character terminal/recovery order, item availability before requirements, quest start/resolution coverage, stateful dialogue in unplaced events, consequential unplaced encounters, and location restoration/state contradictions. Targeted warnings appear in both the Story Timeline issue lens and the owning workspace panel.
 - The current implementation is **generic placement integration with selected-entity semantic shortcuts**. It is not yet a finished custom interaction layer for every workspace.
 
@@ -170,7 +171,9 @@ When a Codex agent is asked to continue this work, start here. Do not begin from
 
 #### Next Action Queue
 
-No active queue item. Choose the next focused task from the workspace-specific backlog unless the user asks for a specific workspace.
+Active queue item: none. The 2026-07-13 audit found no remaining current-model TODO in the queue. Items under **Future Canonical Expansion** and **Future Expansion** are preserved design backlog, not open implementation TODOs: they require a deliberate schema/product decision or are explicitly subordinate to the current honest save boundary. New work should add a concrete queue item here before implementation.
+
+Audit disposition: the shared Gate Builder and Consequence Composer are extracted; the named reward, objective, aftermath, route/POI, shop, creature, ability, story-beat, faction, and character-presence packets already have their honest current-model gestures in the owning workspaces or shared components described in the status index. They remain conditional extraction candidates only if repeated cross-workspace naming/linking work reappears. Ability story placement, mixed-content quest paths, encounter phases, authored transformations/ecology, canonical player paths, and other future-heading items require new or expanded canonical contracts and were deliberately not approximated with tags or visual-layout saves.
 
 #### Do Not Do
 
@@ -193,7 +196,7 @@ This table is the component inventory. Prefer extending these components over cr
 | `LifecycleFields` | Shared compact editor for occurrence kind, change type, state label, start/end beat, continuity group, and importance | Writes lifecycle fields on `adventure_beat_links` | Implemented in `soa-editor/src/components/storyPlacement/LifecycleFields.tsx` |
 | `StoryContextStrip` | Small read-only strip showing nearest timeline, arc, beat, dependencies, warnings, and owning record links | Reads the Story Timeline packet and dependency index | Implemented in `soa-editor/src/components/storyPlacement/StoryContextStrip.tsx`; currently summarizes nearest moment, occurrence count, dependency count, warning count, Story Timeline link, and nearest beat/source link |
 | `BundleReview` | One consistent preview/commit UI for multi-record changes | Reuses rollback-only preview and atomic commit contracts, including Ability Spellcraft preview parity | Implemented in `soa-editor/src/components/authoring/BundleReview.tsx`; used by Story Timeline, Story Placement Panel, Character Studio, Dialogue Scene Room, Creature Workshop, and Ability Spellcraft with inline or modal presentation |
-| `ScopedGateBuilder` | Create/reuse flags and requirements, inspect usage, and attach one requirement to supported gated content | Reads `/api/ui/scoped-gates`; writes `flags`, `requirements`, and supported `requirements_id` attachments through preview/commit | Implemented in `soa-editor/src/components/authoring/ScopedGateBuilder.tsx`; extracted from Progression Flow, reused there, and embedded in Encounter Stage for saved encounters |
+| `ScopedGateBuilder` | Create/reuse flags and requirements, inspect usage, and attach one requirement to supported gated content | Reads `/api/ui/scoped-gates`; writes `flags`, `requirements`, and supported `requirements_id` attachments through preview/commit | Implemented in `soa-editor/src/components/authoring/ScopedGateBuilder.tsx`; extracted from Progression Flow, reused there, embedded directly in Encounter Stage, and embedded through fixed-target `ScopedGateSection` instances for saved dialogues, dialogue nodes, quests, items, location routes, POIs, abilities, and shops |
 | `ConsequenceComposer` | Commit outcome state, rewards, reputation, next-event links, quest objective flags, node/choice flags, and explicit story consequences through one reviewed packet | Reads `/api/ui/consequences`; writes supported `events`, `encounters`, `quests`, `dialogue_nodes`, and `adventure_beat_links` rows through preview/commit | Implemented in `soa-editor/src/components/authoring/ConsequenceComposer.tsx`; embedded in Dialogue Scene Room, Encounter Stage, Quest Journey Board completion/objective flows, Progression Flow, and shared Story Placement cross-entity consequence actions |
 
 Components should stay data-driven. Only specialize labels, presets, or warnings where the entity type genuinely needs a different authoring meaning.
@@ -246,7 +249,7 @@ This should make the character view answer "where is this person in the story?" 
 
 Add an Item Journey Track:
 
-Current status: substantially implemented for Item Ecosystem through the shared story-placement panel and Item Journey source/story track. It can show item lifecycle occurrences beside acquisition sources, estimate unplaced source order from existing character levels, location level ranges or sort order, and source/owner gates, mark acquisition sources whose owners lack story context, apply item lifecycle presets, warn when an important item is unplaced, required before same-lane acquisition, required while unavailable, obtained but never later used in the current story lane, transformed/restored without continuity context, or spread across multiple acquisition channels without story-placement explanation, and create/edit/remove item links as reward, requirement, state, or reference. Remaining work includes richer item fantasy/provenance and Item Forge integration if it remains separate from Item Ecosystem.
+Current status: implemented for the current model through the shared story-placement panel, fixed-target Scoped Gate Builder, Item Journey source/story track, and integrated fantasy/provenance panel. It can create or reuse the saved item's access requirement with usage context and atomic review; derive a canonical source trail from quest, encounter, event, combat, shop, and POI ownership; compare mechanical families using type, rarity, equipment/weapon/damage fields, effects, and meaningful tags; keep unsupported origin, player-fantasy, and transformation intent browser-local; show item lifecycle occurrences beside acquisition sources; estimate unplaced source order from existing character levels, location level ranges or sort order, and source/owner gates; mark acquisition sources whose owners lack story context; apply item lifecycle presets; warn when an important item is unplaced, required before same-lane acquisition, required while unavailable, obtained but never later used in the current story lane, transformed/restored without continuity context, or spread across multiple acquisition channels without story-placement explanation; and create/edit/remove item links as reward, requirement, state, or reference. A separate Item Forge is unnecessary while this integrated surface covers the honest current-model workflow; authored transformations remain future canonical expansion.
 
 - Show where the item is introduced, obtained, lost, stolen, consumed, upgraded, transformed, restored, required, or rewarded. Implemented through the shared canonical item occurrence track and the Item Ecosystem journey track.
 - Distinguish ordinary economic availability from story-important appearances. Use `importance=background` for generic shop/vendor availability so the navigator does not become noisy.
@@ -262,7 +265,7 @@ The item workspace should become the best place to answer "how does the player g
 
 Add story beat placement and state walkthrough around the existing objective flow:
 
-Current status: implemented MVP. Quest Journey Board can show quest occurrences, create/edit/remove `quest` links, apply start/escalation/branch/resolution presets, show visible requirement/flag/reward trays, commit quest completion flags/payoff and selected objective completion flags through the shared Consequence Composer, render a Story Path panel that places ordered quest steps beside canonical quest story milestones, show arc branch rows, step through a temporary flag-state walkthrough, warn when an arc-owned quest lacks a clear scoped start or resolution placement, warn when an earlier arc quest requires a flag produced only by a later arc quest, warn when an important item is required before a later arc quest rewards it, warn when quest-connected runtime events fall before the quest start or after quest resolution in the same story lane, and locally diagnose branch targets that are missing, self/backward, outside arc order, or gated by flags first produced later. Remaining full Quest Loom work includes mixed-content beats, optional/failure paths, branch outcome Consequence Composer rollout where current fields can save honestly, and deeper branch acknowledgement checks.
+Current status: implemented MVP. Quest Journey Board can show quest occurrences, create/edit/remove `quest` links, apply start/escalation/branch/resolution presets, create or reuse its saved access requirement through the shared fixed-target Scoped Gate Builder, show visible requirement/flag/reward trays, commit quest completion flags/payoff and selected objective completion flags through the shared Consequence Composer, render a Story Path panel that places ordered quest steps beside canonical quest story milestones, show and structurally edit arc branch rows, explicitly add a branch condition to the current quest's completion flags, require local acknowledgement of condition production/target order/canonical anchoring before opening a branch-context Consequence Composer, step through a temporary flag-state walkthrough, warn when an arc-owned quest lacks a clear scoped start or resolution placement, warn when an earlier arc quest requires a flag produced only by a later arc quest, warn when an important item is required before a later arc quest rewards it, warn when quest-connected runtime events fall before the quest start or after quest resolution in the same story lane, and locally diagnose branch targets that are missing, self/backward, outside arc order, or gated by flags first produced later. Remaining full Quest Loom work includes mixed-content beats and optional/failure paths that need honest current-model representations.
 
 - Show which adventure beats start, escalate, branch, and resolve the quest. Implemented through the Story Path panel and shared quest story placement occurrences.
 - Let quest cards be placed into story beats as player journey links.
@@ -277,7 +280,7 @@ The goal is not just to reorder objectives. The author should see whether the qu
 
 Add a Story/State Overlay for locations:
 
-Current status: implemented for the current story/state scope. World Builder embeds the shared story-placement panel, supports location link create/edit/remove and selected-location introduction/state presets, shows canonical location occurrences from `entity_tracks.locations`, filters the map by timeline, story arc, and lifecycle state, styles locations by scoped lifecycle state, warns when a location is restored without prior disruption, preserves the destroyed/unavailable-then-active contradiction warning inside one canonical lane, and warns when a major location is heavily used in scoped events without an on-time canonical introduction.
+Current status: implemented for the current story/state and scoped route/POI access-gate scope. World Builder embeds the shared story-placement panel, supports location link create/edit/remove and selected-location introduction/state presets, shows canonical location occurrences from `entity_tracks.locations`, filters the map by timeline, story arc, and lifecycle state, styles locations by scoped lifecycle state, creates or reuses requirements for selected saved routes and POIs through fixed-target Scoped Gate Builder embeds, warns when a location is restored without prior disruption, preserves the destroyed/unavailable-then-active contradiction warning inside one canonical lane, and warns when a major location is heavily used in scoped events without an on-time canonical introduction.
 
 - On a selected location, show all story occurrences and state changes from `entity_tracks.locations`.
 - Use map styling for lifecycle states: introduced, active, changed, unavailable, destroyed, restored, occupied, or transformed.
@@ -292,7 +295,7 @@ The World Builder should answer "what is happening here across the story?" while
 
 Add a Story Moment Rail beside the dialogue graph:
 
-Current status: implemented for shared story placement and node/choice consequences. Dialogue Scene Room embeds the shared story-placement panel, derives runtime occurrences, supports dialogue link create/edit/remove and selected-dialogue runtime/lore/state presets, authors explicit character/faction/item/location consequence links through the shared Consequence Composer, commits selected saved node and choice `set_flags` through the shared Consequence Composer, and warns when a state-setting dialogue appears only through unplaced events.
+Current status: implemented for shared story placement, scoped access gates, and node/choice consequences. Dialogue Scene Room embeds the shared story-placement panel, derives runtime occurrences, supports dialogue link create/edit/remove and selected-dialogue runtime/lore/state presets, creates or reuses requirements for saved dialogues and selected saved dialogue nodes through fixed-target Scoped Gate Builder embeds, authors explicit character/faction/item/location consequence links through the shared Consequence Composer, commits selected saved node and choice `set_flags` through the shared Consequence Composer, and warns when a state-setting dialogue appears only through unplaced events.
 
 - Show the adventure beat, event, quest, and character story beat context for the current dialogue.
 - Let the author place the dialogue into a runtime tray on an adventure beat.
@@ -307,7 +310,7 @@ This keeps dialogue authoring focused on conversation while still showing why th
 
 Add encounter-as-moment controls:
 
-Current status: implemented MVP. Encounter Stage embeds the shared story-placement panel, supports encounter link create/edit/remove and selected-encounter runtime/outcome presets, derives runtime event occurrences, authors explicit-target lifecycle links for rewards/injuries/faction/location changes through the shared Consequence Composer, embeds the shared Scoped Gate Builder for saved encounters, commits saved encounter reward/flag/reputation aftermath through the shared Consequence Composer, shows an aftermath preview from draft rewards, participants, and saved same-beat story consequences, warns when an encounter with canonical state, reputation, or important-item consequences has no story placement, and warns when a story-placed encounter rewards an important item without a matching item reward/obtained placement in the same story lane. Remaining work includes broader scoped-gate rollout to other encounter subtargets where needed, richer encounter-combination authoring, missing-role handoff, and deeper tactical aftermath modeling if future canonical encounter-phase fields are added.
+Current status: implemented MVP. Encounter Stage embeds the shared story-placement panel, supports encounter link create/edit/remove and selected-encounter runtime/outcome presets, derives runtime event occurrences, authors explicit-target lifecycle links for rewards/injuries/faction/location changes through the shared Consequence Composer, embeds the shared Scoped Gate Builder for saved encounters, commits saved encounter reward/flag/reputation aftermath through the shared Consequence Composer, shows an aftermath preview from draft rewards, participants, and saved same-beat story consequences, compares multiple unassigned candidates by inferred combat/interaction readiness and pressure roles before staging their real participant rows into the encounter draft, hands a named missing combat or interaction role, side, and saved encounter directly into a staged Creature Workshop draft, warns when an encounter with canonical state, reputation, or important-item consequences has no story placement, and warns when a story-placed encounter rewards an important item without a matching item reward/obtained placement in the same story lane. Remaining tactical aftermath modeling depends on future canonical encounter-phase fields.
 
 - Show where the encounter appears in events, locations, quests, and adventure beats.
 - Let the author place the encounter into a runtime tray on an adventure beat.
@@ -320,20 +323,20 @@ The Encounter Stage should answer "what changes because this fight or scene happ
 
 **Ability Spellcraft Lab**
 
-Current status: implemented expanded lab. Ability Spellcraft shows a combat sentence, editable trigger/reach/payload/scaling/cost chain, effect timing/rhythm timeline, usage lens, combat-profile assignment, encounter-role assignment through matched combat profiles, missing-profile role warnings, signature-unused warnings, target/effect conflict warnings, contextual test bench, status defense rules, ability-family relationships, and shared rollback-preview/atomic-commit review.
+Current status: implemented expanded lab. Ability Spellcraft shows a combat sentence, editable trigger/reach/payload/scaling/cost chain, effect timing/rhythm timeline, usage lens, combat-profile assignment, encounter-role assignment through matched combat profiles, missing-profile role warnings, signature-unused and boss-role warnings, target/effect conflict warnings, modeled encounter-side target availability checks for enemy/ally/area reach, contextual test bench, status defense rules, ability-family relationships, shared fixed-target access-gate authoring for saved abilities, and shared rollback-preview/atomic-commit review.
 
 - Show a phase timeline: cast, travel, impact, lingering status, tick interval, upkeep, recovery, and cooldown. Implemented through the rhythm timeline and trace bench.
 - Show where the ability is used: characters, combat profiles, encounters, bosses, and variants. Implemented through usage lenses, profile rows, encounter role rows, and local variants.
 - Let authors drag the ability into combat profiles or encounter roles through existing relationships. Implemented through `custom_abilities` on combat profiles; encounter records remain read-only context.
 - Warn when a signature ability is unused. Implemented for missing draft/persisted combat-profile assignment.
-- Warn when an ability's targeting promise conflicts with linked effects or encounter usage. Implemented for ability/effect target mismatch and missing encounter-role combat profiles; deeper encounter tactical-role validation remains future work.
+- Warn when an ability's targeting promise conflicts with linked effects or encounter usage. Implemented for ability/effect target mismatch, missing encounter-role combat profiles, enemy targeting without an opposing modeled side, ally targeting without another same-side participant, area targeting without multi-participant pressure, and signature abilities that miss an existing boss-like role.
 - For story-relevant abilities, allow optional reference placement into an adventure beat, but do not force every ability into the Story Timeline. Future work until the story-placement target contract deliberately supports abilities.
 
 This workspace should stay about readable action design. Story placement is secondary unless the ability is narratively important.
 
 **Creature Workshop**
 
-Current status: implemented MVP as a focused enemy creator with direct placement tools. It edits the existing character/combat bundle, stages creature participation in existing encounters, stages those encounters into existing location encounter tables, shows habitat/encounter/spoils/ability context, uses rollback preview and atomic commit, embeds optional character story placement for saved creatures, and warns when creature combat, encounter, habitat, or boss payoff coverage is weak.
+Current status: implemented MVP as a focused enemy creator with direct placement tools. It edits the existing character/combat bundle, accepts Encounter Stage missing-role handoffs as prefilled local creature/combat/participant drafts, stages creature participation in existing encounters, stages those encounters into existing location encounter tables, shows habitat/encounter/spoils/ability context, derives family and nearby-threat peers from enemy type, meaningful tags, faction, shared abilities, encounter/habitat overlap, home location, and level proximity, keeps `Signal -> Threat -> Response Window -> Consequence -> Recovery` sketches in browser-local storage outside bundle review, traces boss character and encounter story occurrences against canonical encounter payoffs and shared important-item journey warnings, uses rollback preview and atomic commit, embeds optional character story placement for saved creatures, and warns when creature combat, encounter, habitat, or boss payoff coverage is weak.
 
 - Show habitat, encounter appearances, loot, abilities, faction, and story usage together.
 - Let authors place the creature into locations, encounter tables, encounters, and adventure beats through existing records.
@@ -341,7 +344,7 @@ Current status: implemented MVP as a focused enemy creator with direct placement
 - Warn when a creature has abilities or loot but no encounter placement.
 - Warn when a boss appears in story beats but lacks a combat profile, encounter, or reward payoff.
 
-Remaining work includes richer encounter-combination authoring, family/nearby-threat comparison, behavior-rhythm sketches, direct missing-role handoff from Encounter Stage, and deeper boss payoff checks across item journeys and story beats.
+The current-model Creature Workshop backlog is implemented. Family/nearby-threat comparison and browser-local behavior-rhythm sketches avoid creating canonical family, ecology, or behavior metadata. Boss payoff checks reuse shared story-timeline coherence evidence for important item rewards and compare boss story presence, encounter implementation, and canonical payoff. Encounter combinations are reviewed and staged in Encounter Stage, while direct missing-role handoff uses a URL-carried local draft contract and remains unsaved until Creature Workshop bundle review. Deeper ecology and tactical-phase semantics remain future canonical expansion.
 
 The creature workspace should not duplicate Character Studio wholesale. It should focus on "where does the enemy live, what does it do, and why does fighting it matter?"
 
@@ -359,7 +362,7 @@ An author view can be considered "story-placement integrated" when it satisfies 
 Current acceptance status for the primary six story-placement workspaces:
 
 - Character Studio, Item Ecosystem, Quest Journey Board, Encounter Stage, Dialogue Scene Room, and World Builder satisfy criteria 1-4 through the shared panel, lifecycle fields, Story Timeline links, and preview/commit creation.
-- Criterion 5 is satisfied for these six workspace panels through targeted frontend hints and scoped backend coherence warnings. Faction-specific warnings and deeper inferred/runtime-path checks remain future work.
+- Criterion 5 is satisfied for these six workspace panels through targeted frontend hints and scoped backend coherence warnings. Faction-specific coverage now warns about restoration without disruption, active state after disruption without restoration, and story-placed quest/event/encounter reputation changes that lack a faction state placement in the same lane. Deeper inferred/runtime-path checks remain future canonical-analysis expansion rather than a current-model TODO.
 - Criterion 6 is preserved. The shared story-placement work writes canonical `adventure_beat_links`; it does not save visual layout state as canonical data.
 - Canonical links can now be edited or removed from these six workspace panels with preview/commit and stale-record protection for edits. Inferred occurrences remain read-only.
 - Creature Workshop also embeds the shared panel for saved creature characters. It reuses the existing `character` target type, so it is treated as Character Studio story placement rather than a new story-placement target kind.
@@ -859,7 +862,7 @@ The implemented **Source And Outcome Composer** supports:
 
 For already-saved events, the shared **Consequence Composer** can commit event flags, rewards, reputation rows, and `next_event_id` through the same reviewed consequence packet used by other workspaces.
 
-The workspace also includes a compact selected-seed flow view, local health warnings, dependency-index usage context, a temporary flag-state walkthrough, and shared bundle review. Temporary state and naming helpers remain local; only reviewed record changes commit.
+The workspace also includes a compact selected-seed flow view, local health warnings, dependency-index usage context, and shared bundle review. Its temporary playthrough now uses the same dependency-walkthrough model as the Adventure Dependency Map: authors can set initial flags and faction reputation, arrange and inspect an explicit queue of existing sources, step each source's flag and reputation effects, or automatically flood through every source currently reachable through modeled gates. Temporary state, trigger order, and naming helpers remain local; only reviewed record changes commit.
 
 ### Delivery Plan
 
@@ -868,7 +871,7 @@ The workspace also includes a compact selected-seed flow view, local health warn
 3. **Encounter Outcome Integration:** implemented for encounters linked through event payloads, including direct editing of `encounters.rewards.flags_set`.
 4. **Progression Flow MVP:** implemented as a compact selected-seed chain from source to state to gate to follow-up, backed by shared bundle review.
 5. **Shared Consequence Composer:** implemented for saved event outcomes while the larger local source/gate draft remains in the Progression Flow bundle.
-6. **Temporary Playthrough:** implemented as local temporary flag selection with open-gate preview. Trigger sequencing and automatic source stepping remain future work.
+6. **Temporary Playthrough:** implemented with local initial flags/reputation, explicit source sequencing, per-step state and unlock results, and deterministic automatic stepping of all currently reachable modeled sources. It does not save or infer a canonical player path.
 
 ### Lenses
 
@@ -881,7 +884,7 @@ The workspace also includes a compact selected-seed flow view, local health warn
 ### Living Canvas Application
 
 - **Canonical Save Gestures:** create flags, create requirements, edit requirement flag rules, assign requirements to gated content, edit supported source flag-set fields, set event payload references, and connect event chains.
-- **Local Creative Tools:** shared-base-name generation, dotted proposed links, small flow clusters, gate previews, temporary state playthrough, naming consistency checks, and cross-record bundle review.
+- **Local Creative Tools:** shared-base-name generation, dotted proposed links, small flow clusters, gate previews, ordered and auto-reachable temporary state/reputation playthroughs, naming consistency checks, and cross-record bundle review.
 - **Future Canonical Expansion:** explicit authored flow records, optional/failure branches, alternate resolutions, player knowledge state, pacing targets, and fully modeled mixed-content playable slices.
 
 The workspace should make related names consistent by default, but the id relationships are the source of truth. Naming helpers prevent authoring mistakes; they do not replace references.
@@ -1484,7 +1487,7 @@ The aggregator explicitly separates canonical placements, runtime event chains, 
    - **Issues** for coherence warnings.
 5. Drag content from the library onto an arc lane to create a local planning beat, or onto an existing local planning beat to attach it.
 6. Select a beat or placement to inspect its context dock and open the owning record.
-7. Use **Review & Commit Plan** to validate the local plan, then **Commit Plan** to persist canonical `adventure_beats` and `adventure_beat_links`.
+7. Use **Review Changes** to validate local beats and any staged canonical link lifecycle edit, then **Commit Plan** to persist canonical `adventure_beats` and `adventure_beat_links`.
 
 Local planning beats remain browser-local until committed. Committing creates story intent and typed links; it does not rewrite the attached locations, quests, events, dialogue, encounters, characters, items, or factions.
 
@@ -1498,22 +1501,22 @@ The MVP can show where locations, characters, important items, quests, and facti
 - `starts_at_beat_id`, `ends_at_beat_id`, and `continuity_group_id` for duration and version tracking.
 - `importance` so ordinary background mentions do not dominate the overview.
 
-The current canvas can create local planning links and commit them with sensible lifecycle defaults. Direct in-place editing of already-canonical beat links on the Story Timeline canvas, richer duration visualization, and path comparison remain future workflow work; canonical links can be edited from the selected entity's shared Story Placement panel.
+The current canvas can create local planning links and commit them with sensible lifecycle defaults. Selecting a canonical adventure beat now exposes its typed links directly in the context dock: lifecycle edits are staged browser-locally, use the raw canonical row as `expected_previous`, and join local beat creation in the existing rollback-only preview and atomic commit bundle. Each link also renders a same-lane duration bar from its start/end boundaries; invalid, reversed, or cross-lane boundaries are called out instead of being drawn as invented order. A collapsible **Scoped Path Comparison** places any two arc, timeline-level, or unassigned lane snapshots side by side, highlights shared labels, includes local planning beats, and never saves or claims a canonical player path.
 
 ### Living Canvas Application
 
-- **Canonical Save Gestures:** review and commit local planning beats as one atomic `adventure_beats` and `adventure_beat_links` bundle. Existing arc quest order and character story-beat order remain editable through their owning workspaces.
-- **Local Creative Tools:** drag existing content into proposed beat trays; move hypothetical story beats; focus by arc, location, character, item, quest, faction, or issue; preview dependency context; frame a playable slice.
-- **Future Canonical Expansion:** direct canonical beat reordering/editing, richer entity-track editing, playable-story timeline kinds, optional and failure paths, pacing targets, promises, payoffs, and knowledge state.
+- **Canonical Save Gestures:** review and commit local planning beats plus staged canonical typed-link lifecycle edits as one atomic `adventure_beats` and `adventure_beat_links` bundle. Existing arc quest order and character story-beat order remain editable through their owning workspaces.
+- **Local Creative Tools:** drag existing content into proposed beat trays; move hypothetical story beats; focus by arc, location, character, item, quest, faction, or issue; scan same-lane lifecycle spans; compare two scoped lane snapshots; preview dependency context; frame a playable slice.
+- **Future Canonical Expansion:** direct canonical beat reordering and beat-field editing, richer entity-track editing, playable-story timeline kinds, modeled optional and failure paths, pacing targets, promises, payoffs, and knowledge state.
 
 Story Timeline arrangements remain local planning state until the author reviews and commits them. Commit creates canonical adventure beats and typed links without rewriting the linked records.
 
 ### Future Expansion
 
-- Add direct editing and reordering of already-canonical `adventure_beats` and `adventure_beat_links` on the canvas.
-- Add richer visual duration lanes for entity tracks so destroyed, transformed, unavailable, restored, and replaced states can be scanned at a glance.
+- Add direct reordering and beat-field editing for already-canonical `adventure_beats`; lifecycle-aware `adventure_beat_links` are now directly editable from a selected beat's context dock.
+- Expand the implemented same-lane link duration bars into zoomable, grouped entity-track lanes when projects need denser continuity review.
 - Drag locations, characters, quests, events, dialogue, encounters, lore, and rewards onto typed beat trays.
-- Compare critical, optional, completionist, and failure-aware story paths.
+- Compare critical, optional, completionist, and failure-aware paths after those path semantics have a deliberate canonical model; the current local comparison stays scoped to honest authored lanes.
 - Evaluate pacing, content density, novelty, recovery, promises, payoffs, and implementation coverage.
 - Step through a playable slice while watching state, character presence, world access, and available content change.
 
@@ -1586,12 +1589,12 @@ The implemented map currently exposes actionable health groups, issue focusing, 
 
 Begin with an empty temporary state, trigger existing sources, and watch available content change. This provides a simple, playable model of narrative progression without creating any new canonical sequence.
 
-The implemented V1 walkthrough starts from selected temporary flags, triggers existing flag-setting sources, and shows flags gained, newly available gated content, and still-blocked gates without creating a canonical player path. Deeper flood-fill, path comparison, and reputation-aware walkthroughs remain future work.
+The walkthrough starts from selected temporary flags and faction reputation, applies existing flag-setting and reputation-reward sources in an explicit reorderable queue, and shows flags/reputation gained, newly available gated content, and still-blocked gates. **Auto-step all currently reachable sources** performs a deterministic local flood-fill: an untriggered source is eligible only when it is ungated or all of its modeled gates are open, and each source is applied at most once. A separate side-by-side **Local Path Comparison** compares the active queue with an alternate queue under the same initial state, including final flags, reputation, open gates, and left/right-only availability. None of these tools creates a canonical sequence or player path.
 
 ### Living Canvas Application
 
 - **Canonical Save Gestures:** connect supported sources to flags, edit requirement flag rules, assign requirements to gated content, connect event chains, and create supported story-arc branches.
-- **Local Creative Tools:** reachable-state illumination; state flood-fill walkthroughs; dead-state, impossible-gate, world-access, narrative-impact, and issue overlays; hypothetical dependency links; path comparison; playable-slice framing around a selected region, arc, or objective.
+- **Local Creative Tools:** reachable-state illumination; explicit and automatic state/reputation flood-fill walkthroughs; dead-state, impossible-gate, world-access, narrative-impact, and issue overlays; hypothetical dependency links; side-by-side temporary path comparison; playable-slice framing around a selected region, arc, or objective.
 - **Future Canonical Expansion:** authored cross-domain sequences, explicit playable slices, knowledge state, pacing targets, promises, payoffs, and canonical player paths.
 
 Hypothetical links and playable-slice framing remain dotted local planning objects. They become canonical only when translated into supported flags, requirements, event links, story-arc branches, or other real relationships.
@@ -1600,7 +1603,7 @@ Hypothetical links and playable-slice framing remain dotted local planning objec
 
 - Arrange world journey, main story, optional discoveries, characters, encounters, rewards, knowledge, and recovery into one playable-slice view.
 - Hand focused dependency repairs to Progression Flow, scoped Gate Builder, or the owning workspace packet instead of turning the Dependency Map into a universal editor.
-- Compare first-time, completionist, and critical player paths.
+- Add named first-time, completionist, and critical path semantics only if a future canonical path model needs them; the implemented comparison intentionally remains a local pair of trigger queues.
 - Evaluate pacing, content density, novelty, repetition, promises, and payoffs.
 - Author a canonical cross-domain sequence only if the project deliberately models that concept.
 

@@ -20,6 +20,8 @@ from backend.app.routes.r_characters import route as character_route
 from backend.app.routes.r_combat_profiles import route as combat_profile_route
 from backend.app.routes.r_encounters import route as encounter_route
 from backend.app.routes.r_location_encounter_tables import route as encounter_table_route
+from backend.app.services.adventure_timeline import build_adventure_timeline
+from backend.app.services.adventure_timeline_coherence import _important_item
 from backend.app.utils.id import generate_ulid
 
 
@@ -82,11 +84,21 @@ def _combat_by_character(db_session):
 
 def _navigator(db_session):
     combat_by_character = _combat_by_character(db_session)
+    encounters = db_session.query(Encounter).all()
+    tables = db_session.query(LocationEncounterTable).all()
     encounter_counts = {}
-    for encounter in db_session.query(Encounter).all():
+    encounter_ids_by_character = {}
+    for encounter in encounters:
         for row in encounter.participants or []:
             if isinstance(row, dict) and row.get("character_id"):
-                encounter_counts[row["character_id"]] = encounter_counts.get(row["character_id"], 0) + 1
+                character_id = row["character_id"]
+                encounter_counts[character_id] = encounter_counts.get(character_id, 0) + 1
+                encounter_ids_by_character.setdefault(character_id, set()).add(encounter.id)
+    habitat_locations_by_encounter = {}
+    for table in tables:
+        for row in table.encounter_entries or []:
+            if isinstance(row, dict) and row.get("encounter_id") and table.location_id:
+                habitat_locations_by_encounter.setdefault(row["encounter_id"], set()).add(table.location_id)
     result = []
     for character in db_session.query(Character).all():
         combat = combat_by_character.get(character.id)
@@ -94,10 +106,20 @@ def _navigator(db_session):
             continue
         result.append({
             **_compact(character),
+            "faction_id": character.faction_id,
+            "home_location_id": character.home_location_id,
             "enemy_type": _enum_value(getattr(combat, "enemy_type", None)),
             "aggression": _enum_value(getattr(combat, "aggression", None)),
             "encounter_count": encounter_counts.get(character.id, 0),
+            "encounter_ids": sorted(encounter_ids_by_character.get(character.id, set())),
+            "habitat_location_ids": sorted({
+                location_id
+                for encounter_id in encounter_ids_by_character.get(character.id, set())
+                for location_id in habitat_locations_by_encounter.get(encounter_id, set())
+            }),
             "has_combat_profile": combat is not None,
+            "custom_abilities": list(combat.custom_abilities or []) if combat else [],
+            "custom_stats": list(combat.custom_stats or []) if combat else [],
         })
     return result
 
@@ -190,6 +212,50 @@ def _packet(db_session, character):
     combat_data = _columns(combat)
     appearances = _appearances(db_session, character.id)
     habitats = _habitats(db_session, character.id)
+    timeline = build_adventure_timeline(db_session)
+    appearance_ids = {row["id"] for row in appearances}
+    character_occurrences = [
+        row for row in timeline["entity_tracks"]["characters"]
+        if row["entity_id"] == character.id
+    ]
+    encounter_occurrences = [
+        row for row in timeline["entity_tracks"]["encounters"]
+        if row["entity_id"] in appearance_ids
+    ]
+    story_warnings = [
+        row for row in timeline["health"]["warnings"]
+        if row.get("schema_name") == "encounters" and row.get("entry_id") in appearance_ids
+    ]
+    items_by_id = {row.id: row for row in db_session.query(Item).all()}
+    boss_payoff = {
+        "character_occurrences": character_occurrences,
+        "encounter_occurrences": encounter_occurrences,
+        "story_warnings": story_warnings,
+        "encounters": [
+            {
+                "id": encounter["id"],
+                "name": encounter.get("name"),
+                "story_placed": any(row["entity_id"] == encounter["id"] for row in encounter_occurrences),
+                "rewarded_item_ids": [
+                    reward.get("item_id")
+                    for reward in ((encounter.get("rewards") or {}).get("items", []) if isinstance(encounter.get("rewards"), dict) else [])
+                    if isinstance(reward, dict) and reward.get("item_id")
+                ],
+                "important_reward_item_ids": [
+                    reward.get("item_id")
+                    for reward in ((encounter.get("rewards") or {}).get("items", []) if isinstance(encounter.get("rewards"), dict) else [])
+                    if isinstance(reward, dict)
+                    and reward.get("item_id") in items_by_id
+                    and _important_item(items_by_id[reward["item_id"]])
+                ],
+                "has_any_payoff": bool(
+                    isinstance(encounter.get("rewards"), dict)
+                    and any((encounter.get("rewards") or {}).get(key) for key in ("items", "currencies", "reputation", "xp", "flags_set"))
+                ),
+            }
+            for encounter in appearances
+        ],
+    }
     return {
         "navigator": _navigator(db_session),
         "creature": character_data,
@@ -198,6 +264,7 @@ def _packet(db_session, character):
         "habitats": habitats,
         "catalogs": _catalogs(db_session),
         "health": _health(character_data, combat_data, appearances, habitats),
+        "boss_payoff": boss_payoff,
     }
 
 

@@ -16,16 +16,20 @@ import {
   filterBackgroundOccurrences,
   isTrackKind,
   label,
+  placementDraftFromCanonicalLink,
   record,
   rows,
   singular,
+  storyPlacementLinkPayload,
   STORY_TRACK_KINDS,
   text,
   type StoryOccurrence,
+  type StoryPlacementDraft,
   type TrackKind,
 } from "../authoring/storyPlacement";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import { AuthoringFilterBar, AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice, type AuthoringFilterMode } from "../components/authoringUi";
+import LifecycleFields from "../components/storyPlacement/LifecycleFields";
 import { apiFetch } from "../lib/api";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import type { EntryRecord } from "../types/editorQol";
@@ -64,6 +68,11 @@ interface LocalBeat {
 
 interface LocalPlan {
   beats: LocalBeat[];
+}
+
+interface CanonicalLinkEdit {
+  draft: StoryPlacementDraft;
+  original: EntryRecord;
 }
 
 function loadPlan(): LocalPlan {
@@ -179,6 +188,9 @@ export default function StoryTimelinePage() {
   const [mutationError, setMutationError] = useState("");
   const [saving, setSaving] = useState(false);
   const [filterMode, setFilterMode] = useState<AuthoringFilterMode>("all");
+  const [canonicalLinkEdit, setCanonicalLinkEdit] = useState<CanonicalLinkEdit | null>(null);
+  const [compareLeft, setCompareLeft] = useState("");
+  const [compareRight, setCompareRight] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   useEffect(() => {
@@ -199,6 +211,12 @@ export default function StoryTimelinePage() {
   }, [plan]);
 
   useEffect(() => {
+    setReview(null);
+    setPreviewBundle(null);
+    setMutationError("");
+  }, [canonicalLinkEdit]);
+
+  useEffect(() => {
     if (isTrackKind(requestedTrack)) {
       setTrackKind(requestedTrack);
       setFocusedEntityId(requestedEntity);
@@ -215,6 +233,8 @@ export default function StoryTimelinePage() {
   const dependencyEdges = useMemo(() => rows(record(packet?.dependency_index).edges), [packet]);
   const warnings = useMemo(() => rows(record(packet?.health).warnings), [packet]);
   const catalogs = useMemo(() => record(packet?.catalogs), [packet]);
+  const canonicalBeats = useMemo(() => rows(catalogs.adventure_beats), [catalogs]);
+  const canonicalLinks = useMemo(() => rows(catalogs.adventure_beat_links), [catalogs]);
   const query = search.trim().toLowerCase();
 
   const arcById = useMemo(() => new Map(arcs.map((arc) => [text(arc.id), arc])), [arcs]);
@@ -318,7 +338,8 @@ export default function StoryTimelinePage() {
       expected_output_flags: [],
       tags: [],
     })),
-    adventure_beat_links: plan.beats.flatMap((beat) => beat.attachments.map((attachment, index) => ({
+    adventure_beat_links: [
+      ...plan.beats.flatMap((beat) => beat.attachments.map((attachment, index) => ({
       id: `beat-link:${beat.id}:${attachment.kind}:${attachment.entry_id}:${attachment.role}`,
       adventure_beat_id: beat.id,
       target_type: attachment.kind,
@@ -334,7 +355,12 @@ export default function StoryTimelinePage() {
       sort_order: index,
       notes: "",
       tags: [],
-    }))),
+      }))),
+      ...(canonicalLinkEdit ? [{
+        ...storyPlacementLinkPayload(canonicalLinkEdit.draft, canonicalLinkEdit.original),
+        expected_previous: canonicalLinkEdit.original,
+      }] : []),
+    ],
     deletions: { adventure_beats: [], adventure_beat_links: [] },
   });
 
@@ -354,6 +380,7 @@ export default function StoryTimelinePage() {
       if (commit) {
         setPacket(record(payload.packet));
         setPlan({ beats: [] });
+        setCanonicalLinkEdit(null);
         setSelection(null);
         setReview(null);
         setPreviewBundle(null);
@@ -401,8 +428,8 @@ export default function StoryTimelinePage() {
             <Metric value={placements.length} label="canonical placements" />
             <Metric value={plan.beats.length} label="local planning beats" />
             <Metric value={warnings.length} label="coherence warnings" warning={warnings.length > 0} />
-            <AuthoringHealthSummary blockers={0} warnings={warnings.length} dirty={plan.beats.length > 0} saving={saving} />
-            <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={!plan.beats.length || saving} onClick={() => submitPlan(false)}>Review Plan</button>
+            <AuthoringHealthSummary blockers={0} warnings={warnings.length} dirty={plan.beats.length > 0 || Boolean(canonicalLinkEdit)} saving={saving} />
+            <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={(!plan.beats.length && !canonicalLinkEdit) || saving} onClick={() => submitPlan(false)}>Review Changes</button>
             <button type="button" className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} disabled={!plan.beats.length} onClick={() => { setPlan({ beats: [] }); setSelection(null); }}>Clear Local Plan</button>
           </div>
         </header>
@@ -445,6 +472,17 @@ export default function StoryTimelinePage() {
             setArcFocus(nextArcId);
             setLens(nextArcId || nextTimelineId ? lens : "story");
           }}
+        />}
+
+        {filterMode !== "issues" && <ScopedPathComparison
+          timelines={timelines}
+          arcs={arcs}
+          placements={placements}
+          localBeats={plan.beats}
+          leftScope={compareLeft}
+          rightScope={compareRight}
+          onLeftScope={setCompareLeft}
+          onRightScope={setCompareRight}
         />}
 
         <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_330px]">
@@ -499,6 +537,16 @@ export default function StoryTimelinePage() {
             libraryKind={selection?.libraryKind || ""}
             relationships={[...relationships, ...dependencyEdges]}
             warnings={warnings}
+            canonicalBeats={canonicalBeats}
+            canonicalLinks={canonicalLinks}
+            canonicalLinkEdit={canonicalLinkEdit}
+            onBeginCanonicalLinkEdit={(linkId) => {
+              const original = canonicalLinks.find((link) => text(link.id) === linkId);
+              const draft = original ? placementDraftFromCanonicalLink(original) : null;
+              if (original && draft) setCanonicalLinkEdit({ original, draft });
+            }}
+            onCanonicalLinkEditChange={(draft) => setCanonicalLinkEdit((current) => current ? { ...current, draft } : null)}
+            onCancelCanonicalLinkEdit={() => setCanonicalLinkEdit(null)}
             onUpdateBeat={updateBeat}
             onDeleteBeat={(beatId) => { setPlan((current) => ({ beats: current.beats.filter((beat) => beat.id !== beatId) })); setSelection(null); }}
             onRemoveAttachment={(beatId, attachment) => updateBeat(beatId, { attachments: selectedLocalBeat?.attachments.filter((row) => row !== attachment) || [] })}
@@ -625,6 +673,64 @@ function TimelineNavigator({ timelines, arcs, placements, localBeats, entityOccu
   </AuthoringPanel>;
 }
 
+function ScopedPathComparison({ timelines, arcs, placements, localBeats, leftScope, rightScope, onLeftScope, onRightScope }: { timelines: EntryRecord[]; arcs: EntryRecord[]; placements: EntryRecord[]; localBeats: LocalBeat[]; leftScope: string; rightScope: string; onLeftScope: (scope: string) => void; onRightScope: (scope: string) => void }) {
+  const options = [
+    ...arcs.map((arc) => ({ id: `arc:${text(arc.id)}`, label: `Arc: ${label(arc)}` })),
+    ...timelines.map((timeline) => ({ id: `timeline:${text(timeline.id)}`, label: `Timeline-level: ${label(timeline)}` })),
+    { id: "unassigned", label: "Unassigned story space" },
+  ];
+  const scopedRows = (scope: string) => {
+    const [kind, id = ""] = scope.split(":", 2);
+    const canonical = placements.filter((placement) => {
+      if (kind === "arc") return text(placement.story_arc_id) === id;
+      if (kind === "timeline") return !text(placement.story_arc_id) && text(placement.timeline_id) === id;
+      return scope === "unassigned" && !text(placement.story_arc_id) && !text(placement.timeline_id);
+    }).map((placement) => ({
+      id: `canonical:${text(placement.kind)}:${text(placement.entry_id)}`,
+      label: text(placement.label),
+      order: Number(placement.order),
+      origin: "canonical",
+    }));
+    const local = localBeats.filter((beat) => {
+      if (kind === "arc") return beat.story_arc_id === id;
+      if (kind === "timeline") return !beat.story_arc_id && beat.timeline_id === id;
+      return scope === "unassigned" && !beat.story_arc_id && !beat.timeline_id;
+    }).map((beat) => ({ id: `local:${beat.id}`, label: beat.title, order: beat.order, origin: "local" }));
+    return [...canonical, ...local].sort((left, right) => left.order - right.order || left.label.localeCompare(right.label));
+  };
+  const leftRows = scopedRows(leftScope);
+  const rightRows = scopedRows(rightScope);
+  const leftLabels = new Set(leftRows.map((row) => row.label.toLowerCase()));
+  const rightLabels = new Set(rightRows.map((row) => row.label.toLowerCase()));
+  const shared = [...leftLabels].filter((value) => rightLabels.has(value)).length;
+  const renderPath = (pathRows: ReturnType<typeof scopedRows>, opposite: Set<string>) => <div className="min-h-24 rounded-md border border-dashed border-slate-200 p-2 dark:border-slate-800">
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      {pathRows.map((row, index) => <div key={row.id} className={`w-40 shrink-0 rounded border p-2 text-xs ${opposite.has(row.label.toLowerCase()) ? "border-fuchsia-300 bg-fuchsia-50 dark:bg-fuchsia-950/30" : "border-slate-200 dark:border-slate-800"}`}>
+        <div className="text-[9px] font-semibold uppercase text-slate-500">{index + 1} / {row.origin}</div>
+        <div className="mt-1 font-semibold">{row.label}</div>
+      </div>)}
+      {!pathRows.length && <EmptyState variant="compact" title="No scoped beats.">Choose a populated lane to compare its authored order.</EmptyState>}
+    </div>
+  </div>;
+  return <AuthoringPanel
+    title="Scoped Path Comparison"
+    subtitle="Compare two authored lane snapshots without declaring either one a canonical player path."
+    help="Each side preserves only the order modeled inside its selected arc, timeline-level lane, or unassigned scope. Matching labels are highlighted; cross-lane order is never inferred or saved."
+    collapsible
+    storageKey="soa.story-timeline.path-comparison.collapsed"
+    collapsedSummary={leftScope && rightScope ? `${shared} shared beat label(s)` : "Choose two scoped lanes"}
+    testId="story-timeline-path-comparison"
+  >
+    <div className="mt-3 grid gap-3 lg:grid-cols-2">
+      <label className="block text-xs font-semibold uppercase text-slate-500">Left scope<select className={`${inputClass} mt-1 normal-case`} value={leftScope} onChange={(event) => onLeftScope(event.target.value)}><option value="">Choose a lane...</option>{options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>
+      <label className="block text-xs font-semibold uppercase text-slate-500">Right scope<select className={`${inputClass} mt-1 normal-case`} value={rightScope} onChange={(event) => onRightScope(event.target.value)}><option value="">Choose a lane...</option>{options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>
+      <div>{renderPath(leftRows, rightLabels)}</div>
+      <div>{renderPath(rightRows, leftLabels)}</div>
+    </div>
+    {leftScope && rightScope && <p className="mt-2 text-xs text-slate-500">{shared} shared label(s); {leftRows.length - shared} left-only and {rightRows.length - shared} right-only positions. This is a browser-local comparison and creates no canonical path record.</p>}
+  </AuthoringPanel>;
+}
+
 function LibraryCard({ kind, entry, onSelect, onAttach }: { kind: string; entry: EntryRecord; onSelect: () => void; onAttach?: () => void }) {
   const drag = useDraggable({ id: `library:${kind}:${text(entry.id)}`, data: { dragType: "library", kind, entryId: text(entry.id), label: label(entry) } });
   return <article ref={drag.setNodeRef} className={`rounded-md border p-2 text-xs ${drag.isDragging ? "opacity-40" : ""}`}>
@@ -723,7 +829,7 @@ function UnplacedSummary({ unplaced }: { unplaced: EntryRecord }) {
   return <AuthoringPanel title="Unplaced Content" subtitle="Counts derived from current supported placement relationships." help="Use this as a backlog signal. Unplaced content is not automatically wrong, but high counts mean the timeline has less context to navigate."><div className="mt-3 space-y-1 text-xs">{Object.entries(unplaced).map(([key, value]) => <div key={key} className="flex justify-between rounded border px-2 py-1"><span>{key.replace(/_/g, " ")}</span><strong>{Array.isArray(value) ? value.length : 0}</strong></div>)}</div></AuthoringPanel>;
 }
 
-function ContextDock({ selection, localBeat, placement, event, libraryEntry, libraryKind, relationships, warnings, onUpdateBeat, onDeleteBeat, onRemoveAttachment }: { selection: Selection; localBeat?: LocalBeat; placement?: EntryRecord; event?: EntryRecord; libraryEntry?: EntryRecord; libraryKind: string; relationships: EntryRecord[]; warnings: EntryRecord[]; onUpdateBeat: (beatId: string, patch: Partial<LocalBeat>) => void; onDeleteBeat: (beatId: string) => void; onRemoveAttachment: (beatId: string, attachment: LocalAttachment) => void }) {
+function ContextDock({ selection, localBeat, placement, event, libraryEntry, libraryKind, relationships, warnings, canonicalBeats, canonicalLinks, canonicalLinkEdit, onBeginCanonicalLinkEdit, onCanonicalLinkEditChange, onCancelCanonicalLinkEdit, onUpdateBeat, onDeleteBeat, onRemoveAttachment }: { selection: Selection; localBeat?: LocalBeat; placement?: EntryRecord; event?: EntryRecord; libraryEntry?: EntryRecord; libraryKind: string; relationships: EntryRecord[]; warnings: EntryRecord[]; canonicalBeats: EntryRecord[]; canonicalLinks: EntryRecord[]; canonicalLinkEdit: CanonicalLinkEdit | null; onBeginCanonicalLinkEdit: (linkId: string) => void; onCanonicalLinkEditChange: (draft: StoryPlacementDraft) => void; onCancelCanonicalLinkEdit: () => void; onUpdateBeat: (beatId: string, patch: Partial<LocalBeat>) => void; onDeleteBeat: (beatId: string) => void; onRemoveAttachment: (beatId: string, attachment: LocalAttachment) => void }) {
   if (!selection) return <aside id="timeline-context" className="h-fit"><AuthoringPanel title="Context Dock" subtitle="Select a placement, event, library item, or local planning beat to inspect it." help="The dock keeps details beside the board so you do not have to leave the timeline while drafting."><EmptyState variant="compact" title="Nothing selected.">Select a board card, library item, or local planning beat. Drop library content directly onto a local beat to attach it.</EmptyState></AuthoringPanel></aside>;
   if (localBeat) return <aside id="timeline-context" className="h-fit" data-testid="story-timeline-context-dock"><AuthoringPanel title="Local Planning Beat" help="This beat is browser-local until you review and commit the plan. Use typed attachments to connect saved records to the planned story beat." actions={<button type="button" className="text-xs font-semibold text-red-700" onClick={() => onDeleteBeat(localBeat.id)}>Delete</button>}><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Title<input className={`${inputClass} mt-1`} value={localBeat.title} onChange={(eventValue) => onUpdateBeat(localBeat.id, { title: eventValue.target.value })} /></label><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Beat Type<select className={`${inputClass} mt-1`} value={localBeat.beat_type} onChange={(eventValue) => onUpdateBeat(localBeat.id, { beat_type: eventValue.target.value })}>{["Hook", "Introduction", "Discovery", "Decision", "Conflict", "Revelation", "Reversal", "Climax", "Recovery", "Payoff", "Other"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Intent / Summary<textarea className={`${inputClass} mt-1 min-h-28`} value={localBeat.summary} onChange={(eventValue) => onUpdateBeat(localBeat.id, { summary: eventValue.target.value })} /></label><div className="mt-4"><div className="text-xs font-semibold uppercase text-slate-500">Typed Attachments</div><div className="mt-2 space-y-2">{localBeat.attachments.map((attachment) => <div key={`${attachment.kind}:${attachment.entry_id}`} className="rounded border p-2 text-xs"><div className="flex items-center justify-between gap-2"><div><div className="text-[10px] font-semibold uppercase text-slate-500">{attachment.role.replace(/_/g, " ")} / {attachment.kind.replace(/_/g, " ")}</div><div className="font-semibold">{attachment.label}</div></div><button type="button" className="text-red-700" onClick={() => onRemoveAttachment(localBeat.id, attachment)}>Remove</button></div>{entityRoute(attachment.kind, attachment.entry_id) && <Link className="mt-1 inline-block text-blue-700 dark:text-blue-300" to={entityRoute(attachment.kind, attachment.entry_id)}>Inspect Attached Record</Link>}</div>)}{!localBeat.attachments.length && <EmptyState variant="compact" title="No attached content yet.">Drag library content onto this beat to connect saved records to the plan.</EmptyState>}</div></div><p className="mt-4 rounded-md border border-fuchsia-200 bg-fuchsia-50 p-2 text-xs text-fuchsia-800 dark:border-fuchsia-900 dark:bg-fuchsia-950 dark:text-fuchsia-200">This beat remains browser-local until its preview is reviewed and committed.</p></AuthoringPanel></aside>;
 
@@ -732,7 +838,39 @@ function ContextDock({ selection, localBeat, placement, event, libraryEntry, lib
   const related = relationships.filter((edge) => text(edge.source).endsWith(`:${selectedId}`) || text(edge.target).endsWith(`:${selectedId}`));
   const selectedWarnings = warnings.filter((warning) => text(warning.entry_id) === selectedId);
   const entry = placement || event || libraryEntry || {};
-  return <aside id="timeline-context" className="h-fit" data-testid="story-timeline-context-dock"><AuthoringPanel title={text(entry.label, label(entry))} subtitle={selectedKind.replace(/_/g, " ")} help="Inspect the selected record's placement context without leaving the board. Use the inspect link when you need to edit the owning record." actions={entityRoute(selectedKind, selectedId) && <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={entityRoute(selectedKind, selectedId)}>Inspect Owning Workspace</Link>}><div className="mt-4 space-y-2 text-xs"><Detail label="Placement Basis" value={placement?.placement_basis} /><Detail label="Ordering Source" value={placement?.ordering_source} /><Detail label="Lane" value={placement?.lane_id} /><Detail label="Next Event" value={event?.next_event_id} /></div><div className="mt-4"><div className="text-xs font-semibold uppercase text-slate-500">Nearby Relationships</div><div className="mt-2 max-h-64 space-y-1 overflow-auto">{related.map((edge) => <div key={text(edge.id)} className={`rounded border p-2 text-[10px] ${edge.explicit === false ? "border-dashed" : ""}`}>{text(edge.source)}<br /><strong>{text(edge.relation)}</strong><br />{text(edge.target)}</div>)}{!related.length && <EmptyState variant="compact" title="No nearby relationships found.">This record can still be placed on the timeline; add explicit links when it needs dependency or consequence context.</EmptyState>}</div></div>{selectedWarnings.length > 0 && <div className="mt-4 space-y-1">{selectedWarnings.map((warning) => <p key={text(warning.code)} className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">{text(warning.message)}</p>)}</div>}</AuthoringPanel></aside>;
+  const attachments = rows(placement?.attachments);
+  const currentBeat = canonicalBeats.find((beat) => text(beat.id) === text(placement?.entry_id));
+  const laneBeats = canonicalBeats.filter((beat) => {
+    if (!currentBeat) return false;
+    if (text(currentBeat.story_arc_id)) return text(beat.story_arc_id) === text(currentBeat.story_arc_id);
+    if (text(currentBeat.timeline_id)) return !text(beat.story_arc_id) && text(beat.timeline_id) === text(currentBeat.timeline_id);
+    return !text(beat.story_arc_id) && !text(beat.timeline_id);
+  }).sort((left, right) => Number(left.sort_order) - Number(right.sort_order));
+  const editedLinkBelongsHere = canonicalLinkEdit?.draft.adventure_beat_id === text(placement?.entry_id);
+  return <aside id="timeline-context" className="h-fit" data-testid="story-timeline-context-dock"><AuthoringPanel title={text(entry.label, label(entry))} subtitle={selectedKind.replace(/_/g, " ")} help="Inspect the selected record's placement context without leaving the board. Canonical adventure-beat links can be staged here and still require the shared preview/commit review." actions={entityRoute(selectedKind, selectedId) && <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={entityRoute(selectedKind, selectedId)}>Inspect Owning Workspace</Link>}><div className="mt-4 space-y-2 text-xs"><Detail label="Placement Basis" value={placement?.placement_basis} /><Detail label="Ordering Source" value={placement?.ordering_source} /><Detail label="Lane" value={placement?.lane_id} /><Detail label="Next Event" value={event?.next_event_id} /></div>
+  {text(placement?.kind) === "adventure_beat" && <div className="mt-4" data-testid="canonical-link-editor"><div className="text-xs font-semibold uppercase text-slate-500">Canonical typed links</div><div className="mt-2 space-y-2">{attachments.map((attachment) => {
+    const raw = canonicalLinks.find((link) => text(link.id) === text(attachment.id)) || attachment;
+    const active = canonicalLinkEdit?.draft.id === text(raw.id);
+    return <div key={text(raw.id)} className={`rounded border p-2 text-xs ${active ? "border-fuchsia-400 bg-fuchsia-50 dark:bg-fuchsia-950/30" : ""}`}><div className="flex items-start justify-between gap-2"><div><div className="font-semibold">{text(attachment.label, text(raw.target_id))}</div><div className="text-[10px] text-slate-500">{text(raw.role).replace(/_/g, " ")} · {text(raw.change_type).replace(/_/g, " ")}</div></div><button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => onBeginCanonicalLinkEdit(text(raw.id))}>{active ? "Reset" : "Edit link"}</button></div><LifecycleSpanVisualization link={active && canonicalLinkEdit ? storyPlacementLinkPayload(canonicalLinkEdit.draft, raw) : raw} beats={laneBeats} currentBeatId={text(placement?.entry_id)} /></div>;
+  })}{!attachments.length && <EmptyState variant="compact" title="No typed links on this beat.">Attach content through a local planning beat, then review and commit it.</EmptyState>}</div>
+  {editedLinkBelongsHere && canonicalLinkEdit && <div className="mt-3 rounded-md border border-fuchsia-300 p-3"><div className="mb-2 flex items-center justify-between gap-2"><div><div className="text-xs font-semibold">Editing {text(canonicalLinkEdit.original.target_id)}</div><div className="text-[10px] text-slate-500">Browser-local until Review Changes and Commit.</div></div><button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={onCancelCanonicalLinkEdit}>Cancel edit</button></div><LifecycleFields value={canonicalLinkEdit.draft} beatOptions={laneBeats} onChange={onCanonicalLinkEditChange} /></div>}
+  </div>}
+  <div className="mt-4"><div className="text-xs font-semibold uppercase text-slate-500">Nearby Relationships</div><div className="mt-2 max-h-64 space-y-1 overflow-auto">{related.map((edge) => <div key={text(edge.id)} className={`rounded border p-2 text-[10px] ${edge.explicit === false ? "border-dashed" : ""}`}>{text(edge.source)}<br /><strong>{text(edge.relation)}</strong><br />{text(edge.target)}</div>)}{!related.length && <EmptyState variant="compact" title="No nearby relationships found.">This record can still be placed on the timeline; add explicit links when it needs dependency or consequence context.</EmptyState>}</div></div>{selectedWarnings.length > 0 && <div className="mt-4 space-y-1">{selectedWarnings.map((warning) => <p key={text(warning.code)} className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">{text(warning.message)}</p>)}</div>}</AuthoringPanel></aside>;
+}
+
+function LifecycleSpanVisualization({ link, beats, currentBeatId }: { link: EntryRecord; beats: EntryRecord[]; currentBeatId: string }) {
+  if (!beats.length) return null;
+  const startId = text(link.starts_at_beat_id, currentBeatId);
+  const endId = text(link.ends_at_beat_id, startId);
+  const startIndex = beats.findIndex((beat) => text(beat.id) === startId);
+  const endIndex = beats.findIndex((beat) => text(beat.id) === endId);
+  const valid = startIndex >= 0 && endIndex >= startIndex;
+  const startLabel = label(beats.find((beat) => text(beat.id) === startId), startId || "this beat");
+  const endLabel = label(beats.find((beat) => text(beat.id) === endId), endId || startLabel);
+  const denominator = Math.max(1, beats.length);
+  const left = valid ? (startIndex / denominator) * 100 : 0;
+  const width = valid ? (Math.max(1, endIndex - startIndex + 1) / denominator) * 100 : 100;
+  return <div className="mt-2" data-testid={`lifecycle-span-${text(link.id)}`}><div className="relative h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800"><span className={`absolute inset-y-0 rounded-full ${valid ? "bg-fuchsia-500" : "bg-amber-500"}`} style={{ left: `${left}%`, width: `${width}%` }} /></div><div className="mt-1 text-[9px] text-slate-500">{valid ? `${startLabel} → ${endLabel} · ${endIndex - startIndex + 1} beat(s) in this lane` : "Duration boundary is outside this lane or reverses authored order; no cross-lane span inferred."}</div></div>;
 }
 
 function Detail({ label: detailLabel, value }: { label: string; value: unknown }) {

@@ -109,6 +109,11 @@ def test_packet_includes_creature_context_and_catalogs(monkeypatch):
     assert body["appearances"][0]["id"] == "enc-1"
     assert body["habitats"][0]["table"]["location"]["name"] == "Woods"
     assert body["navigator"][0]["id"] == "char-creature"
+    assert body["navigator"][0]["encounter_ids"] == ["enc-1"]
+    assert body["navigator"][0]["habitat_location_ids"] == ["loc-1"]
+    assert body["navigator"][0]["custom_abilities"] == ["ability-1"]
+    assert body["boss_payoff"]["encounters"][0]["id"] == "enc-1"
+    assert body["boss_payoff"]["encounters"][0]["has_any_payoff"] is True
     assert body["catalogs"]["abilities"][0]["id"] == "ability-1"
 
 

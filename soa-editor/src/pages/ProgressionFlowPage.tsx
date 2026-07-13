@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { buildDependencyWalkthrough, buildReachableTriggerSequence } from "../authoring/dependencyWalkthrough";
 import {
   normalizeScopedGateRequirement,
   scopedGateIssues,
@@ -536,16 +537,29 @@ function FlowCanvas({ rows: flowRows }: { rows: Array<{ id: string; kind: string
 }
 
 function TemporaryPlaythrough({ packet, temporaryFlags, setTemporaryFlags, flagsById }: { packet: FlowPacket; temporaryFlags: string[]; setTemporaryFlags: (flags: string[]) => void; flagsById: Map<string, Entry> }) {
-  const openRequirements = packet.requirements.filter((requirement) => strings(requirement.required_flags).every((id) => temporaryFlags.includes(id)) && strings(requirement.forbidden_flags).every((id) => !temporaryFlags.includes(id)));
+  const [triggerIds, setTriggerIds] = useState<string[]>([]);
+  const [activeStep, setActiveStep] = useState(0);
+  const [initialReputation, setInitialReputation] = useState<Record<string, number>>({});
+  const index = packet.dependency_index as Entry;
+  const initialNodeFlags = useMemo(() => temporaryFlags.map((id) => `flag:${id}`), [temporaryFlags]);
+  const model = useMemo(() => buildDependencyWalkthrough(index, initialNodeFlags, triggerIds, initialReputation), [index, initialNodeFlags, initialReputation, triggerIds]);
+  const step = model.steps[Math.min(activeStep, Math.max(model.steps.length - 1, 0))];
+  const triggerById = new Map(model.triggers.map((trigger) => [trigger.id, trigger]));
+  const openRequirements = packet.requirements.filter((requirement) => strings(requirement.required_flags).every((id) => model.finalFlags.includes(`flag:${id}`)) && strings(requirement.forbidden_flags).every((id) => !model.finalFlags.includes(`flag:${id}`)));
   return <Panel
     title="Temporary Player State"
-    subtitle="Toggle flags for this walkthrough only and watch which unlock requirements would become available."
-    help="These toggles do not save player state. They let you test whether saved requirements would be available if the player had specific flags."
+    subtitle="Set a starting state, then step existing sources in an explicit local sequence."
+    help="These controls never save player state or source order. The walkthrough applies modeled flag and reputation rewards, then re-evaluates existing gates after each step."
     collapsible
     storageKey="soa.progression-flow.temporary-state.collapsed"
-    collapsedSummary={`${temporaryFlags.length} active test flag(s), ${openRequirements.length} available requirement(s)`}
+    collapsedSummary={`${model.finalFlags.length} active test flag(s), ${openRequirements.length} available requirement(s)`}
   >
     <FlagMultiSelect label="Active Flags" value={temporaryFlags} flags={packet.flags} onChange={setTemporaryFlags} />
+    {model.reputations.length > 0 && <div className="mt-3"><Caption>Initial Faction Reputation</Caption><div className="mt-2 grid gap-2 md:grid-cols-2">{model.reputations.map((reputation) => <label key={reputation.entryId} className="grid grid-cols-[1fr_90px] items-center gap-2 text-xs"><span>{reputation.label}</span><input className={inputClass} type="number" value={initialReputation[reputation.entryId] || 0} onChange={(event) => { setInitialReputation((current) => ({ ...current, [reputation.entryId]: Number(event.target.value) || 0 })); setActiveStep(0); }} /></label>)}</div></div>}
+    <div className="mt-3 grid gap-3 lg:grid-cols-[280px_1fr]">
+      <div><Caption>Existing Source Sequence</Caption><select className={`${inputClass} mt-2`} value="" onChange={(event) => { if (!event.target.value) return; setTriggerIds((current) => [...current, event.target.value]); setActiveStep(triggerIds.length + 1); }}><option value="">Add source step...</option>{model.triggers.map((trigger) => <option key={trigger.id} value={trigger.id}>{trigger.label}</option>)}</select><button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm} mt-2`} onClick={() => { const sequence = buildReachableTriggerSequence(index, initialNodeFlags, initialReputation); setTriggerIds(sequence); setActiveStep(sequence.length); }}>Auto-step reachable sources</button><div className="mt-2 space-y-1">{triggerIds.map((id, indexValue) => <div key={`${id}-${indexValue}`} className="flex items-center justify-between rounded border p-2 text-xs"><button type="button" className="min-w-0 truncate text-left font-semibold" onClick={() => setActiveStep(indexValue + 1)}>{indexValue + 1}. {triggerById.get(id)?.label || id}</button><button type="button" className="text-red-700" onClick={() => { setTriggerIds((current) => current.filter((_, rowIndex) => rowIndex !== indexValue)); setActiveStep(0); }}>Remove</button></div>)}{!triggerIds.length && <Empty title="No source steps yet.">Add a saved producer or auto-step every source currently reachable from the starting state.</Empty>}</div></div>
+      <div><Caption>Step Result</Caption><div className="mt-2 flex flex-wrap gap-1">{model.steps.map((entry, indexValue) => <button key={entry.id} type="button" className={`rounded border px-2 py-1 text-xs ${activeStep === indexValue ? "border-fuchsia-600 bg-fuchsia-600 text-white" : ""}`} onClick={() => setActiveStep(indexValue)}>{entry.title}</button>)}</div>{step && <div className="mt-2 rounded border p-3 text-xs"><div className="font-semibold">{step.title}</div><div className="mt-2">Flags gained: {step.flagsGained.map((id) => label(flagsById.get(id.replace(/^flag:/, "")), id)).join(", ") || "none"}</div>{step.reputationGained.length > 0 && <div className="mt-1">Reputation gained: {step.reputationGained.map((change) => `${change.label} ${change.amount >= 0 ? "+" : ""}${change.amount}`).join(", ")}</div>}<div className="mt-1">Newly available content: {step.newlyOpenGates.map((gate) => gate.content.label).join(", ") || "none"}</div><div className="mt-1">Still blocked: {step.blockedGates.length}</div></div>}</div>
+    </div>
     <div className="mt-3 space-y-2">
       <Caption>Available Unlock Requirements</Caption>
       {openRequirements.slice(0, 8).map((requirement) => <div key={text(requirement.id)} className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">{label(requirement)} / {strings(requirement.required_flags).map((id) => label(flagsById.get(id), id)).join(", ")}</div>)}

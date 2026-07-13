@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNo
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import SchemaForm from "../components/SchemaForm";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
+import ScopedGateSection from "../components/authoring/ScopedGateSection";
 import SimulationWorkbench from "../components/simulation/SimulationWorkbench";
 import AbilityLabBench from "../components/abilityLab/AbilityLabBench";
 import { buildAbilityUsageModel } from "../authoring/abilityUsage";
@@ -633,6 +634,19 @@ export default function AbilitySpellcraftLabPage() {
                   <StatusDefensePanel packet={packet} setPacket={setPacket} />
                   <RelationshipPanel packet={packet} setPacket={setPacket} onCreateRelated={() => startVariantDraft(packet.ability, "Related")} />
                   <RequirementPanel packet={packet} setPacket={setPacket} />
+                  {!isNew && displayText(packet.ability.id) && <ScopedGateSection
+                    targetSchema="abilities"
+                    targetId={displayText(packet.ability.id)}
+                    targetLabel={displayText(packet.ability.name, displayText(packet.ability.id))}
+                    requirementId={displayText(packet.ability.requirements_id)}
+                    title="Ability Access Gate"
+                    subtitle="Create or reuse the player-state requirement that unlocks this saved ability."
+                    tag="ability-gate"
+                    onRequirementCommitted={(requirements_id) => {
+                      setPacket((current) => current ? { ...current, ability: { ...current.ability, requirements_id } } : current);
+                      setOriginal((current) => current ? { ...current, ability: { ...current.ability, requirements_id } } : current);
+                    }}
+                  />}
             </div>
            </div>
              </>
@@ -828,6 +842,7 @@ function EncounterRoleDrop({ row, onToggle }: { row: ReturnType<typeof buildAbil
       {row.changed && <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-800 dark:bg-blue-950 dark:text-blue-200">Draft change</span>}
       {row.bossLike && row.signatureAbility && <span className="rounded bg-rose-100 px-2 py-0.5 text-rose-800 dark:bg-rose-950 dark:text-rose-200">Signature check</span>}
       {row.missingProfile && <span className="text-amber-800 dark:text-amber-200">Create a combat profile before this role can receive abilities.</span>}
+      {row.tacticalWarnings.map((warning) => <span key={warning} className="basis-full rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">{warning}</span>)}
     </div>
   </div>;
 }

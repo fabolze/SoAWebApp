@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import {
   AUTHORING_INPUT_CLASS,
@@ -31,6 +31,12 @@ type CreaturePacket = {
   habitats: { table: EntryRecord; entry: EntryRecord }[];
   catalogs: Record<string, EntryRecord[]>;
   health: { blockers: string[]; warnings: string[] };
+  boss_payoff?: {
+    character_occurrences: EntryRecord[];
+    encounter_occurrences: EntryRecord[];
+    story_warnings: EntryRecord[];
+    encounters: EntryRecord[];
+  };
 };
 
 const ENEMY_TYPES = ["humanoid", "beast", "undead", "elemental", "machine", "boss", "demon", "dragon", "giant", "spirit", "emanation", "other"];
@@ -54,6 +60,7 @@ function emptyPacket(): CreaturePacket {
     habitats: [],
     catalogs: { abilities: [], characterclasses: [], currencies: [], encounters: [], encounter_tables: [], factions: [], items: [], locations: [], stats: [] },
     health: { blockers: [], warnings: [] },
+    boss_payoff: { character_occurrences: [], encounter_occurrences: [], story_warnings: [], encounters: [] },
   };
 }
 
@@ -94,6 +101,46 @@ function participantUsesCreature(encounter: EntryRecord, creatureId: string): bo
   return rows(encounter.participants).some((row) => displayText(row.character_id) === creatureId);
 }
 
+type CreatureComparison = { creature: EntryRecord; familyScore: number; nearbyScore: number; reasons: string[] };
+type BehaviorRhythm = { signal: string; threat: string; response: string; consequence: string; recovery: string };
+const EMPTY_RHYTHM: BehaviorRhythm = { signal: "", threat: "", response: "", consequence: "", recovery: "" };
+
+function intersection(left: string[], right: string[]): string[] {
+  const rightSet = new Set(right);
+  return [...new Set(left.filter((value) => rightSet.has(value)))];
+}
+
+function deriveCreatureComparisons(packet: CreaturePacket, appearances: EntryRecord[], habitats: { table: EntryRecord; entry: EntryRecord }[]): CreatureComparison[] {
+  const currentId = displayText(packet.creature.id);
+  const currentType = displayText(packet.combat_profile?.enemy_type);
+  const currentFaction = displayText(packet.creature.faction_id);
+  const currentHome = displayText(packet.creature.home_location_id);
+  const currentTags = strings(packet.creature.tags).map((value) => value.toLowerCase());
+  const currentAbilities = strings(packet.combat_profile?.custom_abilities);
+  const currentEncounterIds = appearances.map((entry) => displayText(entry.id));
+  const currentHabitatIds = habitats.map(({ table }) => displayText(table.location_id)).filter(Boolean);
+  return packet.navigator.filter((candidate) => displayText(candidate.id) !== currentId).map((candidate) => {
+    const sharedTags = intersection(currentTags, strings(candidate.tags).map((value) => value.toLowerCase())).filter((tag) => !["creature", "enemy"].includes(tag));
+    const sharedAbilities = intersection(currentAbilities, strings(candidate.custom_abilities));
+    const sharedEncounters = intersection(currentEncounterIds, strings(candidate.encounter_ids));
+    const sharedHabitats = intersection(currentHabitatIds, strings(candidate.habitat_location_ids));
+    let familyScore = sharedTags.length + sharedAbilities.length * 2;
+    let nearbyScore = sharedEncounters.length * 3 + sharedHabitats.length * 4;
+    const reasons: string[] = [];
+    if (currentType && currentType === displayText(candidate.enemy_type)) { familyScore += 3; reasons.push(`same ${currentType} type`); }
+    if (currentFaction && currentFaction === displayText(candidate.faction_id)) { familyScore += 2; reasons.push("same faction"); }
+    if (sharedTags.length) reasons.push(`shared tags: ${sharedTags.join(", ")}`);
+    if (sharedAbilities.length) reasons.push(`${sharedAbilities.length} shared abilities`);
+    if (sharedEncounters.length) reasons.push(`${sharedEncounters.length} shared encounters`);
+    if (sharedHabitats.length) reasons.push(`${sharedHabitats.length} shared habitats`);
+    if (currentHome && currentHome === displayText(candidate.home_location_id)) { nearbyScore += 2; reasons.push("same home location"); }
+    const levelGap = Math.abs(Number(packet.creature.level || 0) - Number(candidate.level || 0));
+    if (levelGap <= 3) { nearbyScore += 1; reasons.push(`level gap ${levelGap}`); }
+    return { creature: candidate, familyScore, nearbyScore, reasons };
+  }).filter((row) => row.familyScore > 0 || row.nearbyScore > 1)
+    .sort((a, b) => Math.max(b.familyScore, b.nearbyScore) - Math.max(a.familyScore, a.nearbyScore) || rowLabel(a.creature, displayText(a.creature.id)).localeCompare(rowLabel(b.creature, displayText(b.creature.id))));
+}
+
 function draftKey(id: string): string {
   return `soa.creature-workshop.${id}`;
 }
@@ -102,6 +149,7 @@ export default function CreatureWorkshopPage() {
   const { id = "new" } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isNew = id === "new" || location.pathname.endsWith("/new");
   const [packet, setPacket] = useState<CreaturePacket>(emptyPacket);
   const [original, setOriginal] = useState<CreaturePacket | null>(null);
@@ -125,6 +173,7 @@ export default function CreatureWorkshopPage() {
       .filter((entry) => currentEncounterIds.has(displayText(entry.encounter_id)))
       .map((entry) => ({ table, entry }))
   ), [currentEncounterIds, packet.catalogs.encounter_tables]);
+  const comparisons = useMemo(() => deriveCreatureComparisons(packet, currentAppearances, currentHabitats), [currentAppearances, currentHabitats, packet]);
   const localHealth = useMemo(() => deriveHealth(packet, currentAppearances, currentHabitats), [packet, currentAppearances, currentHabitats]);
   const dirty = Boolean(original && stable(packet) !== stable(original));
 
@@ -157,6 +206,33 @@ export default function CreatureWorkshopPage() {
             localStorage.removeItem(draftKey(displayText(base.creature.id)));
           }
         }
+        const handoffEncounterId = searchParams.get("encounter") || "";
+        const handoffRole = (searchParams.get("role") || "").trim();
+        const handoffSide = SIDES.includes(searchParams.get("side") || "") ? searchParams.get("side")! : "Hostile";
+        const handoffContext = searchParams.get("context") === "Interaction" ? "Interaction" : "Combat";
+        if (isNew && handoffEncounterId && handoffRole && !stored) {
+          const creatureId = displayText(next.creature.id);
+          const handoffEncounter = rows(next.catalogs.encounters).find((encounter) => displayText(encounter.id) === handoffEncounterId);
+          next = {
+            ...next,
+            creature: {
+              ...next.creature,
+              name: handoffRole.replace(/\b\w/g, (letter) => letter.toUpperCase()),
+              title: `Encounter role: ${handoffRole}`,
+              description: `Created to fill the ${handoffRole} role in ${rowLabel(handoffEncounter || {}, handoffEncounterId)}.`,
+              tags: [...new Set([...strings(next.creature.tags), "creature", "enemy", "encounter-handoff"])]
+            },
+            combat_profile: handoffContext === "Combat" ? newCombat(creatureId) : next.combat_profile,
+            catalogs: {
+              ...next.catalogs,
+              encounters: rows(next.catalogs.encounters).map((encounter) => displayText(encounter.id) === handoffEncounterId
+                ? { ...encounter, participants: [...rows(encounter.participants), { character_id: creatureId, contexts: [handoffContext], combat_side: handoffSide }] }
+                : encounter),
+            },
+          };
+          setSelectedEncounter(handoffEncounterId);
+          setNotice(`Staged missing role '${handoffRole}' for ${rowLabel(handoffEncounter || {}, handoffEncounterId)}.`);
+        }
         if (!cancelled) {
           setPacket(next);
           setOriginal(base);
@@ -171,7 +247,7 @@ export default function CreatureWorkshopPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, isNew]);
+  }, [id, isNew, searchParams]);
 
   useEffect(() => {
     if (!dirty || !original) return;
@@ -327,11 +403,14 @@ export default function CreatureWorkshopPage() {
           <div className="space-y-4">
             <IdentityPanel packet={packet} updateCreature={updateCreature} />
             <CombatPanel packet={packet} updateCombat={updateCombat} />
+            <BehaviorRhythmPanel creatureId={creatureId} creatureLabel={displayText(packet.creature.name, creatureId)} />
             <EncounterPanel packet={packet} selectedEncounter={selectedEncounter} setSelectedEncounter={setSelectedEncounter} updateCatalog={updateCatalog} />
             <HabitatPanel packet={packet} appearances={currentAppearances} selectedTable={selectedTable} setSelectedTable={setSelectedTable} updateCatalog={updateCatalog} />
             {!isNew && creatureId && <StoryPlacementPanel entityKind="character" entityId={creatureId} entityLabel={displayText(packet.creature.name, creatureId)} entity={packet.creature} />}
           </div>
           <div className="space-y-4">
+            <CreatureComparisonPanel comparisons={comparisons} />
+            <BossPayoffPanel packet={packet} />
             <ContextPanel appearances={currentAppearances} habitats={currentHabitats} />
             <AdvancedPanel creatureId={creatureId} />
           </div>
@@ -339,6 +418,50 @@ export default function CreatureWorkshopPage() {
       </div>
     </AuthoringPageShell>
   );
+}
+
+function CreatureComparisonPanel({ comparisons }: { comparisons: CreatureComparison[] }) {
+  return <Panel id="creature-comparison" title="Family And Nearby Threats" subtitle="Derived peers from combat identity, abilities, encounters, level, faction, and habitat overlap." help="Use this read-only comparison to spot repetition and ecosystem neighbors. Scores are inferred from saved records and never create family or ecology metadata." collapsible storageKey="authoring:creature:comparison" collapsedSummary={`${comparisons.length} related threats`}>
+    <div className="space-y-2">
+      {comparisons.slice(0, 8).map(({ creature, familyScore, nearbyScore, reasons }) => <Link key={displayText(creature.id)} to={`/author/creatures/${encodeURIComponent(displayText(creature.id))}`} className="block rounded-md border border-slate-200 bg-slate-50 p-3 hover:border-blue-300 dark:border-slate-800 dark:bg-slate-950">
+        <div className="flex items-start justify-between gap-2"><div className="text-sm font-semibold">{rowLabel(creature, displayText(creature.id))}</div><div className="flex gap-1 text-[10px] font-semibold"><span className="rounded bg-violet-100 px-2 py-1 text-violet-800 dark:bg-violet-950 dark:text-violet-200">family {familyScore}</span><span className="rounded bg-amber-100 px-2 py-1 text-amber-800 dark:bg-amber-950 dark:text-amber-200">nearby {nearbyScore}</span></div></div>
+        <div className="mt-1 text-xs text-slate-500">{reasons.join(" / ") || "Similar level"}</div>
+      </Link>)}
+      {comparisons.length === 0 && <EmptyState variant="compact" title="No inferred family or nearby threats">Add combat classification, meaningful tags, encounter placement, or habitats to make comparison evidence visible.</EmptyState>}
+    </div>
+  </Panel>;
+}
+
+function BehaviorRhythmPanel({ creatureId, creatureLabel }: { creatureId: string; creatureLabel: string }) {
+  const storageKey = `soa.creature-rhythm.${creatureId}`;
+  const [rhythm, setRhythm] = useState<BehaviorRhythm>(EMPTY_RHYTHM);
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
+      setRhythm(isRecord(stored) ? { ...EMPTY_RHYTHM, ...stored } as BehaviorRhythm : EMPTY_RHYTHM);
+    } catch { setRhythm(EMPTY_RHYTHM); }
+  }, [storageKey]);
+  useEffect(() => {
+    if (Object.values(rhythm).some(Boolean)) localStorage.setItem(storageKey, JSON.stringify(rhythm));
+    else localStorage.removeItem(storageKey);
+  }, [rhythm, storageKey]);
+  const fields: Array<[keyof BehaviorRhythm, string, string]> = [
+    ["signal", "Signal", "What readable tell warns the player?"],
+    ["threat", "Threat", "What pressure or attack follows?"],
+    ["response", "Response Window", "What can the player do, and for how long?"],
+    ["consequence", "Consequence", "What happens if the player fails or succeeds?"],
+    ["recovery", "Recovery", "What opening or reset follows?"],
+  ];
+  const applyTemplate = (kind: "skirmisher" | "boss") => setRhythm(kind === "boss" ? {
+    signal: "Distinct animation, arena cue, and audio tell.", threat: "Escalating signature attack that changes positioning.", response: "Move to safety, interrupt, or exploit the telegraphed counter.", consequence: "Heavy damage or arena-state change; successful response creates advantage.", recovery: "Clear punish window before the boss resets or transitions."
+  } : {
+    signal: "Brief stance or movement tell.", threat: "Fast pressure that forces repositioning.", response: "Dodge, block, interrupt, or close distance.", consequence: "Chip damage and lost position; counterplay staggers the creature.", recovery: "Short vulnerable pause before it seeks a new angle."
+  });
+  return <Panel id="creature-rhythm" title="Behavior Rhythm Sketch" subtitle={`Local Signal → Threat → Response → Consequence → Recovery sketch for ${creatureLabel}.`} help="This is browser-local design planning. It is deliberately excluded from the canonical creature bundle until the data model owns behavior rhythms." collapsible storageKey={`authoring:creature:${creatureId}:rhythm`} collapsedSummary={Object.values(rhythm).filter(Boolean).length ? "local rhythm drafted" : "no local rhythm"}>
+    <div className="mb-3 flex flex-wrap gap-2"><button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => applyTemplate("skirmisher")}>Skirmisher Template</button><button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => applyTemplate("boss")}>Boss Template</button><button type="button" className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`} onClick={() => setRhythm(EMPTY_RHYTHM)}>Clear Local Sketch</button></div>
+    <div className="grid gap-2">{fields.map(([key, label, placeholder]) => <label key={key} className="block"><Caption>{label}</Caption><textarea className={`${AUTHORING_INPUT_CLASS} min-h-16`} value={rhythm[key]} placeholder={placeholder} onChange={(event) => setRhythm((current) => ({ ...current, [key]: event.target.value }))} /></label>)}</div>
+    <div className="mt-3 rounded border border-dotted border-violet-300 px-3 py-2 text-xs text-violet-800 dark:border-violet-800 dark:text-violet-200">Local planning only — not included in preview or commit.</div>
+  </Panel>;
 }
 
 function deriveHealth(packet: CreaturePacket, appearances: EntryRecord[], habitats: { table: EntryRecord; entry: EntryRecord }[]) {
@@ -352,7 +475,30 @@ function deriveHealth(packet: CreaturePacket, appearances: EntryRecord[], habita
   if (combat && strings(combat.custom_abilities).length === 0) warnings.add("Combat profile has no abilities.");
   if (combat && (rows(combat.loot_table).length || rows(combat.currency_rewards).length || rows(combat.reputation_rewards).length) && appearances.length === 0) warnings.add("Creature has rewards but no encounter placement.");
   if (appearances.length > 0 && habitats.length === 0) warnings.add("Creature appears in encounters that are not placed in a location encounter table.");
+  const tags = strings(creature.tags).map((tag) => tag.toLowerCase());
+  const isBoss = tags.includes("boss") || displayText(combat?.enemy_type).toLowerCase() === "boss";
+  const payoff = packet.boss_payoff;
+  if (isBoss && (payoff?.character_occurrences.length || 0) > 0 && appearances.length === 0) warnings.add("Story-placed boss has no encounter implementation.");
+  if (isBoss && appearances.length > 0 && !(payoff?.encounters || []).some((encounter) => Boolean(encounter.has_any_payoff))) warnings.add("Boss encounters have no canonical reward or state payoff.");
+  (payoff?.story_warnings || []).forEach((warning) => warnings.add(displayText(warning.message, "Boss payoff story placement needs review.")));
   return { blockers, warnings: [...warnings] };
+}
+
+function BossPayoffPanel({ packet }: { packet: CreaturePacket }) {
+  const payoff = packet.boss_payoff || { character_occurrences: [], encounter_occurrences: [], story_warnings: [], encounters: [] };
+  const tags = strings(packet.creature.tags).map((tag) => tag.toLowerCase());
+  const isBoss = tags.includes("boss") || displayText(packet.combat_profile?.enemy_type).toLowerCase() === "boss";
+  if (!isBoss) return <Panel id="creature-boss-payoff" title="Boss Payoff Trace" subtitle="Available for creatures classified as bosses." help="Tag this creature as boss or set its combat enemy type to boss when story and reward payoff coherence should be traced." collapsible defaultCollapsed storageKey="authoring:creature:boss-payoff" collapsedSummary="not classified as boss"><EmptyState variant="compact" title="Not a boss-level creature">Ordinary creatures use encounter, habitat, and loot coverage instead of a story payoff trace.</EmptyState></Panel>;
+  return <Panel id="creature-boss-payoff" title="Boss Payoff Trace" subtitle="Cross-check story presence, encounter implementation, canonical rewards, and important-item journey evidence." help="This is derived from saved character and encounter story placements plus encounter rewards. Important-item warnings use the shared story-timeline coherence rules." collapsible storageKey="authoring:creature:boss-payoff" collapsedSummary={`${payoff.character_occurrences.length} story / ${payoff.encounters.length} encounters / ${payoff.story_warnings.length} warnings`}>
+    <div className="grid gap-2 sm:grid-cols-3"><Fact label="Boss Story Moments" value={String(payoff.character_occurrences.length)} /><Fact label="Encounter Story Moments" value={String(payoff.encounter_occurrences.length)} /><Fact label="Payoff Warnings" value={String(payoff.story_warnings.length)} /></div>
+    <div className="mt-3 space-y-2">{payoff.encounters.map((encounter) => <div key={displayText(encounter.id)} className="rounded border border-slate-200 p-3 text-xs dark:border-slate-800"><div className="font-semibold">{displayText(encounter.name, displayText(encounter.id))}</div><div className="mt-1 flex flex-wrap gap-1"><span>{encounter.story_placed ? "story placed" : "not story placed"}</span><span>·</span><span>{encounter.has_any_payoff ? "has payoff" : "no payoff"}</span><span>·</span><span>{strings(encounter.important_reward_item_ids).length} important item rewards</span></div></div>)}</div>
+    {payoff.encounters.length === 0 && <EmptyState variant="compact" title="No boss encounter implementation">Place this boss into an encounter before evaluating its payoff.</EmptyState>}
+    <div className="mt-3 space-y-2">{payoff.story_warnings.map((warning, index) => <Issue key={`${displayText(warning.code)}-${index}`} tone="amber">{displayText(warning.message)}</Issue>)}</div>
+  </Panel>;
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return <div className="rounded border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-950"><div className="text-[10px] font-semibold uppercase text-slate-500">{label}</div><div className="mt-1 text-sm font-semibold">{value}</div></div>;
 }
 
 function Navigator({ packet }: { packet: CreaturePacket }) {

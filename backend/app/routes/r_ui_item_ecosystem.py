@@ -201,6 +201,54 @@ def _analysis(db_session, item, sources):
         row for row in db_session.query(Item).all()
         if row.id != item.id and (_enum_value(row.type) == _enum_value(item.type) or _enum_value(row.rarity) == _enum_value(item.rarity))
     ]
+    family_rows = []
+    item_tags = {str(tag).lower() for tag in item.tags or []}
+    item_effects = set(item.effects or [])
+    for peer in db_session.query(Item).all():
+        if peer.id == item.id:
+            continue
+        reasons = []
+        score = 0
+        if _enum_value(peer.type) == _enum_value(item.type):
+            score += 3
+            reasons.append(f"same {_enum_value(item.type)} type")
+        if _enum_value(peer.rarity) == _enum_value(item.rarity):
+            score += 1
+            reasons.append(f"same {_enum_value(item.rarity)} rarity")
+        for field, label in (("equipment_slot", "equipment slot"), ("weapon_type", "weapon family"), ("damage_type", "damage type")):
+            current = _enum_value(getattr(item, field, None))
+            if current and current == _enum_value(getattr(peer, field, None)):
+                score += 2
+                reasons.append(f"same {label}")
+        shared_effects = sorted(item_effects & set(peer.effects or []))
+        shared_tags = sorted(item_tags & {str(tag).lower() for tag in peer.tags or []})
+        if shared_effects:
+            score += len(shared_effects) * 2
+            reasons.append(f"{len(shared_effects)} shared effects")
+        meaningful_tags = [tag for tag in shared_tags if tag not in {"item", "loot", "equipment"}]
+        if meaningful_tags:
+            score += len(meaningful_tags)
+            reasons.append(f"shared tags: {', '.join(meaningful_tags)}")
+        if score >= 3:
+            family_rows.append({"item": item_route.serialize_item(peer), "score": score, "reasons": reasons})
+    family_rows.sort(key=lambda row: (-row["score"], row["item"].get("name") or row["item"].get("id")))
+
+    provenance = []
+    for key, (model, _route, _field) in SOURCE_CONFIG.items():
+        owners = {row.id: row for row in db_session.query(model).all()}
+        for source in sources.get(key, []):
+            if isinstance(source, dict):
+                owner = owners.get(source.get("owner_id"))
+                provenance.append({"channel": key, "owner_id": source.get("owner_id"), "owner": _compact(owner)})
+    shops = {row.id: row for row in db_session.query(Shop).all()}
+    for source in sources.get("shop_inventory", []):
+        if isinstance(source, dict):
+            shop = shops.get(source.get("shop_id"))
+            provenance.append({"channel": "shop_inventory", "owner_id": source.get("shop_id"), "owner": _compact(shop)})
+    pois = {row.id: row for row in db_session.query(LocationPoi).all()}
+    for poi_id in sources.get("poi_ids", []):
+        poi = pois.get(poi_id)
+        provenance.append({"channel": "poi", "owner_id": poi_id, "owner": _compact(poi)})
     prices = sorted(float(row.base_price or 0) for row in peers)
     median_price = prices[len(prices) // 2] if prices else 0
     if median_price > 0 and float(item.base_price or 0) < median_price * 0.6:
@@ -214,6 +262,8 @@ def _analysis(db_session, item, sources):
         "median_peer_price": median_price,
         "warnings": warnings,
         "peers": [item_route.serialize_item(row) for row in peers],
+        "families": family_rows[:12],
+        "provenance": provenance,
     }
 
 

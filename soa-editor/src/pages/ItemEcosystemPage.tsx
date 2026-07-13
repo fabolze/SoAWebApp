@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useDirtyState } from "../components/useDirtyState";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
+import ScopedGateSection from "../components/authoring/ScopedGateSection";
 import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
 import { buildItemJourneyModel, type ItemJourneyModel } from "../authoring/itemJourney";
 import { apiFetch } from "../lib/api";
@@ -145,6 +146,10 @@ export default function ItemEcosystemPage() {
   const storyPlacement = useEntityStoryPlacement({ entityKind: "item", entityId: itemId, entity: packet.item });
   const itemJourney = useMemo(() => buildItemJourneyModel(packet, storyPlacement.packet), [packet, storyPlacement.packet]);
   const updateItem = (patch: EntryRecord) => setPacket((current) => ({ ...current, item: { ...current.item, ...patch } }));
+  const syncCommittedGate = (requirements_id: string) => {
+    setPacket((current) => ({ ...current, item: { ...current.item, requirements_id } }));
+    setOriginal((current) => current ? { ...current, item: { ...current.item, requirements_id } } : current);
+  };
   const setSources = (key: string, value: unknown) => setPacket((current) => ({ ...current, sources: { ...current.sources, [key]: value } }));
   const save = async () => {
     if (blockers.length) {
@@ -208,11 +213,37 @@ export default function ItemEcosystemPage() {
        {activePanel === "Issues" && <IssuesPanel blockers={blockers} warnings={clientWarnings} packet={packet} />}
         </div>
        {!isNew && text(packet.item.id) && <div id="item-ecosystem-story" className="scroll-mt-24"><StoryPlacementPanel entityKind="item" entityId={text(packet.item.id)} entityLabel={text(packet.item.name, text(packet.item.id))} entity={packet.item} storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} /></div>}
+       {!isNew && text(packet.item.id) && <div id="item-ecosystem-gate" className="scroll-mt-24"><ScopedGateSection targetSchema="items" targetId={text(packet.item.id)} targetLabel={text(packet.item.name, text(packet.item.id))} requirementId={text(packet.item.requirements_id)} title="Item Access Gate" subtitle="Create or reuse the player-state requirement that controls access to this item." tag="item-gate" onRequirementCommitted={syncCommittedGate} /></div>}
   </AuthoringPageShell>;
 }
 
 function IdentityPanel({ packet, updateItem }: { packet: ItemPacket; updateItem: (patch: EntryRecord) => void }) {
-  return <div className="grid gap-4 lg:grid-cols-2"><section className={AUTHORING_PANEL_CLASS}><h2 className="font-semibold">Identity</h2><div className="mt-3 space-y-3"><TextField label="Name" value={packet.item.name} onChange={(name) => updateItem({ name })} /><TextField label="Slug" value={packet.item.slug} onChange={(slug) => updateItem({ slug })} /><TextField label="Description" value={packet.item.description} onChange={(description) => updateItem({ description })} /></div></section><section className={AUTHORING_PANEL_CLASS}><h2 className="font-semibold">Classification & Access</h2><div className="mt-3 space-y-3"><Select label="Type" value={text(packet.item.type)} options={["Weapon", "Armor", "Accessory", "Consumable", "Tool", "Material", "Upgrade", "Quest", "SetPiece", "Misc"].map((value) => ({ id: value, name: value }))} onChange={(type) => updateItem({ type })} /><Select label="Rarity" value={text(packet.item.rarity)} options={["Common", "Uncommon", "Rare", "Epic", "Legendary"].map((value) => ({ id: value, name: value }))} onChange={(rarity) => updateItem({ rarity })} /><Select label="Requirement" value={text(packet.item.requirements_id)} options={packet.catalogs.requirements || []} reference="requirements" allowEmpty onChange={(requirements_id) => updateItem({ requirements_id })} /><label className="block"><FieldCaption>Tags (comma separated)</FieldCaption><CommaSeparatedInput className={`${AUTHORING_INPUT_CLASS} normal-case`} values={packet.item.tags} onChange={(tags) => updateItem({ tags })} /></label></div></section></div>;
+  return <div className="grid gap-4 lg:grid-cols-2"><section className={AUTHORING_PANEL_CLASS}><h2 className="font-semibold">Identity</h2><div className="mt-3 space-y-3"><TextField label="Name" value={packet.item.name} onChange={(name) => updateItem({ name })} /><TextField label="Slug" value={packet.item.slug} onChange={(slug) => updateItem({ slug })} /><TextField label="Description" value={packet.item.description} onChange={(description) => updateItem({ description })} /></div></section><section className={AUTHORING_PANEL_CLASS}><h2 className="font-semibold">Classification & Access</h2><div className="mt-3 space-y-3"><Select label="Type" value={text(packet.item.type)} options={["Weapon", "Armor", "Accessory", "Consumable", "Tool", "Material", "Upgrade", "Quest", "SetPiece", "Misc"].map((value) => ({ id: value, name: value }))} onChange={(type) => updateItem({ type })} /><Select label="Rarity" value={text(packet.item.rarity)} options={["Common", "Uncommon", "Rare", "Epic", "Legendary"].map((value) => ({ id: value, name: value }))} onChange={(rarity) => updateItem({ rarity })} /><Select label="Requirement" value={text(packet.item.requirements_id)} options={packet.catalogs.requirements || []} reference="requirements" allowEmpty onChange={(requirements_id) => updateItem({ requirements_id })} /><label className="block"><FieldCaption>Tags (comma separated)</FieldCaption><CommaSeparatedInput className={`${AUTHORING_INPUT_CLASS} normal-case`} values={packet.item.tags} onChange={(tags) => updateItem({ tags })} /></label></div></section><ItemFantasyProvenancePanel packet={packet} /></div>;
+}
+
+function ItemFantasyProvenancePanel({ packet }: { packet: ItemPacket }) {
+  const itemId = text(packet.item.id, "new");
+  const storageKey = `soa.item-fantasy.${itemId}`;
+  const [localIntent, setLocalIntent] = useState({ origin: "", fantasy: "", transformation: "" });
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
+      setLocalIntent(isRecord(stored) ? { origin: text(stored.origin), fantasy: text(stored.fantasy), transformation: text(stored.transformation) } : { origin: "", fantasy: "", transformation: "" });
+    } catch { setLocalIntent({ origin: "", fantasy: "", transformation: "" }); }
+  }, [storageKey]);
+  useEffect(() => {
+    if (Object.values(localIntent).some(Boolean)) localStorage.setItem(storageKey, JSON.stringify(localIntent));
+    else localStorage.removeItem(storageKey);
+  }, [localIntent, storageKey]);
+  const provenance = rows(packet.analysis.provenance);
+  const families = rows(packet.analysis.families);
+  return <section className={`${AUTHORING_PANEL_CLASS} lg:col-span-2`}><h2 className="font-semibold">Fantasy, Provenance & Families</h2><p className="mt-1 text-xs text-slate-500">Provenance and families are inferred from canonical sources, mechanics, effects, and meaningful tags. Unsupported transformation intent remains browser-local.</p>
+    <div className="mt-3 grid gap-4 xl:grid-cols-3">
+      <div><FieldCaption>Canonical Source Trail</FieldCaption><div className="mt-2 space-y-2">{provenance.map((row, index) => { const owner = isRecord(row.owner) ? row.owner : undefined; return <div key={`${text(row.channel)}-${text(row.owner_id)}-${index}`} className="rounded border border-slate-200 p-2 text-xs dark:border-slate-800"><div className="font-semibold">{text(row.channel).replace(/_/g, " ")}</div><div className="text-slate-500">{label(owner, text(row.owner_id))}</div></div>; })}{!provenance.length && <EmptyState variant="compact" title="No provenance evidence">Add an acquisition source to establish where this item enters the world.</EmptyState>}</div></div>
+      <div><FieldCaption>Inferred Families</FieldCaption><div className="mt-2 space-y-2">{families.slice(0, 8).map((row) => { const item = isRecord(row.item) ? row.item : undefined; return <Link key={text(item?.id)} to={`/author/items/${encodeURIComponent(text(item?.id))}/ecosystem`} className="block rounded border border-slate-200 p-2 text-xs hover:border-blue-300 dark:border-slate-800"><div className="flex justify-between gap-2"><span className="font-semibold">{label(item, text(item?.id))}</span><span>score {text(row.score)}</span></div><div className="mt-1 text-slate-500">{Array.isArray(row.reasons) ? row.reasons.map(String).join(" / ") : ""}</div></Link>; })}{!families.length && <EmptyState variant="compact" title="No inferred family">Effects, equipment fields, and meaningful tags make related items visible.</EmptyState>}</div></div>
+      <div><FieldCaption>Local Creative Intent</FieldCaption><div className="mt-2 space-y-2"><textarea className={`${AUTHORING_INPUT_CLASS} min-h-20`} placeholder="Origin or provenance idea..." value={localIntent.origin} onChange={(event) => setLocalIntent((current) => ({ ...current, origin: event.target.value }))} /><textarea className={`${AUTHORING_INPUT_CLASS} min-h-20`} placeholder="Player fantasy and memorable promise..." value={localIntent.fantasy} onChange={(event) => setLocalIntent((current) => ({ ...current, fantasy: event.target.value }))} /><textarea className={`${AUTHORING_INPUT_CLASS} min-h-20`} placeholder="Transformation or version intent..." value={localIntent.transformation} onChange={(event) => setLocalIntent((current) => ({ ...current, transformation: event.target.value }))} /><button type="button" className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`} onClick={() => setLocalIntent({ origin: "", fantasy: "", transformation: "" })}>Clear Local Intent</button><div className="rounded border border-dotted border-violet-300 p-2 text-xs text-violet-800 dark:border-violet-800 dark:text-violet-200">Local planning only — canonical transformations still use story lifecycle links and continuity groups.</div></div></div>
+    </div>
+  </section>;
 }
 
 function AcquisitionPanel({ packet, setSources }: { packet: ItemPacket; setSources: (key: string, value: unknown) => void }) {

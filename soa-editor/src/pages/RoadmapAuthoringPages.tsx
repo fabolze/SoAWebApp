@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { ReactFlow, Background, Controls, MiniMap, type Edge, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { buildDependencyWalkthrough, type DependencyGateStatus, type DependencyNode, type DependencyWalkthroughModel, type DependencyWalkthroughStep } from "../authoring/dependencyWalkthrough";
+import { buildDependencyWalkthrough, buildReachableTriggerSequence, type DependencyGateStatus, type DependencyNode, type DependencyWalkthroughModel, type DependencyWalkthroughStep } from "../authoring/dependencyWalkthrough";
 import { buildQuestJourneyAnalysis, type QuestJourneyAnalysis, type QuestStoryMilestoneKind } from "../authoring/questJourneyAnalysis";
 import { record } from "../authoring/storyPlacement";
 import { EditableTagList, ReferenceChipPicker, ReferenceManageLink, rowLabel, useReferenceOptions } from "../authoringViews/controls";
 import { buildQuestWalkthrough, type QuestWalkthroughStep } from "../authoring/questWalkthrough";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
+import ScopedGateSection from "../components/authoring/ScopedGateSection";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
 import { useDirtyState } from "../components/useDirtyState";
@@ -339,6 +340,8 @@ export function QuestJourneyPage() {
   const [packet, setPacket] = useDraft<EntryRecord>(`soa.quest-journey.${isNew ? "new" : id}`, empty);
   const [original, setOriginal] = useState(JSON.stringify(empty));
   const [selectedObjectiveConsequenceId, setSelectedObjectiveConsequenceId] = useState("");
+  const [selectedBranchIndex, setSelectedBranchIndex] = useState<number | null>(null);
+  const [branchAcknowledged, setBranchAcknowledged] = useState(false);
   const originalPacket = useMemo(() => {
     try { return JSON.parse(original) as EntryRecord; } catch { return empty; }
   }, [empty, original]);
@@ -348,6 +351,15 @@ export function QuestJourneyPage() {
   useEffect(() => { if (!isNew) apiFetch(`/api/ui/quests/${encodeURIComponent(id)}`).then((response) => response.json()).then((data) => { setPacket(data); setOriginal(JSON.stringify(data)); }); }, [id, isNew, setPacket]);
   const quest = packet.quest as EntryRecord;
   const update = (key: string, value: unknown) => setPacket({ ...packet, quest: { ...quest, [key]: value } });
+  const syncCommittedGate = (requirements_id: string) => {
+    setPacket((current) => ({ ...current, quest: { ...record(current.quest), requirements_id } }));
+    setOriginal((current) => {
+      try {
+        const saved = JSON.parse(current) as EntryRecord;
+        return JSON.stringify({ ...saved, quest: { ...record(saved.quest), requirements_id } });
+      } catch { return current; }
+    });
+  };
   const allFlags = useReferenceOptions("flags");
   const allInteractionProfiles = useReferenceOptions("interaction_profiles");
   const questFlags = rows(packet.flags).length ? rows(packet.flags) : allFlags;
@@ -358,6 +370,9 @@ export function QuestJourneyPage() {
   const savedObjectives = rows(savedQuest.objectives);
   const savedObjectiveIds = new Set(savedObjectives.map((objective) => text(objective.objective_id)).filter(Boolean));
   const selectedCurrentObjective = rows(quest.objectives).find((objective) => text(objective.objective_id) === selectedObjectiveConsequenceId);
+  const arc = record(packet.arc);
+  const branches = rows(arc.branches);
+  const selectedBranch = selectedBranchIndex === null ? null : branches[selectedBranchIndex] || null;
   const objectiveConsequenceSource = selectedObjectiveConsequenceId && savedObjectiveIds.has(selectedObjectiveConsequenceId) ? {
     ...savedQuest,
     consequence_objective_id: selectedObjectiveConsequenceId,
@@ -371,6 +386,7 @@ export function QuestJourneyPage() {
   return <Shell title="Quest Journey Board" subtitle="Compose invitation, ordered objectives, completion, payoff, and aftermath." dirty={dirty} blockers={objectiveIssues} warnings={(hasRewards ? 0 : 1) + (strings(packet.quest_giver_profile_ids).length ? 0 : 1)} onSave={save} onReset={() => setPacket(JSON.parse(original))}><div className="grid gap-4 xl:grid-cols-2">
     <AuthoringPanel title="Invitation" help="Define how the quest appears to the player, which unlock requirement controls availability, and which interaction profiles can offer it."><div className="space-y-3"><label className="block text-sm">Title<input className={`${inputClass} mt-1`} value={text(quest.title)} onChange={(event) => update("title", event.target.value)} /></label><label className="block text-sm">Slug<input className={`${inputClass} mt-1`} value={text(quest.slug)} onChange={(event) => update("slug", event.target.value)} /></label><label className="block text-sm">Description<textarea className={`${inputClass} mt-1 min-h-24`} value={text(quest.description)} onChange={(event) => update("description", event.target.value)} /></label><ReferenceChipPicker label="Quest Unlock Requirement" value={quest.requirements_id} reference="requirements" onChange={(requirements_id) => update("requirements_id", requirements_id)} /><MultiReferencePicker label="Quest Givers" values={packet.quest_giver_profile_ids} options={interactionProfiles} onChange={(quest_giver_profile_ids) => setPacket({ ...packet, quest_giver_profile_ids })} /><EditableTagList tags={quest.tags} onChange={(tags) => update("tags", tags)} /></div></AuthoringPanel>
     <AuthoringPanel title="Journey Health" help="Use this checklist before review. It flags missing objectives, missing player-facing text, missing payoff, and missing state links." status={<span className={`rounded-full px-2 py-1 text-xs font-semibold ${rows(quest.objectives).length && !objectiveIssues ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{rows(quest.objectives).length && !objectiveIssues ? "Ready to review" : "Needs attention"}</span>}><div className="space-y-2 text-sm">{rows(quest.objectives).length === 0 && <StatusNotice tone="warning">Add at least one objective.</StatusNotice>}{objectiveIssues > 0 && <StatusNotice tone="warning">{objectiveIssues} objective(s) need both an ID and player-facing description.</StatusNotice>}{strings(quest.flags_set_on_completion).length === 0 && <EmptyState variant="compact" title="No completion flag">Add a completion flag when this quest should directly unlock flag-gated content.</EmptyState>}{!hasRewards && <StatusNotice tone="warning">Quest has no authored payoff.</StatusNotice>}{strings(packet.quest_giver_profile_ids).length === 0 && <EmptyState variant="compact" title="No quest giver">Add a quest giver when this quest should be offered by a character or interaction profile.</EmptyState>}</div></AuthoringPanel>
+    {!isNew && text(quest.id) && <section className="xl:col-span-2"><ScopedGateSection targetSchema="quests" targetId={text(quest.id)} targetLabel={text(quest.title, text(quest.id))} requirementId={text(quest.requirements_id)} title="Quest Access Gate" subtitle="Create or reuse the player-state requirement that unlocks this quest." tag="quest-gate" onRequirementCommitted={syncCommittedGate} /></section>}
     <AuthoringPanel className="xl:col-span-2" title="Ordered Objectives" help="Author the player-facing steps in order. Saved objectives can review their completion flags through the objective consequence composer."><ObjectiveBoard objectives={quest.objectives} flags={questFlags} selectedObjectiveId={selectedObjectiveConsequenceId} canReviewConsequences={!isNew && text(quest.id) !== ""} onReviewConsequence={setSelectedObjectiveConsequenceId} onChange={(objectives) => update("objectives", objectives)} />
       {!isNew && selectedObjectiveConsequenceId && !objectiveConsequenceSource && <p className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Save this objective before reviewing its consequence packet.</p>}
       {!isNew && objectiveConsequenceSource && <div className="mt-4">
@@ -401,6 +417,50 @@ export function QuestJourneyPage() {
       </div>}
     </AuthoringPanel>
     {!isNew && text(quest.id) && <QuestStoryPathPanel analysis={questAnalysis} flags={questFlags} />}
+    <AuthoringPanel className="xl:col-span-2" title="Branch Outcomes" help="Edit the current quest's canonical story-arc branch rows, verify where each condition comes from, and review supported quest or story consequences in context. Acknowledgement is local review state; saved data remains the existing condition flag and next quest fields.">
+      <div className="space-y-3">
+        {branches.map((branch, index) => {
+          const conditionFlag = text(branch.condition_flag);
+          const targetId = text(branch.next_quest_id);
+          const producesCondition = conditionFlag && strings(quest.flags_set_on_completion).includes(conditionFlag);
+          const targetOrder = strings(arc.related_quests).indexOf(targetId);
+          const currentOrder = strings(arc.related_quests).indexOf(text(quest.id));
+          const needsReview = !conditionFlag || !targetId || targetId === text(quest.id) || targetOrder < 0 || (currentOrder >= 0 && targetOrder <= currentOrder);
+          return <div key={`${index}-${conditionFlag}-${targetId}`} className={`rounded-lg border p-3 ${needsReview ? "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30" : "border-slate-200 dark:border-slate-800"}`}>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="block text-xs font-semibold uppercase text-slate-500">Condition Flag<select className={`${inputClass} mt-1 normal-case`} value={conditionFlag} onChange={(event) => setPacket({ ...packet, arc: { ...arc, branches: branches.map((row, rowIndex) => rowIndex === index ? { ...row, condition_flag: event.target.value } : row) } })}><option value="">Select condition flag</option>{questFlags.map((flag) => <option key={text(flag.id)} value={text(flag.id)}>{rowLabel(flag, text(flag.id))}</option>)}</select></label>
+              <label className="block text-xs font-semibold uppercase text-slate-500">Next Quest<select className={`${inputClass} mt-1 normal-case`} value={targetId} onChange={(event) => setPacket({ ...packet, arc: { ...arc, branches: branches.map((row, rowIndex) => rowIndex === index ? { ...row, next_quest_id: event.target.value } : row) } })}><option value="">Select target quest</option>{rows(packet.quests).filter((candidate) => text(candidate.id) !== text(quest.id)).map((candidate) => <option key={text(candidate.id)} value={text(candidate.id)}>{rowLabel(candidate, text(candidate.id))}</option>)}</select></label>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+              <span className={`rounded-full px-2 py-1 font-semibold ${producesCondition ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}>{producesCondition ? "Condition produced on completion" : "Condition produced elsewhere or not yet"}</span>
+              {needsReview && <span className="rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-800">Target/condition needs review</span>}
+              {conditionFlag && !producesCondition && <button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => update("flags_set_on_completion", [...new Set([...strings(quest.flags_set_on_completion), conditionFlag])])}>Produce Condition On Completion</button>}
+              <button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => { setSelectedBranchIndex(index); setBranchAcknowledged(false); }}>Review Outcome</button>
+              <button type="button" className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`} onClick={() => { setPacket({ ...packet, arc: { ...arc, branches: branches.filter((_, rowIndex) => rowIndex !== index) } }); if (selectedBranchIndex === index) setSelectedBranchIndex(null); }}>Remove Branch</button>
+            </div>
+          </div>;
+        })}
+        {branches.length === 0 && <EmptyState title="No branch outcomes">Add a canonical branch when this quest can hand off to different next quests under saved flag conditions.</EmptyState>}
+        <button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} onClick={() => setPacket({ ...packet, arc: { ...arc, branches: [...branches, { condition_flag: "", next_quest_id: "" }] } })}>Add Branch Outcome</button>
+        {selectedBranch && <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-900 dark:bg-blue-950/30">
+          <div className="text-sm font-semibold">Outcome review: {labelFromOptions(selectedBranch.condition_flag, questFlags, "No condition")} → {labelFromOptions(selectedBranch.next_quest_id, rows(packet.quests), "No target")}</div>
+          <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" checked={branchAcknowledged} onChange={(event) => setBranchAcknowledged(event.target.checked)} /><span>I reviewed the condition producer, target order, and the fact that consequence records remain anchored to this quest or an explicit story beat.</span></label>
+          {!branchAcknowledged && <StatusNotice className="mt-3" tone="warning">Acknowledge the branch contract before opening its consequence review.</StatusNotice>}
+          {branchAcknowledged && !isNew && <div className="mt-3"><ConsequenceComposer
+            sourceKind="quest"
+            source={quest}
+            expectedSource={record(originalPacket.quest)}
+            sourceLabel={`${text(quest.title, text(quest.id))} branch to ${labelFromOptions(selectedBranch.next_quest_id, rows(packet.quests))}`}
+            title="Branch Outcome Consequences"
+            subtitle="Commit supported completion flags, rewards, reputation, and explicit story consequences while the selected branch remains visible as review context."
+            onSourceCommitted={(savedQuest) => {
+              setPacket((current) => ({ ...current, quest: savedQuest }));
+              setOriginal(JSON.stringify({ ...originalPacket, quest: savedQuest }));
+            }}
+          /></div>}
+        </div>}
+      </div>
+    </AuthoringPanel>
     <AuthoringPanel title="Completion & Payoff" help="Set the state and rewards granted when the full quest completes. Use the consequence review below for saved quests when you need an atomic commit."><div className="space-y-4"><MultiReferencePicker label="Completion Flags" values={quest.flags_set_on_completion} options={questFlags} onChange={(flags) => update("flags_set_on_completion", flags)} /><label className="block text-xs font-semibold uppercase text-slate-500">Experience Reward<input className={`${inputClass} mt-1`} type="number" value={text(quest.xp_reward)} onChange={(event) => update("xp_reward", Number(event.target.value))} /></label><RewardRows label="Item Reward" rowsValue={quest.item_rewards} reference="items" idKey="item_id" amountKey="quantity" onChange={(value) => update("item_rewards", value)} /><RewardRows label="Currency Reward" rowsValue={quest.currency_rewards} reference="currencies" idKey="currency_id" amountKey="amount" onChange={(value) => update("currency_rewards", value)} /><RewardRows label="Reputation Reward" rowsValue={quest.reputation_rewards} reference="factions" idKey="faction_id" amountKey="amount" onChange={(value) => update("reputation_rewards", value)} /></div></AuthoringPanel>
     {!isNew && text(quest.id) && <AuthoringPanel title="Quest Consequence Review" help="Review and commit completion flags, payoff rewards, reputation, and follow-up story consequences through one shared packet."><ConsequenceComposer
       sourceKind="quest"
@@ -469,6 +529,7 @@ function DependencyGateList({ title, gates, flags, onFocus, empty, testId }: { t
         {!gate.open && <div className="mt-2 space-y-1">
           {gate.missingRequiredFlags.length > 0 && <DependencyFlagList label="Missing" flagIds={gate.missingRequiredFlags} flags={flags} />}
           {gate.presentForbiddenFlags.length > 0 && <DependencyFlagList label="Forbidden Present" flagIds={gate.presentForbiddenFlags} flags={flags} />}
+          {gate.reputationGates.filter((reputation) => !reputation.met).map((reputation) => <div key={reputation.factionId} className="text-[10px] text-amber-800 dark:text-amber-200">{reputation.label}: {reputation.current} / {reputation.minimum} required</div>)}
         </div>}
       </article>)}
       {gates.length === 0 && <EmptyState variant="compact">{empty}</EmptyState>}
@@ -476,7 +537,7 @@ function DependencyGateList({ title, gates, flags, onFocus, empty, testId }: { t
   </div>;
 }
 
-function DependencyWalkthroughPanel({ model, initialFlags, triggerIds, activeIndex, onInitialFlagsChange, onTriggerIdsChange, onActiveIndexChange, onFocus }: {
+function DependencyWalkthroughPanel({ model, initialFlags, triggerIds, activeIndex, initialReputation = {}, onInitialFlagsChange, onTriggerIdsChange, onActiveIndexChange, onInitialReputationChange, onAutoSequence, onFocus }: {
   model: DependencyWalkthroughModel;
   initialFlags: string[];
   triggerIds: string[];
@@ -485,6 +546,9 @@ function DependencyWalkthroughPanel({ model, initialFlags, triggerIds, activeInd
   onTriggerIdsChange: (values: string[]) => void;
   onActiveIndexChange: (value: number) => void;
   onFocus: (id: string) => void;
+  initialReputation?: Record<string, number>;
+  onInitialReputationChange?: (value: Record<string, number>) => void;
+  onAutoSequence?: () => void;
 }) {
   const step: DependencyWalkthroughStep | undefined = model.steps[Math.min(activeIndex, Math.max(model.steps.length - 1, 0))];
   const triggerById = new Map(model.triggers.map((trigger) => [trigger.id, trigger]));
@@ -514,10 +578,12 @@ function DependencyWalkthroughPanel({ model, initialFlags, triggerIds, activeInd
     <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
       <div className="space-y-4">
         <DependencyFlagPicker flags={model.flags} selected={initialFlags} onChange={(values) => { onInitialFlagsChange(values); onActiveIndexChange(0); }} />
+        {model.reputations.length > 0 && <div><div className="mb-1 text-[11px] font-semibold uppercase text-slate-500">Initial Faction Reputation</div><div className="space-y-2">{model.reputations.map((reputation) => <label key={reputation.entryId} className="grid grid-cols-[1fr_90px] items-center gap-2 text-xs"><span>{reputation.label}</span><input className={inputClass} type="number" value={initialReputation[reputation.entryId] || 0} onChange={(event) => { onInitialReputationChange?.({ ...initialReputation, [reputation.entryId]: Number(event.target.value) || 0 }); onActiveIndexChange(0); }} /></label>)}</div></div>}
         <label className="block text-xs font-semibold uppercase text-slate-500">Trigger Existing Source<select className={`${inputClass} mt-1`} value="" disabled={model.triggers.length === 0} onChange={(event) => addTrigger(event.target.value)}>
           <option value="">{model.triggers.length ? "Add trigger..." : "No flag-setting sources"}</option>
           {model.triggers.map((trigger) => <option key={trigger.id} value={trigger.id}>{trigger.label}</option>)}
         </select></label>
+        {onAutoSequence && <button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} onClick={onAutoSequence}>Auto-step all currently reachable sources</button>}
         <div>
           <div className="mb-2 text-[11px] font-semibold uppercase text-slate-500">Trigger Queue</div>
           <div className="space-y-2">
@@ -529,6 +595,7 @@ function DependencyWalkthroughPanel({ model, initialFlags, triggerIds, activeInd
                   <button type="button" className="text-red-700 dark:text-red-300" onClick={() => removeTrigger(index)}>Remove</button>
                 </div>
                 <DependencyFlagList label="Sets" flagIds={trigger?.flagsSet || []} flags={model.flags} empty="No flags." />
+                {trigger && trigger.reputationChanges.length > 0 && <div className="mt-2 text-[10px] text-slate-500">Reputation: {trigger.reputationChanges.map((change) => `${change.label} ${change.amount >= 0 ? "+" : ""}${change.amount}`).join(", ")}</div>}
                 <div className="mt-2 flex gap-1">
                   <button type="button" className="rounded border px-2 py-1 disabled:opacity-40" disabled={index === 0} onClick={() => moveTrigger(index, -1)}>Up</button>
                   <button type="button" className="rounded border px-2 py-1 disabled:opacity-40" disabled={index === triggerIds.length - 1} onClick={() => moveTrigger(index, 1)}>Down</button>
@@ -554,6 +621,7 @@ function DependencyWalkthroughPanel({ model, initialFlags, triggerIds, activeInd
             <DependencyFlagList label="Flags Gained" flagIds={step.flagsGained} flags={model.flags} empty="No new flags." />
             <DependencyFlagList label="Flags After" flagIds={step.flagsAfter} flags={model.flags} empty="No flags yet." />
           </div>
+          {(Object.keys(step.reputationAfter).length > 0 || step.reputationGained.length > 0) && <div className="mt-3 rounded border border-slate-200 p-2 text-xs dark:border-slate-800"><span className="font-semibold">Reputation after:</span> {model.reputations.map((entry) => `${entry.label} ${step.reputationAfter[entry.entryId] || 0}`).join(" · ")}{step.reputationGained.length > 0 && <span className="text-emerald-700 dark:text-emerald-300"> (gained {step.reputationGained.map((change) => `${change.label} ${change.amount >= 0 ? "+" : ""}${change.amount}`).join(", ")})</span>}</div>}
         </article>}
         {step && <div className="grid gap-4 lg:grid-cols-2">
           <DependencyGateList title="Newly Available" gates={step.newlyOpenGates} flags={model.flags} onFocus={onFocus} empty="No new content opens at this step." testId="dependency-newly-available" />
@@ -561,6 +629,20 @@ function DependencyWalkthroughPanel({ model, initialFlags, triggerIds, activeInd
         </div>}
       </div>
     </div>
+  </AuthoringPanel>;
+}
+
+function DependencyPathComparison({ primary, primaryTriggerIds, comparison, comparisonTriggerIds, onComparisonTriggerIdsChange, onFocus }: { primary: DependencyWalkthroughModel; primaryTriggerIds: string[]; comparison: DependencyWalkthroughModel; comparisonTriggerIds: string[]; onComparisonTriggerIdsChange: (ids: string[]) => void; onFocus: (id: string) => void }) {
+  const triggerById = new Map(primary.triggers.map((trigger) => [trigger.id, trigger]));
+  const primaryOpen = new Set(primary.gates.filter((gate) => gate.open).map((gate) => gate.content.id));
+  const comparisonOpen = new Set(comparison.gates.filter((gate) => gate.open).map((gate) => gate.content.id));
+  const onlyPrimary = [...primaryOpen].filter((id) => !comparisonOpen.has(id));
+  const onlyComparison = [...comparisonOpen].filter((id) => !primaryOpen.has(id));
+  const renderSequence = (ids: string[], editable: boolean) => <div className="space-y-2">{ids.map((id, index) => <div key={`${id}-${index}`} className="flex items-center justify-between gap-2 rounded border border-slate-200 p-2 text-xs dark:border-slate-800"><button type="button" className="min-w-0 truncate text-left font-semibold text-blue-700 dark:text-blue-300" onClick={() => onFocus(id)}>{index + 1}. {triggerById.get(id)?.label || id}</button>{editable && <button type="button" className="text-red-700" onClick={() => onComparisonTriggerIdsChange(ids.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>}</div>)}{!ids.length && <EmptyState variant="compact" title="No sources in this path.">Add existing sources to compare their temporary outcomes.</EmptyState>}</div>;
+  const renderOutcome = (model: DependencyWalkthroughModel) => <div className="mt-3 rounded-md border border-slate-200 p-2 text-xs dark:border-slate-800"><div>{model.finalFlags.length} final flag(s) · {model.gates.filter((gate) => gate.open).length} open gated content record(s)</div>{Object.keys(model.finalReputation).length > 0 && <div className="mt-1 text-slate-500">Reputation: {model.reputations.map((entry) => `${entry.label} ${model.finalReputation[entry.entryId] || 0}`).join(" · ")}</div>}</div>;
+  return <AuthoringPanel title="Local Path Comparison" subtitle="Compare two temporary trigger sequences without saving or declaring a canonical player path." help="The left side is the active walkthrough queue. Build an alternate source order on the right; outcomes use the same initial flags and reputation, and only modeled gates determine availability." collapsible storageKey="soa.dependency.path-comparison.collapsed" collapsedSummary={`${onlyPrimary.length} left-only / ${onlyComparison.length} right-only unlock(s)`} testId="dependency-path-comparison">
+    <div className="mt-3 grid gap-4 lg:grid-cols-2"><div><h3 className="mb-2 text-sm font-semibold">Active sequence</h3>{renderSequence(primaryTriggerIds, false)}{renderOutcome(primary)}</div><div><div className="mb-2 flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Comparison sequence</h3>{comparisonTriggerIds.length > 0 && <button type="button" className="text-xs text-red-700" onClick={() => onComparisonTriggerIdsChange([])}>Clear</button>}</div><select className={inputClass} value="" onChange={(event) => event.target.value && onComparisonTriggerIdsChange([...comparisonTriggerIds, event.target.value])}><option value="">Add comparison source...</option>{primary.triggers.map((trigger) => <option key={trigger.id} value={trigger.id}>{trigger.label}</option>)}</select><div className="mt-2">{renderSequence(comparisonTriggerIds, true)}</div>{renderOutcome(comparison)}</div></div>
+    <div className="mt-3 grid gap-2 text-xs md:grid-cols-2"><div className="rounded border border-blue-200 bg-blue-50 p-2 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">Left-only available: {onlyPrimary.map((id) => primary.gates.find((gate) => gate.content.id === id)?.content.label || id).join(", ") || "none"}</div><div className="rounded border border-violet-200 bg-violet-50 p-2 text-violet-900 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-100">Right-only available: {onlyComparison.map((id) => comparison.gates.find((gate) => gate.content.id === id)?.content.label || id).join(", ") || "none"}</div></div>
   </AuthoringPanel>;
 }
 
@@ -687,7 +769,9 @@ export function DependencyMapPage() {
   const [lens, setLens] = useState<DependencyLens>("all");
   const [search, setSearch] = useState("");
   const [initialFlags, setInitialFlags] = useState<string[]>([]);
+  const [initialReputation, setInitialReputation] = useState<Record<string, number>>({});
   const [triggerIds, setTriggerIds] = useState<string[]>([]);
+  const [comparisonTriggerIds, setComparisonTriggerIds] = useState<string[]>([]);
   const [activeWalkthroughIndex, setActiveWalkthroughIndex] = useState(0);
   const load = () => {
     setLoading(true);
@@ -701,7 +785,8 @@ export function DependencyMapPage() {
   useEffect(load, []);
   const nodes = useMemo(() => rows(index.nodes), [index.nodes]);
   const allEdges = useMemo(() => rows(index.edges), [index.edges]);
-  const walkthrough = useMemo(() => buildDependencyWalkthrough(index, initialFlags, triggerIds), [index, initialFlags, triggerIds]);
+  const walkthrough = useMemo(() => buildDependencyWalkthrough(index, initialFlags, triggerIds, initialReputation), [index, initialFlags, initialReputation, triggerIds]);
+  const comparisonWalkthrough = useMemo(() => buildDependencyWalkthrough(index, initialFlags, comparisonTriggerIds, initialReputation), [comparisonTriggerIds, index, initialFlags, initialReputation]);
   const nodeById = useMemo(() => new Map(nodes.map((node) => [text(node.id), node])), [nodes]);
   const health = useMemo(() => typeof index.health === "object" && index.health !== null && !Array.isArray(index.health) ? index.health as EntryRecord : {}, [index.health]);
   const brokenEdges = useMemo(() => allEdges.filter((edge) => !nodeById.has(text(edge.source)) || !nodeById.has(text(edge.target))), [allEdges, nodeById]);
@@ -732,7 +817,8 @@ export function DependencyMapPage() {
     <div id="dependency-graph" className="scroll-mt-24" />
     <DependencyGraphPanel visibleEdges={visibleEdges} nodeById={nodeById} issueNodeIds={issueNodeIds} onFocus={setFocus} />
     <div id="dependency-walkthrough" className="scroll-mt-24" />
-    <DependencyWalkthroughPanel model={walkthrough} initialFlags={initialFlags} triggerIds={triggerIds} activeIndex={activeWalkthroughIndex} onInitialFlagsChange={setInitialFlags} onTriggerIdsChange={setTriggerIds} onActiveIndexChange={setActiveWalkthroughIndex} onFocus={setFocus} />
+    <DependencyWalkthroughPanel model={walkthrough} initialFlags={initialFlags} triggerIds={triggerIds} activeIndex={activeWalkthroughIndex} initialReputation={initialReputation} onInitialFlagsChange={setInitialFlags} onInitialReputationChange={setInitialReputation} onTriggerIdsChange={setTriggerIds} onActiveIndexChange={setActiveWalkthroughIndex} onAutoSequence={() => { const sequence = buildReachableTriggerSequence(index, initialFlags, initialReputation); setTriggerIds(sequence); setActiveWalkthroughIndex(sequence.length); }} onFocus={setFocus} />
+    <DependencyPathComparison primary={walkthrough} primaryTriggerIds={triggerIds} comparison={comparisonWalkthrough} comparisonTriggerIds={comparisonTriggerIds} onComparisonTriggerIdsChange={setComparisonTriggerIds} onFocus={setFocus} />
     <div id="dependency-health" className="grid scroll-mt-24 gap-4 xl:grid-cols-[380px_1fr]">
       <AuthoringPanel title="Actionable Health" subtitle="Select an issue to focus its relationships, then open the affected record." help="Use these issue groups to find dependency records that block reachable content or create contradictory state.">{issueNodeIds.size === 0 && <StatusNotice tone="success">No dependency health issues detected.</StatusNotice>}<div className="mt-3 space-y-4"><HealthIssueGroup title="Impossible Gates" description="A requirement depends on a flag that nothing currently sets." severity="error" nodes={rows(health.impossible_gates)} onFocus={setFocus} /><HealthIssueGroup title="Dead Flags" description="These flags are consumed but have no producer." severity="error" nodes={rows(health.dead_flags)} onFocus={setFocus} /><HealthIssueGroup title="Contradictions" description="A requirement both requires and forbids the same flag." severity="error" nodes={rows(health.contradictions)} onFocus={setFocus} /><CycleIssueGroup cycles={Array.isArray(health.cycles) ? health.cycles : []} nodeById={nodeById} onFocus={setFocus} /><HealthIssueGroup title="Unused Flags" description="These flags are produced but never consumed." severity="warning" nodes={rows(health.unused_flags)} onFocus={setFocus} /><BrokenEdgeGroup edges={brokenEdges} nodeById={nodeById} onFocus={setFocus} /></div></AuthoringPanel>
       <AuthoringPanel title="Relationships" subtitle={`${visibleEdges.length} shown. Click either endpoint to focus it.`} help="This list shows the exact relationship records behind the graph, including inferred edges and broken endpoints." actions={focus && <NodeLink node={nodeById.get(focus)} compact />}><div className="space-y-2">{visibleEdges.map((edge) => <DependencyEdgeCard key={text(edge.id)} edge={edge} source={nodeById.get(text(edge.source))} target={nodeById.get(text(edge.target))} issueNodeIds={issueNodeIds} onFocus={setFocus} />)}{visibleEdges.length === 0 && <EmptyState title="No relationships match">Clear the focus, search, or lens filters to show relationship records again.</EmptyState>}</div></AuthoringPanel>

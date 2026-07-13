@@ -1350,6 +1350,34 @@ def test_adventure_timeline_empty_project_has_stable_shape(monkeypatch):
     }
 
 
+def test_story_placed_reputation_change_requires_faction_state_in_same_lane(monkeypatch):
+    client, Session = _client(monkeypatch)
+    _seed(Session)
+    session = Session()
+    session.get(Quest, "quest-1").reputation_rewards = [{"faction_id": "faction-1", "amount": 5}]
+    session.add(_adventure_link(
+        "quest-reputation-source", "adventure-beat-1", AdventureBeatLinkTargetType.Quest,
+        "quest-1", AdventureBeatLinkRole.PlayerJourney,
+    ))
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert any(row["code"] == "story_placed_reputation_change_missing_faction_state" and row["target_id"] == "faction-1" for row in warnings)
+
+    session = Session()
+    session.add(_adventure_link(
+        "faction-reputation-state", "adventure-beat-1", AdventureBeatLinkTargetType.Faction,
+        "faction-1", AdventureBeatLinkRole.State, AdventureOccurrenceKind.Transition,
+        AdventureChangeType.Changed,
+    ))
+    session.commit()
+    session.close()
+
+    warnings = client.get("/api/ui/adventure-timeline").get_json()["health"]["warnings"]
+    assert not any(row["code"] == "story_placed_reputation_change_missing_faction_state" and row["target_id"] == "faction-1" for row in warnings)
+
+
 def test_adventure_timeline_preview_rolls_back_and_bundle_commits_atomically(monkeypatch):
     client, Session = _client(monkeypatch)
     _seed(Session)
