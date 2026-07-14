@@ -30,7 +30,7 @@ The status index is the only place that records delivery status. When a new auth
 
 ## Workspace Status
 
-Last reviewed: 2026-07-13
+Last reviewed: 2026-07-14
 
 | Workspace | Status |
 |---|---|
@@ -161,17 +161,19 @@ When a Codex agent is asked to continue this work, start here. Do not begin from
 - `BundleReview` provides the shared canonical review surface for Story Timeline, Story Placement, Character Studio, Dialogue Scene Room, Creature Workshop, and Ability Spellcraft. Inline and modal shells preserve workspace context while sharing change summaries, warnings, blockers, acknowledgement gates, and retryable commit errors.
 - `ScopedGateSection` provides a fixed-target, self-loading embed around `ScopedGateBuilder`. It is used by saved dialogues, dialogue nodes, quests, and items so those workspaces share the same usage context, rollback preview, and atomic commit flow without duplicating packet state.
 - Backend coherence warnings cover scoped character introduction coverage with explicit usage evidence, character terminal/recovery order, item availability before requirements, quest start/resolution coverage, stateful dialogue in unplaced events, consequential unplaced encounters, and location restoration/state contradictions. Targeted warnings appear in both the Story Timeline issue lens and the owning workspace panel.
-- The current implementation is **generic placement integration with selected-entity semantic shortcuts**. It is not yet a finished custom interaction layer for every workspace.
+- The current implementation is **generic placement integration with selected-entity semantic shortcuts**. A bespoke interaction layer for every workspace is optional future UX specialization, not an open current-model implementation TODO unless it is added to the queue below.
 
 **Known boundaries:**
 
-- Semantic presets write lifecycle metadata for the selected workspace entity, while Character Studio, Dialogue Scene Room, and Encounter Stage support explicit second-target consequence selection for characters, factions, items, and locations. Other cross-entity consequence actions still need workspace-specific target selection before they can save honestly.
+- Semantic presets write lifecycle metadata for the selected workspace entity, while Character Studio, Dialogue Scene Room, and Encounter Stage support explicit second-target consequence selection for characters, factions, items, and locations. Any additional cross-entity consequence action needs workspace-specific target selection before it can save honestly and must be added to the queue before implementation.
 - Lifecycle order warnings compare only canonical order inside one story-arc, timeline-level, or unassigned lane. They do not invent order across arcs or timelines. Encounter importance remains conservatively derived from canonical state/reputation/important-item consequences because encounters have no dedicated importance field.
 - Backend `entity_tracks` expose canonical adventure-beat-link occurrences for locations, characters, quests, events, dialogues, encounters, lore entries, items, factions, and story arcs. The frontend composes those canonical tracks with separately inferred runtime-event, character-beat, and browser-local occurrences without treating inferred context as canonical data.
 
 #### Next Action Queue
 
-Active queue item: none. The 2026-07-13 audit found no remaining current-model TODO in the queue. Items under **Future Canonical Expansion** and **Future Expansion** are preserved design backlog, not open implementation TODOs: they require a deliberate schema/product decision or are explicitly subordinate to the current honest save boundary. New work should add a concrete queue item here before implementation.
+Active queue item: none. The 2026-07-14 step-by-step audit found no remaining current-model TODO in the queue. Items under **Future Canonical Expansion** and **Future Expansion** are preserved design backlog, not open implementation TODOs: they require a deliberate schema/product decision or are explicitly subordinate to the current honest save boundary. New work should add a concrete queue item here before implementation.
+
+Verification for this audit: all 131 selected backend authoring contracts passed, covering the document, routes, workspace packets, story placement, bundle review, scoped gates, and consequences; all 82 frontend unit tests passed; and the production TypeScript/Vite build completed successfully. The existing Vite large-chunk advisory is a general delivery optimization and not an authoring-workspace implementation blocker.
 
 Audit disposition: the shared Gate Builder and Consequence Composer are extracted; the named reward, objective, aftermath, route/POI, shop, creature, ability, story-beat, faction, and character-presence packets already have their honest current-model gestures in the owning workspaces or shared components described in the status index. They remain conditional extraction candidates only if repeated cross-workspace naming/linking work reappears. Ability story placement, mixed-content quest paths, encounter phases, authored transformations/ecology, canonical player paths, and other future-heading items require new or expanded canonical contracts and were deliberately not approximated with tags or visual-layout saves.
 
