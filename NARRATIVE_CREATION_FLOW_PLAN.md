@@ -1,6 +1,6 @@
 # Narrative-First Creation Flow And “Then…” Composer Plan
 
-Status: product and implementation draft; awaiting exemplary workflow review before schema approval
+Status: product and implementation draft; two workflows and three author reviews captured; awaiting one additional exemplary workflow before canonical schema approval
 
 Drafted: 2026-07-15
 
@@ -17,10 +17,10 @@ Likely implementation hosts: Dialogue Scene Room, Encounter Stage, Quest Journey
 | Current-model capability map | Drafted here | Every proposed gesture is classified as supported, compilable, story-only, or canonically unsupported |
 | Capture-only prototype | Not started | An author can preserve a mixed-content sequence locally without creating flags, requirements, beats, or records |
 | Existing-record compiler | Not started | Supported steps compile deterministically into reviewed existing records and links |
-| Canonical runtime extension decision | Partially decided | Typed choice/outcome/action transitions are confirmed; remaining review decides grouping, return, defeat, persistence, and whether a first-class playable-sequence model is necessary |
+| Canonical action/transition decision | Partially decided | Typed choice actions, outcome transitions, return behavior, and committed-flow persistence are confirmed; the additional workflow will test grouping and whether a first-class playable-sequence model is necessary |
 | Embedded Then… composer | Not started | Dialogue choices/endings and encounter/quest outcomes can open a scoped composer without route switching |
 | Standalone Creation Flow workspace | Not started | Larger sequences and scoped story constellations can be shaped, resolved, rehearsed/traced, and committed from one focused workspace |
-| Runtime/export contract | Gated | UE/runtime behavior for completion, branching, repeatability, shop opening, quest activation, and damage is documented and tested |
+| Web data/export contract | Gated | Authoring schemas and DataTable export shapes preserve completion, branching, repeatability, shop actions, quest state, variants, and unsupported behavior honestly; Unreal execution remains outside this implementation |
 | Writer evaluation | Pending external evaluation | Representative authors complete the workflow corpus with materially less interruption than the current multi-workspace path |
 
 ## Executive Decision
@@ -30,8 +30,10 @@ The product should add a narrative-first authoring layer where the author record
 The proposed interaction is a small, contextual **Then…** composer:
 
 ```text
-Dialogue ends
+Dialogue choice: Trade
   → Open Mara's shop now
+  → When shop closes, resume the same dialogue
+Dialogue choice: Continue
   → Give the player the Ashblade
   → Play the portal explosion
   → Start Portal Raiders encounter
@@ -65,13 +67,15 @@ The following behavior was confirmed on 2026-07-15. These are product requiremen
 | Dialogue choice: start encounter | Selecting the encounter option closes the dialogue and starts the encounter immediately | Choice-specific executable transitions and stable choice identity are required |
 | Retreat before encounter | Where retreat makes narrative sense, the dialogue offers **Retreat for now** or **Look for an exit** | Retreat is a dialogue branch that ends the interaction and returns to its origin; it is not an encounter outcome |
 | Forced encounter | A forced boss encounter may omit retreat when retreat would be implausible, but the player should have had prior warning and an earlier opportunity to save/prepare | Authoring health should distinguish intentional lock-in from an accidentally inescapable transition |
-| Encounter outcomes in V1 | Only victory and defeat are required | Limit the first transition contract to these two outcomes; negotiation/interruption/flee outcomes are later scope |
+| Encounter outcomes in V1 | Victory continues through authored consequences; defeat does not continue through an ordinary narrative branch | Model victory as an outcome transition and defeat as a retry/load/respawn policy; exact restore target remains a separate policy decision |
 | Return after retreat | End the dialogue and return to the originating map, POI, character, item, or other interaction view; the player may interact again later | Runtime flow must preserve an origin/return context and keep the interaction repeatable unless separately completed |
 | Quest surfacing | A quest may be discovered from prior knowledge, offered by an NPC, and/or accompanied by a visible map marker | Model these as distinct author actions; do not collapse “quest appears” into one flag |
-| Quest journal | A discovered quest is automatically added with actionable information; the log is not capacity-limited and must be sortable by region, city, and associated person | Add explicit journal state and organization metadata; abandonment policy remains partly open |
+| Quest assignment | Once a quest is discovered or given, it is recorded and cannot be declined; the player may simply leave it undone | Do not add a separate accepted/declined gate in V1; distinguish assignment, objectives met, turn-in, and reward timing in the exported contract |
 | Collection progress | “Collect five wood” means five required items are currently in inventory | Typed inventory-count objectives and live inventory evaluation are required |
 | Important quest items | All quest items are protected from ordinary consumption and sale; they may be removed by quest completion/turn-in | Enforce protection for `ItemType.Quest` and model system-controlled removal separately from player consumption |
-| Companion joins | A dialogue choice commonly causes the character to join the party | Add a dialogue-triggered companion-join runtime action; a story `joins` placement alone is insufficient |
+| Ordinary collection items | A collection objective may target an ordinary, unprotected item; if the player spends, sells, or loses it, current-inventory progress falls and the item must be obtained again | Keep objective counting separate from protection and require an authored repeatable or otherwise sufficient acquisition source |
+| Quest rewards and turn-in | Rewards may happen when objectives are completed or when the quest is turned in; turn-in is the normal default | Add explicit reward timing and turn-in mode such as manual confirmation, dialogue with the associated person, or automatic completion |
+| Companion joins | A dialogue choice commonly causes the character to join the party | Add a dialogue-triggered companion-join export action; a story `joins` placement alone is insufficient |
 | Damaged city | A city can have at least intact and damaged presentations with different description, shops/inventory, inhabitants, and POIs | Add location-state variants or an equivalent stable-identity override model; duplicating unrelated city records would break continuity |
 | Character progression/state | A character may need beginning, later, stronger, or changed-allegiance presentations without becoming unrelated duplicate people | Keep one stable character identity and add typed character variants/stages; use separate character records only for genuinely distinct beings |
 | Item progression/state | A legendary, custom, or story-important item may awaken, be reforged, become corrupted, be restored, or otherwise change over time while remaining the same artifact | Keep one stable item identity and add typed item variants/stages for presentation and mechanics; use separate item records only for genuinely distinct objects |
@@ -133,6 +137,7 @@ The repository already establishes the right general rule in `AUTHORING_WORKSPAC
 - Do not pretend that “damage the city” is implemented gameplay state if only a story note or location lifecycle placement exists.
 - Do not require AI. Fast structured authoring and plain-text capture must work deterministically without a provider.
 - Do not commit partially understood executable chains by default.
+- Do not implement Unreal execution, save/load behavior, combat retry behavior, shop presentation, quest-journal presentation, or other in-game UI in this web-app work. The web app authors, validates, previews, and exports the required contracts as DataTables; external runtime integration verifies and consumes them later.
 
 ## Product Principles
 
@@ -246,7 +251,7 @@ The initial corpus should deliberately include:
 
 ### Current workflow-corpus finding: two creative shapes
 
-Workflow 1 is primarily temporal: quest offer, acceptance, travel, encounters, boss choice, reward, return, and follow-up. Workflow 2 begins from an underdeveloped place and grows lore, characters, factions, enemies, a dungeon, a companion, a relic, historical context, farming sources, and chapter appearances in parallel.
+Workflow 1 is primarily temporal: quest surfacing, assignment, travel, encounters, boss choice, reward, turn-in, and follow-up. Workflow 2 begins from an underdeveloped place and grows lore, characters, factions, enemies, a dungeon, a companion, a relic, historical context, farming sources, and chapter appearances in parallel.
 
 The capture layer should therefore support:
 
@@ -329,7 +334,7 @@ Before commit, the author sees two synchronized summaries.
 **Story summary**
 
 ```text
-Talk to Mara → Open shop → Receive Ashblade → Portal explosion
+Talk to Mara → Trade and resume dialogue → Receive Ashblade → Portal explosion
 → Fight Portal Raiders → Greyhaven damaged → After the Ashes available
 ```
 
@@ -419,15 +424,16 @@ This should follow the embedded prototype, not precede it. The first validation 
 | Lore reveal | Reveal lore | `events.type = LoreDiscovery` plus `lore_id` | Supported through existing event model |
 | Teleport | Move the player | `events.type = Teleport`; exact payload contract must be verified | Partially modeled; block commit until destination semantics are complete |
 | Scripted moment | Play explosion/cutscene direction | `events.type = ScriptedScene`; no rich scene payload currently exists | Capture and event shell supported; detailed execution unresolved |
-| Shop now | Close dialogue and immediately open a shop | No current `Shop` event payload | Confirmed required canonical/runtime extension |
+| Shop now | Suspend the source dialogue, immediately open a shop, and resume the same dialogue context when the shop closes | No current typed dialogue-choice action | Confirmed required choice-action/export contract; an ordinary dialogue-completion event is incorrect |
 | Shop later | Make a shop available later | Flag + requirement + `shops.requirements_id` | Compilable with existing records |
 | Quest available | Make a quest discoverable/eligible | Flag + requirement + `quests.requirements_id` | Compilable with existing records |
-| Quest discovery/offer/marker | Discover from knowledge, receive an NPC offer, and/or reveal a map marker | No single current action contract | Confirmed as distinct actions; journal activation remains unresolved |
-| Inventory-count objective | Require a current quantity of a quest item | Quest objective currently stores prose, requirement, and completion flags | Confirmed required typed objective/runtime inventory check |
-| Companion join | Add a dialogue character to the active party | Story lifecycle supports `joins`, but party membership action is absent | Confirmed required runtime action/state contract |
+| Quest discovery/assignment/marker | Discover from knowledge, receive from an NPC, and/or reveal a map marker | No single current action contract | Confirmed as distinct surfacing actions; discovery or assignment records the quest without a decline state |
+| Inventory-count objective | Require a current quantity of any item | Quest objective currently stores prose, requirement, and completion flags | Confirmed typed objective/export contract; protection and turn-in consumption are separate policies |
+| Companion join | Add a dialogue character to the active party | Story lifecycle supports `joins`, but party membership action is absent | Confirmed required authoring/export action and consumer-state contract |
 | Persistent fact | Remember that something happened | Existing flag | Supported, but generate only when later logic needs it or one-shot behavior requires it |
 | Location/character/item/faction story state | Mark introduced, injured, damaged, destroyed, obtained, restored, etc. | Lifecycle-aware `adventure_beat_links` | Supported as story meaning; not automatically runtime state |
 | Location variant | Switch one logical place between intact/damaged presentations | No canonical location-variant contract | Confirmed need for stateful description/shop/inhabitant/POI overrides |
+| Character variant | Switch one logical person between authored progression stages | No canonical character-variant contract | Confirmed need for one stable identity plus typed presentation, allegiance, level, profile, and interaction overrides |
 | Item variant | Switch one logical artifact between dormant/awakened/reforged/corrupted/restored or custom stages | No canonical item-variant contract | Confirmed need for stable identity plus typed presentation, effect, requirement, and modifier overrides |
 | Gameplay world state | Change collision, services, population, visuals, routes, etc. | Varies; often flag-gated content, sometimes no field | Resolve per target; never claim generic support |
 | Gameplay damage/effect | Damage party, character, structure, or area | No shared narrative action contract | Preserve as unresolved until a target/effect runtime contract exists |
@@ -444,7 +450,7 @@ This should follow the embedded prototype, not precede it. The first validation 
 | Start encounter | Close the dialogue and immediately enter the encounter | Confirmed behavior; choice-specific transition contract is absent |
 | Retreat for now | End dialogue, return to the originating interaction view, and allow later re-entry | Confirmed behavior; origin/return context needs a runtime contract |
 | On victory | Continue after encounter victory | Confirmed V1 outcome; typed transition is absent |
-| On defeat | Continue after encounter defeat | Confirmed V1 outcome; exact defeat aftermath remains open |
+| On defeat | Stop ordinary narrative continuation and invoke the encounter's retry/load/respawn policy | Confirmed not to be a normal consequence branch; exact restore target remains open |
 | When shop closes | Close the shop and resume the exact suspended dialogue interaction | Confirmed behavior; nested interaction stack/session contract is absent |
 | If state is true | Conditional transition | Requirements can gate content, but transition-specific conditions need a contract |
 | Otherwise | Fallback branch | Not represented |
@@ -459,22 +465,35 @@ This distinction is central and should be tested directly.
 ### Open shop now
 
 ```text
-Dialogue event
-  → completion transition
-  → Shop event for Mara's Forge
+Dialogue choice: Trade
+  → action: open Mara's Forge
+  → continuation: resume this dialogue context when the shop closes
 ```
 
-This is runtime order. It should not require a shop-unlock flag unless the shop also needs to remain available later.
+This is an action owned by a stable dialogue choice, not ordinary dialogue completion. It should not require a shop-unlock flag unless the shop also needs to remain available later.
 
 Confirmed interaction behavior:
 
 1. The player selects the trade dialogue choice.
 2. The dialogue UI closes or hides, but the interaction session is suspended rather than completed.
 3. The referenced shop opens immediately.
-4. Closing the shop resumes the same dialogue session so the player can trade again, ask another question, or accept a quest.
+4. Closing the shop resumes the same dialogue session so the player can trade again, ask another question, or receive a quest.
 5. Previously applied line/choice effects are not applied a second time merely because the dialogue resumes.
 
 The runtime therefore needs an interaction stack or equivalent continuation frame containing the source dialogue, current node/choice context, return policy, and already-applied effect identity. Shop contents and prices may be re-evaluated from current state when the window opens again.
+
+For the web/export contract, the stable choice owns a typed action:
+
+```text
+choice_id
+action_type           open_shop
+target_shop_id
+continuation_policy   resume_source_dialogue
+action_id             stable identity for replay protection
+sort_order
+```
+
+`next_node_id` may be omitted when the action's continuation policy intentionally retains or ends the source dialogue context. A choice must have at least one valid navigation target or typed action. This keeps dialogue navigation separate from the action that the choice performs.
 
 ### Start encounter now
 
@@ -483,7 +502,7 @@ Dialogue choice
   → close dialogue
   → start selected encounter immediately
       → victory transition
-      → defeat transition
+      → defeat policy: retry/load/respawn; no ordinary narrative continuation
 ```
 
 Where the player may decline, **Retreat for now** is a separate dialogue choice that closes the dialogue and returns to the originating view. It does not start and then flee the encounter. A deliberately forced encounter may omit retreat when the fiction supports that lock-in, but should be foreshadowed with an earlier preparation/save opportunity.
@@ -519,6 +538,8 @@ defeat_policy        retry_checkpoint | respawn_keep_progress | load_last_save |
 
 Recommended V1 default: `automatic_before + retry_checkpoint`. This minimizes repeated traversal while retaining authored respawn points for travel, recovery, or deliberately harsher content.
 
+Defeat-policy selection and its DataTable fields belong to the web/export contract. Creating checkpoints, restoring saves, presenting retry/load UI, and applying the policy belong to the external game runtime and are not implemented by the web app.
+
 ### Make shop available later
 
 ```text
@@ -534,30 +555,94 @@ This is persistent availability. It should not immediately open the shop UI.
 
 The composer may intentionally create both effects. The review must list both plainly:
 
-- Opens Mara's Forge immediately after the dialogue.
+- Opens Mara's Forge immediately from the selected dialogue choice and then resumes that dialogue.
 - Makes Mara's Forge available for future interactions.
+
+## Minimal Quest Lifecycle And Collection Contract
+
+The web app does not need to design or implement the in-game quest-journal UI. It does need unambiguous authoring and export meanings so a DataTable consumer can distinguish assignment, progress, turn-in, and reward timing.
+
+V1 uses the following minimal lifecycle:
+
+```text
+available        the quest may be discovered or assigned through authored content
+in_journal       the quest has been discovered or given and is recorded; it cannot be declined
+objectives_met   all required objective conditions currently pass
+turned_in        the player explicitly finished through the configured turn-in interaction
+```
+
+The player may leave an `in_journal` quest undone indefinitely. V1 does not need a separate `offered`, `accepted`, `declined`, `tracked`, `hidden`, `archived`, or `abandoned` narrative state. NPC assignment, prior-knowledge discovery, and marker revelation remain distinct surfacing actions and may all reference the same quest.
+
+Turn-in is explicit by default:
+
+```text
+turn_in_mode     manual_confirm | dialogue_character | automatic_on_completion
+turn_in_target   optional character/dialogue/event reference
+reward_timing    on_objectives_met | on_turn_in
+```
+
+The normal default is `reward_timing = on_turn_in`. `on_objectives_met` remains available when the authored quest should pay out immediately.
+
+Inventory-count objectives may target ordinary or protected items:
+
+```text
+objective_type       collect_item
+target_item_id
+required_count
+completion_policy    current_inventory
+consume_on_turn_in
+```
+
+- Ordinary items may be sold, spent, consumed, or lost. If their current count falls below the requirement, objective progress falls too and the player must obtain them again.
+- `ItemType.Quest` items and explicitly unique story artifacts are protected from ordinary sale, consumption, and disposal. System-controlled turn-in may still remove them when authored.
+- Every required item must have an authored acquisition source, or be guaranteed by an earlier reachable step in the same flow. Ordinary replaceable items need a repeatable or otherwise sufficient source for the required count.
+- The item model therefore needs an explicit uniqueness/protection policy rather than inferring uniqueness from rarity or name.
 
 ## Capture Draft Contract
 
 The frontend needs a versioned intermediate representation independent of canonical schemas. A provisional TypeScript shape is:
 
 ```ts
+type CreationFlowRefKind =
+  | "dialogue" | "dialogue_node" | "dialogue_choice" | "encounter"
+  | "quest" | "quest_objective" | "event" | "shop" | "location"
+  | "location_poi" | "location_route" | "story_beat" | "item"
+  | "character" | "faction" | "lore_entry" | "creature" | "flow_step"
+  | "custom";
+
+type CreationFlowStepKind =
+  | "dialogue" | "encounter" | "item_reward" | "numeric_reward"
+  | "lore_reveal" | "teleport" | "scripted_moment" | "open_shop"
+  | "make_available" | "quest_assignment" | "quest_turn_in"
+  | "inventory_objective" | "join_companion" | "persistent_fact"
+  | "activate_location_variant" | "activate_character_variant"
+  | "activate_item_variant" | "world_state" | "gameplay_effect"
+  | "story_placement" | "note" | "custom";
+
+type CreationFlowRef = {
+  kind: CreationFlowRefKind;
+  canonicalId?: string;
+  draftId?: string;
+  label?: string;
+};
+
 type CreationFlowDraft = {
   format: "SOA-CREATION-FLOW/1";
   id: string;
+  revision: number;
   title: string;
   shape: "sequence" | "constellation" | "hybrid";
   origin?: {
-    kind: "dialogue" | "dialogue_node" | "dialogue_choice" | "encounter" |
-      "quest" | "quest_objective" | "event" | "location" | "story_beat";
-    id: string;
-    subId?: string;
+    ref: CreationFlowRef;
+    subRef?: CreationFlowRef;
   };
+  returnStack: CreationFlowReturnFrame[];
   entryStepId?: string;
   steps: CreationFlowStep[];
   transitions: CreationFlowTransition[];
   relations: CreationFlowRelation[];
-  localNotes: string[];
+  placeholders: CreationFlowPlaceholder[];
+  localNotes: Array<{ id: string; text: string }>;
   artifactIds: Record<string, string>;
   createdAt: number;
   updatedAt: number;
@@ -565,22 +650,27 @@ type CreationFlowDraft = {
 
 type CreationFlowStep = {
   id: string;
-  kind: string | "unshaped";
+  kind: CreationFlowStepKind | "unshaped";
   text: string;
-  target?: { kind: string; id?: string; draftId?: string; label?: string };
+  target?: CreationFlowRef;
   timing?: "immediate" | "after_completion" | "available_later" | "story_only";
-  persistence?: "none" | "session" | "permanent" | "one_shot";
+  persistence?: "none" | "session" | "permanent";
+  repeatPolicy?: "unspecified" | "repeatable" | "one_shot";
   payload?: Record<string, unknown>;
-  resolution: "unshaped" | "unresolved" | "supported" | "unsupported";
+  targetResolution: "none" | "unresolved" | "placeholder" | "canonical";
+  support: "unshaped" | "unresolved" | "compilable" | "story_only" |
+    "unsupported" | "runtime_unverified";
 };
 
 type CreationFlowTransition = {
   id: string;
   fromStepId: string;
   toStepId: string;
-  when: "complete" | "choice" | "victory" | "defeat" | "condition" | "fallback";
-  sourceOutcomeId?: string;
+  trigger: "complete" | "dialogue_choice" | "victory" | "interaction_closed" |
+    "condition" | "fallback";
+  sourceRefId?: string;
   requirementId?: string;
+  sortOrder: number;
 };
 
 type CreationFlowRelation = {
@@ -590,9 +680,25 @@ type CreationFlowRelation = {
   relation: string;
   resolution: "local_intent" | "canonical" | "unsupported";
 };
+
+type CreationFlowPlaceholder = {
+  id: string;
+  kind: string;
+  label: string;
+  direction?: string;
+  owningWorkspace?: string;
+  promotedCanonicalId?: string;
+};
+
+type CreationFlowReturnFrame = {
+  workspace: string;
+  context?: CreationFlowRef;
+  selectedId?: string;
+  localViewState?: Record<string, unknown>;
+};
 ```
 
-Transitions express temporal/executable order. Relations express scoped creative association and must never be interpreted as execution order. This is a planning and compiler input format, not automatically canonical game data. It must be versioned, migrated on load, and covered by golden fixtures.
+Transitions express temporal/executable order. Relations express scoped creative association and must never be interpreted as execution order. Defeat is intentionally absent as an ordinary `toStepId` transition; an encounter step references a typed defeat policy instead. `support` is derived and revalidated against the current capability/compiler version rather than blindly trusted after loading. This is a planning and compiler input format, not automatically canonical game data. It must be versioned, migrated on load, and covered by golden fixtures.
 
 ### Draft persistence
 
@@ -605,8 +711,10 @@ Phase 1 should use the proven Dialogue Flow pattern:
 - Recovery after reload.
 - Stable generated ids stored in `artifactIds` so repeated preview does not create different proposed records.
 - Export/import of the draft JSON for recovery and test fixtures.
+- Import validation that reports canonical references missing from the active project and keeps them unresolved rather than silently matching by label.
+- Project-local persistence of a committed, authoring-only flow manifest containing the normalized draft, step-to-artifact provenance, accepted warnings, and the committed canonical snapshots needed for safe later review or recompilation.
 
-A later shared project-draft table is justified only if collaboration, cross-device continuation, or review of unresolved creative work becomes a real requirement. Local storage must never be described as project persistence.
+Unfinished work remains browser-local in V1. Committing creates the project-local manifest in the app's SQLite project data; it is recoverable with project source data but excluded from UE/DataTable exports. A later shared work-in-progress draft service is justified only if collaboration or cross-device continuation becomes a real requirement. Browser local storage must never be described as project persistence.
 
 ## Compilation Architecture
 
@@ -618,7 +726,7 @@ It must:
 
 - Resolve existing entity references by immutable id.
 - Preserve stable ids for every proposed new record.
-- Classify each step as supported, story-only, or unresolved.
+- Classify each step as compilable, story-only, unresolved, unsupported, or runtime-unverified.
 - Generate the minimum required state machinery.
 - Reuse existing flags or requirements only after explicit confirmation when shared meaning may change.
 - Create new requirements rather than mutate shared requirements by default.
@@ -626,6 +734,8 @@ It must:
 - Build reward rows on the source that matches the author's timing.
 - Build adventure beats/links only when story placement was requested.
 - Include `expected_previous` snapshots for every changed existing record.
+- Preserve step-to-artifact provenance in the committed authoring-only flow manifest so later preview can distinguish updates, additions, removals, and deliberately retained shared records.
+- On recompilation, classify previously generated artifacts as still owned, changed, detached but shared, or exclusive cleanup candidates. Never delete a shared or previously committed artifact silently; cleanup is an explicit reviewed mutation with current usage evidence.
 - Return step-scoped blockers, warnings, and implementation explanations.
 - Produce deterministic output for the same draft, catalog, and compiler version.
 
@@ -716,7 +826,7 @@ Benefits:
 Limits:
 
 - Cannot honestly open a shop immediately.
-- Cannot represent choice/victory/defeat transitions.
+- Cannot represent choice/victory transitions or an explicit defeat-policy contract.
 - Cannot represent generic damage or immediate quest activation.
 - Longer sequences have no canonical group identity or repeat policy.
 
@@ -724,17 +834,19 @@ Option A is suitable for the first capture/compile pilot, but it does not satisf
 
 ### Option B: extend events and transitions
 
-Recommended V1 runtime direction. Author review has confirmed that immediate dialogue-to-shop and dialogue-to-encounter actions require typed executable transitions; remaining runtime details still need review.
+Recommended V1 web/export direction. Author review has confirmed that immediate dialogue-to-shop and dialogue-to-encounter behavior requires typed choice actions plus outcome transitions; external runtime execution remains a separate integration concern.
 
 Potential minimal changes:
 
-- Add `Shop` to `EventType`.
-- Add nullable `events.shop_id` with a real foreign key.
-- Define event completion semantics for dialogue, encounter, shop, reward, lore, teleport, and scripted scene payloads.
-- Add a typed `event_transitions` table for dialogue-choice, victory, defeat, completion, and return-context behavior.
+- Add immutable ids to dialogue choices and make `next_node_id` conditionally optional when a typed action owns continuation or termination.
+- Add typed, ordered dialogue-choice actions for `open_shop`, `start_encounter`, `join_companion`, and later approved action kinds.
+- Store `open_shop` with a shop foreign key and `resume_source_dialogue` continuation policy. A new `Shop` event is not required for the confirmed nested-dialogue workflow.
+- Define completion semantics for dialogue, encounter, reward, lore, teleport, and scripted-scene payloads, plus close/resume semantics for the nested shop choice action.
+- Add a typed `event_transitions` table for dialogue-choice, victory, completion, condition, fallback, and return-context behavior.
+- Store encounter defeat policy separately from ordinary follow-up transitions; defeat must not point at a normal narrative continuation in V1.
 - Keep `events.next_event_id` as the compatible linear transition during migration.
-- Add explicit repeat/one-shot behavior only if runtime does not already own it elsewhere.
-- Add typed runtime actions for companion joining and approved quest-surfacing modes rather than encoding them as flags alone.
+- Add explicit repeat/one-shot export behavior only where no existing canonical owner already defines it.
+- Add typed exported actions for companion joining and approved quest-surfacing modes rather than encoding them as flags alone.
 
 Provisional transition fields:
 
@@ -742,14 +854,14 @@ Provisional transition fields:
 id
 from_event_id
 to_event_id
-trigger_type        complete | dialogue_choice | victory | defeat | interaction_closed | condition | fallback
+trigger_type        complete | dialogue_choice | victory | interaction_closed | condition | fallback
 trigger_ref_id      nullable stable choice/outcome reference
 requirements_id    nullable condition
 priority            deterministic branch ordering
 tags                descriptive only
 ```
 
-This requires stable dialogue choice identity. Current choices are JSON rows without an obvious immutable choice id, so branch-specific transitions are gated on a dialogue choice identity decision. Array index or label must not become canonical identity.
+This requires stable dialogue choice identity. Current choices are JSON rows without an obvious immutable choice id, so existing choices need a one-time persisted id backfill. Array index or label must not become canonical identity. Because ids remain inside JSON in the minimal approach, backend bundle validation must enforce action/transition references; normal database foreign keys cannot point into a JSON array. Normalizing choices into their own table remains an option if later workflows require stronger relational behavior.
 
 Benefits:
 
@@ -779,18 +891,18 @@ Do not choose Option C merely because a graph looks attractive. Choose it only w
 
 ### Decision gate status
 
-Canonical implementation can proceed only after the remaining open behavior is resolved. Current status:
+Canonical web-schema implementation remains gated on the additional workflow and unresolved authoring/export choices. Unknown Unreal execution details do not block web contracts when the behavior is preserved honestly and marked `runtime_unverified`. Current status:
 
-1. **Open:** Does the runtime currently execute `next_event_id`, and what exactly counts as event completion?
+1. **Open external integration question:** Does the consuming runtime execute `next_event_id`, and what counts as completion? The web app may preserve/export it but must not mark it runtime-verified without that answer.
 2. **Confirmed:** Dialogue choices directly select immediate shop, encounter, and companion-join actions; immutable choice identity is required.
-3. **Confirmed:** Encounter outcomes in the first useful release are victory and defeat only.
+3. **Confirmed:** Victory may continue through authored consequences. Defeat invokes a retry/load/respawn policy and is not an ordinary narrative continuation in V1; the exact restore target remains open.
 4. **Confirmed:** An immediately opened shop is a nested interaction; closing it resumes the exact source dialogue session.
-5. **Partially confirmed:** A pre-encounter retreat ends dialogue and restores the origin view for later re-entry. Locations already identify respawn points, but save snapshot, combat checkpoint, and defeat rollback policies remain open; `automatic_before + retry_checkpoint` is the recommended default.
+5. **Partially confirmed:** A pre-encounter retreat ends dialogue and restores the origin view for later re-entry. Defeat must load or restore through a policy rather than continue; the exact save snapshot, checkpoint, or respawn target remains open. `automatic_before + retry_checkpoint` remains the recommended default.
 6. **Open:** Must several actions happen in parallel after one outcome, and if so are they ordered or atomic?
-7. **Mostly confirmed:** Quest discovery, NPC offer, and map-marker reveal are distinct meanings. A discovered quest is automatically added to an unlimited, organized journal; story/side abandonment and notification behavior remain open.
+7. **Confirmed for the web/export contract:** Quest discovery, NPC assignment, and map-marker reveal are distinct surfacing meanings. Once discovered or assigned, a quest is recorded and cannot be declined; the player may leave it undone. Tracking, hiding, notification, and journal presentation are in-game UI concerns outside this implementation.
 8. **Open:** What is the general runtime target/effect model for damage?
-9. **Partially confirmed:** Locations, characters, and evolving legendary/custom items need stable-identity variants affecting presentation and gameplay configuration. Activation, override scope, persistence, and export remain to be designed.
-10. **Open:** Must authored flows be shared durable project records, or is compiled canonical output sufficient?
+9. **Confirmed V1 shape; field lists still require schema review:** Locations, characters, and explicitly unique/story-artifact items use one base entity plus one active progression variant. Temporary conditions are separate; collection overrides use explicit replace/add/remove semantics.
+10. **Confirmed:** Unfinished drafts are browser-local, while committed flows receive durable project-local authoring manifests with provenance. These manifests are not UE/DataTable runtime exports.
 
 ## Flag And Requirement Generation Policy
 
@@ -872,6 +984,15 @@ The current model splits some of this meaning between lore timelines, story arcs
 
 The damaged-city example requires one logical place to retain continuity while presenting different state-specific content.
 
+V1 applies one shared progression-variant rule to locations, characters, and eligible items:
+
+- The canonical base entity is the default presentation and owns stable identity.
+- At most one authored progression variant is active for that entity at a time.
+- Temporary or independently combinable conditions such as a short combat status are not progression variants.
+- Activating a variant is an explicit exported action/state change; story placement may describe the same transformation but does not activate it.
+- **Create variant from current** copies the effective base/current presentation into a new editable variant without creating a new logical entity.
+- The web app authors and exports activation and persistence intent. Applying it to a save game is external runtime work.
+
 A provisional location-variant contract should support:
 
 ```text
@@ -886,7 +1007,7 @@ visual/presentation notes or runtime asset reference
 activation condition or explicit state transition
 ```
 
-This is preferable to copy-pasting the city as an unrelated location because quests, lore, routes, timeline occurrences, and map identity should continue to refer to the same place. The exact override model is still gated on runtime and workflow review.
+This is preferable to copy-pasting the city as an unrelated location because quests, lore, routes, timeline occurrences, and map identity should continue to refer to the same place. The exact override model is still gated on the additional workflow and typed field/export review.
 
 ### Event versus story beat
 
@@ -922,11 +1043,11 @@ available dialogue/quest/encounter references
 activation condition or explicit state transition
 ```
 
-The character's story placements record introductions and changes; an executable action activates the appropriate runtime variant. Separate character records are reserved for genuinely distinct entities such as a clone, disguise that must be independently addressable, summoned copy, or separate historical person—not ordinary progression of the same individual.
+The character's story placements record introductions and changes; an exported executable action identifies the appropriate active variant. Separate character records are reserved for genuinely distinct entities such as a clone, disguise that must be independently addressable, summoned copy, or separate historical person—not ordinary progression of the same individual.
 
 ### Stateful item variants
 
-Legendary, custom, and other story-important items should normally retain one stable identity when they awaken, are reforged, become corrupted, are purified or restored, change ownership-relevant presentation, or gain new capabilities over time. Quests, lore, acquisition history, inventory identity, and story occurrences should continue to refer to the same artifact.
+Legendary, custom, and other story-important items should normally retain one stable identity when they awaken, are reforged, become corrupted, are purified or restored, change ownership-relevant presentation, or gain new capabilities over time. Quests, lore, acquisition history, inventory identity, and story occurrences should continue to refer to the same artifact. V1 item variants apply to items explicitly marked unique/story-artifact and therefore describe the canonical artifact definition, not one arbitrary copy in a stack of ordinary inventory items.
 
 A provisional item-variant contract may override:
 
@@ -946,7 +1067,7 @@ activation condition or explicit state transition
 
 The variant contract must define whether collection fields replace, add to, or remove from the base item; it must not rely on an ambiguous generic merge blob. **Create variant from current** should copy the active presentation and mechanics into an editable draft while preserving the underlying item identity.
 
-An item's story placements record discoveries and transformations; an executable action activates the appropriate item variant in persistent game state. Separate item records remain appropriate for genuinely distinct objects, independently ownable copies, fragments that coexist with the original, replicas, or successor artifacts—not ordinary evolution of the same unique artifact.
+An item's story placements record discoveries and transformations; an exported executable action identifies the appropriate active item variant. Separate item records remain appropriate for genuinely distinct objects, independently ownable copies, fragments that coexist with the original, replicas, or successor artifacts—not ordinary evolution of the same unique artifact. Per-instance evolution for non-unique duplicated items is outside V1.
 
 ## Validation And Health
 
@@ -967,7 +1088,7 @@ An item's story placements record discoveries and transformations; an executable
 - Transition targets outside the compiled chain without explicit reuse.
 - Dialogue choice transition without immutable choice identity.
 - Immediate shop/encounter/companion action without a valid typed target.
-- Inventory-count objective targeting a non-item or an item without approved quest-item behavior.
+- Inventory-count objective targeting a non-item, lacking a sufficient reachable acquisition source, or using contradictory consumption/protection settings.
 - Location variant transition without one stable logical location and valid variant.
 - Item variant transition without one stable logical item, valid variant, and deterministic collection-override policy.
 - Reward attached to a source that cannot grant it.
@@ -1034,6 +1155,7 @@ Commit rules:
 - Preview and commit use the same stable proposed ids.
 - Any stale existing record rejects the whole transaction.
 - Accepted warning ids are scoped to the exact compiled mutation.
+- Recompiling a committed manifest shows updates and cleanup candidates separately; no generated canonical record is deleted merely because a draft step disappeared.
 
 ## Delivery Phases
 
@@ -1044,16 +1166,16 @@ Deliverables:
 - Collect exemplary workflows in original author language.
 - Create the semantic fixture format and coverage matrix.
 - Classify each desired action and transition against the current model.
-- Confirm runtime/export behavior for existing events and `next_event_id`.
+- Confirm current web storage/export behavior for existing events and `next_event_id`; record runtime execution as verified or unknown separately.
 - Decide the minimum useful branch/outcome semantics.
-- Approve Option A, B, or C for canonical runtime expansion.
+- Approve Option A, B, or C for canonical web/export expansion.
 - Add Creation Flow as an active queue item in `AUTHORING_WORKSPACES_GAME_DESIGN.md` before implementation.
 
 Exit gate:
 
 - The motivating shop and encounter workflows have an honest end-to-end mapping.
 - Every unsupported step is named rather than hand-waved.
-- Runtime owners agree on completion and repeat semantics.
+- Completion and repeat semantics are explicit in the export contract; externally unverified behavior is labeled rather than claimed.
 
 ### Phase 1: capture-only embedded prototype
 
@@ -1091,25 +1213,25 @@ Deliverables:
 - Step-grouped Bundle Review.
 - Temporary sequence/state rehearsal.
 
-This phase may ship behind a feature flag even if Shop Now remains unresolved. The UI must label the unsupported step honestly.
+This phase may ship behind a feature flag before the confirmed Shop Now choice-action schema is implemented. The UI must label the step as not yet compilable rather than substituting a shop-unlock flag.
 
-### Phase 3: minimal canonical runtime extensions
+### Phase 3A: canonical web data and DataTable export contracts
 
 Likely deliverables, subject to Phase 0:
 
-- Shop event payload and runtime/export handling.
-- Nested interaction frames so shop close resumes the source dialogue without replaying applied effects.
-- Stable dialogue choice identity if choice-specific transitions are required.
-- Typed dialogue-choice, victory, defeat, completion, and return-context transitions.
-- Quest discovery, NPC-offer, and map-marker actions plus automatic organized journal insertion; tracking/abandonment follows the remaining decision.
-- Typed inventory-count objectives and explicit non-consumable/non-sellable quest-item behavior.
-- Dialogue-triggered companion-join action and persistent party membership state.
+- Stable dialogue choice identity, typed ordered choice actions, optional navigation for action-owned continuation, and persisted replay-protection identity.
+- Nested-shop action/export fields so closing the shop is declared to resume the source dialogue without replaying applied effects.
+- Typed dialogue-choice, victory, completion, condition, fallback, and return-context transitions; defeat references a policy rather than a normal follow-up.
+- Quest discovery, NPC-assignment, and map-marker actions plus the minimal `in_journal → objectives_met → turned_in` contract.
+- Reward timing and turn-in mode/target fields.
+- Typed current-inventory objectives for ordinary or protected items, explicit item uniqueness/protection, consumption policy, and acquisition-source validation.
+- Dialogue-triggered companion-join action and exported party-membership intent.
 - Stateful location variants for the approved intact/damaged override set, typed character variants for progression/allegiance/presentation stages, and typed item variants for evolving legendary/custom artifacts.
-- Save snapshot, combat checkpoint, respawn anchor, and defeat-policy contracts after the recommended default is approved.
+- Authorable save snapshot, combat checkpoint, respawn anchor, and defeat-policy export fields after the exact default is approved.
 - Repeat/one-shot fields only if no existing runtime owner exists.
-- Schema migrations, JSON schemas, CSV/source recovery, and UE export preservation.
+- Project-local committed-flow manifests with step/artifact provenance, schema migrations, JSON schemas, source recovery, and DataTable export preservation.
 
-Generic gameplay damage should be a separate approved runtime contract, not a loose JSON field added merely to complete the demo.
+Generic gameplay damage should be a separate approved authoring/export and consumer contract, not a loose JSON field added merely to complete the demo.
 
 ### Phase 4: full embedded composer rollout
 
@@ -1140,13 +1262,13 @@ Deliverables:
 
 The standalone surface follows successful embedded use; it is not required to prove the core interaction.
 
-### Phase 6: runtime integration and production hardening
+### Phase 6: external runtime handoff and web production hardening
 
 Deliverables:
 
 - End-to-end exported fixtures for every supported step/transition.
-- Runtime completion and resume tests.
-- Save/load and one-shot behavior tests.
+- A documented consumer contract for dialogue resume, save/load, defeat policy, one-shot behavior, quest state, and variants.
+- External runtime test expectations and fixture handoff; Unreal implementation itself remains outside this repository work.
 - Loop and cancellation safeguards.
 - Cross-version compatibility for compiled events/transitions.
 - Performance checks for catalogs and dependency analysis.
@@ -1297,13 +1419,13 @@ Mitigation: keep placeholders local by default; use owning-workspace minimum fie
 
 Mitigation: do not use array indexes or labels; add immutable choice/outcome identity before canonical branch transitions.
 
-### Risk: runtime and editor disagree
+### Risk: exported intent and runtime consumer disagree
 
-Mitigation: make runtime completion semantics part of the schema RFC and maintain exported golden fixtures executed by runtime tests.
+Mitigation: make consumer semantics part of the schema RFC, maintain exported golden fixtures, and mark contracts `runtime_unverified` until an external runtime test suite confirms them.
 
 ### Risk: capture is lost because it is only browser-local
 
-Mitigation: immediate autosave, visible local-only status, snapshots, export, and recovery first; evaluate shared project drafts after the pilot.
+Mitigation: immediate autosave, visible local-only work-in-progress status, snapshots, export, and recovery; committing also persists an authoring-only flow manifest in project-local data.
 
 ## Definition Of Done For The First Useful Release
 
@@ -1312,12 +1434,12 @@ The first useful release is complete when:
 1. An author can open **Then…** from a dialogue ending or choice and **Expand this place** from a selected World Builder location.
 2. They can capture both a mixed dialogue/shop/reward/scripted-scene/encounter/quest/world-change chain and a lore-first place constellation without leaving the originating context.
 3. Capture requires no flag, requirement, beat, or id knowledge.
-4. The draft survives reload and clearly states that it is local until committed.
+4. The draft survives reload and clearly states that work in progress is browser-local; commit creates a durable project-local authoring manifest excluded from runtime DataTable exports.
 5. The composer distinguishes immediate execution, persistent availability, and story placement.
 6. Supported steps resolve existing targets or preserve local placeholders.
 7. Local constellation relationships remain visibly distinct from executable transitions and compile only through honest canonical contracts.
 8. Existing-model steps compile deterministically and preview through one rollback-only endpoint.
-9. The motivating **open shop now** behavior has an approved canonical and runtime contract, not a fake unlock substitute.
+9. The motivating **open shop now** behavior has an approved choice-action and DataTable export contract, not a fake unlock substitute; the web app does not claim to execute the in-game shop handoff.
 10. Unsupported gameplay damage remains visible and blocks any claim of a fully executable chain.
 11. One atomic review lists every created/changed record grouped by author step.
 12. Stale edits and invalid references reject the entire commit safely.
@@ -1331,19 +1453,13 @@ These questions should remain open until the examples make them concrete:
 - Is the most common author gesture attached to a dialogue choice, a dialogue ending, an encounter result, or a free-standing story moment?
 - How often does **Then** mean immediate execution versus later availability?
 - Must multiple consequences occur in parallel after one outcome?
-- Should the recommended pre-fight checkpoint/retry behavior be the universal default, with respawn/whole-dungeon reset reserved for explicitly authored challenge content?
+- Which retry/load/respawn policy should be the default defeat export, with whole-dungeon reset reserved for explicitly authored challenge content?
 - What exactly is retained under a respawn policy: inventory, quest progress, world state, encounter state, currency, and temporary effects?
 - Which steps must be one-shot, repeatable, cancellable, or resumable?
 - May authors disable the automatic pre-fight checkpoint, and what warning/confirmation should that require?
-- Are story quests non-abandonable while side quests are abandonable, or should all quests remain in an unlimited log with track/hide controls instead?
-- Does automatically entering the journal also make a quest active/tracked, or are **in journal**, **active**, and **tracked** separate states?
-- Can one quest use several surfacing modes simultaneously, such as rumor discovery plus NPC offer plus map marker?
-- Are all `Quest` items non-consumable/non-sellable by rule, or can authors override those protections?
 - When and how are active location, character, and item variants switched, saved, restored, and exported?
-- For item variants, which fields may change, and should effects/modifiers be replaced, added, or removed relative to the base item?
-- Is reward timing usually before content, after completion, or chosen per branch?
+- For item variants, which fields may change, and which explicit replace/add/remove operations are valid for each collection field?
 - How should an unfinished placeholder behave when the rest of a chain is ready?
-- Is browser-local capture sufficient for the first pilot, or must unfinished flows be visible to collaborators?
 - Do the workflows need nested subflows, or is a small branch graph sufficient?
 - Should lore prose grow placeholders through selected-text actions, linked idea cards, or both?
 - How should the unified timeline represent the difference between a historical occurrence and the later moment when the player discovers it?

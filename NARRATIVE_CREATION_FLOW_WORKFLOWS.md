@@ -1,6 +1,6 @@
 # Narrative Creation Flow Workflow Corpus
 
-Status: collecting author examples; semantic interpretations are provisional until reviewed with the author
+Status: two exemplary workflows and three author reviews captured; one additional workflow is expected before canonical schema approval
 
 This document preserves exemplary workflows in the author's own language and derives product, compiler, schema, and acceptance-test implications from them. The original narrative is the source of truth. The structured interpretation exists to make the workflow testable; it must not overwrite the creative intent.
 
@@ -21,8 +21,8 @@ Open the world map for a short creative session
   → Create a quest that inherits the city as its starting context
   → Choose a resident/present quest giver or name a placeholder
   → Write the premise: collect five wood in the nearby forest
-  → Sketch the quest-giver dialogue, questions, and acceptance
-  → Reveal a place, route, or other effect when the quest is accepted
+  → Sketch the quest-giver dialogue, questions, and assignment
+  → Reveal a place, route, or other effect when the quest is assigned
   → Return to the map without losing the quest context
   → Create the route toward the forest
   → Add a route encounter as a placeholder
@@ -62,8 +62,8 @@ Create a small quest journey from the place where the missing content becomes vi
 ### Immediate actions in the imagined player flow
 
 - Talk to the quest giver.
-- Ask questions and accept the quest.
-- Reveal or enable the destination/route/effect associated with acceptance.
+- Ask questions and receive the quest; once given, it cannot be declined but may remain undone.
+- Reveal or enable the destination/route/effect associated with assignment.
 - Travel along the new or selected route.
 - Encounter monsters on the way.
 - Reach the forest/cave destination.
@@ -77,7 +77,7 @@ Create a small quest journey from the place where the missing content becomes vi
 
 ### Persistent state and later availability
 
-- Quest accepted.
+- Quest assigned and recorded.
 - Destination or route revealed/available.
 - Boss still available if the player turns back.
 - Boss defeated.
@@ -113,7 +113,7 @@ Story placement should remain optional during initial capture. The composer may 
 
 ### Repeatability and failure questions
 
-- Is quest acceptance one-shot?
+- Is quest assignment one-shot, or can the source interaction repeat without assigning it again?
 - Can the route encounter repeat?
 - Does declining the cave preserve the decision and allow later entry?
 - Does leaving the cave reset anything?
@@ -194,18 +194,21 @@ Resolution can offer:
 
 The UI should explain the behavioral difference and recommend a default from context, while keeping the original wording.
 
-### Quest acceptance needs explicit semantics
+### Quest assignment needs explicit semantics
 
-The imagined flow treats accepting the quest as an action that can reveal a route/location and begin objective tracking. The current model has quest requirements and completion flags but no clearly modeled acceptance action or active quest state.
+The imagined flow treats receiving the quest as an action that can record it, reveal a route/location, and begin objective evaluation. Author review clarified that once the quest is given or discovered it cannot be declined; the player may simply leave it undone. The current model has quest requirements and completion flags but no clearly modeled assignment, turn-in, or reward-timing contract.
 
 The canonical decision must distinguish:
 
 - Quest becomes visible.
-- Quest is offered through dialogue.
-- Player accepts the quest.
-- Quest becomes active in the journal.
-- Acceptance sets persistent state.
-- Acceptance reveals a route, location, POI, or event.
+- Quest becomes available.
+- Quest is discovered or assigned through dialogue/content and is recorded without a decline state.
+- Quest objectives become evaluable.
+- Assignment sets persistent state where required.
+- Assignment reveals a route, location, POI, marker, or event where authored.
+- Objectives are met.
+- The player turns in through manual confirmation, a dialogue/person, or automatic completion.
+- Rewards occur on objective completion or turn-in, with turn-in as the normal default.
 
 ### Objective progress needs more than description text
 
@@ -221,7 +224,7 @@ consume_on_turn_in  true/false
 completion_policy   inventory | cumulative_acquired | explicit_event
 ```
 
-This is provisional. It should be tested against the additional workflows before changing the quest schema.
+Ordinary items and protected items use the same current-inventory count rule. Ordinary items may be spent, sold, consumed, or lost, causing progress to fall until they are obtained again. Quest items and explicitly unique artifacts are protected from ordinary disposal. Every required item needs a sufficient reachable acquisition source. The exact schema remains provisional until the additional workflow is reviewed.
 
 ### Item possession as a trigger needs honest semantics
 
@@ -276,17 +279,17 @@ This lets the author specify what the encounter should feel like and why it exis
 | Suggest residents as quest givers | Character `home_location_id` can identify residents | “Currently present” needs explicit story/runtime occurrence evidence |
 | Use placeholder quest giver | Local draft can preserve it | Cannot commit as a canonical character reference until resolved |
 | Describe collect-five-wood objective | Objective description supports prose | Typed item target/count/progress semantics are absent |
-| Create explanatory dialogue | Dialogue authoring is supported | Quest offer/acceptance relationship needs explicit linking semantics |
-| Reveal route after acceptance | Route requirements are supported | Acceptance needs a persistent producer and runtime contract |
+| Create explanatory dialogue | Dialogue authoring is supported | Quest assignment and turn-in relationships need explicit linking semantics |
+| Reveal route after assignment | Route requirements are supported | Assignment needs a persistent producer and exported action contract |
 | Add route encounter | Route event bindings and encounter events are supported | Scoped placeholder handoff is needed |
 | Create forest/cave place | Locations and POIs are supported | Author should not need to choose the scale during capture |
 | Collect quest items from POI | POI can reference one item | Quantity/progress/turn-in behavior is not modeled by that reference alone |
-| Collect quest items from monsters | Loot/reward sources exist in other systems | Quest-specific counted drop/progress semantics need review |
+| Collect ordinary or protected items from monsters | Loot/reward sources exist in other systems | Current-inventory counting, protection, sufficient source quantity, and turn-in consumption need explicit contracts |
 | Enter cave or return | Dialogue choice can express the decision locally | Choice-specific runtime transition needs immutable choice identity |
 | Trigger boss on entry | Encounter event/POI reference can invoke the boss | Outcome and re-entry semantics need runtime confirmation |
 | Discover important item after boss | Encounter/event reward or POI item placement is supported | Timing and acquisition source must be chosen explicitly |
 | Show item source on map | Item journey and POI/location context can derive this | Must distinguish canonical placement from inferred display |
-| Grant faction reputation on turn-in | Quest reputation rewards are supported | Actual turn-in/quest-completion trigger semantics need runtime confirmation |
+| Grant faction reputation on turn-in | Quest reputation rewards are supported | Reward timing and manual/dialogue/automatic turn-in mode need explicit export fields |
 | Trigger follow-up because item is possessed | Permanent discovery can be approximated with a flag | Current possession is not a supported requirement condition |
 
 ## Acceptance Scenarios From Workflow 1
@@ -319,12 +322,16 @@ When the author says another person approaches “because the player has the ite
 
 The author can add encounter roles, group shape, behavior hook, quest relationship, and named creature placeholders. The draft remains valid locally and later offers reuse or Creature Workshop promotion.
 
+### W1-H: distinguish ordinary and protected collection items
+
+The author can require a current quantity of an ordinary item without making it a Quest item. Preview warns or blocks when no sufficient acquisition source exists, explains that spending or losing ordinary copies reduces progress, and separately preserves universal protection for Quest items and explicitly unique artifacts.
+
 ## Open Review Notes
 
 - This workflow strongly supports making the World Builder an origin surface for Creation Flow, not only embedding **Then…** in Dialogue Flow.
 - It introduces **context inheritance** and **protected return** as first-class requirements.
 - It demonstrates that placeholders are needed for characters, encounters, creatures, locations/POIs, items, dialogue, and follow-up events—not only one entity type.
-- It suggests that the plan's likely event extension is not sufficient by itself. Quest acceptance, typed objectives, current item possession, and durable branch outcomes require separate schema/runtime decisions.
+- It suggests that the plan's likely event extension is not sufficient by itself. Quest assignment, typed objectives, current item possession, and durable branch outcomes require separate schema/export decisions.
 - It provides a good test for whether a first-class playable sequence eventually becomes necessary, but does not decide that question alone.
 - The next reference workflow should be compared against this one before approving typed quest-objective or sequence schema changes.
 
@@ -652,7 +659,7 @@ The current model has story arcs, timelines, and adventure beats but no dedicate
 | Create boss/enemy types | Creature Workshop and combat profiles support resolved creatures | Local enemy-family/archetype placeholders remain necessary |
 | Require regional encounters | Encounter tables, route bindings, POIs, and events support placement | Coverage intent such as “must recur across region” is local planning unless modeled |
 | Create a dungeon | Location hierarchy, routes, POIs, and encounters can compose it | No single dungeon brief/package currently owns the whole idea |
-| Create a quest for the dungeon | Quest creation is supported | Origin, giver, acceptance, and mixed-content path gaps from Workflow 1 remain |
+| Create a quest for the dungeon | Quest creation is supported | Origin, giver, assignment, turn-in, and mixed-content path gaps from Workflow 1 remain |
 | Make a character companion-capable | Interaction profile and combat-profile companion config support capability | Recruitment/join runtime transition is not fully modeled |
 | Create an ancient relic | Item and lore records support the object and prose | Historical item-state continuity relies on story links and notes |
 | Let an ancient relic awaken, corrupt, or be restored over time | The same item can be referenced repeatedly in story placement | No canonical stable-identity item variant or executable activation contract exists |
@@ -695,6 +702,10 @@ The author can attach repeatable item sources to the regional story seed while l
 
 The author can sketch cult and freedom-fighter paths, dialogues, reputation changes, exclusivity questions, first introductions, and later appearances before committing flags, requirements, or chapter placements.
 
+### W2-I: evolve one unique artifact without duplicating its identity
+
+The author can create an awakened, reforged, corrupted, restored, or custom progression variant from a unique relic's current form. Lore, quests, acquisition history, and story occurrences continue to reference the same artifact; explicit replace/add/remove operations describe changed effects and modifiers. Ordinary duplicated inventory items do not gain per-instance variants in V1.
+
 ## Cross-Workflow Findings After Workflows 1 And 2
 
 - World Builder is a primary creative origin surface in both examples.
@@ -711,7 +722,7 @@ The author can sketch cult and freedom-fighter paths, dialogues, reputation chan
 
 ## Open Review Notes
 
-- Decide whether the author-facing label should be **Story Seed**, **Expand this place**, **Build local story**, or another phrase; the gesture matters more than the internal name.
+- Use **Expand this place** as the V1 entry label and **Story Seed** as the local draft concept; wording may still be refined after author testing without changing the data contract.
 - Test whether authors prefer writing lore in one large text surface with mention promotion or using small linked idea cards beside the text.
 - Clarify what counts as a region in current authoring: a location hierarchy scope, an explicit region field, a saved selection, or a future canonical region concept.
 - Determine whether historical characters need a canonical life-status field or whether lifecycle occurrences plus a derived “latest known state” are sufficient.
@@ -729,7 +740,7 @@ Source: answers to the plan's first ten behavioral questions, supplied by the au
 2. **Dialogue-triggered encounters start immediately.** There is no save/pause gap between selecting the action and entering the encounter.
 3. **Retreat happens before the encounter.** Where retreat is plausible, the dialogue offers **Retreat for now** or **Look for an exit**. Choosing it closes the dialogue and returns to the originating map, POI, character, item, or other view. The player may interact again later.
 4. **Forced encounters may omit retreat.** If retreat would be narratively absurd, the encounter can lock in, but the player should have received warning and an earlier opportunity to save or prepare.
-5. **Encounter outcomes are victory and defeat for V1.** More outcome types are intentionally deferred.
+5. **Encounter outcomes are victory and defeat for V1.** Victory may continue through authored consequences; defeat enters a retry/load/respawn policy rather than an ordinary narrative continuation. More outcome types are intentionally deferred.
 6. **Quest surfacing has several meanings.** A quest may be discovered because the player previously heard something and later finds the relevant place, offered by an NPC, and/or represented by a newly visible map marker.
 7. **Collection objectives use current inventory.** “Collect five wood” is satisfied when five required items are currently in inventory.
 8. **Important content items are quest items.** They are normally non-consumable and non-sellable, so current possession can be used as meaningful quest state.
@@ -741,7 +752,7 @@ Source: answers to the plan's first ten behavioral questions, supplied by the au
 
 - The cave decision's retreat branch ends the dialogue, returns to the cave/POI context, and leaves the interaction available for later.
 - Entering the cave closes the decision dialogue and starts the boss encounter immediately.
-- The boss requires only victory and defeat branches in the first release.
+- The boss requires a victory consequence branch and a defeat policy in the first release.
 - The five-wood objective checks current inventory quantity rather than cumulative acquisition.
 - A quest item that triggers a follow-up should be protected from sale/consumption; current possession is the intended condition.
 - Quest discovery, NPC offering, and marker revelation must remain separate author actions even when one quest uses several of them.
@@ -751,18 +762,20 @@ Source: answers to the plan's first ten behavioral questions, supplied by the au
 - Item type `Quest` already exists, but the current item schema does not explicitly enforce non-consumable or non-sellable behavior.
 - Requirements currently evaluate flags and faction reputation, not current item quantity/possession.
 - Dialogue choices need immutable identity before they can own stable shop, encounter, or companion-join transitions.
-- Encounter rewards do not provide a complete defeat transition contract.
+- Encounters do not provide a complete defeat-policy export contract.
 - Character lifecycle `joins` can record story meaning but does not itself implement party membership.
 - Locations have no canonical intact/damaged variant or override system.
 - Items have no canonical stable-identity variant system for evolving presentation, effects, requirements, or modifiers.
 - Current lore timelines and adventure beats need a unified chronology view with occurrence and discovery semantics.
 
-### Still open after this review
+### Questions remaining at that point
+
+Several questions below were subsequently resolved by Author Reviews 2 and 3; they are retained here as review history rather than current blockers.
 
 - What happens when an immediately opened shop closes?
 - What exact runtime result follows encounter defeat?
 - When does a discovered/offered quest enter the journal or become active?
-- Are quest-item protections universal defaults or author-overridable?
+- Are quest-item protections universal defaults or author-overridable? **Resolved by Author Review 2: universal.**
 - How are active location, character, and item variants switched, persisted, restored, and exported?
 - How should the author link or describe the earlier save/preparation opportunity before a forced encounter?
 
@@ -772,7 +785,7 @@ Source: follow-up answers supplied by the author on 2026-07-15.
 
 ### Confirmed behavior
 
-1. **The shop is nested inside the dialogue interaction.** Selecting trade temporarily replaces/hides the dialogue with the shop. Closing the shop returns to the same dialogue so the player can ask more questions, accept a quest, or trade again. The interaction does not end.
+1. **The shop is nested inside the dialogue interaction.** Selecting trade temporarily replaces/hides the dialogue with the shop. Closing the shop returns to the same dialogue so the player can ask more questions, receive a quest, or trade again. The interaction does not end.
 2. **Discovered quests enter the journal automatically.** The player receives information about what needs to be done. The log is not capacity-limited and should be organized by useful context such as region, city, and associated person.
 3. **All quest items are universally protected.** They cannot be ordinarily consumed or sold. The quest system may remove them when the quest is completed or turned in.
 4. **World changes need executable activation and timeline meaning.** A city becoming damaged is both something that must be triggered in runtime and an important story moment.
@@ -833,24 +846,37 @@ Because the game is intended to be story-heavy and dialogue-heavy, the recommend
 
 This avoids losing substantial dialogue, exploration, and worldbuilding progress while retaining meaningful respawn points and optional harsher encounter policies.
 
-### Quest-journal recommendation
+### Quest recording and in-game journal boundary
 
-The confirmed requirements are automatic insertion and an unlimited organized log. A low-friction default would further distinguish:
-
-- **In journal:** the quest has been discovered or accepted and remains recorded.
-- **Tracked:** objectives/markers receive current HUD/map emphasis.
-- **Hidden/archived:** the player does not want to see it prominently right now.
-- **Abandoned:** optional later behavior requiring reacquisition/reset rules.
-
-Recommendation: implement track/untrack and hide/archive before true abandonment. Story quests should not be abandonable by default; side-quest abandonment can remain a later policy decision.
+The confirmed authoring requirement is that a discovered or assigned quest is recorded automatically and cannot be declined; the player may leave it undone. The web app must export assignment, objective completion, turn-in, and reward timing. Tracking, hiding, notifications, journal capacity/presentation, and abandonment UI are in-game concerns and are not implemented as part of this web workflow unless a later data requirement makes them relevant.
 
 ### Still open after this review
 
 - Approve or change the recommended automatic pre-fight checkpoint and retry default.
 - Define which state a respawn-with-persistence policy retains.
 - Decide whether authors may disable automatic checkpoints for forced encounters.
-- Decide whether discovered quests are automatically tracked or only inserted into the journal.
-- Decide whether side quests can be truly abandoned or only hidden/untracked.
-- Define how location, character, and item variants are activated, persisted, restored, and exported.
-- Define which fields belong in each typed variant contract rather than one unsafe generic override blob.
-- For item effects and modifiers, define explicit replace/add/remove behavior relative to the base item.
+- Finalize the explicit field lists for location, character, and item variant tables and their DataTable exports.
+
+## Author Review 3: Pre-Implementation Contract Decisions
+
+Source: author feedback on the pre-implementation ambiguity/conflict review, supplied on 2026-07-15.
+
+### Confirmed behavior and scope
+
+1. **One additional workflow will be supplied before canonical schema approval.** Capture design may continue, but the corpus gate remains open for canonical grouping decisions.
+2. **Nested shop handoff is a dialogue-choice action.** A stable choice owns `open_shop` plus `resume_source_dialogue`; it is not modeled as ordinary dialogue completion.
+3. **Defeat does not continue into a normal narrative consequence.** It invokes a retry/load/respawn policy. The exact restore target still needs final selection.
+4. **Committed flows are project-local durable authoring records.** Work in progress may autosave in the browser, but commit stores a flow manifest and step/artifact provenance in project data. The manifest is not a runtime DataTable.
+5. **V1 variants use a base entity plus one active progression variant.** Temporary combinable conditions stay separate. Item variants initially apply to explicitly unique/story-artifact items, not individual copies of ordinary stacked items.
+6. **Quests cannot be declined after discovery or assignment.** They are recorded and may simply remain undone. V1 does not need a separate accepted/declined state.
+7. **Quest rewards support two timings.** Rewards may occur when objectives are met or on turn-in; turn-in is the normal default. Turn-in may be manual confirmation, dialogue with the associated person, or automatic completion.
+8. **Collection objectives may target ordinary items.** Losing, consuming, spending, or selling an unprotected item lowers current-inventory progress and requires reacquisition. A sufficient acquisition source must exist.
+9. **Quest items and explicitly unique artifacts are protected.** They cannot be removed through ordinary player sale, consumption, or disposal, though authored system turn-in may remove them.
+10. **This repository implements authoring and export contracts, not Unreal execution or in-game UI.** It should output honest DataTable-ready structures. Applying shop handoffs, retry/load behavior, quest-journal presentation, variants, and other runtime effects belongs to the consuming game implementation.
+
+### Still open after this review
+
+- The additional exemplary workflow and what it reveals about grouped/parallel consequences.
+- The exact default defeat restore policy and whether authors may override it.
+- Chronology, chapter, and region mappings; the author will review these separately.
+- Exact typed field lists and export layouts for each variant family.
