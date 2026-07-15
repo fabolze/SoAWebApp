@@ -8,6 +8,8 @@ This repository contains a Flask backend and a React frontend for local game-con
 - `soa-editor/README.md`: frontend routes, authoring modes, and frontend validation.
 - `AUTHORING_WORKSPACES_GAME_DESIGN.md`: canonical interactive-authoring vision, current-model implementation guide, and workspace status.
 - `AUTHORING_UX_FRONTEND_PLAN.md`: canonical UX/frontend cleanup plan for authoring layout, navigation, wording, panels, help affordances, and visual standards.
+- `NARRATIVE_CREATION_FLOW_PLAN.md`: draft product and implementation plan for capture-first mixed-content sequences and the contextual “Then…” composer.
+- `NARRATIVE_CREATION_FLOW_WORKFLOWS.md`: original author workflow examples and their provisional semantic, schema, and acceptance-test interpretations.
 - `backend/data/IMPORT_ORDER_GUIDE.txt`: source CSV rebuild, dependency, preflight, and cascade rules.
 
 UE5-specific documentation remains under `UE5_Integration` and is maintained separately from these web-app guides.
