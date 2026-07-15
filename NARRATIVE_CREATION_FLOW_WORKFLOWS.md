@@ -655,6 +655,7 @@ The current model has story arcs, timelines, and adventure beats but no dedicate
 | Create a quest for the dungeon | Quest creation is supported | Origin, giver, acceptance, and mixed-content path gaps from Workflow 1 remain |
 | Make a character companion-capable | Interaction profile and combat-profile companion config support capability | Recruitment/join runtime transition is not fully modeled |
 | Create an ancient relic | Item and lore records support the object and prose | Historical item-state continuity relies on story links and notes |
+| Let an ancient relic awaken, corrupt, or be restored over time | The same item can be referenced repeatedly in story placement | No canonical stable-identity item variant or executable activation contract exists |
 | Connect relic to an old war | Lore timeline and story links can provide context | World-history event granularity and ordering need review |
 | Add repeatable farming | Loot, encounters, shops, and resource POIs provide sources | Repeat/restock/drop behavior varies and must not be inferred uniformly |
 | Support faction alignment | Reputation rewards and minimum-reputation requirements are supported | Exclusive allegiance and faction-story branching need explicit state/flow design |
@@ -753,6 +754,7 @@ Source: answers to the plan's first ten behavioral questions, supplied by the au
 - Encounter rewards do not provide a complete defeat transition contract.
 - Character lifecycle `joins` can record story meaning but does not itself implement party membership.
 - Locations have no canonical intact/damaged variant or override system.
+- Items have no canonical stable-identity variant system for evolving presentation, effects, requirements, or modifiers.
 - Current lore timelines and adventure beats need a unified chronology view with occurrence and discovery semantics.
 
 ### Still open after this review
@@ -761,7 +763,7 @@ Source: answers to the plan's first ten behavioral questions, supplied by the au
 - What exact runtime result follows encounter defeat?
 - When does a discovered/offered quest enter the journal or become active?
 - Are quest-item protections universal defaults or author-overridable?
-- How is an active location variant switched, persisted, restored, and exported?
+- How are active location, character, and item variants switched, persisted, restored, and exported?
 - How should the author link or describe the earlier save/preparation opportunity before a forced encounter?
 
 ## Author Review 2: Nested Interaction, Defeat, Journal, And Variants
@@ -775,6 +777,7 @@ Source: follow-up answers supplied by the author on 2026-07-15.
 3. **All quest items are universally protected.** They cannot be ordinarily consumed or sold. The quest system may remove them when the quest is completed or turned in.
 4. **World changes need executable activation and timeline meaning.** A city becoming damaged is both something that must be triggered in runtime and an important story moment.
 5. **Characters also need state/progression variants.** The same person may have an early, later, stronger, injured, or changed-allegiance presentation without becoming an unrelated duplicate character.
+6. **Legendary and custom items also need state/progression variants.** The same mighty artifact may be dormant, awakened, reforged, corrupted, restored, or otherwise changed over time without becoming an unrelated duplicate item.
 
 ### Refined implementation meaning
 
@@ -794,18 +797,18 @@ The runtime must remember the current dialogue/node context and which effects ha
 
 #### Event and story beat are complementary
 
-- The **event/action** changes the active city or character variant in executable game state.
+- The **event/action** changes the active location, character, or item variant in executable game state.
 - The **story beat** places and explains that change in the unified timeline.
 
 For example, defeating the portal boss may activate the damaged-city variant and also create the timeline moment “Greyhaven After the Portal Assault.”
 
 #### Stable identity with variants
 
-The author's practical instinct is to copy the earlier city/character and edit the copy. The authoring tool can preserve that convenience through **Create variant from current**, while keeping one logical identity underneath.
+The author's practical instinct is to copy the earlier city, character, or item and edit the copy. The authoring tool can preserve that convenience through **Create variant from current**, while keeping one logical identity underneath.
 
-This avoids separate unrelated records such as “Rosner Beginning” and “Rosner End” when both are the same person. A variant may change description, appearance, faction/allegiance, level, combat profile, available dialogue, shops, inhabitants, POIs, or other explicitly supported state-specific fields.
+This avoids separate unrelated records such as “Rosner Beginning” and “Rosner End” when both are the same person, or “Ashblade Dormant” and “Ashblade Awakened” when both are the same artifact. A variant may change description, appearance, faction/allegiance, level, combat profile, available dialogue, shops, inhabitants, POIs, item rarity, effects, requirements, modifiers, icon/presentation, or other explicitly supported state-specific fields.
 
-Separate canonical entities remain appropriate only when they are genuinely distinct beings or places.
+Separate canonical entities remain appropriate only when they are genuinely distinct beings, places, or objects. Independently ownable copies, replicas, coexisting fragments, and successor artifacts remain separate items; ordinary evolution of one unique artifact does not.
 
 ### Defeat and saving remain a design decision
 
@@ -848,5 +851,6 @@ Recommendation: implement track/untrack and hide/archive before true abandonment
 - Decide whether authors may disable automatic checkpoints for forced encounters.
 - Decide whether discovered quests are automatically tracked or only inserted into the journal.
 - Decide whether side quests can be truly abandoned or only hidden/untracked.
-- Define how location and character variants are activated, persisted, restored, and exported.
+- Define how location, character, and item variants are activated, persisted, restored, and exported.
 - Define which fields belong in each typed variant contract rather than one unsafe generic override blob.
+- For item effects and modifiers, define explicit replace/add/remove behavior relative to the base item.

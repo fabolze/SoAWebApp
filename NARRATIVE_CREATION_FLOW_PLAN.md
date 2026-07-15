@@ -74,9 +74,10 @@ The following behavior was confirmed on 2026-07-15. These are product requiremen
 | Companion joins | A dialogue choice commonly causes the character to join the party | Add a dialogue-triggered companion-join runtime action; a story `joins` placement alone is insufficient |
 | Damaged city | A city can have at least intact and damaged presentations with different description, shops/inventory, inhabitants, and POIs | Add location-state variants or an equivalent stable-identity override model; duplicating unrelated city records would break continuity |
 | Character progression/state | A character may need beginning, later, stronger, or changed-allegiance presentations without becoming unrelated duplicate people | Keep one stable character identity and add typed character variants/stages; use separate character records only for genuinely distinct beings |
+| Item progression/state | A legendary, custom, or story-important item may awaken, be reforged, become corrupted, be restored, or otherwise change over time while remaining the same artifact | Keep one stable item identity and add typed item variants/stages for presentation and mechanics; use separate item records only for genuinely distinct objects |
 | Timeline | World history and the playable story belong to one overall timeline; the player occupies one part and can discover earlier history | Provide one unified chronology with history/playable/discovery lenses; runtime execution order remains separate |
 
-These decisions make typed actions, transitions, nested interaction return policies, and entity variants mandatory for the complete release. A pure flag-and-requirement compiler cannot satisfy the confirmed shop, encounter, companion, inventory-objective, or city/character-variant behavior.
+These decisions make typed actions, transitions, nested interaction return policies, and entity variants mandatory for the complete release. A pure flag-and-requirement compiler cannot satisfy the confirmed shop, encounter, companion, inventory-objective, or location/character/item-variant behavior.
 
 ## Why This Work Is Needed
 
@@ -427,6 +428,7 @@ This should follow the embedded prototype, not precede it. The first validation 
 | Persistent fact | Remember that something happened | Existing flag | Supported, but generate only when later logic needs it or one-shot behavior requires it |
 | Location/character/item/faction story state | Mark introduced, injured, damaged, destroyed, obtained, restored, etc. | Lifecycle-aware `adventure_beat_links` | Supported as story meaning; not automatically runtime state |
 | Location variant | Switch one logical place between intact/damaged presentations | No canonical location-variant contract | Confirmed need for stateful description/shop/inhabitant/POI overrides |
+| Item variant | Switch one logical artifact between dormant/awakened/reforged/corrupted/restored or custom stages | No canonical item-variant contract | Confirmed need for stable identity plus typed presentation, effect, requirement, and modifier overrides |
 | Gameplay world state | Change collision, services, population, visuals, routes, etc. | Varies; often flag-gated content, sometimes no field | Resolve per target; never claim generic support |
 | Gameplay damage/effect | Damage party, character, structure, or area | No shared narrative action contract | Preserve as unresolved until a target/effect runtime contract exists |
 | Timeline placement | Put this moment in a timeline/arc | `adventure_beats` and `adventure_beat_links` | Supported and optional |
@@ -787,7 +789,7 @@ Canonical implementation can proceed only after the remaining open behavior is r
 6. **Open:** Must several actions happen in parallel after one outcome, and if so are they ordered or atomic?
 7. **Mostly confirmed:** Quest discovery, NPC offer, and map-marker reveal are distinct meanings. A discovered quest is automatically added to an unlimited, organized journal; story/side abandonment and notification behavior remain open.
 8. **Open:** What is the general runtime target/effect model for damage?
-9. **Partially confirmed:** Cities and characters need stable-identity variants affecting presentation and gameplay configuration. Activation, override scope, persistence, and export remain to be designed.
+9. **Partially confirmed:** Locations, characters, and evolving legendary/custom items need stable-identity variants affecting presentation and gameplay configuration. Activation, override scope, persistence, and export remain to be designed.
 10. **Open:** Must authored flows be shared durable project records, or is compiled canonical output sufficient?
 
 ## Flag And Requirement Generation Policy
@@ -922,6 +924,30 @@ activation condition or explicit state transition
 
 The character's story placements record introductions and changes; an executable action activates the appropriate runtime variant. Separate character records are reserved for genuinely distinct entities such as a clone, disguise that must be independently addressable, summoned copy, or separate historical person—not ordinary progression of the same individual.
 
+### Stateful item variants
+
+Legendary, custom, and other story-important items should normally retain one stable identity when they awaken, are reforged, become corrupted, are purified or restored, change ownership-relevant presentation, or gain new capabilities over time. Quests, lore, acquisition history, inventory identity, and story occurrences should continue to refer to the same artifact.
+
+A provisional item-variant contract may override:
+
+```text
+item_id
+variant_id
+state_key             dormant | awakened | reforged | corrupted | restored | custom
+name/title/description/icon/presentation overrides
+rarity override
+effects override or additions/removals
+stat-modifier and attribute-modifier overrides
+requirements override
+equipment, weapon, damage-type, range, and other explicitly supported mechanic overrides
+value/currency override where the item's economy is intentionally state-dependent
+activation condition or explicit state transition
+```
+
+The variant contract must define whether collection fields replace, add to, or remove from the base item; it must not rely on an ambiguous generic merge blob. **Create variant from current** should copy the active presentation and mechanics into an editable draft while preserving the underlying item identity.
+
+An item's story placements record discoveries and transformations; an executable action activates the appropriate item variant in persistent game state. Separate item records remain appropriate for genuinely distinct objects, independently ownable copies, fragments that coexist with the original, replicas, or successor artifacts—not ordinary evolution of the same unique artifact.
+
 ## Validation And Health
 
 ### Draft-level issues
@@ -943,6 +969,7 @@ The character's story placements record introductions and changes; an executable
 - Immediate shop/encounter/companion action without a valid typed target.
 - Inventory-count objective targeting a non-item or an item without approved quest-item behavior.
 - Location variant transition without one stable logical location and valid variant.
+- Item variant transition without one stable logical item, valid variant, and deterministic collection-override policy.
 - Reward attached to a source that cannot grant it.
 - Required flag without a producer.
 - Requirement both requiring and forbidding the same state.
@@ -1077,7 +1104,7 @@ Likely deliverables, subject to Phase 0:
 - Quest discovery, NPC-offer, and map-marker actions plus automatic organized journal insertion; tracking/abandonment follows the remaining decision.
 - Typed inventory-count objectives and explicit non-consumable/non-sellable quest-item behavior.
 - Dialogue-triggered companion-join action and persistent party membership state.
-- Stateful location variants for the approved intact/damaged override set and typed character variants for progression/allegiance/presentation stages.
+- Stateful location variants for the approved intact/damaged override set, typed character variants for progression/allegiance/presentation stages, and typed item variants for evolving legendary/custom artifacts.
 - Save snapshot, combat checkpoint, respawn anchor, and defeat-policy contracts after the recommended default is approved.
 - Repeat/one-shot fields only if no existing runtime owner exists.
 - Schema migrations, JSON schemas, CSV/source recovery, and UE export preservation.
@@ -1153,6 +1180,7 @@ Any model assistance remains local draft generation. It may not silently choose 
 - Retreat returns to the stored origin without starting the encounter.
 - Quest inventory-count progress responds to current inventory quantity.
 - Location variant review distinguishes logical place identity from active presentation.
+- Item variant review distinguishes logical artifact identity from its active presentation and mechanics.
 
 ### Frontend interaction tests
 
@@ -1179,6 +1207,7 @@ Any model assistance remains local draft generation. It may not silently choose 
 - Quest-item protections and typed inventory objectives validate consistently.
 - Companion join actions reference a companion-capable character and valid source choice.
 - Location variants cannot cross logical-location ownership.
+- Item variants cannot cross logical-item ownership and must declare replace/add/remove semantics for collection overrides.
 - Deleting a source does not leave invalid generated references.
 
 ### Golden workflow tests
@@ -1310,7 +1339,8 @@ These questions should remain open until the examples make them concrete:
 - Does automatically entering the journal also make a quest active/tracked, or are **in journal**, **active**, and **tracked** separate states?
 - Can one quest use several surfacing modes simultaneously, such as rumor discovery plus NPC offer plus map marker?
 - Are all `Quest` items non-consumable/non-sellable by rule, or can authors override those protections?
-- When and how is the active intact/damaged location variant switched, saved, and restored?
+- When and how are active location, character, and item variants switched, saved, restored, and exported?
+- For item variants, which fields may change, and should effects/modifiers be replaced, added, or removed relative to the base item?
 - Is reward timing usually before content, after completion, or chosen per branch?
 - How should an unfinished placeholder behave when the rest of a chain is ready?
 - Is browser-local capture sufficient for the first pilot, or must unfinished flows be visible to collaborators?
