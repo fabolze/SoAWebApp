@@ -763,3 +763,90 @@ Source: answers to the plan's first ten behavioral questions, supplied by the au
 - Are quest-item protections universal defaults or author-overridable?
 - How is an active location variant switched, persisted, restored, and exported?
 - How should the author link or describe the earlier save/preparation opportunity before a forced encounter?
+
+## Author Review 2: Nested Interaction, Defeat, Journal, And Variants
+
+Source: follow-up answers supplied by the author on 2026-07-15.
+
+### Confirmed behavior
+
+1. **The shop is nested inside the dialogue interaction.** Selecting trade temporarily replaces/hides the dialogue with the shop. Closing the shop returns to the same dialogue so the player can ask more questions, accept a quest, or trade again. The interaction does not end.
+2. **Discovered quests enter the journal automatically.** The player receives information about what needs to be done. The log is not capacity-limited and should be organized by useful context such as region, city, and associated person.
+3. **All quest items are universally protected.** They cannot be ordinarily consumed or sold. The quest system may remove them when the quest is completed or turned in.
+4. **World changes need executable activation and timeline meaning.** A city becoming damaged is both something that must be triggered in runtime and an important story moment.
+5. **Characters also need state/progression variants.** The same person may have an early, later, stronger, injured, or changed-allegiance presentation without becoming an unrelated duplicate character.
+
+### Refined implementation meaning
+
+#### Nested shop interaction
+
+The shop action needs a continuation frame rather than a one-way event transition:
+
+```text
+Dialogue session at trade choice
+  → suspend dialogue session
+  → open shop
+  → close shop
+  → resume the same dialogue session
+```
+
+The runtime must remember the current dialogue/node context and which effects have already been applied. Returning from the shop must not grant rewards, set flags, or replay dialogue-entry consequences a second time.
+
+#### Event and story beat are complementary
+
+- The **event/action** changes the active city or character variant in executable game state.
+- The **story beat** places and explains that change in the unified timeline.
+
+For example, defeating the portal boss may activate the damaged-city variant and also create the timeline moment “Greyhaven After the Portal Assault.”
+
+#### Stable identity with variants
+
+The author's practical instinct is to copy the earlier city/character and edit the copy. The authoring tool can preserve that convenience through **Create variant from current**, while keeping one logical identity underneath.
+
+This avoids separate unrelated records such as “Rosner Beginning” and “Rosner End” when both are the same person. A variant may change description, appearance, faction/allegiance, level, combat profile, available dialogue, shops, inhabitants, POIs, or other explicitly supported state-specific fields.
+
+Separate canonical entities remain appropriate only when they are genuinely distinct beings or places.
+
+### Defeat and saving remain a design decision
+
+The current direction is that defeat returns the player to a respawn/save reference rather than continuing from the defeated encounter. The exact rollback policy is not yet confirmed:
+
+- Restore the exact last manual save.
+- Retry from an automatic pre-fight checkpoint.
+- Respawn at an anchor while keeping selected progress.
+- Restart a dungeon or challenge run.
+
+The existing location model already supports `has_respawn_point`, but this is only a world-location marker. It does not define what state is saved, restored, or retained.
+
+### Recommended default for this game
+
+Because the game is intended to be story-heavy and dialogue-heavy, the recommended default is:
+
+- Manual saving in safe non-combat states.
+- Automatic checkpoint immediately before forced/boss encounters.
+- **Retry encounter** from that checkpoint after defeat.
+- **Load another save** as a secondary option.
+- Whole-dungeon repetition only for content deliberately authored as a challenge run.
+
+This avoids losing substantial dialogue, exploration, and worldbuilding progress while retaining meaningful respawn points and optional harsher encounter policies.
+
+### Quest-journal recommendation
+
+The confirmed requirements are automatic insertion and an unlimited organized log. A low-friction default would further distinguish:
+
+- **In journal:** the quest has been discovered or accepted and remains recorded.
+- **Tracked:** objectives/markers receive current HUD/map emphasis.
+- **Hidden/archived:** the player does not want to see it prominently right now.
+- **Abandoned:** optional later behavior requiring reacquisition/reset rules.
+
+Recommendation: implement track/untrack and hide/archive before true abandonment. Story quests should not be abandonable by default; side-quest abandonment can remain a later policy decision.
+
+### Still open after this review
+
+- Approve or change the recommended automatic pre-fight checkpoint and retry default.
+- Define which state a respawn-with-persistence policy retains.
+- Decide whether authors may disable automatic checkpoints for forced encounters.
+- Decide whether discovered quests are automatically tracked or only inserted into the journal.
+- Decide whether side quests can be truly abandoned or only hidden/untracked.
+- Define how location and character variants are activated, persisted, restored, and exported.
+- Define which fields belong in each typed variant contract rather than one unsafe generic override blob.

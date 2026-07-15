@@ -61,20 +61,22 @@ The following behavior was confirmed on 2026-07-15. These are product requiremen
 
 | Topic | Confirmed author expectation | Implementation consequence |
 |---|---|---|
-| Dialogue choice: open shop | Selecting a trade option closes the dialogue and immediately opens the selected shop UI | Add an executable shop action/event; an unlock flag alone is incorrect |
+| Dialogue choice: open shop | Selecting a trade option suspends the dialogue, immediately opens the selected shop UI, and resumes the same dialogue interaction when the shop closes | Add a nested shop action with `resume_source_dialogue` return behavior; an unlock flag or one-way transition is incorrect |
 | Dialogue choice: start encounter | Selecting the encounter option closes the dialogue and starts the encounter immediately | Choice-specific executable transitions and stable choice identity are required |
 | Retreat before encounter | Where retreat makes narrative sense, the dialogue offers **Retreat for now** or **Look for an exit** | Retreat is a dialogue branch that ends the interaction and returns to its origin; it is not an encounter outcome |
 | Forced encounter | A forced boss encounter may omit retreat when retreat would be implausible, but the player should have had prior warning and an earlier opportunity to save/prepare | Authoring health should distinguish intentional lock-in from an accidentally inescapable transition |
 | Encounter outcomes in V1 | Only victory and defeat are required | Limit the first transition contract to these two outcomes; negotiation/interruption/flee outcomes are later scope |
 | Return after retreat | End the dialogue and return to the originating map, POI, character, item, or other interaction view; the player may interact again later | Runtime flow must preserve an origin/return context and keep the interaction repeatable unless separately completed |
 | Quest surfacing | A quest may be discovered from prior knowledge, offered by an NPC, and/or accompanied by a visible map marker | Model these as distinct author actions; do not collapse “quest appears” into one flag |
+| Quest journal | A discovered quest is automatically added with actionable information; the log is not capacity-limited and must be sortable by region, city, and associated person | Add explicit journal state and organization metadata; abandonment policy remains partly open |
 | Collection progress | “Collect five wood” means five required items are currently in inventory | Typed inventory-count objectives and live inventory evaluation are required |
-| Important quest items | Quest items are normally non-consumable and non-sellable, so current possession is meaningful | `ItemType.Quest` exists, but runtime/schema rules for consumption and sale protection must be explicit |
+| Important quest items | All quest items are protected from ordinary consumption and sale; they may be removed by quest completion/turn-in | Enforce protection for `ItemType.Quest` and model system-controlled removal separately from player consumption |
 | Companion joins | A dialogue choice commonly causes the character to join the party | Add a dialogue-triggered companion-join runtime action; a story `joins` placement alone is insufficient |
 | Damaged city | A city can have at least intact and damaged presentations with different description, shops/inventory, inhabitants, and POIs | Add location-state variants or an equivalent stable-identity override model; duplicating unrelated city records would break continuity |
+| Character progression/state | A character may need beginning, later, stronger, or changed-allegiance presentations without becoming unrelated duplicate people | Keep one stable character identity and add typed character variants/stages; use separate character records only for genuinely distinct beings |
 | Timeline | World history and the playable story belong to one overall timeline; the player occupies one part and can discover earlier history | Provide one unified chronology with history/playable/discovery lenses; runtime execution order remains separate |
 
-These decisions make a typed transition/action contract mandatory for the complete release. A pure flag-and-requirement compiler cannot satisfy the confirmed shop, encounter, companion, inventory-objective, or city-variant behavior.
+These decisions make typed actions, transitions, nested interaction return policies, and entity variants mandatory for the complete release. A pure flag-and-requirement compiler cannot satisfy the confirmed shop, encounter, companion, inventory-objective, or city/character-variant behavior.
 
 ## Why This Work Is Needed
 
@@ -436,12 +438,12 @@ This should follow the embedded prototype, not precede it. The first validation 
 |---|---|---|
 | Then | Continue after successful completion | `events.next_event_id` supports one linear follow-up |
 | When player chooses X | Branch from a specific dialogue choice | Not canonically represented as an event transition |
-| Open shop | Close the dialogue and immediately display the shop | Confirmed behavior; typed shop action/event is absent |
+| Open shop | Suspend the dialogue and immediately display the shop | Confirmed behavior; nested shop action/return contract is absent |
 | Start encounter | Close the dialogue and immediately enter the encounter | Confirmed behavior; choice-specific transition contract is absent |
 | Retreat for now | End dialogue, return to the originating interaction view, and allow later re-entry | Confirmed behavior; origin/return context needs a runtime contract |
 | On victory | Continue after encounter victory | Confirmed V1 outcome; typed transition is absent |
 | On defeat | Continue after encounter defeat | Confirmed V1 outcome; exact defeat aftermath remains open |
-| When shop closes | Continue after interaction completion | Depends on future shop event/runtime contract |
+| When shop closes | Close the shop and resume the exact suspended dialogue interaction | Confirmed behavior; nested interaction stack/session contract is absent |
 | If state is true | Conditional transition | Requirements can gate content, but transition-specific conditions need a contract |
 | Otherwise | Fallback branch | Not represented |
 | Stop here | Intentional end | Event chain may end without `next_event_id`; author-facing terminal meaning should be explicit |
@@ -465,9 +467,12 @@ This is runtime order. It should not require a shop-unlock flag unless the shop 
 Confirmed interaction behavior:
 
 1. The player selects the trade dialogue choice.
-2. The dialogue closes.
+2. The dialogue UI closes or hides, but the interaction session is suspended rather than completed.
 3. The referenced shop opens immediately.
-4. What happens when the shop closes remains a runtime return-context decision.
+4. Closing the shop resumes the same dialogue session so the player can trade again, ask another question, or accept a quest.
+5. Previously applied line/choice effects are not applied a second time merely because the dialogue resumes.
+
+The runtime therefore needs an interaction stack or equivalent continuation frame containing the source dialogue, current node/choice context, return policy, and already-applied effect identity. Shop contents and prices may be re-evaluated from current state when the window opens again.
 
 ### Start encounter now
 
@@ -480,6 +485,37 @@ Dialogue choice
 ```
 
 Where the player may decline, **Retreat for now** is a separate dialogue choice that closes the dialogue and returns to the originating view. It does not start and then flee the encounter. A deliberately forced encounter may omit retreat when the fiction supports that lock-in, but should be foreshadowed with an earlier preparation/save opportunity.
+
+### Recommended save, checkpoint, and defeat policy
+
+This recommendation is provisional because the author is still deciding the desired penalty for defeat.
+
+For a story-heavy, dialogue-heavy game, the safest default is:
+
+- Allow manual saves in safe non-combat states, subject to normal technical restrictions.
+- Create an automatic combat checkpoint immediately before a forced or boss encounter.
+- On defeat, offer **Retry encounter** from that checkpoint as the primary action.
+- Also allow **Load another save**.
+- Use the last activated respawn point for world position when the design intentionally chooses respawn-with-persistence rather than snapshot rollback.
+- Do not require replaying an entire dungeon by default; make long-run reset behavior an explicit dungeon/challenge policy.
+
+The model must distinguish three concepts that are currently easy to conflate:
+
+| Concept | Meaning |
+|---|---|
+| Save snapshot | Restores player/world/quest/inventory state to a recorded moment |
+| Combat checkpoint | A short-lived retry snapshot immediately before an encounter |
+| Respawn point | A world location where the player is placed after defeat under a respawn policy |
+
+The current location model already has `has_respawn_point`, but the repository does not yet define a complete save snapshot, combat checkpoint, or defeat policy contract. Creation Flow should capture a forced encounter's **preparation policy** rather than merely warn through prose:
+
+```text
+retreat_policy       allowed_before | forced
+checkpoint_policy    automatic_before | linked_respawn | none_explicit
+defeat_policy        retry_checkpoint | respawn_keep_progress | load_last_save | custom
+```
+
+Recommended V1 default: `automatic_before + retry_checkpoint`. This minimizes repeated traversal while retaining authored respawn points for travel, recovery, or deliberately harsher content.
 
 ### Make shop available later
 
@@ -746,12 +782,12 @@ Canonical implementation can proceed only after the remaining open behavior is r
 1. **Open:** Does the runtime currently execute `next_event_id`, and what exactly counts as event completion?
 2. **Confirmed:** Dialogue choices directly select immediate shop, encounter, and companion-join actions; immutable choice identity is required.
 3. **Confirmed:** Encounter outcomes in the first useful release are victory and defeat only.
-4. **Open:** After an immediately opened shop closes, does the flow return to the originating interaction, continue to another step, or end?
-5. **Partially confirmed:** A pre-encounter retreat ends dialogue and restores the origin view for later re-entry. General pause/save/resume/abandon semantics remain open.
+4. **Confirmed:** An immediately opened shop is a nested interaction; closing it resumes the exact source dialogue session.
+5. **Partially confirmed:** A pre-encounter retreat ends dialogue and restores the origin view for later re-entry. Locations already identify respawn points, but save snapshot, combat checkpoint, and defeat rollback policies remain open; `automatic_before + retry_checkpoint` is the recommended default.
 6. **Open:** Must several actions happen in parallel after one outcome, and if so are they ordered or atomic?
-7. **Partially confirmed:** Quest discovery, NPC offer, and map-marker reveal are distinct supported meanings. Journal activation, notification, and automatic acceptance remain open.
+7. **Mostly confirmed:** Quest discovery, NPC offer, and map-marker reveal are distinct meanings. A discovered quest is automatically added to an unlimited, organized journal; story/side abandonment and notification behavior remain open.
 8. **Open:** What is the general runtime target/effect model for damage?
-9. **Partially confirmed:** A city needs intact/damaged variants affecting description, shops, inhabitants, and POIs. Variant identity, switching, overrides, and save state remain to be designed.
+9. **Partially confirmed:** Cities and characters need stable-identity variants affecting presentation and gameplay configuration. Activation, override scope, persistence, and export remain to be designed.
 10. **Open:** Must authored flows be shared durable project records, or is compiled canonical output sufficient?
 
 ## Flag And Requirement Generation Policy
@@ -849,6 +885,42 @@ activation condition or explicit state transition
 ```
 
 This is preferable to copy-pasting the city as an unrelated location because quests, lore, routes, timeline occurrences, and map identity should continue to refer to the same place. The exact override model is still gated on runtime and workflow review.
+
+### Event versus story beat
+
+For state changes such as a city becoming damaged:
+
+- An **event/action** is executable. It causes the active location variant to change in runtime and save data.
+- A **story beat** is narrative chronology. It records when and why the city changed and what that moment means.
+
+One author gesture may deliberately create both:
+
+```text
+Encounter victory
+  → executable action: activate Greyhaven / damaged
+  → story placement: Greyhaven changed — “After the Portal Assault”
+```
+
+The action implements the change. The beat documents it in the unified timeline. Neither replaces the other.
+
+### Stateful character variants
+
+Characters should normally retain one stable identity across growth, injury, changed allegiance, transformed appearance, or stronger combat stages.
+
+A provisional character-variant contract may override:
+
+```text
+character_id
+variant_id
+state_key             early | later | injured | allied | hostile | transformed | custom
+name/title/description/presentation overrides
+level/class/combat-profile overrides
+faction and interaction-role overrides
+available dialogue/quest/encounter references
+activation condition or explicit state transition
+```
+
+The character's story placements record introductions and changes; an executable action activates the appropriate runtime variant. Separate character records are reserved for genuinely distinct entities such as a clone, disguise that must be independently addressable, summoned copy, or separate historical person—not ordinary progression of the same individual.
 
 ## Validation And Health
 
@@ -999,12 +1071,14 @@ This phase may ship behind a feature flag even if Shop Now remains unresolved. T
 Likely deliverables, subject to Phase 0:
 
 - Shop event payload and runtime/export handling.
+- Nested interaction frames so shop close resumes the source dialogue without replaying applied effects.
 - Stable dialogue choice identity if choice-specific transitions are required.
 - Typed dialogue-choice, victory, defeat, completion, and return-context transitions.
-- Quest discovery, NPC-offer, and map-marker actions; journal activation follows the remaining decision.
+- Quest discovery, NPC-offer, and map-marker actions plus automatic organized journal insertion; tracking/abandonment follows the remaining decision.
 - Typed inventory-count objectives and explicit non-consumable/non-sellable quest-item behavior.
 - Dialogue-triggered companion-join action and persistent party membership state.
-- Stateful location variants for the approved intact/damaged override set.
+- Stateful location variants for the approved intact/damaged override set and typed character variants for progression/allegiance/presentation stages.
+- Save snapshot, combat checkpoint, respawn anchor, and defeat-policy contracts after the recommended default is approved.
 - Repeat/one-shot fields only if no existing runtime owner exists.
 - Schema migrations, JSON schemas, CSV/source recovery, and UE export preservation.
 
@@ -1228,11 +1302,12 @@ These questions should remain open until the examples make them concrete:
 - Is the most common author gesture attached to a dialogue choice, a dialogue ending, an encounter result, or a free-standing story moment?
 - How often does **Then** mean immediate execution versus later availability?
 - Must multiple consequences occur in parallel after one outcome?
-- After an immediately opened shop closes, should the player return to the originating interaction, continue the flow, or return to the world view?
-- What exactly happens after encounter defeat: reload, respawn, return, alternate scene, or configurable outcome?
+- Should the recommended pre-fight checkpoint/retry behavior be the universal default, with respawn/whole-dungeon reset reserved for explicitly authored challenge content?
+- What exactly is retained under a respawn policy: inventory, quest progress, world state, encounter state, currency, and temporary effects?
 - Which steps must be one-shot, repeatable, cancellable, or resumable?
-- For a forced encounter, is authored foreshadowing/preparation metadata sufficient, or must a real save/checkpoint interaction be linked?
-- When a quest is discovered or offered, when does it enter the journal and become active?
+- May authors disable the automatic pre-fight checkpoint, and what warning/confirmation should that require?
+- Are story quests non-abandonable while side quests are abandonable, or should all quests remain in an unlimited log with track/hide controls instead?
+- Does automatically entering the journal also make a quest active/tracked, or are **in journal**, **active**, and **tracked** separate states?
 - Can one quest use several surfacing modes simultaneously, such as rumor discovery plus NPC offer plus map marker?
 - Are all `Quest` items non-consumable/non-sellable by rule, or can authors override those protections?
 - When and how is the active intact/damaged location variant switched, saved, and restored?
