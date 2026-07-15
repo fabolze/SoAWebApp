@@ -1,6 +1,6 @@
 # Narrative Creation Flow Workflow Corpus
 
-Status: two exemplary workflows and three author reviews captured; one additional workflow is expected before canonical schema approval
+Status: V1 corpus gate satisfied with three exemplary workflows and six author reviews; remaining work is technical web-schema/DataTable transcription plus explicitly deferred runtime concerns
 
 This document preserves exemplary workflows in the author's own language and derives product, compiler, schema, and acceptance-test implications from them. The original narrative is the source of truth. The structured interpretation exists to make the workflow testable; it must not overwrite the creative intent.
 
@@ -224,7 +224,7 @@ consume_on_turn_in  true/false
 completion_policy   inventory | cumulative_acquired | explicit_event
 ```
 
-Ordinary items and protected items use the same current-inventory count rule. Ordinary items may be spent, sold, consumed, or lost, causing progress to fall until they are obtained again. Quest items and explicitly unique artifacts are protected from ordinary disposal. Every required item needs a sufficient reachable acquisition source. The exact schema remains provisional until the additional workflow is reviewed.
+Ordinary items and protected items use the same current-inventory count rule. Ordinary items may be spent, sold, consumed, or lost, causing progress to fall until they are obtained again. Quest items and explicitly unique artifacts are protected from ordinary disposal. Every required item needs a sufficient reachable acquisition source. Workflow 3 and Author Review 4 confirm this V1 direction; the plan owns the exact schema/export transcription.
 
 ### Item possession as a trigger needs honest semantics
 
@@ -326,14 +326,14 @@ The author can add encounter roles, group shape, behavior hook, quest relationsh
 
 The author can require a current quantity of an ordinary item without making it a Quest item. Preview warns or blocks when no sufficient acquisition source exists, explains that spending or losing ordinary copies reduces progress, and separately preserves universal protection for Quest items and explicitly unique artifacts.
 
-## Open Review Notes
+## Review Findings After Workflow 1
 
 - This workflow strongly supports making the World Builder an origin surface for Creation Flow, not only embedding **Then…** in Dialogue Flow.
 - It introduces **context inheritance** and **protected return** as first-class requirements.
 - It demonstrates that placeholders are needed for characters, encounters, creatures, locations/POIs, items, dialogue, and follow-up events—not only one entity type.
 - It suggests that the plan's likely event extension is not sufficient by itself. Quest assignment, typed objectives, current item possession, and durable branch outcomes require separate schema/export decisions.
-- It provides a good test for whether a first-class playable sequence eventually becomes necessary, but does not decide that question alone.
-- The next reference workflow should be compared against this one before approving typed quest-objective or sequence schema changes.
+- At this point it provided a test for whether a first-class playable sequence would become necessary. The completed corpus later selected Option B without a universal runtime sequence model.
+- The later reference workflows and author reviews completed the required comparison before typed quest-objective and transition schema implementation.
 
 ## Workflow 2: Giving An Underdeveloped Place A Story
 
@@ -523,6 +523,8 @@ The lore editor should allow selected text or an inline mention to become a loca
 This can be a deterministic selection action. It does not require automatic entity extraction or AI. Suggestions may be added later, but the author confirms every new reference.
 
 The original lore text remains readable prose. References are stored separately; markup must not corrupt the text or rely on names as immutable identity.
+
+Authors may also create the same reference candidates as free-standing idea cards before exact prose exists. Selecting a prose span creates or links such a card; it does not create a second placeholder. Cards and text mentions are therefore two authoring views over one local idea identity, allowing brainstorming to move directly toward later resolution and implementation without manual transcription.
 
 ### One timeline needs distinct history, discovery, and playable lenses
 
@@ -718,17 +720,17 @@ The author can create an awakened, reforged, corrupted, restored, or custom prog
 - World history and the playable era share one overall chronology but need different occurrence/discovery/play lenses; repeatable gameplay loops remain outside forced chronological order.
 - The current event extension remains relevant for runtime sequences, but it cannot serve as the sole intermediate representation for lore-first creation.
 - The capture contract should therefore support `sequence`, `constellation`, and `hybrid` draft shapes while keeping canonical compilation scoped and explicit.
-- No canonical sequence, chapter, typed objective, item-possession, recruitment, or historical-event schema should be approved until further workflows are compared.
+- At this two-workflow stage, canonical sequence, chapter, typed objective, item-possession, recruitment, and historical-event changes remained gated. Workflow 3 and Author Review 4 later close or narrow those V1 gates.
 
-## Open Review Notes
+## Review Notes From Workflow 2 — Current Status
 
 - Use **Expand this place** as the V1 entry label and **Story Seed** as the local draft concept; wording may still be refined after author testing without changing the data contract.
-- Test whether authors prefer writing lore in one large text surface with mention promotion or using small linked idea cards beside the text.
-- Clarify what counts as a region in current authoring: a location hierarchy scope, an explicit region field, a saved selection, or a future canonical region concept.
+- Selected-text promotion and linked idea cards are both required and share one placeholder/reference identity, confirmed in Author Review 6.
+- Region means a canonical `LocationType.Region` hierarchy node below a Continent, resolved in Author Review 4.
 - Determine whether historical characters need a canonical life-status field or whether lifecycle occurrences plus a derived “latest known state” are sufficient.
-- Determine how current lore timelines and adventure beats can appear in one chronology while preserving historical occurrence versus player discovery.
-- Audit companion recruitment/runtime party state before compiling `joins` into anything beyond story placement.
-- Compare the next workflows before changing the provisional Creation Flow draft contract.
+- Ordered era Timelines preserve historical occurrence separately from playable-present discovery, confirmed in Author Review 5.
+- Companion recruitment has a confirmed typed web/export action; actual runtime party-state execution remains an external integration audit.
+- Compare the next workflow before changing the provisional Creation Flow draft contract. **Completed by Workflow 3 and Author Review 4.**
 
 ## Author Review 1: Runtime And State Decisions
 
@@ -850,7 +852,7 @@ This avoids losing substantial dialogue, exploration, and worldbuilding progress
 
 The confirmed authoring requirement is that a discovered or assigned quest is recorded automatically and cannot be declined; the player may leave it undone. The web app must export assignment, objective completion, turn-in, and reward timing. Tracking, hiding, notifications, journal capacity/presentation, and abandonment UI are in-game concerns and are not implemented as part of this web workflow unless a later data requirement makes them relevant.
 
-### Still open after this review
+### Questions remaining after Review 3, resolved or narrowed by Review 4
 
 - Approve or change the recommended automatic pre-fight checkpoint and retry default.
 - Define which state a respawn-with-persistence policy retains.
@@ -876,7 +878,260 @@ Source: author feedback on the pre-implementation ambiguity/conflict review, sup
 
 ### Still open after this review
 
-- The additional exemplary workflow and what it reveals about grouped/parallel consequences.
-- The exact default defeat restore policy and whether authors may override it.
-- Chronology, chapter, and region mappings; the author will review these separately.
-- Exact typed field lists and export layouts for each variant family.
+- Additional workflow: supplied as Workflow 3; consequences are ordered and atomically committed by default.
+- Defeat default: automatic pre-fight save and retry; author may override with a respawn point.
+- Chapter: existing Story Arc. Region: hierarchy node below Continent. Timelines: ordered era records.
+- Variant families: semantic field scopes confirmed in Review 4; exact database/table serialization remains implementation work.
+
+## Author Review 4: Defeat, World Structure, Variants, And Commit Boundaries
+
+Source: author feedback supplied together with Workflow 3 on 2026-07-15.
+
+### Confirmed behavior and scope
+
+1. **Pre-fight save is the default defeat policy.** The game saves immediately before the fight. Defeat returns the player directly before the encounter, where a short lead-in dialogue can be invoked again or the encounter can be restarted from its interaction/button.
+2. **Authors may override defeat with a respawn point.** Each encounter may choose pre-fight retry or a linked respawn point. State retained by respawn is deferred to the consuming runtime and is not required for the initial web contract.
+3. **Story Arcs are Chapters.** V1 does not add a separate Chapter entity.
+4. **Regions are hierarchy nodes below Continents.** A Region groups several settlements, forests, dungeons, and other places. Countries are not required for the current world structure.
+5. **Timeline records represent eras.** Several ordered timelines may exist; the last or explicitly current era contains the main character's playable present.
+6. **Location variants preserve place identity and position.** The stable location name, hierarchy identity, Region/Continent membership, and coordinates remain on the base place. Description, size/presentation scale, inhabitants, quests, availability/visitability, respawn behavior, services, POIs, encounters, and related content may vary.
+7. **Character variants may change almost all presentation and gameplay configuration.** Displayed name, class, abilities, stats, attributes, inventory/equipment, profiles, faction/allegiance, dialogue, quests, and encounters may vary while `character_id` preserves identity.
+8. **Item variants may change displayed name, appearance/icon, description, stats, attributes, effects, rarity, requirements, and other supported mechanics.** `item_id` preserves the artifact's identity.
+9. **Returning to base is an explicit state selection.** An exported `activate_base` action clears the active variant; `activate_variant` selects a named state. The web app defines the choice and the consuming runtime applies it.
+10. **Every unresolved placeholder blocks canonical commit.** Draft saving remains allowed. Commit never drops the placeholder; the author must link an existing record or promote it to a canonical record first.
+
+### Clarification: occurrence versus later discovery
+
+Different Timeline records can represent different eras while still forming one ordered chronology. The distinction is about two separate facts, not a special UI:
+
+```text
+Earlier era occurrence:
+  The Ashblade is forged and used during the War of Glass.
+
+Playable-present discovery:
+  The main character finds evidence and learns who forged the Ashblade.
+```
+
+Both facts reference the same artifact/lore identity. The first says when something happened in the world; the second says when it becomes known or playable. Neither automatically creates runtime transition order.
+
+### Remaining external or review questions
+
+- The occurrence/discovery example was confirmed in Author Review 5.
+- Respawn state retention remains intentionally deferred to the consuming runtime, as confirmed again in Author Review 5.
+
+## Workflow 3: Resume Existing City Work And Grow A Bounded Faction Plot
+
+Source: German dictated workflow supplied by the author on 2026-07-15.
+
+### Original Author Narrative
+
+> So, kurzem aktuellen Stand, dieses Update, deine Fragen. Was... Ich fange mal mit Zweitens an, mit der Niederlagen-Policy. Genau, also es geht in der Handlung nicht weiter und man wird dann zurück zu einem, ja, ich glaube, before dem Kampf-Speicher macht schon Sinn. Und man kann dann noch mal auf diese, also wenn es kurzen Dialog kommt, kann man noch mal auf diesen Dialog aufklicken, bisschen noch mal starten. Wenn das in der View ist, einfach ein Button, den man klickt für Aufrufen Boss-Kampf. Dann, ja, geht's halt direkt los. Also man ist sozusagen direkt davor. Und mit dem Respawn, das muss ich noch überlegen. Ich würde erst mal sagen, wir machen das mit Speicherpunkten, dass man, dass das Spiel speichert. Genau. Von daher würde ich mir Respawn jetzt keine Gedanken machen, was erhalten bleibt oder nicht. Genau. Das heißt, du kannst mal einfügen, dass ein Autor überschreiben kann, ob es ein Respawn sein soll, also Respawnpunkt, oder ein Pre-fight Save. Genau, aber das erstmal so. Dann zum dritten Punkt, Chronologie, Kapitel und so. Aber ich habe gerade noch mal nachgeguckt. Und genau, also ich habe für mich sind Story-Arcs aktuell einfach die Kapitel, die Chapter in dem Spiel. Das heißt, genau. Es ist wirklich einfach ein Story-Arc. Eine Region ist für mich einfach nur eine Zusammenfassung mehrerer Gebiete. Also, es ist weniger als ein Kontinent, vielleicht auch weniger als ein Land in einem Kontinent. Aber ja, ich glaube, für mich, es gibt keine Länder so im Mittelalter, sondern es gibt nur Regionen. Es gibt dann den Kontinent irgendwie und dann gibt es halt in diesem Kontinent verschiedene Regionen. In einer Region können dann mehrere Dörfer oder Städte oder Wälder, was auch immer liegen. Den Punkt mit, wie unterscheiden wir historische Ereignisse, spätere Entdeckung und spielbare Gegenwart? Verstehe ich jetzt nicht ganz. Worauf willst du damit hinaus? Und beim vierten Punkt, was meinst du mit, warum willst du eine Gesamtchronologie einordnen? Also, was ich jetzt gemacht hätte, war, verschiedene Timelines zu erstellen, wobei das wahrscheinlich auch nicht ganz, naja, so... Ja, ja, zumindest das Gefühl verschiedene, ich kann mal gucken. Genau, verschiedene Timelines, die verschiedene Era abbilden. Und ja, ich glaube, das ist so. Und die letzte Timeline zum Beispiel ist einfach jetzt die, wo der Hauptcharakter ist. Bei den Varianten, da bin ich mir unsicher, was du da genau, also, welche Location-Felder dürfen variieren? Okay, ich probiere es mal mit meinen eigenen Worten zu sagen und alles, was quasi noch fehlt, was irgendwie Sinn macht, kannst du ergänzen. Also der Name bleibt natürlich. Wenn es nicht gerade teleportiert wird, die Gegend, dann dürfte eigentlich der Ort auch bleiben. Also die Location selbst. Dann können natürlich die Leute da drin, die Quests da drin, Größe, Beschreibung, Spawnpunkt, besuchbar, nicht besuchbar. Ja, irgendwie solche Sachen können dann irgendwie variieren. Bei Characters ist es dann Name, würde ich sagen, wenn er sich verändert. Dann Klasse, Fähigkeiten, Stats, Attribute, Inventar. Gefühlt kann sich da fast alles ändern. Ich wüsste gerade nicht, ja, weiß ich nicht recht viel. Bei Items würde ich sagen auch Name, Aussehen auf jeden Fall, also das Icon. Beschreibung, Stats, Attribute, die Effekte, alles sowas, wenn es mächtiger wird, zum Beispiel. Und was meinst du mit, wie wird die Rückkehr zur Basisform exportiert? Das muss dann irgendwie verschiedene States geben und dann kann man im Spiel dann entscheiden oder beim Programmieren entscheiden, welchen State braucht man gerade oder will man gerade. Irgendwie so, oder? Weiß ich nicht. Ich hasse da eine Idee. Und was meinst du mit unfertiger Platzhalter beim Commit? Ja, ich würde schon sagen, wenn es irgendwo noch Platzhalter gibt, der gelöst werden muss, kann das den Commit blocken. Weil ich wüsste gerade nicht, was man damit machen soll, wenn man das nicht blockiert. Würde man das einfach dann verwerfen, oder? Also, was wäre die Alternative? Vielleicht kannst du das mal ein bisschen genauer aufschreiben, diese Fragen dahingehend. Okay, und für die Sachen, die du lösen kannst, ist es ganz gut. So, jetzt zum Workflow. Du möchtest daraus herleiten... Also, ich glaube, es fällt mir schwer, jetzt jeden möglichen Workflow irgendwie aufzuzählen. Zum Beispiel jetzt, ich bin fertig mit Arbeiten und setze mich gerade noch mal hin, will mit dir ein bisschen, oder spreche gerade mit dir noch ein bisschen, und würde dann schauen, okay, wo bin ich jetzt noch stehen geblieben. Jetzt mal habe ich über ChatGPT gesprochen und habe mit ihm geklärt, wie jetzt die erste Stadt aussehen könnte. Das heißt, ich würde jetzt den Worldbuilder aufmachen, würde dann die erste Stadt aufrufen, würde dort die Infos einpflegen, würde dann gucken, dass ich das bisherige Notdokument update, was die Story angeht, würde dann den Charakter updaten, der da drin vorkommt, müsste mir dann noch überlegen, was es noch so für Plots gibt in dieser Stadt. Also, ich weiß jetzt, wie der Hauptcharakter begegnet und was er macht, aber nicht so viel, was es dann noch so für Geheimnisse gibt und dass eine Stadt auch immer irgendwas, was sie in Bewegung hält, was sie gerade beschäftigt, wer noch Hilfe braucht, irgendwie sowas. Also müsste ich da so ein bisschen brainstormen. Das heißt, ich müsste jetzt hier schauen, okay, was für Fraktionen gibt es dort, in welcher Region befinde ich mich, haben wir da schon Fraktionen? Wenn nicht, würde ich da eine Platzhalter-Fraktion machen, würde dieser Fraktion dann was zuordnen. Dann gibt es vielleicht auch eine andere Fraktion, die dem entgegenspielt, irgendwelche Banditen, so als typische Anfänger-Sache für Abenteurer. Und die Banditen haben aber nicht einfach Banditen, sondern die haben auch eine Story, die haben einen bestimmten Charakter, der sie anführt, die haben einen Plan, die haben einen Ort, wo sie herkommen, wo sie wohnen normalerweise. Das wird aber gerade irgendwie auch, also das wird hier gerade besetzt genommen von Schattenwesen. Und die Schattenwesen sind aber sauer auf die Stadt, weil die Stadt was gemacht hat. Und so schließt sich irgendwie der Zirkel, dass im Grunde da alle das gleiche Problem haben, aber die Stärkeren dann die Schwächeren unterdrücken und die sich irgendwie zu wehren versuchen. Und das heißt, ich müsste jetzt hier einen Counter machen, ich müsste Dialoge schreiben dazu und müsste dann gucken, okay, wie, ich bräuchte einen Dialog zwischen Charakter und einem bestimmten banditen. bekomme quests von ihm muss schattenwesen töten, bekomme ruf steige im rank bei denen, erfahre mehr, kann bestimmte ausrüstung kaufen die ich platzhaltermäßig erstellen muss schnell oder zumindest vermerken dass man sie dort mit rufstufen gewinnung erhalten kann. dann konflikt stadt vs banditen. klarer ausgang (wir wollen kein spiel das so komplex ist mit entscheidungen als indie dev) und so weiter
+
+### Compact Creative Path
+
+```text
+Resume after work and ask: where did I stop?
+  → Open World Builder and select the first city
+  → Bring in the city decisions developed in external notes/conversation
+  → Update the city's canonical information
+  → Update the existing story note and involved character
+  → Inspect what still makes the city feel alive: secrets, pressure, and people needing help
+  → Review the containing Region and existing factions
+  → Create a placeholder faction when one is missing
+  → Add an opposing bandit faction with a leader, plan, and home
+  → Reveal that shadow creatures occupy the bandit home
+  → Connect the shadow creatures' anger to something the city previously did
+  → Preserve the causal pressure chain: city → shadows → bandits → weaker people
+  → Sketch encounters and dialogues
+  → Write a dialogue between an existing character and a bandit
+  → Assign quests to defeat shadow creatures
+  → On progress/turn-in, gain bandit reputation
+  → Cross reputation ranks and learn more about the faction
+  → Unlock reputation-gated equipment for purchase
+  → Create quick item placeholders or record the gated equipment intent
+  → Resolve the city-versus-bandit conflict toward one clear authored outcome
+```
+
+## Provisional Semantic Fixture
+
+### Creative setup
+
+The author resumes a short evening session after earlier design work occurred in conversation and notes. The need is not to start a new blank flow, but to recover context, update existing content, see what remains thin, and continue the same idea without reconstructing its relationships.
+
+### Starting context
+
+- Primary surface: World Builder.
+- Selected context: an existing first city inside a canonical Region.
+- Existing material: city decisions, a story note, an involved character, and partial knowledge of the protagonist's first meeting.
+- Desired support: a resume/context summary showing recent local drafts, committed flow manifests, unresolved placeholders, directly related content, and notable gaps.
+
+### Core author intention
+
+Turn a partially described starter city into a bounded causal plot involving the city, bandits, shadow creatures, quests, encounters, dialogue, reputation ranks, discoveries, and reputation-gated equipment, while deliberately avoiding a highly branching narrative that would be too expensive for an indie project.
+
+### Persistent state and availability
+
+- Quest assigned and recorded.
+- Shadow-creature objectives completed and normally turned in.
+- Bandit-faction reputation increased.
+- One or more reputation rank thresholds crossed.
+- New faction information/dialogue becomes available.
+- Reputation-gated equipment becomes purchasable.
+- Placeholder equipment remains uncommittable until resolved.
+- The regional conflict advances toward one clear authored result.
+
+### Placeholder content
+
+- Missing local faction.
+- Bandit faction, leader, plan, and home if not already canonical.
+- Shadow-creature roles and encounters.
+- Quest/dialogue pieces not yet authored.
+- Reputation-rank equipment items.
+- Any additional city secrets or people needing help discovered during brainstorming.
+
+## Product Requirements Derived From Workflow 3
+
+### Resume is a first-class creative action
+
+The author needs a concise **Continue where I stopped** entry that can recover:
+
+- Recently selected or edited place.
+- Browser-local work-in-progress drafts.
+- Project-local committed-flow manifests.
+- Unresolved placeholders.
+- Recently changed related characters, lore, factions, quests, dialogues, and encounters.
+- The next unresolved or intentionally noted question.
+
+This is an orientation aid in the web authoring tool, not an in-game UI or runtime feature.
+
+### Existing records and emerging placeholders belong in one draft
+
+The flow must update the city and an existing character while also adding placeholder factions, enemies, encounters, dialogue, quests, and items. Placeholder promotion must preserve all local relations and return to the same selected city/flow context.
+
+### Story seeds need explicit causal relations
+
+The city, shadows, bandits, and weaker inhabitants are not merely co-located. The local constellation should preserve author-labeled causal relations such as:
+
+```text
+city action → angered shadow creatures
+shadow occupation → displaced bandits
+bandit pressure → harms weaker inhabitants
+shared root problem → creates quest and eventual resolution
+```
+
+These relations remain authoring intent until resolved through lore, faction relations, encounters, quests, events, requirements, or story placements.
+
+### Reputation progression is a dependency chain
+
+Faction reputation is not only a numeric reward. Workflow 3 needs explicit rank thresholds that can unlock:
+
+- New faction information.
+- Dialogue options or scenes.
+- Quests.
+- Shop access or inventory rows.
+- Equipment availability.
+
+The dependency view and compiler must show which actions produce reputation, which thresholds define ranks, and which content consumes each rank requirement.
+
+### Multiple consequences are ordered and atomic in V1
+
+One quest result may grant reputation, cross a rank threshold, reveal information, and unlock equipment. V1 treats this as an explicitly ordered consequence group committed in one atomic bundle. It is not a set of alternative branches unless the author deliberately creates mutually exclusive conditions.
+
+### Bounded complexity is a product requirement
+
+The author explicitly does not want an indie project to require highly complex choice topology. The composer should support clear linear outcomes, small local choices, and faction requirements without encouraging combinatorial branching. A small branch graph plus linked flows is sufficient for V1; nested executable subflows and a universal runtime sequence model are not required.
+
+## Current-Model Capability Map
+
+| Workflow intention | Current support | Gap or caution |
+|---|---|---|
+| Resume a prior city idea | Local drafts, recent navigation, and canonical context packets exist separately | Needs one resume summary over local drafts, committed manifests, related edits, and unresolved placeholders |
+| Update city and character together | Owning workspaces and atomic bundle patterns exist | Creation Flow needs protected handoff and cross-step provenance |
+| Preserve a causal local conflict | Story Seed relations can remain local intent | Canonical compilation must use real lore/faction/event/quest/story contracts, not visual proximity |
+| Create faction placeholders | Local placeholder contract supports this | Commit blocks until each placeholder is linked or promoted |
+| Gain faction reputation | Quest/event/encounter reputation rewards exist | Reward timing and source must be explicit |
+| Define faction ranks | Minimum faction reputation requirements exist | Named ordered rank tiers and their consumers need a focused authoring/export contract |
+| Unlock information at a rank | Requirements can gate dialogues/events/lore | Producer/consumer trace and rank wording need author-facing support |
+| Unlock equipment at a rank | Shop inventory and requirements can represent gated availability | Item placeholders and shop-inventory requirement attachment need one reviewed packet |
+| Keep the outcome mostly linear | Existing `next_event_id`, requirements, and small typed transitions can support this | Avoid introducing Option C merely for visual grouping |
+
+## Acceptance Scenarios From Workflow 3
+
+### W3-A: resume without reconstructing context
+
+Given the author returns after earlier note/conversation work, they can reopen the city and see related recent edits, local drafts, committed flows, unresolved placeholders, and the next recorded question in one context summary.
+
+### W3-B: update existing content and grow new content together
+
+The author can stage city and character updates while adding faction, enemy, encounter, dialogue, quest, and item placeholders in one hybrid draft without prematurely saving empty canonical records.
+
+### W3-C: preserve the causal pressure chain
+
+The constellation records why the shadows oppose the city, why the bandits were displaced, and how that pressure reaches weaker inhabitants. Promotion never reduces those meanings to unlabeled co-location.
+
+### W3-D: compile reputation progression honestly
+
+Quest progress or turn-in grants faction reputation; crossing a named rank threshold makes the linked information, dialogue, quests, shop access, or equipment eligible through explicit requirements.
+
+### W3-E: gate equipment without blocking the idea
+
+The author can first name reputation-gated equipment as placeholders and continue shaping the plot. Canonical commit remains blocked until every equipment placeholder in the flow is linked or promoted.
+
+### W3-F: keep consequences ordered without inventing branches
+
+One outcome can produce several ordered consequences in one atomic review. Rehearsal and preview show their dependency order, while the author is not forced to create parallel or mutually exclusive branches.
+
+### W3-G: finish with one clear regional outcome
+
+The author can resolve the city/bandit/shadow conflict toward one clear authored result, using only small explicit choices where needed, without a universal branching narrative graph.
+
+## Cross-Workflow Findings After Workflow 3
+
+- World Builder is the primary origin and resume surface across all three workflows.
+- The same selected place may produce a sequence, constellation, or hybrid draft.
+- Resuming existing work is as important as starting a new idea.
+- Existing canonical records and unresolved placeholders must coexist locally without creating empty canonical shells.
+- Reputation progression needs named thresholds and producer/consumer tracing, not only numeric rewards.
+- Several consequences after one outcome are ordered and atomically committed by default; explicit conditions create branches.
+- The desired narrative complexity is bounded. Option B plus committed authoring manifests is sufficient for V1; Option C is deferred.
+- All actual placeholders block canonical commit, while draft saving remains loss-resistant.
+- The third workflow satisfies the V1 corpus gate. Remaining questions are field-level export design or explicitly deferred runtime concerns, not a need to enumerate every possible author session.
+
+## Author Review 5: Timeline, Gameplay Actions, Repeatability, And Lore Capture
+
+Source: author feedback supplied on 2026-07-15.
+
+### Confirmed behavior and scope
+
+1. **Occurrence versus discovery matches the intended Timeline use.** An event may occur in an earlier era while the player discovers its evidence or meaning in the playable-present era. Both placements may reference the same canonical subject and neither creates runtime order by itself.
+2. **Respawn state retention stays external.** The initial web/export work does not define what inventory, quest, currency, world, or temporary state survives a respawn override.
+3. **Narrative gameplay actions must be general, not damage-only.** Authored sources may cause damage, heal life or another approved resource, apply or remove statuses, cleanse curses or other matching removable statuses, grant or take currency, and produce similar typed effects.
+4. **Healer interactions are an explicit motivating example.** Visiting a healer may restore health and remove curses or statuses. A benefactor or other character may grant currency. Several results from one interaction are ordered consequences in one atomic group.
+5. **Repeatability is decided per content.** An interaction, encounter, reward source, or other owner may be one-shot or repeatable; existing canonical behavior may be inherited explicitly. There is no universal repeatability default for all narrative content.
+
+### Web/export implication
+
+Gameplay results use a discriminated action envelope with a typed source, target, timing, repeat policy, and action-specific canonical references. Existing Effects cover Damage, Heal, Modifier, Shield, Control, and Status behavior; existing Status records provide stacking/reapplication and cleanse/dispel permissions; Currency, Item, Stat, and reputation records remain canonical payload owners. New behavior is not stored as arbitrary JSON. It stays unresolved until typed fields and validation exist. The web app authors and exports the contract but does not execute the action in Unreal.
+
+### Clarification: selected text and idea cards
+
+- **Selected-text promotion** means the author writes normal lore prose, highlights a phrase such as “the Ash Regent,” and chooses **Create character reference/placeholder**. The prose remains intact while that exact text span links to the new or existing entity.
+- **Idea cards** are small separate entries beside or below the prose, such as **Character: Ash Regent**, **Faction: Veiled Choir**, or **Place: Hollow Basilica**. They can be created before the wording or exact position in the prose is known and can be connected to other ideas.
+
+Recommended V1 interaction at this point: use the same placeholder/reference record for both. Selecting text creates a linked idea card automatically, while authors may also create cards directly during brainstorming. This was confirmed in Author Review 6.
+
+## Author Review 6: Combined Lore Brainstorming Confirmation
+
+Source: author feedback supplied on 2026-07-15.
+
+### Confirmed behavior and product meaning
+
+1. **Selected text and idea cards are combined.** Both interactions are required rather than alternative editor designs.
+2. **They share one idea identity.** Promoting a selected prose span creates or links the same local reference/placeholder used by an idea card. It must not duplicate the entity idea.
+3. **Cards can precede prose.** During free brainstorming, the author may create a character, faction, place, item, event, or other idea card before deciding its exact wording or location in lore text.
+4. **Prose can produce cards.** While writing, the author may select a phrase and promote it into a typed or unresolved card without leaving the text surface.
+5. **Brainstorming is implementation-adjacent.** Unlike a disconnected paper mind map, these captured ideas retain context and links and can later be resolved, promoted, compiled, and reviewed without manual transcription into another authoring system.
+
+### Acceptance consequence
+
+The **Expand this place** surface is not merely a text editor beside a card board. Text spans and cards are two views and creation gestures over the same local idea/reference graph. Editing prose must not destroy cards; moving or editing a card must not corrupt prose; deleting a mention must not silently delete the underlying idea when another relation or card still uses it. Canonical commit remains blocked until every required placeholder is resolved or promoted.

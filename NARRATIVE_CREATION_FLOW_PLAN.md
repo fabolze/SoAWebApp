@@ -1,6 +1,6 @@
 # Narrative-First Creation Flow And “Then…” Composer Plan
 
-Status: product and implementation draft; two workflows and three author reviews captured; awaiting one additional exemplary workflow before canonical schema approval
+Status: V1 product semantics reviewed across three exemplary workflows and six author reviews; canonical web/export implementation may proceed with field-level schema, model, validation, and DataTable transcription
 
 Drafted: 2026-07-15
 
@@ -12,15 +12,15 @@ Likely implementation hosts: Dialogue Scene Room, Encounter Stage, Quest Journey
 
 | Area | Status | Exit condition |
 |---|---|---|
-| Workflow corpus | In progress; two examples plus first behavior review captured | Representative linear, branching, persistent-state, reward, encounter, shop, quest, and world-change workflows are written in author language |
+| Workflow corpus | V1 corpus gate satisfied; three examples plus six behavior reviews captured | Golden fixtures preserve the map-to-quest sequence, place-story constellation, and resume-and-expand hybrid workflow in author language |
 | Semantic vocabulary | Drafted here | Product wording distinguishes immediate actions, future availability, persistent state, and story placement without requiring technical vocabulary |
 | Current-model capability map | Drafted here | Every proposed gesture is classified as supported, compilable, story-only, or canonically unsupported |
 | Capture-only prototype | Not started | An author can preserve a mixed-content sequence locally without creating flags, requirements, beats, or records |
 | Existing-record compiler | Not started | Supported steps compile deterministically into reviewed existing records and links |
-| Canonical action/transition decision | Partially decided | Typed choice actions, outcome transitions, return behavior, and committed-flow persistence are confirmed; the additional workflow will test grouping and whether a first-class playable-sequence model is necessary |
+| Canonical action/transition decision | V1 direction decided: Option B plus project-local committed-flow manifests | Typed choice actions, ordered atomic consequence groups, victory transitions, defeat policies, return behavior, and committed-flow provenance are explicit without a universal playable-sequence runtime model |
 | Embedded Then… composer | Not started | Dialogue choices/endings and encounter/quest outcomes can open a scoped composer without route switching |
 | Standalone Creation Flow workspace | Not started | Larger sequences and scoped story constellations can be shaped, resolved, rehearsed/traced, and committed from one focused workspace |
-| Web data/export contract | Gated | Authoring schemas and DataTable export shapes preserve completion, branching, repeatability, shop actions, quest state, variants, and unsupported behavior honestly; Unreal execution remains outside this implementation |
+| Web data/export contract | Product-level contract drafted; technical transcription not started | Authoring schemas and DataTable export shapes preserve completion, limited branching, per-content repeatability, typed gameplay actions, shop actions, quest state, variants, and runtime-verification status honestly; Unreal execution remains outside this implementation |
 | Writer evaluation | Pending external evaluation | Representative authors complete the workflow corpus with materially less interruption than the current multi-workspace path |
 
 ## Executive Decision
@@ -53,9 +53,9 @@ This should not begin as a universal graph editor or as an autonomous natural-la
 4. One rollback-only preview and atomic commit for the entire authored idea.
 5. Explicit unresolved steps whenever the current game model cannot honestly represent the idea.
 
-The initial architectural recommendation is to reuse and modestly extend the existing event model rather than immediately create a universal flow schema. A first-class playable-sequence model should be introduced only if the exemplary workflows demonstrate that event payloads, follow-up links, and a small transition extension cannot express the required runtime behavior clearly.
+V1 selects Option B: reuse and modestly extend the existing event/action model, while storing committed authoring flows as project-local manifests with provenance. The three workflows require sequences, constellations, and hybrids, but they do not require a universal canonical playable-sequence runtime model or deeply branching player narrative. That larger model remains a future option only if later content cannot be represented honestly through typed actions, transitions, requirements, and committed-flow manifests.
 
-The first two exemplary workflows also show that the capture layer needs two related shapes: a temporal **Then…** sequence for what happens next, and a scoped **Story Seed / Expand this place** constellation for the people, factions, lore, places, objects, conflicts, and playable packages that grow from one idea. Both shapes can compile into existing canonical records, but only a sequence claims runtime order.
+The three exemplary workflows show that the capture layer needs two related shapes and their hybrid: a temporal **Then…** sequence for what happens next, and a scoped **Story Seed / Expand this place** constellation for the people, factions, lore, places, objects, conflicts, and playable packages that grow from one idea. A resumed city-development session commonly begins as a constellation and promotes selected ideas into quests, dialogues, encounters, reputation progression, and shop availability. Only explicit sequence transitions claim runtime order.
 
 ## Confirmed Product Decisions From Author Review
 
@@ -68,6 +68,7 @@ The following behavior was confirmed on 2026-07-15. These are product requiremen
 | Retreat before encounter | Where retreat makes narrative sense, the dialogue offers **Retreat for now** or **Look for an exit** | Retreat is a dialogue branch that ends the interaction and returns to its origin; it is not an encounter outcome |
 | Forced encounter | A forced boss encounter may omit retreat when retreat would be implausible, but the player should have had prior warning and an earlier opportunity to save/prepare | Authoring health should distinguish intentional lock-in from an accidentally inescapable transition |
 | Encounter outcomes in V1 | Victory continues through authored consequences; defeat does not continue through an ordinary narrative branch | Model victory as an outcome transition and defeat as a retry/load/respawn policy; exact restore target remains a separate policy decision |
+| Default defeat behavior | Save automatically immediately before the fight; after defeat, retry from directly before the encounter and allow the short lead-in dialogue or interaction button to be invoked again | Default to `pre_fight_save + retry_pre_fight`; allow an author to override the encounter with a linked respawn point, while respawn persistence details remain runtime-unverified |
 | Return after retreat | End the dialogue and return to the originating map, POI, character, item, or other interaction view; the player may interact again later | Runtime flow must preserve an origin/return context and keep the interaction repeatable unless separately completed |
 | Quest surfacing | A quest may be discovered from prior knowledge, offered by an NPC, and/or accompanied by a visible map marker | Model these as distinct author actions; do not collapse “quest appears” into one flag |
 | Quest assignment | Once a quest is discovered or given, it is recorded and cannot be declined; the player may simply leave it undone | Do not add a separate accepted/declined gate in V1; distinguish assignment, objectives met, turn-in, and reward timing in the exported contract |
@@ -79,7 +80,14 @@ The following behavior was confirmed on 2026-07-15. These are product requiremen
 | Damaged city | A city can have at least intact and damaged presentations with different description, shops/inventory, inhabitants, and POIs | Add location-state variants or an equivalent stable-identity override model; duplicating unrelated city records would break continuity |
 | Character progression/state | A character may need beginning, later, stronger, or changed-allegiance presentations without becoming unrelated duplicate people | Keep one stable character identity and add typed character variants/stages; use separate character records only for genuinely distinct beings |
 | Item progression/state | A legendary, custom, or story-important item may awaken, be reforged, become corrupted, be restored, or otherwise change over time while remaining the same artifact | Keep one stable item identity and add typed item variants/stages for presentation and mechanics; use separate item records only for genuinely distinct objects |
-| Timeline | World history and the playable story belong to one overall timeline; the player occupies one part and can discover earlier history | Provide one unified chronology with history/playable/discovery lenses; runtime execution order remains separate |
+| Chapter | Story Arcs are the game's chapters | Use the existing `story_arcs` identity and ordering rather than creating a separate chapter table in V1 |
+| Region | A region groups several settlements, forests, and other places below a continent; countries are not required | Use canonical `LocationType.Region` hierarchy nodes under continents; derive a place's region from its nearest Region ancestor |
+| Timeline eras | Separate Timeline records represent ordered eras; the last or explicitly marked current era contains the main character's playable present | Add explicit era ordering/current-era metadata and preserve historical occurrence separately from later discovery/play placement |
+| Historical occurrence and later discovery | An event may occur in an earlier era while the player discovers evidence or meaning in the playable-present era | Store occurrence and discovery/play placements as separate facts referencing the same canonical subjects; neither placement implies runtime transition order |
+| Gameplay actions from narrative content | Dialogue, encounters, quest outcomes, and other authored sources may damage or heal, apply or remove statuses/curses, grant currency, or cause similar gameplay effects | Add a typed action envelope that references canonical Effects, Statuses, Currencies, Items, Stats, and other supported targets; do not use arbitrary JSON or claim Unreal execution is verified |
+| Repeatability | Whether an interaction, encounter, reward source, or other content can repeat is decided for that content rather than by one global rule | Preserve an explicit per-owner/per-step repeat policy and inherit an existing canonical owner's policy where it already exists |
+| Lore brainstorming | Selected prose spans and freely created idea cards should work together so an idea captured during writing or brainstorming can later be resolved and implemented without being copied into a second system | Use one shared local reference/placeholder identity; selecting text creates or links a card, while a card can also exist before it has an exact prose mention |
+| Required placeholders at commit | A real unresolved placeholder must block canonical commit; it must never be discarded silently | Draft save remains allowed, but commit requires linking an existing record or promoting the placeholder to a canonical record; partial commit remains off |
 
 These decisions make typed actions, transitions, nested interaction return policies, and entity variants mandatory for the complete release. A pure flag-and-requirement compiler cannot satisfy the confirmed shop, encounter, companion, inventory-objective, or location/character/item-variant behavior.
 
@@ -249,9 +257,9 @@ The initial corpus should deliberately include:
 - A repeatable interaction and a one-shot sequence.
 - A sequence containing an intentionally unsupported idea such as targeted gameplay damage.
 
-### Current workflow-corpus finding: two creative shapes
+### Current workflow-corpus finding: two creative shapes and their hybrid
 
-Workflow 1 is primarily temporal: quest surfacing, assignment, travel, encounters, boss choice, reward, turn-in, and follow-up. Workflow 2 begins from an underdeveloped place and grows lore, characters, factions, enemies, a dungeon, a companion, a relic, historical context, farming sources, and chapter appearances in parallel.
+Workflow 1 is primarily temporal: quest surfacing, assignment, travel, encounters, boss choice, reward, turn-in, and follow-up. Workflow 2 begins from an underdeveloped place and grows lore, characters, factions, enemies, a dungeon, a companion, a relic, historical context, farming sources, and chapter appearances in parallel. Workflow 3 resumes an existing city, updates canonical content, expands a causal faction constellation, and promotes selected ideas into a mostly linear quest/reputation/shop sequence; it is the practical hybrid case.
 
 The capture layer should therefore support:
 
@@ -356,6 +364,12 @@ After commit, the author remains in the original workspace and sees a compact co
 
 ## Primary Product Surfaces
 
+### Continue where I stopped
+
+World Builder and the Creation Flow library should provide a concise resume summary for the currently selected or most recently edited place. It combines browser-local drafts, project-local committed-flow manifests, unresolved placeholders, recent related edits, and the next recorded question. It may accept pasted working notes as local capture input, but it does not require direct ChatGPT or external-note integration.
+
+This is web-authoring orientation only. It does not become a canonical game record or in-game UI.
+
 ### Embedded Then… composer
 
 This is the primary feature. It should appear at points where “what happens next?” is natural:
@@ -380,6 +394,7 @@ World Builder should offer **Expand this place** for a selected city, location, 
 The seed inherits the selected place and can collect:
 
 - Lore prose and historical moments.
+- Selected prose spans promoted into linked idea cards, plus free-standing idea cards created before exact prose exists.
 - Character, faction, item/relic, place, dungeon, quest, dialogue, encounter, creature-role, companion, and chapter placeholders.
 - Existing related content from the selected context.
 - Local relationships such as mentioned in, opposes, seeks, died at, found at, leads, inhabits, and reappears in.
@@ -409,7 +424,7 @@ Like Dialogue Flow, Script/outline view should be the creative default and graph
 
 If user testing shows ideas often begin outside a specific entity, add a minimal project capture inbox. It stores unshaped local flow drafts and opens them in Creation Flow later.
 
-This should follow the embedded prototype, not precede it. The first validation target is preserving momentum from an existing dialogue or encounter.
+This should follow the embedded prototype, not precede it. The first validation targets are resuming a selected World Builder place and preserving momentum from an existing dialogue or encounter.
 
 ## Step And Transition Semantics
 
@@ -421,6 +436,7 @@ This should follow the embedded prototype, not precede it. The first validation 
 | Encounter | Start an encounter | `events.type = Encounter` plus `encounter_id` | Supported through existing event model |
 | Item reward | Give one or more items | Event, encounter, or quest reward fields depending on timing | Supported; composer must make timing explicit |
 | Currency/XP/reputation | Grant payoff | Existing event, encounter, or quest reward fields | Supported where a valid source exists |
+| Faction rank progression | Cross a named reputation threshold and unlock information/content | Minimum faction-reputation requirements exist, but named rank tiers do not | Add ordered faction-rank records and compile their consumers into explicit reputation requirements |
 | Lore reveal | Reveal lore | `events.type = LoreDiscovery` plus `lore_id` | Supported through existing event model |
 | Teleport | Move the player | `events.type = Teleport`; exact payload contract must be verified | Partially modeled; block commit until destination semantics are complete |
 | Scripted moment | Play explosion/cutscene direction | `events.type = ScriptedScene`; no rich scene payload currently exists | Capture and event shell supported; detailed execution unresolved |
@@ -436,7 +452,7 @@ This should follow the embedded prototype, not precede it. The first validation 
 | Character variant | Switch one logical person between authored progression stages | No canonical character-variant contract | Confirmed need for one stable identity plus typed presentation, allegiance, level, profile, and interaction overrides |
 | Item variant | Switch one logical artifact between dormant/awakened/reforged/corrupted/restored or custom stages | No canonical item-variant contract | Confirmed need for stable identity plus typed presentation, effect, requirement, and modifier overrides |
 | Gameplay world state | Change collision, services, population, visuals, routes, etc. | Varies; often flag-gated content, sometimes no field | Resolve per target; never claim generic support |
-| Gameplay damage/effect | Damage party, character, structure, or area | No shared narrative action contract | Preserve as unresolved until a target/effect runtime contract exists |
+| Typed gameplay action | Damage or heal, apply/remove a status or curse, restore a resource, grant currency, or apply another canonical effect | Existing `effects`, `statuses`, `currencies`, rewards, stats, and entity references provide most payload records, but no shared narrative action envelope exists | Add the typed web/export contract below; export supported intent as `runtime_unverified` until a consumer confirms execution |
 | Timeline placement | Put this moment in a timeline/arc | `adventure_beats` and `adventure_beat_links` | Supported and optional |
 | Note | Preserve creative direction | Local draft note | Always supported as draft, never silently executable |
 
@@ -457,6 +473,22 @@ This should follow the embedded prototype, not precede it. The first validation 
 | Stop here | Intentional end | Event chain may end without `next_event_id`; author-facing terminal meaning should be explicit |
 
 Linear **Then** chains can use current `next_event_id`. Branch-specific, outcome-specific, and fallback transitions must not be simulated through naming conventions or tags.
+
+### Consequence grouping in V1
+
+Workflow 3 confirms that one resolved action may cause several related consequences, for example:
+
+```text
+Complete the shadow-creature quest
+  → gain bandit reputation
+  → cross a faction-rank threshold
+  → reveal more faction information
+  → make reputation-gated equipment available
+```
+
+These are not automatically alternative branches and they do not imply real-time parallel execution. V1 stores them as one explicitly ordered consequence group and commits the group's canonical mutations atomically. Later actions in the group may depend on state produced by earlier actions. A true branch exists only when the author deliberately adds mutually exclusive choices or conditions.
+
+The third workflow favors clear authored outcomes and limited branching. V1 therefore needs a small branch graph plus linked flows, not nested executable subflows or a universal branching narrative system.
 
 ## Immediate Action Versus Persistent Availability
 
@@ -509,13 +541,14 @@ Where the player may decline, **Retreat for now** is a separate dialogue choice 
 
 ### Recommended save, checkpoint, and defeat policy
 
-This recommendation is provisional because the author is still deciding the desired penalty for defeat.
+The author confirmed the pre-fight save/retry behavior as the V1 default. Respawn remains an explicit per-encounter override whose retained-state details are runtime-unverified.
 
 For a story-heavy, dialogue-heavy game, the safest default is:
 
 - Allow manual saves in safe non-combat states, subject to normal technical restrictions.
-- Create an automatic combat checkpoint immediately before a forced or boss encounter.
-- On defeat, offer **Retry encounter** from that checkpoint as the primary action.
+- Create an automatic pre-fight save immediately before a forced or boss encounter.
+- On defeat, offer **Retry encounter** from that save as the primary action and restore the player directly before the encounter.
+- Allow the short lead-in dialogue to be invoked again, or expose the same interaction/button that starts the boss encounter.
 - Also allow **Load another save**.
 - Use the last activated respawn point for world position when the design intentionally chooses respawn-with-persistence rather than snapshot rollback.
 - Do not require replaying an entire dungeon by default; make long-run reset behavior an explicit dungeon/challenge policy.
@@ -532,11 +565,14 @@ The current location model already has `has_respawn_point`, but the repository d
 
 ```text
 retreat_policy       allowed_before | forced
-checkpoint_policy    automatic_before | linked_respawn | none_explicit
-defeat_policy        retry_checkpoint | respawn_keep_progress | load_last_save | custom
+save_policy          automatic_pre_fight | linked_respawn | none_explicit
+defeat_policy        retry_pre_fight | respawn_point | load_other_save | custom
+retry_entry_policy   replay_lead_in_dialogue | restore_interaction | immediate
+retry_source_ref_id  optional dialogue/POI/interaction/event reference
+respawn_location_id  required only for respawn override
 ```
 
-Recommended V1 default: `automatic_before + retry_checkpoint`. This minimizes repeated traversal while retaining authored respawn points for travel, recovery, or deliberately harsher content.
+Confirmed V1 default: `automatic_pre_fight + retry_pre_fight`. The author may override a specific encounter with `respawn_point`. The web app exports that selection but does not define which inventory, quest, world, currency, or temporary state a consuming runtime retains under respawn; until defined externally, the override remains `runtime_unverified`.
 
 Defeat-policy selection and its DataTable fields belong to the web/export contract. Creating checkpoints, restoring saves, presenting retry/load UI, and applying the policy belong to the external game runtime and are not implemented by the web app.
 
@@ -598,6 +634,89 @@ consume_on_turn_in
 - Every required item must have an authored acquisition source, or be guaranteed by an earlier reachable step in the same flow. Ordinary replaceable items need a repeatable or otherwise sufficient source for the required count.
 - The item model therefore needs an explicit uniqueness/protection policy rather than inferring uniqueness from rarity or name.
 
+## Faction Reputation Rank Contract
+
+Workflow 3 requires named faction progression rather than only raw reputation numbers. V1 should add an ordered rank contract:
+
+```text
+rank_id
+faction_id
+name
+description
+min_reputation
+sort_order
+```
+
+Ranks do not replace the numeric faction-reputation value. Crossing a rank means the current value meets that tier's threshold. Content unlocked by a rank compiles through explicit minimum-reputation requirements while retaining `rank_id` as author-facing provenance.
+
+Rank consumers may include:
+
+- Lore or faction information.
+- Dialogue choices/scenes.
+- Quests.
+- Shop availability.
+- Specific shop-inventory/equipment rows.
+
+Preview must show the complete dependency chain: reputation producer → crossed rank → generated/reused requirement → unlocked consumers. Equipment placeholders remain local until resolved and therefore block canonical commit.
+
+## Typed Gameplay Action And Effect Contract
+
+Narrative sources need one general action envelope rather than a damage-only exception. A dialogue choice may send the player to a healer, for example; the resulting ordered actions may restore health, remove one named status, cleanse all removable curse-tagged statuses, and charge or grant currency. The same contract can be attached to an encounter outcome, quest completion/turn-in, event, interaction, or ordered consequence group.
+
+V1 author-facing actions are:
+
+| Action | Typed payload | Canonical reuse |
+|---|---|---|
+| Apply effect | `effect_id` | Reuse an `Effect` for Damage, Heal, Modifier, Shield, Control, Status, or another supported `EffectType` |
+| Apply status | `status_id`, optional stacks/duration override | Reuse a canonical `Status`; reapplication must respect its stacking and reapplication policy |
+| Remove named status | `status_id`, removal mode | Reuse a canonical `Status`; validate `can_cleanse` or `can_dispel` for the selected mode |
+| Remove matching statuses | A typed filter containing exactly one or more of `status_category`, `polarity`, or `status_tag`, plus removal mode | Supports actions such as **remove all removable curses** with `status_tag = curse`; this is a validated filter, not arbitrary JSON |
+| Restore resource | `effect_id` whose canonical effect is compatible with restoration | Health healing uses `EffectType.Heal`; other resources use an approved canonical Effect/Stat contract rather than an untyped numeric field |
+| Grant currency | `currency_id`, positive `amount` | Reuse a canonical `Currency`; source and timing remain explicit |
+| Take currency | `currency_id`, positive `amount`, insufficient-funds policy | Separate from granting so a signed amount cannot hide behavior |
+| Grant item or reputation | Existing typed reward payload and timing | Reuse current reward contracts; expose them through the same composer and consequence ordering |
+
+The exported action envelope is discriminated by `action_type`:
+
+```text
+action_id
+action_type
+source_ref_type
+source_ref_id
+target_scope          player | party | source_character | target_character | encounter_side | location | explicit_entity
+target_ref_type       nullable; required where target_scope selects an explicit entity
+target_ref_id         nullable; required where target_scope selects an explicit entity
+timing                immediate | after_completion | on_turn_in
+repeat_policy         inherit_owner | one_shot | repeatable
+effect_id             nullable; required only by apply_effect/restore_resource
+status_id             nullable; required only by named status actions
+status_category       nullable; matching-status actions only
+status_polarity       nullable; matching-status actions only
+status_tag            nullable; matching-status actions only
+removal_mode          nullable; cleanse | dispel | system
+currency_id           nullable; currency actions only
+amount                nullable; currency actions only
+insufficient_policy   nullable; block | clamp_to_zero | fail_action
+sort_order
+runtime_support       runtime_unverified | runtime_verified
+```
+
+This is a discriminated union: each `action_type` permits and requires only its own columns. An action may not contain a loose custom payload. A genuinely new behavior remains a visible unresolved/custom draft step until its own typed fields and validation are approved.
+
+Validation must enforce canonical references, compatible target scope, positive currency amounts, legal effect/action combinations, status removal permissions, at least one typed matching-status filter, deterministic ordering, and an explicit repeat policy or canonical owner from which it is inherited. Several actions from one choice or outcome use the existing ordered atomic consequence group. The web app authors, validates, previews, and exports these rows; it does not itself change health, statuses, inventory, currency, or other live game state.
+
+Example:
+
+```text
+Dialogue choice: Ask the healer for treatment
+  → Apply Effect: Full Heal to player
+  → Remove matching Statuses: tag = curse, mode = cleanse, target = player
+  → Remove Status: Poisoned, mode = cleanse, target = player
+
+Dialogue choice: Accept the patron's gift
+  → Grant Currency: 100 Gold to player
+```
+
 ## Capture Draft Contract
 
 The frontend needs a versioned intermediate representation independent of canonical schemas. A provisional TypeScript shape is:
@@ -607,7 +726,8 @@ type CreationFlowRefKind =
   | "dialogue" | "dialogue_node" | "dialogue_choice" | "encounter"
   | "quest" | "quest_objective" | "event" | "shop" | "location"
   | "location_poi" | "location_route" | "story_beat" | "item"
-  | "character" | "faction" | "lore_entry" | "creature" | "flow_step"
+  | "character" | "faction" | "lore_entry" | "creature" | "effect"
+  | "status" | "currency" | "stat" | "flow_step"
   | "custom";
 
 type CreationFlowStepKind =
@@ -655,11 +775,32 @@ type CreationFlowStep = {
   target?: CreationFlowRef;
   timing?: "immediate" | "after_completion" | "available_later" | "story_only";
   persistence?: "none" | "session" | "permanent";
-  repeatPolicy?: "unspecified" | "repeatable" | "one_shot";
+  repeatPolicy?: "unspecified" | "inherit_owner" | "repeatable" | "one_shot";
+  gameplayAction?: NarrativeGameplayAction;
   payload?: Record<string, unknown>;
   targetResolution: "none" | "unresolved" | "placeholder" | "canonical";
   support: "unshaped" | "unresolved" | "compilable" | "story_only" |
     "unsupported" | "runtime_unverified";
+};
+
+type NarrativeGameplayAction =
+  | { actionType: "apply_effect" | "restore_resource"; effect: CreationFlowRef; target: GameplayActionTarget }
+  | { actionType: "apply_status"; status: CreationFlowRef; target: GameplayActionTarget; stacks?: number; duration?: number }
+  | { actionType: "remove_status"; status: CreationFlowRef; target: GameplayActionTarget; removalMode: "cleanse" | "dispel" | "system" }
+  | { actionType: "remove_matching_statuses"; filter: StatusRemovalFilter; target: GameplayActionTarget; removalMode: "cleanse" | "dispel" | "system" }
+  | { actionType: "grant_currency"; currency: CreationFlowRef; amount: number; target: GameplayActionTarget }
+  | { actionType: "take_currency"; currency: CreationFlowRef; amount: number; target: GameplayActionTarget; insufficientPolicy: "block" | "clamp_to_zero" | "fail_action" };
+
+type GameplayActionTarget = {
+  scope: "player" | "party" | "source_character" | "target_character" |
+    "encounter_side" | "location" | "explicit_entity";
+  ref?: CreationFlowRef;
+};
+
+type StatusRemovalFilter = {
+  statusCategory?: "Buff" | "Debuff" | "Control" | "DoT" | "Other";
+  polarity?: "Beneficial" | "Harmful" | "Neutral";
+  statusTag?: string;
 };
 
 type CreationFlowTransition = {
@@ -811,7 +952,7 @@ Exact names may change, but compilation, capability reporting, and reusable bund
 
 ## Canonical Model Decision
 
-The workflow corpus must decide among three levels of canonical expansion.
+The reviewed V1 corpus selects Option B. Option A remains useful as an intermediate compiler phase; Option C remains a future escalation path rather than a V1 requirement.
 
 ### Option A: current-record compiler only
 
@@ -827,14 +968,14 @@ Limits:
 
 - Cannot honestly open a shop immediately.
 - Cannot represent choice/victory transitions or an explicit defeat-policy contract.
-- Cannot represent generic damage or immediate quest activation.
+- Cannot represent typed gameplay actions or immediate quest activation without the Option B extensions.
 - Longer sequences have no canonical group identity or repeat policy.
 
 Option A is suitable for the first capture/compile pilot, but it does not satisfy the motivating shop workflow completely.
 
 ### Option B: extend events and transitions
 
-Recommended V1 web/export direction. Author review has confirmed that immediate dialogue-to-shop and dialogue-to-encounter behavior requires typed choice actions plus outcome transitions; external runtime execution remains a separate integration concern.
+Selected V1 web/export direction. Author review has confirmed that immediate dialogue-to-shop and dialogue-to-encounter behavior requires typed choice actions plus outcome transitions; Workflow 3 adds ordered atomic consequence groups, reputation/rank dependencies, and linked hybrid authoring without demanding a universal executable sequence object. External runtime execution remains a separate integration concern.
 
 Potential minimal changes:
 
@@ -847,6 +988,8 @@ Potential minimal changes:
 - Keep `events.next_event_id` as the compatible linear transition during migration.
 - Add explicit repeat/one-shot export behavior only where no existing canonical owner already defines it.
 - Add typed exported actions for companion joining and approved quest-surfacing modes rather than encoding them as flags alone.
+- Add the discriminated typed gameplay-action envelope for canonical effects, status application/removal, resource restoration, currency transfer, and existing item/reputation rewards; do not force these behaviors into a generic Event payload.
+- Add ordered consequence-group identity and per-action `sort_order`; one backend bundle commits the complete group atomically.
 
 Provisional transition fields:
 
@@ -873,11 +1016,11 @@ Risks:
 
 - `Event` may become overloaded if every gameplay action is forced into it.
 - Branch semantics require coordinated authoring, export, and runtime work.
-- Scripted damage still needs a real target/effect contract.
+- Unreal consumers still need to implement and verify the exported typed gameplay actions; the web contract remains `runtime_unverified` until then.
 
 ### Option C: first-class playable sequences
 
-Introduce a sequence/group model with steps and transitions only if examples require shared sequence identity, multiple entries, branching outcomes, parallel actions, resumability, repeat policy, or editing a chain as a durable game object.
+Introduce a runtime sequence/group model later only if future examples require semantics that Option B plus committed authoring manifests cannot express honestly, such as multiple runtime entries, deeply nested branching, resumable executable subflows, or group-level repeat policy owned by the game runtime.
 
 Possible concepts:
 
@@ -889,20 +1032,22 @@ This should reference existing dialogues, encounters, shops, quests, and events 
 
 Do not choose Option C merely because a graph looks attractive. Choose it only when the workflow and runtime semantics require a durable grouped object that Option B cannot express without distortion.
 
-### Decision gate status
+### Decision status
 
-Canonical web-schema implementation remains gated on the additional workflow and unresolved authoring/export choices. Unknown Unreal execution details do not block web contracts when the behavior is preserved honestly and marked `runtime_unverified`. Current status:
+The third workflow closes the V1 corpus and Option B/C gate. Canonical web-schema implementation may proceed once the remaining explicit field layouts are transcribed into model/schema/export changes. Unknown Unreal execution details do not block web contracts when behavior is preserved honestly and marked `runtime_unverified`. Current status:
 
 1. **Open external integration question:** Does the consuming runtime execute `next_event_id`, and what counts as completion? The web app may preserve/export it but must not mark it runtime-verified without that answer.
 2. **Confirmed:** Dialogue choices directly select immediate shop, encounter, and companion-join actions; immutable choice identity is required.
-3. **Confirmed:** Victory may continue through authored consequences. Defeat invokes a retry/load/respawn policy and is not an ordinary narrative continuation in V1; the exact restore target remains open.
+3. **Confirmed:** Victory may continue through authored consequences. Defeat invokes a retry/load/respawn policy and is not an ordinary narrative continuation in V1.
 4. **Confirmed:** An immediately opened shop is a nested interaction; closing it resumes the exact source dialogue session.
-5. **Partially confirmed:** A pre-encounter retreat ends dialogue and restores the origin view for later re-entry. Defeat must load or restore through a policy rather than continue; the exact save snapshot, checkpoint, or respawn target remains open. `automatic_before + retry_checkpoint` remains the recommended default.
-6. **Open:** Must several actions happen in parallel after one outcome, and if so are they ordered or atomic?
+5. **Confirmed:** A pre-encounter retreat ends dialogue and restores the origin view for later re-entry. Defeat defaults to `automatic_pre_fight + retry_pre_fight`; an author may override a specific encounter with a linked respawn point. Respawn state-retention semantics remain external and runtime-unverified.
+6. **Confirmed:** Several consequences after one outcome form an explicitly ordered group whose canonical mutations commit atomically. They are not alternative branches unless the author adds mutually exclusive choices/conditions.
 7. **Confirmed for the web/export contract:** Quest discovery, NPC assignment, and map-marker reveal are distinct surfacing meanings. Once discovered or assigned, a quest is recorded and cannot be declined; the player may leave it undone. Tracking, hiding, notification, and journal presentation are in-game UI concerns outside this implementation.
-8. **Open:** What is the general runtime target/effect model for damage?
-9. **Confirmed V1 shape; field lists still require schema review:** Locations, characters, and explicitly unique/story-artifact items use one base entity plus one active progression variant. Temporary conditions are separate; collection overrides use explicit replace/add/remove semantics.
+8. **Confirmed for the web/export contract:** Narrative sources use one typed gameplay-action envelope for canonical effects, healing/resource restoration, status application/removal (including curse-tag filters), currency transfer, and existing item/reputation rewards. Runtime execution remains externally verified.
+9. **Confirmed V1 shape and scope:** Locations, characters, and explicitly unique/story-artifact items use one base entity plus one active progression variant. Temporary conditions are separate; collection overrides use explicit replace/add/remove semantics; `activate_base` explicitly returns to base data.
 10. **Confirmed:** Unfinished drafts are browser-local, while committed flows receive durable project-local authoring manifests with provenance. These manifests are not UE/DataTable runtime exports.
+11. **Confirmed:** Historical occurrence and playable-present discovery are separate placements that may reference the same subject; neither implies runtime order.
+12. **Confirmed:** Repeatability is selected per content owner/step, or inherited from an existing canonical owner, rather than supplied by one universal default.
 
 ## Flag And Requirement Generation Policy
 
@@ -953,6 +1098,8 @@ Resolution options:
 
 Creation Flow should not grow schema-complete forms for every placeholder type.
 
+Unresolved placeholders are valid during capture and draft save, but every actual placeholder in the selected flow must be resolved before canonical commit. Resolution means either linking an existing canonical record or promoting the placeholder through its owning workspace/minimal required record contract. Commit never discards a placeholder silently. If the author wants to preserve a thought without resolving it, it remains a local note or the entire flow remains an uncommitted draft.
+
 ## Timeline And World-State Policy
 
 Timeline placement is optional unless the author wants canonical story ordering, lifecycle tracking, or coherence warnings.
@@ -969,7 +1116,15 @@ If the author has not chosen story placement, the executable sequence may still 
 
 ### Unified world chronology
 
-The target product has one overall world timeline. Historical wars, old deaths, relic use, the player's playable era, current chapters, and later consequences occupy different parts or lenses of that chronology.
+The overall chronology is an ordered set of Timeline records, not one mandatory mega-record. Each Timeline represents an era. The last or explicitly marked current era contains the main character's playable present; earlier eras hold wars, deaths, relic states, origins, and other history.
+
+V1 Timeline metadata should include:
+
+```text
+era_order
+is_playable_present
+start_year/end_year   optional where the calendar is known
+```
 
 The player does not execute the entire timeline. They inhabit one portion and can discover evidence or lore about earlier portions. Therefore the timeline must distinguish:
 
@@ -978,7 +1133,16 @@ The player does not execute the entire timeline. They inhabit one portion and ca
 - **Played now** — when the player directly participates in the current story.
 - **Runtime transition order** — immediate execution order, which is not inferred from chronological placement.
 
-The current model splits some of this meaning between lore timelines, story arcs, adventure beats, events, and discovery state. The implementation should first provide a unified author-facing chronology over those sources, then approve schema expansion only where ordering or identity cannot be represented honestly.
+For example, “The Ashblade was forged during the War of Glass” occurs in an earlier era, while “the player learns who forged the Ashblade” is a discovery beat in the playable-present era. Both reference the same item/lore identity, but they are not the same occurrence and are not adjacent executable steps merely because the UI displays them together.
+
+The current model splits this meaning between lore timelines, story arcs, adventure beats, events, and discovery state. V1 should export explicit historical-occurrence and discovery/play references over the ordered eras. This is data orientation and continuity support, not an in-game timeline UI requirement.
+
+### Chapter and region mapping
+
+- `StoryArc` is the canonical Chapter concept in V1. Author-facing copy may say **Chapter**, while ids and exports continue to reference `story_arcs`.
+- A Region is a canonical location hierarchy node with `location_type = Region`, normally below a Continent and above settlements, forests, dungeons, and other places.
+- Countries are not required by the current world structure.
+- A place's region is its nearest Region ancestor. The existing free-text `region` field may be migrated or treated as legacy display data, but it must not compete with the hierarchy as a second canonical identity.
 
 ### Stateful location variants
 
@@ -992,6 +1156,7 @@ V1 applies one shared progression-variant rule to locations, characters, and eli
 - Activating a variant is an explicit exported action/state change; story placement may describe the same transformation but does not activate it.
 - **Create variant from current** copies the effective base/current presentation into a new editable variant without creating a new logical entity.
 - The web app authors and exports activation and persistence intent. Applying it to a save game is external runtime work.
+- Returning to the base form is explicit: `activate_variant` targets a variant id, while `activate_base` clears the active variant and restores the base entity's effective data. The consuming game selects a state because an authored action/condition requests it, not by choosing an arbitrary copy of the entity.
 
 A provisional location-variant contract should support:
 
@@ -999,15 +1164,24 @@ A provisional location-variant contract should support:
 logical_location_id
 variant_id
 state_key             intact | damaged | restored | custom
+size/presentation-scale override
 description_override
+image/presentation override
+level-range override
+is_playable/is_visitable override
+safe-zone/fast-travel/respawn-point overrides
 shop_availability/overrides
 inhabitant_presence/overrides
+quest_availability/overrides
 poi_additions/removals/overrides
+encounter and route availability overrides
 visual/presentation notes or runtime asset reference
 activation condition or explicit state transition
 ```
 
-This is preferable to copy-pasting the city as an unrelated location because quests, lore, routes, timeline occurrences, and map identity should continue to refer to the same place. The exact override model is still gated on the additional workflow and typed field/export review.
+The stable location name, logical id, parent hierarchy, Region/Continent membership, and map coordinates remain on the base location in V1. Teleporting or relocating a place would require a separately approved world-change contract rather than an ordinary presentation variant. Related collections use explicit add/remove/replace operations.
+
+This is preferable to copy-pasting the city as an unrelated location because quests, lore, routes, timeline occurrences, and map identity should continue to refer to the same place.
 
 ### Event versus story beat
 
@@ -1039,9 +1213,14 @@ state_key             early | later | injured | allied | hostile | transformed |
 name/title/description/presentation overrides
 level/class/combat-profile overrides
 faction and interaction-role overrides
+ability-set overrides
+stat and attribute overrides
+inventory/equipment overrides
 available dialogue/quest/encounter references
 activation condition or explicit state transition
 ```
+
+Almost every authored presentation or gameplay-configuration field may vary for a character, including the displayed name. Stable identity remains `character_id`; home/history and occurrence links are not rewritten merely because a variant becomes active. Collection fields use explicit add/remove/replace operations.
 
 The character's story placements record introductions and changes; an exported executable action identifies the appropriate active variant. Separate character records are reserved for genuinely distinct entities such as a clone, disguise that must be independently addressable, summoned copy, or separate historical person—not ordinary progression of the same individual.
 
@@ -1067,6 +1246,8 @@ activation condition or explicit state transition
 
 The variant contract must define whether collection fields replace, add to, or remove from the base item; it must not rely on an ambiguous generic merge blob. **Create variant from current** should copy the active presentation and mechanics into an editable draft while preserving the underlying item identity.
 
+An item's displayed name, icon/appearance, description, stats, attributes, effects, rarity, requirements, and other explicitly supported mechanics may change when it becomes more powerful or changes state. The stable identity remains `item_id`.
+
 An item's story placements record discoveries and transformations; an exported executable action identifies the appropriate active item variant. Separate item records remain appropriate for genuinely distinct objects, independently ownable copies, fragments that coexist with the original, replicas, or successor artifacts—not ordinary evolution of the same unique artifact. Per-instance evolution for non-unique duplicated items is outside V1.
 
 ## Validation And Health
@@ -1089,12 +1270,13 @@ An item's story placements record discoveries and transformations; an exported e
 - Dialogue choice transition without immutable choice identity.
 - Immediate shop/encounter/companion action without a valid typed target.
 - Inventory-count objective targeting a non-item, lacking a sufficient reachable acquisition source, or using contradictory consumption/protection settings.
+- Any unresolved placeholder remaining in the selected flow.
 - Location variant transition without one stable logical location and valid variant.
 - Item variant transition without one stable logical item, valid variant, and deterministic collection-override policy.
 - Reward attached to a source that cannot grant it.
 - Required flag without a producer.
 - Requirement both requiring and forbidding the same state.
-- Unsupported damage/effect target.
+- Typed gameplay action with an incompatible target, wrong payload columns, invalid canonical Effect/Status/Currency reference, illegal status-removal filter, or missing repeat ownership.
 - Event cycle without explicit repeat semantics.
 - Multiple fallback transitions.
 - Non-deterministic transition priority.
@@ -1150,8 +1332,9 @@ Commit rules:
 
 - All executable steps in the committed path must compile.
 - Story notes may remain explicitly non-executable.
-- Partial commit is off by default.
-- If partial commit is later allowed, the break must appear as an intentional terminal or unresolved boundary.
+- Every actual placeholder in the selected flow must resolve to an existing or newly promoted canonical record.
+- Partial commit is off in V1. Independent resolved branches are not committed while another branch in the same flow still contains a placeholder.
+- Blocking commit never deletes or drops the placeholder; the author may continue the draft, convert the thought into a non-placeholder local note, or resolve it later.
 - Preview and commit use the same stable proposed ids.
 - Any stale existing record rejects the whole transaction.
 - Accepted warning ids are scoped to the exact compiled mutation.
@@ -1177,12 +1360,15 @@ Exit gate:
 - Every unsupported step is named rather than hand-waved.
 - Completion and repeat semantics are explicit in the export contract; externally unverified behavior is labeled rather than claimed.
 
+Workflow 3 and Author Reviews 4–5 satisfy the V1 corpus and canonical-direction portions of this gate. The remaining work is implementation-level schema/export transcription and the explicitly listed external verification items.
+
 ### Phase 1: capture-only embedded prototype
 
 Deliverables:
 
 - Embedded composer on dialogue choices and terminal lines.
 - Embedded **Expand this place** story seed on a selected World Builder location.
+- **Continue where I stopped** summary over the selected/recent place, browser-local drafts, committed manifests, unresolved placeholders, related edits, and next notes.
 - Free-text and typed local steps.
 - Linear ordering plus local branch labels.
 - Scoped constellation ideas and local non-temporal relationships.
@@ -1217,7 +1403,7 @@ This phase may ship behind a feature flag before the confirmed Shop Now choice-a
 
 ### Phase 3A: canonical web data and DataTable export contracts
 
-Likely deliverables, subject to Phase 0:
+Deliverables after the satisfied Phase 0 direction gate:
 
 - Stable dialogue choice identity, typed ordered choice actions, optional navigation for action-owned continuation, and persisted replay-protection identity.
 - Nested-shop action/export fields so closing the shop is declared to resume the source dialogue without replaying applied effects.
@@ -1226,12 +1412,15 @@ Likely deliverables, subject to Phase 0:
 - Reward timing and turn-in mode/target fields.
 - Typed current-inventory objectives for ordinary or protected items, explicit item uniqueness/protection, consumption policy, and acquisition-source validation.
 - Dialogue-triggered companion-join action and exported party-membership intent.
+- Typed gameplay-action rows for canonical effects, status application/removal and cleanse filters, resource restoration, currency transfer, and existing item/reputation rewards, including target, timing, ordering, and runtime-verification fields.
+- Named ordered faction-reputation ranks plus traced requirements for dialogue, lore, quest, shop, and shop-inventory consumers.
+- Timeline era ordering/current-playable-era metadata, StoryArc-as-Chapter authoring copy, and canonical Continent → Region → place hierarchy lookup with legacy region-field handling.
 - Stateful location variants for the approved intact/damaged override set, typed character variants for progression/allegiance/presentation stages, and typed item variants for evolving legendary/custom artifacts.
-- Authorable save snapshot, combat checkpoint, respawn anchor, and defeat-policy export fields after the exact default is approved.
-- Repeat/one-shot fields only if no existing runtime owner exists.
+- Authorable automatic pre-fight save/retry fields plus per-encounter respawn-point override and retry-entry references.
+- Per-content repeat/one-shot fields, with `inherit_owner` only when an existing canonical owner already defines the behavior.
 - Project-local committed-flow manifests with step/artifact provenance, schema migrations, JSON schemas, source recovery, and DataTable export preservation.
 
-Generic gameplay damage should be a separate approved authoring/export and consumer contract, not a loose JSON field added merely to complete the demo.
+The typed gameplay-action contract is part of the web/export implementation. Its rows remain `runtime_unverified` until Unreal or another consuming runtime implements and verifies them.
 
 ### Phase 4: full embedded composer rollout
 
@@ -1303,6 +1492,7 @@ Any model assistance remains local draft generation. It may not silently choose 
 - Quest inventory-count progress responds to current inventory quantity.
 - Location variant review distinguishes logical place identity from active presentation.
 - Item variant review distinguishes logical artifact identity from its active presentation and mechanics.
+- Typed gameplay-action editors expose only fields valid for the selected action and make target, timing, and repeat policy explicit.
 
 ### Frontend interaction tests
 
@@ -1327,9 +1517,11 @@ Any model assistance remains local draft generation. It may not silently choose 
 - Event loops and invalid transition sets are rejected.
 - Shop and encounter choice actions reference valid targets and have stable choice identity.
 - Quest-item protections and typed inventory objectives validate consistently.
+- Faction-rank thresholds are strictly ordered, produce valid minimum-reputation requirements, and trace every unlocked consumer.
 - Companion join actions reference a companion-capable character and valid source choice.
 - Location variants cannot cross logical-location ownership.
 - Item variants cannot cross logical-item ownership and must declare replace/add/remove semantics for collection overrides.
+- Gameplay actions reject mismatched discriminators/payloads, invalid effect/status/currency references, incompatible targets, illegal cleanse/dispel operations, and ambiguous repeat ownership.
 - Deleting a source does not leave invalid generated references.
 
 ### Golden workflow tests
@@ -1343,7 +1535,8 @@ Every exemplary workflow should assert:
 - Implementation summary.
 - Expected blockers/warnings.
 - Temporary rehearsal trace.
-- Runtime/export fixture after that contract exists.
+- DataTable export fixture plus external runtime-verification status.
+- For Workflow 3: resume-context packet, causal constellation relations, ordered atomic reputation consequences, rank consumers, and unresolved-equipment commit blocker.
 
 ### Regression suite
 
@@ -1383,7 +1576,7 @@ Initial product targets for the motivating workflow:
 - Preview all generated records in one review.
 - Make **open now**, **available later**, and **both** unmistakably different.
 - Keep world history, playable story order, and repeatable farming sources visibly separate.
-- Preserve unsupported damage direction without claiming it is executable.
+- Preserve typed gameplay-action intent and runtime-verification status without claiming the web app executes it in game.
 
 ## Risks And Mitigations
 
@@ -1440,31 +1633,26 @@ The first useful release is complete when:
 7. Local constellation relationships remain visibly distinct from executable transitions and compile only through honest canonical contracts.
 8. Existing-model steps compile deterministically and preview through one rollback-only endpoint.
 9. The motivating **open shop now** behavior has an approved choice-action and DataTable export contract, not a fake unlock substitute; the web app does not claim to execute the in-game shop handoff.
-10. Unsupported gameplay damage remains visible and blocks any claim of a fully executable chain.
+10. Supported typed gameplay actions compile into validated DataTable rows with explicit targets and remain labeled `runtime_unverified` until a consumer is verified; unknown custom effects remain visible and block executable commit.
 11. One atomic review lists every created/changed record grouped by author step.
 12. Stale edits and invalid references reject the entire commit safely.
 13. Dialogue Flow, Progression Flow, Scoped Gate, Consequence Composer, Timeline, dependency, recovery, and export regression tests pass.
 14. Representative authors complete the exemplary workflow corpus with fewer context switches and less technical interruption than the current workflow.
+15. An author can resume an existing city context, update canonical city/character content, expand a causal faction story, and promote selected ideas into a mostly linear quest/reputation/shop sequence without reconstructing prior context.
+16. Named faction ranks trace reputation producers to dialogue, lore, quest, shop, and equipment consumers, and all unresolved placeholders block commit without being discarded.
+17. An author can create a reference/placeholder by selecting a prose span or by adding an idea card directly; both gestures produce the same linked idea identity and can later be promoted without re-entering the idea.
 
-## Questions To Resolve With The Workflow Corpus
+## Remaining External Verification After Author Review 6
 
-These questions should remain open until the examples make them concrete:
+The V1 corpus, canonical direction, and author-facing product decisions are closed. Timeline usage, per-content repeatability, the typed gameplay-action web contract, the respawn boundary, and the combined selected-text/idea-card interaction are decided. No author clarification currently blocks web implementation.
 
-- Is the most common author gesture attached to a dialogue choice, a dialogue ending, an encounter result, or a free-standing story moment?
-- How often does **Then** mean immediate execution versus later availability?
-- Must multiple consequences occur in parallel after one outcome?
-- Which retry/load/respawn policy should be the default defeat export, with whole-dungeon reset reserved for explicitly authored challenge content?
-- What exactly is retained under a respawn policy: inventory, quest progress, world state, encounter state, currency, and temporary effects?
-- Which steps must be one-shot, repeatable, cancellable, or resumable?
-- May authors disable the automatic pre-fight checkpoint, and what warning/confirmation should that require?
-- When and how are active location, character, and item variants switched, saved, restored, and exported?
-- For item variants, which fields may change, and which explicit replace/add/remove operations are valid for each collection field?
-- How should an unfinished placeholder behave when the rest of a chain is ready?
-- Do the workflows need nested subflows, or is a small branch graph sufficient?
-- Should lore prose grow placeholders through selected-text actions, linked idea cards, or both?
-- How should the unified timeline represent the difference between a historical occurrence and the later moment when the player discovers it?
-- Is “chapter” author-facing grouping over current arcs/beats or a missing canonical record?
-- Is a region a location-hierarchy scope, a saved authoring scope, or a separate game-world concept?
+External runtime verification still remains for:
+
+- Whether and how the consuming runtime executes exported event transitions and determines completion.
+- Which state survives the optional respawn-point override.
+- Execution of typed gameplay-action exports and other contracts labeled `runtime_unverified`.
+
+These questions affect Unreal/runtime integration and verification, not the authorized scope of the web-app implementation.
 
 ## Final Product Test
 
