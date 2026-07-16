@@ -414,9 +414,10 @@ def test_dialogue_graph_semantics_round_trip_through_source_and_ue_exports():
     assert "starting_node_id" in dialogue_ue_columns
     assert "is_terminal" in node_ue_columns
     assert node_ue_rows[0][node_ue_columns.index("is_terminal")] is False
-    exported_choices = json.loads(node_ue_rows[0][node_ue_columns.index("choices")])
-    assert exported_choices[0]["id"] == "choice-trade"
-    assert exported_choices[0]["actions"][0]["runtime_support"] == "runtime_unverified"
+    exported_choices = node_ue_rows[0][node_ue_columns.index("choices")]
+    assert 'id="choice-trade"' in exported_choices
+    assert 'action_type="open_shop"' in exported_choices
+    assert 'runtime_support="runtime_unverified"' in exported_choices
 
 
 def test_source_json_coercion_rejects_malformed_arrays():
