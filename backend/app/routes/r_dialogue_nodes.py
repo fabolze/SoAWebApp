@@ -60,6 +60,17 @@ class DialogueNodeRoute(BaseRoute):
         
         # JSON fields with validation
         choices = validate_choice_contracts(db_session, node, data.get("choices", []))
+        incoming_choice_ids = {choice["id"] for choice in choices}
+        incoming_action_ids = {action["id"] for choice in choices for action in choice.get("actions") or []}
+        for other_node in db_session.query(DialogueNode).filter(DialogueNode.id != node.id).all():
+            for other_choice in other_node.choices or []:
+                if not isinstance(other_choice, dict):
+                    continue
+                if other_choice.get("id") in incoming_choice_ids:
+                    raise ValueError(f"Dialogue choice id already belongs to another node: {other_choice.get('id')}")
+                for other_action in other_choice.get("actions") or []:
+                    if isinstance(other_action, dict) and other_action.get("id") in incoming_action_ids:
+                        raise ValueError(f"Dialogue choice action id already belongs to another node: {other_action.get('id')}")
         for choice in choices:
             next_node_id = choice.get("next_node_id")
             if next_node_id:
