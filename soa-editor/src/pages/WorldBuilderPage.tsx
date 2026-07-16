@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import ScopedGateSection from "../components/authoring/ScopedGateSection";
 import { AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
+import ThenComposer from "../components/authoring/ThenComposer";
 import {
   packetStoryPlacementWarningRecords,
   parseEntityTrackOccurrences,
@@ -13,6 +14,7 @@ import { responseErrorMessage } from "../lib/apiErrors";
 import { CommaSeparatedInput } from "../authoringViews/controls";
 import { buildProjectHealthSummary, healthIssueTarget, type HealthIssue } from "../health/projectHealth";
 import { generateSlug, generateUlid } from "../utils/generateId";
+import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import {
   coordinatesFromEntry,
   coordinatesFromPointer,
@@ -350,6 +352,7 @@ export default function WorldBuilderPage() {
   const [payload, setPayload] = useState<WorldBuilderPayload | null>(null);
   const [storyPacket, setStoryPacket] = useState<EntryRecord | null>(null);
   const [selectedId, setSelectedId] = useState("");
+  const [expandPlaceOpen, setExpandPlaceOpen] = useState(false);
   const [healthIssues, setHealthIssues] = useState<HealthIssue[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1133,6 +1136,7 @@ export default function WorldBuilderPage() {
               />
             ) : selectedLocation ? (
               <div className="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4">
+                <AuthoringPanel title="Give this place a story" subtitle="Narrative Creation Flow" help="Capture lore prose, idea cards, creative relationships, and playable next steps as browser-local work before deciding which canonical records they need."><p className="text-sm text-slate-600 dark:text-slate-300">Start from {label(selectedLocation)} and keep the selected place as the protected return context.</p><button type="button" className={`${BUTTON_CLASSES.violet} ${BUTTON_SIZES.sm} mt-3`} onClick={() => setExpandPlaceOpen(true)}>Expand this place</button></AuthoringPanel>
                 {!selectedIsDraft && (
                   <StoryPlacementPanel
                     entityKind="location"
@@ -1176,6 +1180,7 @@ export default function WorldBuilderPage() {
           </section>
         </div>
       </div>
+      {expandPlaceOpen && selectedLocation && <ThenComposer open mode="expand" origin={{ ref: { kind: "location", ...(selectedIsDraft ? { draftId: entryId(selectedLocation) } : { canonicalId: entryId(selectedLocation) }), label: label(selectedLocation) } }} originLabel={label(selectedLocation)} returnFrame={{ workspace: "world-builder", context: { kind: "location", ...(selectedIsDraft ? { draftId: entryId(selectedLocation) } : { canonicalId: entryId(selectedLocation) }), label: label(selectedLocation) }, selectedId: entryId(selectedLocation), localViewState: { mode, layer } }} onClose={() => setExpandPlaceOpen(false)} />}
     </AuthoringPageShell>
   );
 }

@@ -19,6 +19,7 @@ import { EditableTagList, ReferenceChipPicker, displayText, isRecord } from "../
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
 import ScopedGateSection from "../components/authoring/ScopedGateSection";
+import ThenComposer from "../components/authoring/ThenComposer";
 import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useDirtyState } from "../components/useDirtyState";
@@ -26,6 +27,7 @@ import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import type { EntryRecord } from "../types/editorQol";
+import type { CreationFlowDraft } from "../authoring/creationFlow";
 import { generateSlug, generateUlid } from "../utils/generateId";
 import DialogueScriptView from "../dialogues/script/DialogueScriptView";
 import DialogueImportDialog from "../dialogues/dlg/DialogueImportDialog";
@@ -361,6 +363,8 @@ export default function DialogueFlowPage() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [localSavedAt, setLocalSavedAt] = useState<number | null>(null);
   const [snapshots, setSnapshots] = useState<LocalSnapshot<DialoguePacket>[]>([]);
+  const [creationFlowOrigin, setCreationFlowOrigin] = useState<NonNullable<CreationFlowDraft["origin"]> | null>(null);
+  const [creationFlowLabel, setCreationFlowLabel] = useState("");
   const dirtySource = useRef(`dialogue-flow-${id || "index"}`);
   const undoStack = useRef<DialoguePacket[]>([]);
   const redoStack = useRef<DialoguePacket[]>([]);
@@ -380,6 +384,20 @@ export default function DialogueFlowPage() {
   const health = useMemo(() => analyze(activeNodes, packet, groups), [activeNodes, groups, packet]);
   const dirty = Boolean(original) && stable({ dialogue: packet.dialogue, nodes: packet.nodes, story_beats: packet.story_beats, deletions, beatUnlinks }) !== stable({ dialogue: original?.dialogue, nodes: original?.nodes, story_beats: original?.story_beats, deletions: [], beatUnlinks: [] });
   const saveBlocked = health.blockers.length > 0 || !text(packet.dialogue.title) || !text(packet.dialogue.slug);
+
+  const openThenComposer = () => {
+    const dialogueRef = { kind: "dialogue" as const, ...(isNew ? { draftId: currentId } : { canonicalId: currentId }), label: label(packet.dialogue) };
+    if (selectedChoice && selectedChoiceRow) {
+      const choiceLabel = text(selectedChoiceRow.choice_text, "Continue");
+      setCreationFlowOrigin({ ref: dialogueRef, subRef: { kind: "dialogue_choice", draftId: text(selectedChoiceRow.id, `${selectedChoice.nodeId}:choice:${selectedChoice.index}`), label: choiceLabel } });
+      setCreationFlowLabel(`${label(packet.dialogue)} · ${choiceLabel}`);
+      return;
+    }
+    if (selectedNode) {
+      setCreationFlowOrigin({ ref: dialogueRef, subRef: { kind: "dialogue_node", ...(selectedNode.__new ? { draftId: text(selectedNode.id) } : { canonicalId: text(selectedNode.id) }), label: text(selectedNode.text, "Dialogue ending") } });
+      setCreationFlowLabel(`${label(packet.dialogue)} · ending`);
+    }
+  };
 
   useEffect(() => { const source = dirtySource.current; setDirty(source, dirty); return () => setDirty(source, false); }, [dirty, setDirty]);
 
@@ -738,7 +756,8 @@ export default function DialogueFlowPage() {
           <div className="mb-3 flex flex-wrap gap-1">{(["edit", "beat", "health", "context"] as InspectorTab[]).map((item) => <button key={item} className={tab === item ? active : inactive} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}<button className={inactive} onClick={() => setInspectorOpen(false)} aria-label="Close context dock">Hide</button></div>
           {tab === "edit" && selectedChoice && selectedChoiceRow ? <ChoiceEditor choice={selectedChoiceRow} nodes={packet.nodes} deletions={deletions} onChange={(patch) => updateChoice(selectedChoice.nodeId, selectedChoice.index, patch)} onRemove={() => { const node = packet.nodes.find((entry) => text(entry.id) === selectedChoice.nodeId); updateNode(selectedChoice.nodeId, { choices: rows(node?.choices).filter((_, index) => index !== selectedChoice.index) }); setSelectedChoice(null); }} />
             : tab === "edit" && selectedNode ? <NodeEditor node={selectedNode} packet={packet} groupedBeatId={groups[text(selectedNode.id)] || ""} selectedBeatId={selectedBeatId} onChange={(patch) => updateNode(text(selectedNode.id), patch)} onGroup={(beatId) => { const next = { ...groups, [text(selectedNode.id)]: beatId }; if (!beatId) delete next[text(selectedNode.id)]; setGroups(next); localStorage.setItem(groupKey(currentId), JSON.stringify(next)); }} onDelete={() => selectedNode.__new ? setPacket((current) => ({ ...current, nodes: current.nodes.filter((entry) => text(entry.id) !== text(selectedNode.id)) })) : setDeletions((current) => [...new Set([...current, text(selectedNode.id)])])} />
-              : tab === "edit" ? <DialogueEditor dialogue={packet.dialogue} onChange={updateDialogue} /> : null}
+               : tab === "edit" ? <DialogueEditor dialogue={packet.dialogue} onChange={updateDialogue} /> : null}
+          {tab === "edit" && Boolean((selectedChoice && selectedChoiceRow) || (selectedNode && rows(selectedNode.choices).length === 0 && selectedNode.is_terminal !== false)) && <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3 dark:border-violet-900 dark:bg-violet-950/30"><div className="text-sm font-semibold text-violet-950 dark:text-violet-100">What happens next?</div><p className="mt-1 text-xs text-violet-800 dark:text-violet-200">Capture a mixed-content continuation without leaving this dialogue or creating canonical machinery.</p><button type="button" className={`${BUTTON_CLASSES.violet} ${BUTTON_SIZES.sm} mt-2`} onClick={openThenComposer}>Then…</button></div>}
           {tab === "edit" && selectedConsequenceNode && !selectedConsequenceNode.__new && <div className="mt-3">
             <ConsequenceComposer
               sourceKind="dialogue_node"
@@ -775,7 +794,8 @@ export default function DialogueFlowPage() {
        </div>
          </main>
      </div>
-    {commandOpen && <div role="dialog" aria-modal="true" aria-label="Dialogue commands" className="fixed inset-0 z-50 bg-slate-950/50 p-4" onMouseDown={() => setCommandOpen(false)}><div className="mx-auto mt-20 max-w-lg rounded-xl bg-white p-4 shadow-2xl dark:bg-slate-900" onMouseDown={(event) => event.stopPropagation()}><div className="mb-3 flex items-center justify-between"><b>Dialogue commands</b><button onClick={() => setCommandOpen(false)} aria-label="Close commands">✕</button></div><div className="grid gap-2">
+    {creationFlowOrigin && <ThenComposer open mode="then" origin={creationFlowOrigin} originLabel={creationFlowLabel} returnFrame={{ workspace: "dialogue-flow", context: creationFlowOrigin.ref, selectedId: selectedChoice ? `${selectedChoice.nodeId}:choice:${selectedChoice.index}` : selectedNodeId, localViewState: { view, tab } }} onClose={() => setCreationFlowOrigin(null)} />}
+     {commandOpen && <div role="dialog" aria-modal="true" aria-label="Dialogue commands" className="fixed inset-0 z-50 bg-slate-950/50 p-4" onMouseDown={() => setCommandOpen(false)}><div className="mx-auto mt-20 max-w-lg rounded-xl bg-white p-4 shadow-2xl dark:bg-slate-900" onMouseDown={(event) => event.stopPropagation()}><div className="mb-3 flex items-center justify-between"><b>Dialogue commands</b><button onClick={() => setCommandOpen(false)} aria-label="Close commands">✕</button></div><div className="grid gap-2">
       <button className={inactive} disabled={!selectedNodeId} onClick={() => { if (selectedNodeId) addLinkedNode(selectedNodeId, true); setCommandOpen(false); }}>Add continuation</button>
       <button className={inactive} disabled={!selectedNodeId} onClick={() => { const choice = window.prompt("Player choice label"); if (selectedNodeId && choice?.trim()) addChoiceNode(selectedNodeId, choice.trim()); setCommandOpen(false); }}>Add choice</button>
       <button className={inactive} onClick={() => { setFocusMode((value) => !value); setCommandOpen(false); }}>Toggle focus mode</button>

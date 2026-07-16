@@ -1,6 +1,6 @@
 # Narrative-First Creation Flow And “Then…” Composer Plan
 
-Status: V1 product semantics reviewed across three exemplary workflows and six author reviews; canonical web/export implementation may proceed with field-level schema, model, validation, and DataTable transcription
+Status: Phase 1 capture implementation complete for Dialogue Flow and World Builder, with unit, lint, build, and focused browser coverage passing; representative-writer evaluation remains open before Phase 2
 
 Drafted: 2026-07-15
 
@@ -15,13 +15,39 @@ Likely implementation hosts: Dialogue Scene Room, Encounter Stage, Quest Journey
 | Workflow corpus | V1 corpus gate satisfied; three examples plus six behavior reviews captured | Golden fixtures preserve the map-to-quest sequence, place-story constellation, and resume-and-expand hybrid workflow in author language |
 | Semantic vocabulary | Drafted here | Product wording distinguishes immediate actions, future availability, persistent state, and story placement without requiring technical vocabulary |
 | Current-model capability map | Drafted here | Every proposed gesture is classified as supported, compilable, story-only, or canonically unsupported |
-| Capture-only prototype | Not started | An author can preserve a mixed-content sequence locally without creating flags, requirements, beats, or records |
+| Capture-only prototype | Implemented for Dialogue Flow and World Builder; representative-writer evaluation pending | An author can preserve a mixed-content sequence or place constellation locally without creating flags, requirements, beats, or records |
 | Existing-record compiler | Not started | Supported steps compile deterministically into reviewed existing records and links |
 | Canonical action/transition decision | V1 direction decided: Option B plus project-local committed-flow manifests | Typed choice actions, ordered atomic consequence groups, victory transitions, defeat policies, return behavior, and committed-flow provenance are explicit without a universal playable-sequence runtime model |
-| Embedded Then… composer | Not started | Dialogue choices/endings and encounter/quest outcomes can open a scoped composer without route switching |
+| Embedded Then… composer | Dialogue choice/ending and selected-location embeds implemented; encounter/quest rollout remains Phase 4 | Dialogue choices/endings and encounter/quest outcomes can open a scoped composer without route switching |
 | Standalone Creation Flow workspace | Not started | Larger sequences and scoped story constellations can be shaped, resolved, rehearsed/traced, and committed from one focused workspace |
 | Web data/export contract | Product-level contract drafted; technical transcription not started | Authoring schemas and DataTable export shapes preserve completion, limited branching, per-content repeatability, typed gameplay actions, shop actions, quest state, variants, and runtime-verification status honestly; Unreal execution remains outside this implementation |
 | Writer evaluation | Pending external evaluation | Representative authors complete the workflow corpus with materially less interruption than the current multi-workspace path |
+
+### Implementation progress — 2026-07-16
+
+Major step 1, the capture foundation, is complete:
+
+- `soa-editor/src/authoring/creationFlow.ts` is the executable `SOA-CREATION-FLOW/1` contract. It normalizes imported drafts, re-derives support instead of trusting serialized capability labels, edits linear order without treating constellation relations as execution, removes dangling links, and preserves stable artifact ids.
+- `soa-editor/src/authoring/creationFlowDraftStorage.ts` provides browser-local draft indexing, origin-scoped resume lookup, recovery after reload, named snapshots, and validated JSON import/export.
+- The implemented note contract adds optional prose mentions that point to the same placeholder identity used by idea cards. This is a backward-compatible transcription of the confirmed combined lore interaction; it does not create canonical records.
+- `soa-editor/src/authoring/creationFlow.test.ts` covers format normalization, derived support, ordering/link cleanup, stable artifact ids, origin-scoped recovery, snapshots, and malformed/unsupported imports.
+- Verification after this step: all 90 frontend unit tests pass.
+
+The foundation remains capture-only. It performs no API mutation and does not claim project persistence, compilation, DataTable support, or runtime verification.
+
+Major step 2, the capture UI and first host embeds, is complete:
+
+- `ThenComposer.tsx` provides the same modal capture surface for temporal **Then…** work and constellation-shaped **Expand this place** work.
+- Dialogue Scene Room opens the composer from the selected choice or terminal line and stores that exact sub-context in the draft origin and return frame. Unsaved dialogue edits remain in the owning page while the modal is open.
+- World Builder opens the constellation composer from the selected saved or browser-local location and retains the selected location, map mode, and active layer as return context.
+- The composer supports free-text capture, later shaping, ordering, explicit local branches, immediate/after-completion/available-later/story-only timing, per-step repeat intent, placeholder targets, idea cards, non-temporal creative relations, origin-scoped resume, autosave, named snapshots, and JSON recovery.
+- Lore prose selection creates a mention and idea card over one placeholder id. Prose edits relocate only unambiguous mentions; deleting or ambiguously duplicating mention text removes the span link without deleting the idea card.
+- Capture health distinguishes unresolved, unsupported, story-only, compilable, and runtime-unverified intentions. The UI repeatedly states that Phase 1 makes no canonical, project-persistent, or runtime/DataTable writes.
+- Verification after this step: ESLint passes, all 91 frontend unit tests pass, the TypeScript/Vite production build succeeds, and both new Chromium interaction tests pass (Dialogue close/reload recovery and World Builder prose/card close/reload recovery). The existing large-chunk advisory remains unchanged in kind.
+
+Closing the composer now flushes the active draft synchronously as well as retaining the short autosave debounce, preventing loss when an author captures and closes quickly. Phase 1 still needs representative-writer evaluation. Project-local committed manifests, canonical preview/commit, catalog resolution, and DataTable/runtime contracts remain later phases and are not implied by this capture milestone.
+
+The repository-wide Playwright command was also run for visibility: 20 of 49 tests passed and 29 failed across several existing authoring suites because of broad mock-contract gaps and timeouts. The two Creation Flow interaction tests pass together. The full-suite failures are recorded as regression-suite debt rather than represented as successful Phase 1 verification.
 
 ## Executive Decision
 
@@ -1384,6 +1410,8 @@ Evaluation:
 - Does the author understand immediate versus available-later wording?
 - Does the author understand that constellation relationships are not runtime order?
 - Does structuring feel lighter than manually authoring flags and requirements?
+
+Implementation status on 2026-07-16: the reusable capture UI, Dialogue choice/ending embed, selected-location World Builder embed, local steps/branches/relations/placeholders, autosave/recovery/snapshots, prose-linked idea cards, and JSON export/import are implemented. Automated unit, lint, production-build, and two focused browser interaction checks pass. External author evaluation remains open; committed-manifest summaries are unavailable by design until the later project-persistence contract exists.
 
 ### Phase 2: existing-record compiler
 

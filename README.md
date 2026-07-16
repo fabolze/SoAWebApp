@@ -22,6 +22,7 @@ Working:
 - Specialized Item Ecosystem, Quest Journey Board, Adventure Dependency Map, shop, Character Studio, location, atlas, world-builder, Dialogue Flow, and Encounter Stage authoring.
 - Atomic bundle APIs for cross-record authoring workspaces.
 - Dialogue Scene graph authoring, story-beat tracks, inline branching, validation, local layout/grouping restore, rehearsal, World Echo, and atomic bundle review.
+- Browser-local Narrative Creation Flow capture from dialogue choices/endings and selected World Builder locations, including mixed-content **Then…** sequences, **Expand this place** constellations, placeholders, prose-linked idea cards, snapshots, and JSON recovery. This Phase 1 surface intentionally performs no canonical commit.
 - Source CSV export/import and staged full-source rebuilds with preflight, foreign-key checks, and atomic SQLite replacement.
 - Database-enforced faction reputation references on fresh or rebuilt databases, with faction deletion cascading only linked minimum-reputation rows.
 - Project Health, local deterministic authoring helpers, and the local heuristic simulation sandbox.

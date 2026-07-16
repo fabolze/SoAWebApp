@@ -1,6 +1,6 @@
 # Narrative Creation Flow Workflow Corpus
 
-Status: V1 corpus gate satisfied with three exemplary workflows and six author reviews; remaining work is technical web-schema/DataTable transcription plus explicitly deferred runtime concerns
+Status: V1 corpus gate satisfied; Phase 1 browser-local capture is implemented for Dialogue Flow and World Builder with focused browser coverage passing; representative-writer evaluation, compiler work, technical web-schema/DataTable transcription, and deferred runtime verification remain
 
 This document preserves exemplary workflows in the author's own language and derives product, compiler, schema, and acceptance-test implications from them. The original narrative is the source of truth. The structured interpretation exists to make the workflow testable; it must not overwrite the creative intent.
 
@@ -1135,3 +1135,29 @@ Source: author feedback supplied on 2026-07-15.
 ### Acceptance consequence
 
 The **Expand this place** surface is not merely a text editor beside a card board. Text spans and cards are two views and creation gestures over the same local idea/reference graph. Editing prose must not destroy cards; moving or editing a card must not corrupt prose; deleting a mention must not silently delete the underlying idea when another relation or card still uses it. Canonical commit remains blocked until every required placeholder is resolved or promoted.
+
+## Implementation Coverage — 2026-07-16
+
+The first Phase 1 implementation step now turns the shared workflow findings into an executable frontend contract:
+
+- All three workflow shapes can be represented by the versioned `SOA-CREATION-FLOW/1` draft as sequences, constellations, or hybrids.
+- Temporal transitions and non-temporal relations are stored separately and normalized independently, preserving the W2 and W3 rule that creative association is not runtime order.
+- Drafts are indexed by their originating dialogue choice, ending, location, or other local reference so “continue where I stopped” can recover the relevant work without label matching.
+- Placeholder targets remain explicit and produce localized unresolved issues; they are never discarded during normalization or JSON recovery.
+- Idea-card placeholders and selected prose mentions share one placeholder id in the implemented local-note shape, satisfying the identity portion of W2-B and Author Review 6 without creating empty canonical records.
+- Step support is recalculated when a draft is loaded. Serialized claims that a custom or unresolved step is compilable are not trusted.
+
+UI interaction coverage and the actual Dialogue Flow / World Builder embeds remain the next Phase 1 step. Canonical compilation and runtime/DataTable behavior remain intentionally outside this completed capture-foundation milestone.
+
+### Capture UI and host coverage
+
+The second Phase 1 step is implemented:
+
+- Workflow 1 can start a scoped **Then…** draft from a Dialogue Flow choice or ending, keep the unsaved dialogue page intact, capture/reorder mixed-content steps, label a local alternative, and resume the origin-scoped draft after closing or reloading.
+- Workflow 2 can start **Expand this place** from the selected World Builder location, write lore prose, create idea cards directly, promote selected prose into the same card identity, and connect cards through explicitly non-temporal relationships.
+- Workflow 3 can use a hybrid shape, mix existing context labels with new placeholders, preserve per-step timing/repeat intent, and recover named snapshots or exported JSON without creating empty canonical shells.
+- Every capture surface labels work as browser-local and exposes no canonical commit action. “Compilable” is a capability classification only; it is not presented as successful backend preview or runtime verification.
+
+Automated verification now covers 91 frontend unit tests, ESLint, a production TypeScript/Vite build, and two passing Chromium interactions: Dialogue ending capture/reload and World Builder selected-prose/card capture/reload. Fast close is explicitly covered and flushes the pending local save. Representative-author evaluation remains open before Phase 1 is treated as evaluated rather than implemented.
+
+The full existing Playwright suite was run separately and currently reports 20 passing and 29 failing tests across multiple authoring workspaces, with widespread mock-contract gaps and timeouts. This does not invalidate the two focused Creation Flow checks, but it prevents claiming repository-wide browser regression success.

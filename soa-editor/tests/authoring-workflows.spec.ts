@@ -793,6 +793,37 @@ test("world builder restores a sketch draft into quick edit on page load", async
   expect(savedLocation.region).toBe("Recovered Coast");
 });
 
+test("world builder expands a place into prose-linked local idea cards and restores it", async ({ page }) => {
+  const world = {
+    ...emptyWorld,
+    locations: [{
+      id: "location-seed", slug: "hollow-basilica", name: "Hollow Basilica", location_type: "Zone", place_kind: "Settlement",
+      coordinates: { x: 50, y: 50 }, level_range: { min: 1, max: 3 }, tags: [], environment_tags: [],
+    }],
+  };
+  await mockApi(page, world);
+  await page.goto("/author/world?selected=location-seed");
+
+  await page.getByRole("button", { name: "Expand this place" }).click();
+  const composer = page.getByRole("dialog", { name: "Expand this place" });
+  await expect(composer.getByText("Browser-local work in progress.")).toBeVisible();
+  const prose = composer.getByLabel("Lore prose");
+  await prose.fill("The Ash Regent once guarded the basilica.");
+  await prose.evaluate((element) => {
+    const field = element as HTMLTextAreaElement;
+    field.setSelectionRange(4, 14);
+  });
+  await composer.getByRole("button", { name: "Create/link card from selection" }).click();
+  await expect(composer.getByText("Ash Regent", { exact: true }).first()).toBeVisible();
+  await expect(composer.getByText("Local placeholder", { exact: true })).toBeVisible();
+  await composer.getByRole("button", { name: "Close" }).click();
+
+  await page.reload();
+  await page.getByRole("button", { name: "Expand this place" }).click();
+  await expect(page.getByRole("dialog", { name: "Expand this place" }).getByLabel("Lore prose")).toHaveValue("The Ash Regent once guarded the basilica.");
+  await expect(page.getByText("Continued the most recent browser-local draft for this context.")).toBeVisible();
+});
+
 test("world builder places a selected location state through a semantic preset", async ({ page }) => {
   const world = {
     ...emptyWorld,
@@ -1121,6 +1152,7 @@ async function mockDialogueApi(
     if (url.pathname === "/api/flags") return fulfillJson(route, dialoguePacket.flags);
     if (url.pathname === "/api/factions") return fulfillJson(route, []);
     if (url.pathname === "/api/characters") return fulfillJson(route, dialoguePacket.characters);
+    if (url.pathname === "/api/ui/scoped-gates") return fulfillJson(route, { requirements: dialoguePacket.requirements, requirement_usages_by_id: {}, flags: dialoguePacket.flags, flag_usage_by_id: {}, requirement_targets: [], dependency_index: { nodes: [], edges: [] } });
     if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimelinePacket);
     if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as Record<string, unknown>;
@@ -1554,6 +1586,29 @@ test("dialogue flow sketches, connects, and saves a complete bundle", async ({ p
 
   await expect.poll(() => saved).not.toBeNull();
   expect((saved?.nodes as unknown[]).length).toBe(3);
+});
+
+test("dialogue ending captures and restores a no-write Then flow", async ({ page }) => {
+  await mockDialogueApi(page);
+  await page.goto("/author/dialogues/dialogue-1");
+  await page.getByRole("button", { name: "Script" }).click();
+  await page.locator("#script-line-node-2 textarea").focus();
+  await page.getByRole("button", { name: "Then…" }).click();
+
+  const composer = page.getByRole("dialog", { name: "Then composer" });
+  await expect(composer.getByText("No flags, requirements, beats, or canonical records are written here.")).toBeVisible();
+  await composer.getByLabel("Capture next idea").fill("Open Mara's shop now");
+  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByLabel("Meaning").selectOption("open_shop");
+  await expect(composer.getByText("unresolved", { exact: true })).toBeVisible();
+  await composer.getByRole("button", { name: "Close" }).click();
+
+  await page.reload();
+  await page.getByRole("button", { name: "Script" }).click();
+  await page.locator("#script-line-node-2 textarea").focus();
+  await page.getByRole("button", { name: "Then…" }).click();
+  await expect(page.getByRole("dialog", { name: "Then composer" }).getByLabel("Step 1 text")).toHaveValue("Open Mara's shop now");
+  await expect(page.getByText("Continued the most recent browser-local draft for this context.")).toBeVisible();
 });
 
 test("dialogue flow places a dialogue state consequence through a semantic preset", async ({ page }) => {
