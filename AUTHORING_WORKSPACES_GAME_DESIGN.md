@@ -49,21 +49,9 @@ Last reviewed: 2026-07-16
 | Ability Spellcraft Lab | Implemented expanded lab with trace bench, rhythm timeline, lifecycle workshop, shared effect/status clone-edit flows, local status playground, variants, relationships, Create Related Draft, contextual testing, encounter-role usage through combat-profile assignment, encounter-side/area/ally targeting diagnostics, boss-signature role checks, status defense rules, shared scoped ability gate authoring, and shared rollback-preview/atomic-commit review |
 | Story Timeline And Adventure Board | Interactive MVP implemented with scoped lanes, lenses, drag/drop local planning, direct stale-protected canonical typed-link lifecycle editing, same-lane duration spans, local scoped lane comparison, canonical adventure beats/lifecycle-aware typed links, backend-complete tracks and query-driven focus for all ten target types, scoped lifecycle-coherence warnings, reusable frontend placement helpers, and shared preview/commit review |
 | Adventure Dependency Map | Implemented MVP with actionable health groups, issue focusing, broken-edge display, inferred unlock edges, cycle detection, node/relationship metrics, explicit versus inferred relationship styling, ordered temporary trigger stepping, deterministic reachable-source flood fill, faction-reputation-aware gates/rewards, and side-by-side local path comparison |
-| Narrative Creation Flow | Phase 1 capture UI implemented in Dialogue Scene Room choices/endings and selected World Builder locations, with `SOA-CREATION-FLOW/1`, derived support, local sequencing/branches/relations, prose-linked idea cards, origin-scoped autosave/recovery, named snapshots, and JSON import/export; focused browser interactions pass, writer evaluation pending; no canonical writes |
+| Narrative Creation Flow | Phase 1 capture plus bounded Phase 2 canonical resolution/preview/rehearsal/atomic commit implemented in Dialogue Scene Room choices/endings and selected World Builder locations, with deterministic artifacts and source-recoverable authoring manifests; wider host rollout and writer evaluation pending |
 
 The workspace descriptions below contain both current-model implementation contracts and future-facing design. A feature is not implemented merely because it appears in this document; the status table is authoritative.
-
-### Narrative Creation Flow
-
-**Creative North Star:** let an author capture what happens next or expand one place into a connected story constellation before translating the idea into flags, requirements, events, rewards, placements, and other canonical records.
-
-**Current-model implementation:** the versioned frontend draft model and browser-local recovery layer are implemented under `soa-editor/src/authoring/`, with the reusable composer under `soa-editor/src/components/authoring/ThenComposer.tsx`. Dialogue choices/endings and selected World Builder locations open the capture surface in place. Drafts preserve sequence transitions separately from constellation relations, keep unresolved placeholders, link prose mentions and idea cards through one identity, re-derive support on load, and can be snapshotted or exported as recovery JSON. This phase writes no canonical records and describes unfinished work as browser-local.
-
-**Future expansion:** embedded capture in all approved host workspaces, authoritative preview/compile/commit services, project-local committed manifests, typed action/transition and variant schemas, DataTable contracts, and the standalone Creation Flow workspace described in `NARRATIVE_CREATION_FLOW_PLAN.md`.
-
-**Health questions:** can the author preserve the full thought without technical ids; are now/later/story-only meanings explicit; are unresolved targets visible; do relations avoid claiming runtime order; and can the draft be recovered without silently matching labels?
-
----
 
 ## Design Foundation
 
@@ -182,7 +170,7 @@ When a Codex agent is asked to continue this work, start here. Do not begin from
 
 #### Next Action Queue
 
-Active queue item: finish Narrative Creation Flow Phase 1 evaluation by running the representative-author corpus. The focused browser interactions for both initial embeds now pass. After the author gate, begin Phase 2 as a separate backend/compiler milestone: golden fixtures plus catalog and rollback-only preview first, without weakening the current no-canonical-write capture boundary. Phase 3A canonical/export schemas remain a separate reviewed milestone. Separately, repair the broad Playwright mock contracts/timeouts before using the 49-test browser suite as a release gate; the latest full run was 20 passed and 29 failed, while both focused Creation Flow tests passed.
+Active queue item: run the representative-author corpus over the implemented capture and bounded compiler loop, then roll the shared composer into the next approved host one at a time. Phase 3A canonical/export schemas remain a separate reviewed milestone for shop-now, choice/outcome transitions, quest lifecycle, gameplay actions, repeat policy, and variants. Separately, repair the broad Playwright mock contracts/timeouts before using the 49-test browser suite as a release gate; the last recorded full run was 20 passed and 29 failed, while the focused Creation Flow interactions pass.
 
 Verification for this audit: all 131 selected backend authoring contracts passed, covering the document, routes, workspace packets, story placement, bundle review, scoped gates, and consequences; all 82 frontend unit tests passed; and the production TypeScript/Vite build completed successfully. The existing Vite large-chunk advisory is a general delivery optimization and not an authoring-workspace implementation blocker.
 
@@ -211,7 +199,7 @@ This table is the component inventory. Prefer extending these components over cr
 | `BundleReview` | One consistent preview/commit UI for multi-record changes | Reuses rollback-only preview and atomic commit contracts, including Ability Spellcraft preview parity | Implemented in `soa-editor/src/components/authoring/BundleReview.tsx`; used by Story Timeline, Story Placement Panel, Character Studio, Dialogue Scene Room, Creature Workshop, and Ability Spellcraft with inline or modal presentation |
 | `ScopedGateBuilder` | Create/reuse flags and requirements, inspect usage, and attach one requirement to supported gated content | Reads `/api/ui/scoped-gates`; writes `flags`, `requirements`, and supported `requirements_id` attachments through preview/commit | Implemented in `soa-editor/src/components/authoring/ScopedGateBuilder.tsx`; extracted from Progression Flow, reused there, embedded directly in Encounter Stage, and embedded through fixed-target `ScopedGateSection` instances for saved dialogues, dialogue nodes, quests, items, location routes, POIs, abilities, and shops |
 | `ConsequenceComposer` | Commit outcome state, rewards, reputation, next-event links, quest objective flags, node/choice flags, and explicit story consequences through one reviewed packet | Reads `/api/ui/consequences`; writes supported `events`, `encounters`, `quests`, `dialogue_nodes`, and `adventure_beat_links` rows through preview/commit | Implemented in `soa-editor/src/components/authoring/ConsequenceComposer.tsx`; embedded in Dialogue Scene Room, Encounter Stage, Quest Journey Board completion/objective flows, Progression Flow, and shared Story Placement cross-entity consequence actions |
-| `ThenComposer` | Capture mixed-content next steps or place-story constellations before canonical structure is known | Reads/writes versioned `SOA-CREATION-FLOW/1` drafts in browser-local storage only; no API or canonical write | Implemented in `soa-editor/src/components/authoring/ThenComposer.tsx`; embedded for Dialogue Scene Room choices/endings and selected World Builder locations, with origin-scoped recovery, snapshots, JSON recovery, local branches/relations, placeholders, and prose-linked idea cards |
+| `ThenComposer` | Capture mixed-content next steps or place-story constellations before canonical structure is known | Browser-local draft recovery plus authoritative catalog, rollback preview/rehearsal, and stale-protected atomic commit for the bounded compiler subset | Implemented in `soa-editor/src/components/authoring/ThenComposer.tsx`; embedded for Dialogue Scene Room choices/endings and selected World Builder locations, with canonical resolution, Bundle Review, provenance manifests, origin-scoped recovery, snapshots, JSON recovery, local branches/relations, placeholders, and prose-linked idea cards |
 
 Components should stay data-driven. Only specialize labels, presets, or warnings where the entity type genuinely needs a different authoring meaning.
 
@@ -1636,6 +1624,24 @@ Hypothetical links and playable-slice framing remain dotted local planning objec
 - Does the climax resolve something established earlier?
 
 ---
+
+## Narrative Creation Flow
+
+### Creative North Star
+
+Let an author capture what happens next or expand one place into a connected story constellation before translating the idea into flags, requirements, events, rewards, placements, and other canonical records.
+
+### Current-Model Implementation
+
+The versioned frontend draft model and browser-local recovery layer are implemented under `soa-editor/src/authoring/`, with the reusable composer under `soa-editor/src/components/authoring/ThenComposer.tsx`. Dialogue choices/endings and selected World Builder locations open the capture surface in place. Drafts preserve sequence transitions separately from constellation relations, keep unresolved placeholders, link prose mentions and idea cards through one identity, re-derive support on load, and can be snapshotted or exported as recovery JSON. Unfinished work remains browser-local. The bounded compiler resolves compatible canonical targets, previews with rollback and a temporary sequence/state trace, commits through one stale-protected transaction, and stores a project-local provenance manifest recoverable with source data but excluded from UE exports.
+
+### Future Expansion
+
+Embedded capture in all approved host workspaces, typed action/transition and variant schemas, DataTable contracts, representative-writer evaluation, and the standalone Creation Flow workspace described in `NARRATIVE_CREATION_FLOW_PLAN.md`.
+
+### Health Questions
+
+Can the author preserve the full thought without technical ids; are now/later/story-only meanings explicit; are unresolved targets visible; do relations avoid claiming runtime order; and can the draft be recovered without silently matching labels?
 
 ## Shared Interaction Language
 

@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Creation Flow Manifest",
+  "type": "object",
+  "properties": {
+    "id": {"type": "string"},
+    "title": {"type": "string"},
+    "format": {"type": "string"},
+    "revision": {"type": "integer"},
+    "shape": {"type": "string", "enum": ["sequence", "constellation", "hybrid"]},
+    "compiler_version": {"type": "string"},
+    "preview_hash": {"type": "string"},
+    "normalized_draft": {"type": "object"},
+    "provenance": {"type": "array", "items": {"type": "object"}},
+    "accepted_warnings": {"type": "array", "items": {"type": "string"}},
+    "canonical_snapshots": {"type": "array", "items": {"type": "object"}},
+    "implementation_summary": {"type": "string"},
+    "created_at": {"type": "number"},
+    "updated_at": {"type": "number"}
+  },
+  "required": [
+    "id", "title", "format", "revision", "shape", "compiler_version",
+    "preview_hash", "normalized_draft", "provenance", "accepted_warnings",
+    "canonical_snapshots"
+  ]
+}

@@ -68,6 +68,7 @@ RECOVERY_IMPORT_ORDER = [
     "talent_trees",
     "talent_nodes",
     "talent_node_links",
+    "creation_flow_manifests",
 ]
 
 _last_startup_report: dict[str, Any] | None = None

@@ -71,6 +71,8 @@ from backend.app.routes.r_ui_adventure_timeline import bp as ui_adventure_timeli
 from backend.app.routes.r_ui_progression_flow import bp as ui_progression_flow_bp
 from backend.app.routes.r_ui_scoped_gates import bp as ui_scoped_gates_bp
 from backend.app.routes.r_ui_consequences import bp as ui_consequences_bp
+from backend.app.routes.r_ui_creation_flow import bp as ui_creation_flow_bp
+from backend.app.routes.r_creation_flow_manifests import bp as creation_flow_manifests_bp
 from backend.app.routes.r_recovery import bp as recovery_bp
 from backend.app.services.recovery import run_startup_recovery
 
@@ -162,6 +164,8 @@ def create_app(startup_recovery: bool = True) -> Flask:
         ui_progression_flow_bp,
         ui_scoped_gates_bp,
         ui_consequences_bp,
+        ui_creation_flow_bp,
+        creation_flow_manifests_bp,
         recovery_bp
     ]
     

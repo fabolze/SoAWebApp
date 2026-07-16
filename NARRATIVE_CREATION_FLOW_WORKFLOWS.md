@@ -1161,3 +1161,48 @@ The second Phase 1 step is implemented:
 Automated verification now covers 91 frontend unit tests, ESLint, a production TypeScript/Vite build, and two passing Chromium interactions: Dialogue ending capture/reload and World Builder selected-prose/card capture/reload. Fast close is explicitly covered and flushes the pending local save. Representative-author evaluation remains open before Phase 1 is treated as evaluated rather than implemented.
 
 The full existing Playwright suite was run separately and currently reports 20 passing and 29 failing tests across multiple authoring workspaces, with widespread mock-contract gaps and timeouts. This does not invalidate the two focused Creation Flow checks, but it prevents claiming repository-wide browser regression success.
+
+### Authoritative compiler and commit coverage
+
+The first Phase 2 backend milestone is implemented across the workflow corpus:
+
+- Workflow 1 now has a golden sequence fixture that deterministically compiles an existing dialogue, encounter, item reward, and XP/currency/reputation reward into a validated linear Event chain. The larger quest assignment/turn-in, choice-action, victory, and shop-now portions remain localized blockers until their Phase 3A contracts exist.
+- Workflow 2 now has a golden constellation fixture that compiles its bounded lore reveal and persistent fact. Its existing story beat plus canonical location origin compile to a typed Adventure Beat link; creative relations remain only in the authoring manifest and are never converted into `next_event_id` or implicit story links.
+- Workflow 3 now has a golden hybrid fixture that compiles a scripted moment, persistent world-state flag, and a safe availability gate over an existing shop. It creates a generated producer flag and scoped requirement atomically, while refusing to overwrite a pre-existing unrelated gate.
+- Backend preview uses normal route/schema validation and rolls back all proposed records. Commit recompiles, checks a content-sensitive preview hash, requires current warning acceptance, and writes all canonical artifacts plus one project-local provenance manifest in a single transaction.
+- Generated artifact identity is deterministic for the flow/step/compiler version and is returned in the normalized draft. Existing-id collisions are accepted only when ownership tags show that the artifact belongs to the same creation flow.
+- `creation_flow_manifests` participates in project source recovery but is excluded from runtime/UE DataTable export.
+
+Automated coverage at this backend milestone initially comprised nine new compiler/catalog/preview/commit tests and three checked-in workflow fixtures, with the focused 32-test progression, consequence, and recovery regression set also passing. Later milestones below add rehearsal/story-link coverage and bring the combined focused backend set to 42 passing tests.
+
+### Embedded resolution, review, and commit coverage
+
+The shared Dialogue Flow / World Builder composer now exposes the implemented Phase 2 backend without changing the workflow's narrative-first entry point:
+
+- Authors still capture prose or “what happens next” before choosing database structure. When a step needs an existing target, its editor now lists only compatible canonical catalog groups and preserves a selected local placeholder as unresolved work.
+- Workflow 1's bounded dialogue, encounter, item, lore, location, and availability references can be resolved in place. Confirmed `open_shop`, choice-action, victory, quest lifecycle, gameplay-effect, and variant intentions remain visible but receive backend blockers rather than substitute flags or misleading success copy.
+- Workflow 2's prose, cards, and non-temporal relations remain browser-local capture inputs. Its supported lore/state subset may be reviewed and committed. Story placement emits a typed link only for an existing beat plus supported canonical origin; relations never become temporal or story links.
+- Workflow 3's supported existing-record and availability subset can now proceed from hybrid capture through one Bundle Review and atomic commit. The review shows canonical additions/updates and requires acknowledgement of compiler warnings.
+- A successful commit visibly distinguishes the durable project-local provenance manifest from the still-browser-local working draft and from unverified runtime/DataTable execution.
+
+Frontend verification passes ESLint, 91 unit tests, the production build, and three focused Chromium flows: Dialogue capture/reload, World Builder prose/card capture/reload, and Dialogue canonical target resolution → rollback preview → commit. A later same-day slice adds direct issue-to-step navigation and compact item/currency/reputation editing.
+
+### Rehearsal, story-link, and committed-resume coverage
+
+- Workflow 1's supported linear subset now previews as one ordered temporary rehearsal path with payload targets and cumulative generated flags visible per step.
+- Workflow 2's disconnected executable ideas rehearse as separate paths. Its story placement creates one deterministic, validated location-to-beat link from the canonical flow origin; the fixture proves preview rollback leaves no link behind.
+- Workflow 3's supported sequence rehearsal shows the state flags produced before its generated shop availability requirement becomes relevant.
+- The rehearsal is labeled as a web-contract trace and does not claim Unreal/runtime execution, save/load, shop presentation, quest journal behavior, or other external integration.
+- The composer resume area now lists origin-matched committed manifests beside browser-local drafts. Selecting one opens its normalized draft as a new local working revision without erasing the durable manifest or silently committing changes.
+
+The combined focused backend compiler/progression/consequence/recovery suite reached 42 tests at this milestone. Frontend lint, 91 unit tests, production build, and three focused Chromium flows continue to pass.
+
+### Reward editing and issue-return coverage
+
+- Workflow 1's bounded reward portion is editable without JSON: an item row has quantity, while a numeric reward has XP plus add/remove Currency and Faction rows resolved from the canonical catalog.
+- Backend validation rejects zero/negative currency rewards at the owning step and reports a zero reputation delta as an acknowledgement warning. Positive and negative reputation deltas remain valid.
+- Any backend blocker or warning with a step identity appears in **Issues by step**. Selecting **Open owning step** returns from Bundle Review to the exact captured card, preserving the working draft.
+
+The combined focused backend set now passes 44 tests, including concurrent generated-requirement child-state protection. Frontend ESLint, all 91 unit tests, and the production build pass after this slice.
+
+Final validation for this implementation pass also runs the entire backend suite: 206 tests pass. `git diff --check` is clean and the three focused Chromium Creation Flow interactions pass. The previously recorded broad Playwright mock/time-out debt remains separate and is not presented as resolved.

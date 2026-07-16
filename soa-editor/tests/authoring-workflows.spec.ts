@@ -1133,6 +1133,8 @@ async function mockDialogueApi(
   onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
   onStoryPlacementBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
   onPreview?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
+  onCreationFlowPreview?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
+  onCreationFlowBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
 ) {
   await page.route("http://localhost:5000/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -1163,6 +1165,26 @@ async function mockDialogueApi(
       const payload = route.request().postDataJSON() as Record<string, unknown>;
       if (onStoryPlacementBundle) return onStoryPlacementBundle(payload, route);
       return fulfillJson(route, { result: { review: { created: [], changed: [], deleted: [] }, warnings: [], blockers: [] }, packet: storyTimelinePacket });
+    }
+    if (url.pathname === "/api/ui/creation-flow/catalog") return fulfillJson(route, {
+      format: "SOA-CREATION-FLOW/1",
+      compiler_version: "creation-flow/2.0",
+      references: {
+        dialogue: { schema_name: "dialogues", entries: [{ id: "dialogue-1", label: "Gate Talk" }] },
+        shop: { schema_name: "shops", entries: [{ id: "shop-1", label: "Mara's Shop" }] },
+      },
+      capabilities: {
+        compilable_step_kinds: ["dialogue", "scripted_moment"], story_only_step_kinds: ["note"],
+        blocked_step_kinds: ["open_shop"], guarantees: ["transactional_preview_rollback"],
+      },
+    });
+    if (url.pathname === "/api/ui/creation-flow/preview" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      if (onCreationFlowPreview) return onCreationFlowPreview(payload, route);
+    }
+    if (url.pathname === "/api/ui/creation-flow/bundle" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      if (onCreationFlowBundle) return onCreationFlowBundle(payload, route);
     }
     return fulfillJson(route, []);
   });
@@ -1588,7 +1610,7 @@ test("dialogue flow sketches, connects, and saves a complete bundle", async ({ p
   expect((saved?.nodes as unknown[]).length).toBe(3);
 });
 
-test("dialogue ending captures and restores a no-write Then flow", async ({ page }) => {
+test("dialogue ending captures and restores a browser-local Then flow", async ({ page }) => {
   await mockDialogueApi(page);
   await page.goto("/author/dialogues/dialogue-1");
   await page.getByRole("button", { name: "Script" }).click();
@@ -1596,7 +1618,7 @@ test("dialogue ending captures and restores a no-write Then flow", async ({ page
   await page.getByRole("button", { name: "Then…" }).click();
 
   const composer = page.getByRole("dialog", { name: "Then composer" });
-  await expect(composer.getByText("No flags, requirements, beats, or canonical records are written here.")).toBeVisible();
+  await expect(composer.getByText(/Capture locally, resolve existing targets/)).toBeVisible();
   await composer.getByLabel("Capture next idea").fill("Open Mara's shop now");
   await composer.getByRole("button", { name: "Add", exact: true }).click();
   await composer.getByLabel("Meaning").selectOption("open_shop");
@@ -1609,6 +1631,47 @@ test("dialogue ending captures and restores a no-write Then flow", async ({ page
   await page.getByRole("button", { name: "Then…" }).click();
   await expect(page.getByRole("dialog", { name: "Then composer" }).getByLabel("Step 1 text")).toHaveValue("Open Mara's shop now");
   await expect(page.getByText("Continued the most recent browser-local draft for this context.")).toBeVisible();
+});
+
+test("dialogue Then flow resolves a canonical target, previews, and commits with provenance", async ({ page }) => {
+  let previewed: Record<string, unknown> | null = null;
+  let committed: Record<string, unknown> | null = null;
+  const compilerResult = (draft: Record<string, unknown>, isCommitted = false) => ({
+    format: "SOA-CREATION-FLOW/1", compiler_version: "creation-flow/2.0",
+    normalized_draft: { ...draft, artifactIds: { "step:generated:event": "event-generated" } },
+    story_summary: { title: draft.title }, implementation_summary: "1 event, 0 flags, 0 requirements.",
+    implementation: { events: [{ id: "event-generated" }], flags: [], requirements: [], requirement_attachments: [] },
+    step_review: [], information: [], warnings: [], blockers: [], preview_hash: "preview-hash-1", can_commit: true,
+    rehearsal: { runtime_claim: "web_contract_only", paths: [{ entry_event_id: "event-generated", terminal_event_id: "event-generated", trace: [{ event_id: "event-generated", title: "Continue the gate conversation", event_type: "Dialogue", flags_added: [], state_after: { flags: [] } }] }], disconnected_event_count: 1, note: "This is a temporary canonical sequence/state trace, not runtime execution verification." },
+    review: { created: [{ table: "events", id: "event-generated" }], changed: [], deleted: [], unlinked: [] },
+    ...(isCommitted ? { committed: true, manifest: { id: draft.id, compiler_version: "creation-flow/2.0" } } : {}),
+  });
+  await mockDialogueApi(page, undefined, undefined, undefined, async (payload, route) => {
+    previewed = payload;
+    await fulfillJson(route, compilerResult(payload.draft as Record<string, unknown>));
+  }, async (payload, route) => {
+    committed = payload;
+    await fulfillJson(route, compilerResult(payload.draft as Record<string, unknown>, true));
+  });
+  await page.goto("/author/dialogues/dialogue-1");
+  await page.getByRole("button", { name: "Script" }).click();
+  await page.locator("#script-line-node-2 textarea").focus();
+  await page.getByRole("button", { name: "Then…" }).click();
+
+  const composer = page.getByRole("dialog", { name: "Then composer" });
+  await composer.getByLabel("Capture next idea").fill("Continue the gate conversation");
+  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByLabel("Meaning").selectOption("dialogue");
+  await composer.getByLabel("Step 1 canonical target").selectOption("dialogue:dialogue-1");
+  await composer.getByRole("button", { name: "Preview canonical bundle" }).click();
+
+  const review = page.getByRole("dialog", { name: "Creation Flow Bundle Review" });
+  await expect(review.getByText("1 created")).toBeVisible();
+  await review.getByRole("button", { name: "Commit Creation Flow" }).click();
+  await expect.poll(() => previewed).not.toBeNull();
+  await expect.poll(() => committed).not.toBeNull();
+  expect(committed?.preview_hash).toBe("preview-hash-1");
+  await expect(composer.getByText("Committed with provenance.")).toBeVisible();
 });
 
 test("dialogue flow places a dialogue state consequence through a semantic preset", async ({ page }) => {

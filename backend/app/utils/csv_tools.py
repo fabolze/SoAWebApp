@@ -47,6 +47,7 @@ AUTHORING_ONLY_TABLES = {
     "character_story_beats",
     "adventure_beats",
     "adventure_beat_links",
+    "creation_flow_manifests",
 }
 
 

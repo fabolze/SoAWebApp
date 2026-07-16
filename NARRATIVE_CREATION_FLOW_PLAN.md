@@ -1,6 +1,6 @@
 # Narrative-First Creation Flow And “Then…” Composer Plan
 
-Status: Phase 1 capture implementation complete for Dialogue Flow and World Builder, with unit, lint, build, and focused browser coverage passing; representative-writer evaluation remains open before Phase 2
+Status: Phase 1 capture and the Phase 2 bounded existing-record compiler are implemented end to end in the Dialogue Flow and World Builder composer, including temporary rehearsal, supported story links, and committed-manifest resume; wider host rollout and representative-writer evaluation remain open
 
 Drafted: 2026-07-15
 
@@ -16,7 +16,7 @@ Likely implementation hosts: Dialogue Scene Room, Encounter Stage, Quest Journey
 | Semantic vocabulary | Drafted here | Product wording distinguishes immediate actions, future availability, persistent state, and story placement without requiring technical vocabulary |
 | Current-model capability map | Drafted here | Every proposed gesture is classified as supported, compilable, story-only, or canonically unsupported |
 | Capture-only prototype | Implemented for Dialogue Flow and World Builder; representative-writer evaluation pending | An author can preserve a mixed-content sequence or place constellation locally without creating flags, requirements, beats, or records |
-| Existing-record compiler | Not started | Supported steps compile deterministically into reviewed existing records and links |
+| Existing-record compiler | Implemented end to end for the bounded existing-model subset, including temporary rehearsal and supported origin-to-beat links | Supported steps compile deterministically into reviewed existing records and links |
 | Canonical action/transition decision | V1 direction decided: Option B plus project-local committed-flow manifests | Typed choice actions, ordered atomic consequence groups, victory transitions, defeat policies, return behavior, and committed-flow provenance are explicit without a universal playable-sequence runtime model |
 | Embedded Then… composer | Dialogue choice/ending and selected-location embeds implemented; encounter/quest rollout remains Phase 4 | Dialogue choices/endings and encounter/quest outcomes can open a scoped composer without route switching |
 | Standalone Creation Flow workspace | Not started | Larger sequences and scoped story constellations can be shaped, resolved, rehearsed/traced, and committed from one focused workspace |
@@ -48,6 +48,48 @@ Major step 2, the capture UI and first host embeds, is complete:
 Closing the composer now flushes the active draft synchronously as well as retaining the short autosave debounce, preventing loss when an author captures and closes quickly. Phase 1 still needs representative-writer evaluation. Project-local committed manifests, canonical preview/commit, catalog resolution, and DataTable/runtime contracts remain later phases and are not implied by this capture milestone.
 
 The repository-wide Playwright command was also run for visibility: 20 of 49 tests passed and 29 failed across several existing authoring suites because of broad mock-contract gaps and timeouts. The two Creation Flow interaction tests pass together. The full-suite failures are recorded as regression-suite debt rather than represented as successful Phase 1 verification.
+
+Major step 3, the Phase 2 authoritative backend foundation, is complete:
+
+- `GET /api/ui/creation-flow/catalog` reports canonical reference catalogs and the compiler's current compilable, story-only, and blocked capability boundary.
+- `POST /api/ui/creation-flow/preview` recompiles the versioned draft on the backend, allocates deterministic artifact ids, validates through shared route-backed bundle operations, returns story/implementation/step reviews, and rolls the complete transaction back.
+- `POST /api/ui/creation-flow/bundle` recompiles, rejects stale preview hashes, requires explicit acceptance of every current warning, applies the bundle atomically, and stores a recoverable `creation_flow_manifests` provenance record.
+- The bounded compiler emits existing `Event` payloads and linear `next_event_id` chains for dialogue, encounters, lore, teleport, scripted moments, item/numeric rewards, persistent facts/world state, and supported availability gates. It does not reinterpret serialized frontend `support` claims.
+- `open_shop`, gameplay effects, quest lifecycle actions, variants, conditional/victory/choice transitions, branches, and cycles remain step-scoped blockers. Repeat intent is retained with a warning because canonical `Event` has no repeat-policy field. Notes and relations remain manifest-only rather than being misrepresented as runtime order; a story-placement step may create a typed Adventure Beat link only when both the beat and a supported canonical flow origin are available.
+- Generated flags and requirements carry flow/step ownership tags. Availability compilation refuses to replace an unrelated existing requirement, because requirement composition is not yet a safe canonical operation.
+- Committed manifests are included in source recovery/exports and explicitly excluded from UE/DataTable exports.
+- Three executable golden fixtures cover the Workflow 1 sequence, Workflow 2 constellation, and Workflow 3 hybrid availability gate. Nine new contract tests pass, together with all 32 focused progression-flow, consequence-composer, and recovery regression tests.
+
+At the end of this backend milestone, the author-facing compiler experience was not yet connected. The following major steps add that catalog, preview/review, warning-acceptance, commit, rehearsal, story-link, and manifest-resume loop.
+
+Major step 4, the embedded compiler resolution and review loop, is complete:
+
+- The shared composer loads the backend capability/catalog contract whenever it opens and offers compatible canonical records directly on target-bearing steps. Local placeholders remain selectable and visibly unresolved; choosing a canonical record updates the versioned draft reference rather than copying record data into the draft.
+- Dialogue, encounter, item reward, lore reveal, teleport, story placement, and currently blocked Phase 3A kinds receive type-appropriate target choices. **Make available later** offers only schemas that can safely own a requirement attachment.
+- Numeric reward steps now expose the bounded XP field directly; currency and reputation arrays remain import/compiler-contract fields until their compact multi-row editor is added.
+- **Preview canonical bundle** calls the rollback-only backend and opens the existing Bundle Review surface with created/changed/deleted/unlinked records, current warnings, and blockers. Compiler warnings require explicit acknowledgement before commit.
+- Commit sends the normalized preview draft, preview hash, and accepted warning ids. Success keeps deterministic artifact ids in the browser-local draft and changes the composer status to **Committed with provenance**; a stale or invalid result remains an error without claiming success.
+- The UI copy now distinguishes unfinished browser-local recovery from project-local persistence created by a successful canonical commit. It continues to distinguish web commit from runtime/DataTable verification.
+- Verification after this step: ESLint passes, all 91 frontend unit tests pass, the production TypeScript/Vite build succeeds, and three focused Chromium flows pass, including canonical target resolution through preview and provenance-backed commit.
+
+The remaining Phase 2 gaps are broader host rollout and richer author evaluation rather than a missing bounded compiler transaction.
+
+Major step 5, rehearsal, supported story placement, and committed-flow resume, is complete:
+
+- Compiler preview now returns deterministic temporary rehearsal paths over proposed Event chains. Each trace names the event/step, payload type and target, flags added at that point, and accumulated temporary flag state. It explicitly claims only `web_contract_only`, never runtime execution verification.
+- Bundle Review renders those paths before commit so an author can inspect linear order and generated state alongside record changes, warnings, and blockers. Constellation events appear as separate paths rather than being falsely linked.
+- A `story_placement` step can now create a validated `AdventureBeatLink` when its target is an existing beat and the draft origin is a supported canonical location, character, quest, event, dialogue, encounter, lore entry, item, or faction. Missing/unsupported origin context leaves the intention manifest-only. Creative relations still never compile into temporal or story links.
+- Adventure links use deterministic flow/step ownership, normal route/schema validation, preview rollback, atomic commit, provenance, and the same collision protections as generated Events, Flags, and Requirements.
+- **Continue where I stopped** now combines origin-matched browser-local drafts with committed manifest summaries. Opening a committed manifest creates/updates a browser-local working revision while keeping the durable committed record clearly labeled.
+- Verification after this step: the focused backend compiler/progression/consequence/recovery set passes 42 tests; frontend ESLint, 91 unit tests, production build, and the three focused Chromium flows pass. The existing build chunk-size advisory remains unchanged in kind.
+
+Major step 6, reward editing and issue return, is complete:
+
+- Item reward steps expose quantity, and numeric reward steps expose XP plus repeatable canonical Currency and Faction rows. Currency rewards require a positive amount; reputation changes accept positive/negative deltas and warn when zero would have no effect.
+- Compiler blockers and warnings carrying a `step_id` are grouped as navigable review entries. **Open owning step** closes the modal and scrolls the author back to the exact composer card without losing the draft.
+- Backend regression coverage adds step-scoped numeric reward validation and stale protection for concurrent edits to generated requirement-child rows. The combined focused backend set now passes 44 tests; frontend lint, 91 unit tests, and production build pass after this slice.
+
+Final repository validation for this implementation pass: all 206 backend tests pass, `git diff --check` is clean, frontend ESLint passes, all 91 frontend unit tests pass, the production build succeeds, and the three focused Chromium Creation Flow interactions pass. The previously recorded broad 49-test Playwright-suite debt was not reclassified by these focused results.
 
 ## Executive Decision
 
@@ -1411,21 +1453,25 @@ Evaluation:
 - Does the author understand that constellation relationships are not runtime order?
 - Does structuring feel lighter than manually authoring flags and requirements?
 
-Implementation status on 2026-07-16: the reusable capture UI, Dialogue choice/ending embed, selected-location World Builder embed, local steps/branches/relations/placeholders, autosave/recovery/snapshots, prose-linked idea cards, and JSON export/import are implemented. Automated unit, lint, production-build, and two focused browser interaction checks pass. External author evaluation remains open; committed-manifest summaries are unavailable by design until the later project-persistence contract exists.
+Implementation status at the Phase 1 checkpoint on 2026-07-16: the reusable capture UI, Dialogue choice/ending embed, selected-location World Builder embed, local steps/branches/relations/placeholders, autosave/recovery/snapshots, prose-linked idea cards, and JSON export/import were implemented. Later Phase 2 milestones on the same date added project-local committed manifests and origin-matched manifest resume summaries. External author evaluation remains open.
 
 ### Phase 2: existing-record compiler
 
+Implementation status on 2026-07-16: the authoritative backend, golden corpus, catalog resolution, embedded preview/review, warning acknowledgement, atomic commit, and durable manifest path are implemented for the bounded subset. Rehearsal and the remaining authoring refinements are still in progress.
+
 Deliverables:
 
-- Versioned draft contract and golden fixtures.
-- Backend catalog, preview, and bundle endpoints.
-- Compilation for existing event payloads and linear `next_event_id` chains.
-- Compilation for event/encounter/quest rewards.
-- Compilation for dialogue node/choice output flags.
-- Compilation for flags, new scoped requirements, and supported attachments.
-- Optional adventure beat/link creation.
-- Step-grouped Bundle Review.
-- Temporary sequence/state rehearsal.
+- [x] Versioned draft contract and three workflow-derived golden fixtures.
+- [x] Backend catalog, rollback-only preview, and atomic bundle endpoints.
+- [x] Compilation for bounded existing event payloads and linear `next_event_id` chains.
+- [x] Compilation for Event item, XP, currency, and reputation rewards. Encounter/quest-owned reward rewriting remains deferred because no current capture step can identify that mutation without ambiguity.
+- [ ] Compilation for dialogue node/choice output flags; stable canonical choice identity remains a Phase 3A prerequisite.
+- [x] Compilation for generated flags, new scoped requirements, and supported attachments, with destructive requirement replacement blocked.
+- [x] Optional Adventure Beat link creation for an existing beat plus a supported canonical flow origin; unsupported/missing origins remain manifest-only.
+- [x] Backend step-grouped implementation review and canonical change review.
+- [x] Frontend Bundle Review, warning acceptance, and commit controls in the shared Dialogue/World Builder composer.
+- [x] Direct navigation from a compiler blocker/warning to its owning composer step.
+- [x] Temporary sequence/state rehearsal for proposed Event paths and accumulated generated flags, explicitly labeled as web-contract tracing rather than runtime execution.
 
 This phase may ship behind a feature flag before the confirmed Shop Now choice-action schema is implemented. The UI must label the step as not yet compilable rather than substituting a shop-unlock flag.
 
