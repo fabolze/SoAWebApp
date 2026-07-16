@@ -8,6 +8,7 @@ from typing import Any
 
 from backend.app.models.m_creation_flow_manifests import CreationFlowManifest
 from backend.app.models.m_adventure_narrative import AdventureBeatLink
+from backend.app.models.m_dialogue_nodes import DialogueNode
 from backend.app.models.m_events import Event
 from backend.app.models.m_flags import Flag
 from backend.app.models.m_requirements import Requirement
@@ -20,6 +21,7 @@ from backend.app.services.creation_flow_catalog import (
     REFERENCE_MODELS,
     STORY_ONLY_STEP_KINDS,
 )
+from backend.app.services.dialogue_choice_actions import find_dialogue_choice
 
 
 CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -103,7 +105,7 @@ class CreationFlowCompiler:
         self.step_review = []
         self.mutation = {
             "flags": [], "requirements": [], "events": [], "requirement_attachments": [],
-            "adventure_beat_links": [],
+            "adventure_beat_links": [], "dialogue_choice_actions": [],
         }
         self.event_by_step = {}
         self._snapshot_keys = set()
@@ -376,6 +378,12 @@ class CreationFlowCompiler:
         if kind == "story_placement":
             self._compile_story_placement(step, index)
             return
+        if kind in {"open_shop", "join_companion"}:
+            self._compile_dialogue_choice_action(step, index)
+            return
+        if kind == "encounter" and index == 0 and self._origin_choice_ref():
+            self._compile_dialogue_choice_action(step, index)
+            return
         if kind in STORY_ONLY_STEP_KINDS:
             self.info("story_only", "This intention remains in the manifest and does not create runtime data.", step_id=step_id)
             self.step_review.append({"step_id": step_id, "kind": kind, "status": "story_only", "artifacts": []})
@@ -426,6 +434,104 @@ class CreationFlowCompiler:
         for collection, previous_length in before.items():
             artifacts.extend({"kind": collection.rstrip("s"), "id": row.get("id") or row.get("entry_id")} for row in self.mutation[collection][previous_length:])
         self.step_review.append({"step_id": step_id, "kind": kind, "status": "compilable", "artifacts": artifacts})
+
+    def _origin_choice_ref(self):
+        origin = self.draft.get("origin") if isinstance(self.draft.get("origin"), dict) else {}
+        sub_ref = origin.get("subRef") if isinstance(origin.get("subRef"), dict) else None
+        return sub_ref if sub_ref and sub_ref.get("kind") == "dialogue_choice" else None
+
+    def _compile_dialogue_choice_action(self, step, index):
+        step_id = step["id"]
+        choice_ref = self._origin_choice_ref()
+        choice_id = str(choice_ref.get("canonicalId") or "").strip() if choice_ref else ""
+        if not choice_id:
+            self.blocker(
+                "canonical_dialogue_choice_required",
+                "Save the owning dialogue choice so it has canonical identity before compiling this action.",
+                step_id=step_id,
+                path="draft.origin.subRef.canonicalId",
+            )
+            self.step_review.append({"step_id": step_id, "kind": step.get("kind"), "status": "blocked", "artifacts": []})
+            return
+        located = find_dialogue_choice(self.db_session, choice_id)
+        if not located:
+            self.blocker(
+                "dialogue_choice_missing",
+                f"The source dialogue choice '{choice_id}' no longer exists.",
+                step_id=step_id,
+                path="draft.origin.subRef.canonicalId",
+            )
+            self.step_review.append({"step_id": step_id, "kind": step.get("kind"), "status": "blocked", "artifacts": []})
+            return
+        node, _choice_index, choice = located
+        origin = self.draft.get("origin") if isinstance(self.draft.get("origin"), dict) else {}
+        dialogue_ref = origin.get("ref") if isinstance(origin.get("ref"), dict) else {}
+        if dialogue_ref.get("kind") != "dialogue" or dialogue_ref.get("canonicalId") != node.dialogue_id:
+            self.blocker(
+                "dialogue_choice_origin_mismatch",
+                "The source choice does not belong to the flow's canonical dialogue origin.",
+                step_id=step_id,
+                path="draft.origin",
+            )
+            self.step_review.append({"step_id": step_id, "kind": step.get("kind"), "status": "blocked", "artifacts": []})
+            return
+
+        snapshot_key = ("dialogue_choice", choice_id)
+        if snapshot_key not in self._snapshot_keys:
+            self._snapshot_keys.add(snapshot_key)
+            self.snapshots.append({"kind": "dialogue_choice", "id": choice_id, "value": copy.deepcopy(choice)})
+
+        kind = step.get("kind")
+        if kind == "open_shop":
+            target_kind, target_field, action_type, continuation = "shop", "target_shop_id", "open_shop", "resume_source_dialogue"
+        elif kind == "join_companion":
+            target_kind, target_field, action_type, continuation = "character", "target_character_id", "join_companion", "continue_dialogue"
+        else:
+            target_kind, target_field, action_type, continuation = "encounter", "target_encounter_id", "start_encounter", "end_source_dialogue"
+        resolved = self.resolve(step.get("target"), step_id, f"draft.steps[{index}].target", target_kind)
+        if not resolved:
+            self.step_review.append({"step_id": step_id, "kind": kind, "status": "blocked", "artifacts": []})
+            return
+        action_id = self.artifact_id(f"step:{step_id}:dialogue_choice_action")
+        for other_node in self.db_session.query(DialogueNode).all():
+            for other_choice in other_node.choices or []:
+                if not isinstance(other_choice, dict):
+                    continue
+                for existing_action in other_choice.get("actions") or []:
+                    if existing_action.get("id") == action_id and other_choice.get("id") != choice_id:
+                        self.blocker(
+                            "artifact_id_collision",
+                            f"Generated dialogue action id '{action_id}' already belongs to another choice.",
+                            step_id=step_id,
+                        )
+        existing_owned_action = next(
+            (row for row in choice.get("actions") or [] if isinstance(row, dict) and row.get("id") == action_id),
+            None,
+        )
+        action = {
+            "id": action_id,
+            "action_type": action_type,
+            target_field: resolved[1].id,
+            "continuation_policy": continuation,
+            "sort_order": existing_owned_action.get("sort_order", len(choice.get("actions") or [])) if existing_owned_action else len(choice.get("actions") or []),
+            "runtime_support": "runtime_unverified",
+        }
+        self.mutation["dialogue_choice_actions"].append({
+            "node_id": node.id,
+            "choice_id": choice_id,
+            "expected_previous": copy.deepcopy(choice),
+            "action": action,
+        })
+        self.provenance.append({"artifact_kind": "dialogue_choice_action", "artifact_id": action_id, "step_id": step_id})
+        self.info(
+            "runtime_unverified_choice_action",
+            "The typed choice action is exportable, but the consuming runtime has not verified execution yet.",
+            step_id=step_id,
+        )
+        self.step_review.append({
+            "step_id": step_id, "kind": kind, "status": "runtime_unverified",
+            "artifacts": [{"kind": "dialogue_choice_action", "id": action_id}],
+        })
 
     def _compile_story_placement(self, step, index):
         step_id = step["id"]
@@ -548,9 +654,9 @@ class CreationFlowCompiler:
         self._compile_transitions(transitions, step_ids)
         for placeholder in placeholders:
             if isinstance(placeholder, dict) and not placeholder.get("promotedCanonicalId"):
-                self.warning(
-                    "placeholder_local",
-                    f"Placeholder '{placeholder.get('label') or placeholder.get('id')}' remains local.",
+                self.blocker(
+                    "placeholder_unresolved",
+                    f"Placeholder '{placeholder.get('label') or placeholder.get('id')}' must be linked or promoted before canonical commit.",
                     placeholder_id=placeholder.get("id"),
                 )
         if relations:
@@ -572,7 +678,8 @@ class CreationFlowCompiler:
             f"{executable} event{'s' if executable != 1 else ''}, "
             f"{len(self.mutation['flags'])} flag{'s' if len(self.mutation['flags']) != 1 else ''}, "
             f"{len(self.mutation['requirements'])} requirement{'s' if len(self.mutation['requirements']) != 1 else ''}, "
-            f"{len(self.mutation['adventure_beat_links'])} story link{'s' if len(self.mutation['adventure_beat_links']) != 1 else ''}."
+            f"{len(self.mutation['adventure_beat_links'])} story link{'s' if len(self.mutation['adventure_beat_links']) != 1 else ''}, "
+            f"{len(self.mutation['dialogue_choice_actions'])} dialogue action{'s' if len(self.mutation['dialogue_choice_actions']) != 1 else ''}."
         )
         rehearsal = self._build_rehearsal()
         return {

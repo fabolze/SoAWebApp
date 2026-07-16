@@ -13,6 +13,7 @@ from backend.app.models.m_adventure_narrative import AdventureBeat, AdventureBea
 from backend.app.models.m_creation_flow_manifests import CreationFlowManifest
 from backend.app.models.m_currencies import Currency, CurrencyType
 from backend.app.models.m_dialogues import Dialogue
+from backend.app.models.m_dialogue_nodes import DialogueNode
 from backend.app.models.m_encounters import Encounter, EncounterType
 from backend.app.models.m_events import Event
 from backend.app.models.m_factions import Alignment, Faction
@@ -48,6 +49,11 @@ def creation_flow_context(monkeypatch):
     session = Session()
     session.add_all([
         Dialogue(id="dialogue-1", slug="dialogue-1", title="Captain's offer", tags=[]),
+        DialogueNode(
+            id="dialogue-node-1", slug="dialogue-node-1", dialogue_id="dialogue-1", speaker="Captain",
+            text="What do you need?", is_terminal=False, set_flags=[], tags=[],
+            choices=[{"id": "choice-trade", "choice_text": "Trade", "actions": [], "set_flags": []}],
+        ),
         Encounter(id="encounter-1", slug="encounter-1", name="Tower ambush", encounter_type=EncounterType.Combat, participants=[], rewards={}, tags=[]),
         Currency(id="currency-1", slug="crowns", name="Crowns", type=CurrencyType.Soft, tags=[]),
         Faction(id="faction-1", slug="watch", name="City Watch", alignment=Alignment.Friendly, tags=[]),
@@ -97,7 +103,8 @@ def test_catalog_reports_references_and_authoritative_capabilities(creation_flow
     assert body["format"] == "SOA-CREATION-FLOW/1"
     assert body["references"]["dialogue"]["entries"][0]["id"] == "dialogue-1"
     assert "make_available" in body["capabilities"]["compilable_step_kinds"]
-    assert "open_shop" in body["capabilities"]["blocked_step_kinds"]
+    assert "open_shop" in body["capabilities"]["compilable_step_kinds"]
+    assert body["references"]["dialogue_choice"]["entries"][0]["id"] == "choice-trade"
 
 
 def test_preview_rolls_back_all_compiled_artifacts(creation_flow_context):
@@ -200,8 +207,8 @@ def test_unsupported_semantics_are_step_scoped_blockers(creation_flow_context):
     client, _ = creation_flow_context
     draft = load_fixture("workflow_3_hybrid.json")["draft"]
     draft["steps"][0] = {
-        "id": "step-scene", "kind": "open_shop", "text": "Open the armoury now",
-        "target": {"kind": "shop", "canonicalId": "shop-1"},
+        "id": "step-scene", "kind": "quest_assignment", "text": "Assign the quest now",
+        "target": {"kind": "quest", "canonicalId": "quest-1"},
         "targetResolution": "canonical", "support": "compilable",
     }
     response = client.post("/api/ui/creation-flow/preview", json={"draft": draft})
@@ -210,6 +217,94 @@ def test_unsupported_semantics_are_step_scoped_blockers(creation_flow_context):
     assert body["can_commit"] is False
     assert any(issue["step_id"] == "step-scene" and issue["code"] == "step_kind_not_compilable" for issue in body["blockers"])
     assert body["review"]["created"] == []
+
+
+def _choice_action_draft():
+    return {
+        "format": "SOA-CREATION-FLOW/1", "id": "flow-choice-action", "revision": 1,
+        "title": "Trade with the captain", "shape": "sequence",
+        "origin": {
+            "ref": {"kind": "dialogue", "canonicalId": "dialogue-1"},
+            "subRef": {"kind": "dialogue_choice", "canonicalId": "choice-trade"},
+        },
+        "returnStack": [], "entryStepId": "step-shop",
+        "steps": [{
+            "id": "step-shop", "kind": "open_shop", "text": "Open the armoury now",
+            "target": {"kind": "shop", "canonicalId": "shop-1"},
+            "targetResolution": "canonical", "support": "runtime_unverified",
+        }],
+        "transitions": [], "relations": [], "placeholders": [], "localNotes": [],
+        "artifactIds": {}, "createdAt": 1, "updatedAt": 1,
+    }
+
+
+def test_open_shop_compiles_to_stable_choice_action_and_commits_atomically(creation_flow_context):
+    client, Session = creation_flow_context
+    preview = client.post("/api/ui/creation-flow/preview", json={"draft": _choice_action_draft()})
+    assert preview.status_code == 200, preview.get_json()
+    body = preview.get_json()
+    assert body["can_commit"] is True
+    action = body["implementation"]["dialogue_choice_actions"][0]["action"]
+    assert action["action_type"] == "open_shop"
+    assert action["continuation_policy"] == "resume_source_dialogue"
+    assert action["runtime_support"] == "runtime_unverified"
+    session = Session()
+    assert session.get(DialogueNode, "dialogue-node-1").choices[0]["actions"] == []
+    session.close()
+
+
+@pytest.mark.parametrize(("kind", "target", "action_type", "continuation"), [
+    ("encounter", {"kind": "encounter", "canonicalId": "encounter-1"}, "start_encounter", "end_source_dialogue"),
+    ("join_companion", {"kind": "character", "canonicalId": "character-1"}, "join_companion", "continue_dialogue"),
+])
+def test_choice_origin_compiles_immediate_encounter_and_companion_actions(
+    creation_flow_context, kind, target, action_type, continuation,
+):
+    client, Session = creation_flow_context
+    session = Session()
+    if kind == "join_companion":
+        from backend.app.models.m_characters import Character
+        session.add(Character(id="character-1", slug="character-1", name="Mara", tags=[]))
+        session.commit()
+    session.close()
+    draft = _choice_action_draft()
+    draft["id"] = f"flow-{kind}"
+    draft["steps"][0] = {
+        "id": f"step-{kind}", "kind": kind, "text": f"Run {kind}", "target": target,
+        "targetResolution": "canonical", "support": "runtime_unverified",
+    }
+    draft["entryStepId"] = draft["steps"][0]["id"]
+    response = client.post("/api/ui/creation-flow/preview", json={"draft": draft})
+    assert response.status_code == 200, response.get_json()
+    body = response.get_json()
+    assert body["can_commit"] is True
+    assert body["implementation"]["events"] == []
+    action = body["implementation"]["dialogue_choice_actions"][0]["action"]
+    assert action["action_type"] == action_type
+    assert action["continuation_policy"] == continuation
+
+    committed = client.post("/api/ui/creation-flow/bundle", json={
+        "draft": body["normalized_draft"], "preview_hash": body["preview_hash"], "accepted_warning_ids": [],
+    })
+    assert committed.status_code == 200, committed.get_json()
+    session = Session()
+    saved_action = session.get(DialogueNode, "dialogue-node-1").choices[0]["actions"][0]
+    assert saved_action == action
+    session.close()
+
+
+def test_choice_action_commit_rejects_concurrent_choice_edit(creation_flow_context):
+    client, Session = creation_flow_context
+    preview = client.post("/api/ui/creation-flow/preview", json={"draft": _choice_action_draft()}).get_json()
+    session = Session()
+    node = session.get(DialogueNode, "dialogue-node-1")
+    node.choices = [{**node.choices[0], "choice_text": "Trade quietly"}]
+    session.commit()
+    session.close()
+    response = client.post("/api/ui/creation-flow/bundle", json={
+        "draft": preview["normalized_draft"], "preview_hash": preview["preview_hash"], "accepted_warning_ids": [],
+    })
+    assert response.status_code == 409
 
 
 def test_numeric_reward_validation_is_step_scoped(creation_flow_context):
@@ -223,6 +318,19 @@ def test_numeric_reward_validation_is_step_scoped(creation_flow_context):
     body = response.get_json()
     assert any(issue["code"] == "currency_reward_amount_invalid" and issue["step_id"] == "step-reward" for issue in body["blockers"])
     assert any(issue["code"] == "reputation_reward_zero" and issue["step_id"] == "step-reward" for issue in body["warnings"])
+
+
+def test_unresolved_placeholder_blocks_commit_without_being_discarded(creation_flow_context):
+    client, _ = creation_flow_context
+    draft = _choice_action_draft()
+    draft["placeholders"] = [{"id": "placeholder-item", "kind": "item", "label": "Ashblade"}]
+    response = client.post("/api/ui/creation-flow/preview", json={"draft": draft})
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["can_commit"] is False
+    issue = next(issue for issue in body["blockers"] if issue["code"] == "placeholder_unresolved")
+    assert issue["placeholder_id"] == "placeholder-item"
+    assert body["normalized_draft"]["placeholders"][0]["label"] == "Ashblade"
 
 
 def test_manifest_is_source_recoverable_but_excluded_from_runtime_export():

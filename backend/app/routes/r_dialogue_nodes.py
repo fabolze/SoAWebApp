@@ -4,6 +4,7 @@ from backend.app.models.m_dialogues import Dialogue
 from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_flags import Flag
 from backend.app.models.m_characters import Character
+from backend.app.services.dialogue_choice_actions import validate_choice_contracts
 from backend.app.db.init_db import get_db_session
 from flask import jsonify, abort, request
 from typing import Any, Dict, List
@@ -58,23 +59,15 @@ class DialogueNodeRoute(BaseRoute):
                     raise ValueError(f"Invalid flag_id: {flag_id}")
         
         # JSON fields with validation
-        choices = data.get("choices", [])
-        if not isinstance(choices, list):
-            raise ValueError("choices must be an array")
+        choices = validate_choice_contracts(db_session, node, data.get("choices", []))
         for choice in choices:
-            if not isinstance(choice, dict):
-                raise ValueError("Choice entries must be objects")
-            if not isinstance(choice.get("next_node_id"), str) or not choice["next_node_id"]:
-                raise ValueError("Choice missing required field: next_node_id")
-            if "choice_text" in choice and not isinstance(choice["choice_text"], str):
-                raise ValueError("Choice choice_text must be a string")
-            if "requirements_id" in choice and choice["requirements_id"] is not None and not isinstance(choice["requirements_id"], str):
-                raise ValueError("Choice requirements_id must be an id")
-            target = db_session.get(DialogueNode, choice["next_node_id"])
-            if not target:
-                raise ValueError(f"Invalid next_node_id: {choice['next_node_id']}")
-            if target.dialogue_id != node.dialogue_id:
-                raise ValueError(f"Choice target belongs to another dialogue: {choice['next_node_id']}")
+            next_node_id = choice.get("next_node_id")
+            if next_node_id:
+                target = db_session.get(DialogueNode, next_node_id)
+                if not target:
+                    raise ValueError(f"Invalid next_node_id: {next_node_id}")
+                if target.dialogue_id != node.dialogue_id:
+                    raise ValueError(f"Choice target belongs to another dialogue: {next_node_id}")
 
             # Validate requirements in choices if present
             if choice.get("requirements_id"):

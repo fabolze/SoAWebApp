@@ -338,7 +338,7 @@ export function creationFlowIssues(draft: CreationFlowDraft): CreationFlowIssue[
     if (step.support === "unsupported") issues.push({ severity: "warning", stepId: step.id, message: "This custom intention is preserved, but no canonical compiler contract exists yet." });
     if (step.support === "runtime_unverified") issues.push({ severity: "info", stepId: step.id, message: "The web/export contract is planned, but runtime execution is not verified." });
   });
-  draft.placeholders.filter((placeholder) => !placeholder.promotedCanonicalId).forEach((placeholder) => issues.push({ severity: "warning", placeholderId: placeholder.id, message: `${placeholder.label} remains a local placeholder.` }));
+  draft.placeholders.filter((placeholder) => !placeholder.promotedCanonicalId).forEach((placeholder) => issues.push({ severity: "blocker", placeholderId: placeholder.id, message: `${placeholder.label} must be linked or promoted before canonical commit.` }));
   return issues;
 }
 

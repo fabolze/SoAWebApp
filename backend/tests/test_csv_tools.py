@@ -1,3 +1,5 @@
+import json
+
 from backend.app.models.m_abilities_links import AbilityEffectLink
 from backend.app.models.m_abilities import Ability
 from backend.app.models.m_attributes import Attribute
@@ -379,7 +381,14 @@ def test_dialogue_graph_semantics_round_trip_through_source_and_ue_exports():
     )
     node = DialogueNode(
         id="node-1", slug="intro-end", dialogue_id="dialogue-1", speaker="NPC",
-        text="Farewell.", is_terminal=True, choices=[], set_flags=[], tags=[]
+        text="Visit the forge?", is_terminal=False, choices=[{
+            "id": "choice-trade", "choice_text": "Trade", "set_flags": [],
+            "actions": [{
+                "id": "action-shop", "action_type": "open_shop", "target_shop_id": "shop-1",
+                "continuation_policy": "resume_source_dialogue", "sort_order": 0,
+                "runtime_support": "runtime_unverified",
+            }],
+        }], set_flags=[], tags=[]
     )
 
     dialogue_columns, dialogue_source_rows = csv_tools.build_csv_rows(
@@ -392,17 +401,22 @@ def test_dialogue_graph_semantics_round_trip_through_source_and_ue_exports():
     node_source = dict(zip(node_columns, node_source_rows[0]))
 
     assert dialogue_source["starting_node_id"] == "node-1"
-    assert node_source["is_terminal"] is True
+    assert node_source["is_terminal"] is False
     dialogue_csv_row = {key: str(value) for key, value in dialogue_source.items()}
     node_csv_row = {key: str(value) for key, value in node_source.items()}
     assert csv_tools.coerce_row_from_schema("dialogues", dialogue_csv_row, strict_json=True)["starting_node_id"] == "node-1"
-    assert csv_tools.coerce_row_from_schema("dialogue_nodes", node_csv_row, strict_json=True)["is_terminal"] is True
+    coerced_node = csv_tools.coerce_row_from_schema("dialogue_nodes", node_csv_row, strict_json=True)
+    assert coerced_node["is_terminal"] is False
+    assert coerced_node["choices"][0]["actions"][0]["continuation_policy"] == "resume_source_dialogue"
 
     dialogue_ue_columns, _ = csv_tools.build_csv_rows("dialogues", Dialogue, [dialogue], mode="ue")
     node_ue_columns, node_ue_rows = csv_tools.build_csv_rows("dialogue_nodes", DialogueNode, [node], mode="ue")
     assert "starting_node_id" in dialogue_ue_columns
     assert "is_terminal" in node_ue_columns
-    assert node_ue_rows[0][node_ue_columns.index("is_terminal")] is True
+    assert node_ue_rows[0][node_ue_columns.index("is_terminal")] is False
+    exported_choices = json.loads(node_ue_rows[0][node_ue_columns.index("choices")])
+    assert exported_choices[0]["id"] == "choice-trade"
+    assert exported_choices[0]["actions"][0]["runtime_support"] == "runtime_unverified"
 
 
 def test_source_json_coercion_rejects_malformed_arrays():

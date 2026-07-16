@@ -21,6 +21,7 @@ from backend.app.routes.r_dialogue_nodes import route as node_route
 from backend.app.routes.r_dialogues import route as dialogue_route
 from backend.app.routes.r_requirements import route as requirement_route
 from backend.app.services.dependency_index import build_dependency_index
+from backend.app.services.dialogue_choice_actions import normalize_choice_contracts
 
 
 bp = Blueprint("ui_dialogues", __name__)
@@ -250,25 +251,34 @@ def _validate_node_graph(db_session, dialogue_id, dialogue_data, rows, deletion_
     if omitted_ids:
         abort(400, description=f"nodes must include or explicitly delete every saved node: {', '.join(sorted(omitted_ids))}")
     inbound = {node_id: 0 for node_id in final_ids}
+    choice_ids = set()
+    action_ids = set()
     for index, row in enumerate(rows):
         existing = db_session.get(DialogueNode, row["id"])
         if existing and existing.dialogue_id != dialogue_id:
             abort(400, description=f"nodes[{index}].dialogue_id cannot reassign a saved node")
         if row.get("dialogue_id") != dialogue_id:
             abort(400, description=f"nodes[{index}].dialogue_id must match dialogue.id")
-        choices = row.get("choices", [])
-        if not isinstance(choices, list):
-            abort(400, description=f"nodes[{index}].choices must be an array")
+        try:
+            choices = normalize_choice_contracts(row.get("choices", []))
+        except ValueError as error:
+            abort(400, description=f"nodes[{index}].choices: {error}")
+        row["choices"] = choices
         for choice_index, choice in enumerate(choices):
             path = f"nodes[{index}].choices[{choice_index}]"
-            if not isinstance(choice, dict):
-                abort(400, description=f"{path} must be an object")
+            choice_id = choice["id"]
+            if choice_id in choice_ids:
+                abort(400, description=f"{path}.id must be unique across the dialogue")
+            choice_ids.add(choice_id)
+            for action in choice.get("actions") or []:
+                if action["id"] in action_ids:
+                    abort(400, description=f"{path}.actions ids must be unique across the dialogue")
+                action_ids.add(action["id"])
             target_id = choice.get("next_node_id")
-            if not target_id:
-                abort(400, description=f"{path}.next_node_id is required")
-            if target_id not in final_ids:
-                abort(400, description=f"{path}.next_node_id must target a node in this dialogue")
-            inbound[target_id] += 1
+            if target_id:
+                if target_id not in final_ids:
+                    abort(400, description=f"{path}.next_node_id must target a node in this dialogue")
+                inbound[target_id] += 1
         explicit_terminal = row.get("is_terminal")
         if explicit_terminal is True and choices:
             abort(400, description=f"nodes[{index}].is_terminal cannot be true when the node has outgoing choices")

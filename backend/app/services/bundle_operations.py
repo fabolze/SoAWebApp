@@ -22,6 +22,7 @@ from backend.app.routes.bundle_validation import wrap_bundle_error
 from backend.app.routes.r_flags import route as flag_route
 from backend.app.routes.r_requirements import route as requirement_route
 from backend.app.routes.r_adventure_narrative import adventure_beat_link_route
+from backend.app.services.dialogue_choice_actions import validate_choice_contracts
 
 
 REQUIREMENT_TARGETS = {
@@ -165,6 +166,38 @@ def attach_requirement(db_session, attachment, path):
         raise wrap_bundle_error(path, error) from error
 
 
+def apply_dialogue_choice_action(db_session, change, path):
+    """Apply one compiler-owned action to a stable JSON choice with stale protection."""
+    try:
+        if not isinstance(change, dict):
+            abort(400, description=f"{path} must be an object")
+        node = db_session.get(DialogueNode, change.get("node_id"))
+        if not node:
+            abort(400, description=f"{path}.node_id references a missing dialogue node")
+        choices = [dict(choice) for choice in node.choices or [] if isinstance(choice, dict)]
+        index = next((index for index, choice in enumerate(choices) if choice.get("id") == change.get("choice_id")), None)
+        if index is None:
+            abort(400, description=f"{path}.choice_id references a missing canonical choice")
+        if choices[index] != change.get("expected_previous"):
+            abort(409, description=f"{path}.expected_previous is stale")
+        action = change.get("action")
+        if not isinstance(action, dict) or not action.get("id"):
+            abort(400, description=f"{path}.action requires an id")
+        actions = [dict(row) for row in choices[index].get("actions") or [] if isinstance(row, dict)]
+        existing = next((position for position, row in enumerate(actions) if row.get("id") == action["id"]), None)
+        if existing is None:
+            actions.append(dict(action))
+        else:
+            actions[existing] = dict(action)
+        choices[index] = {**choices[index], "actions": actions}
+        node.choices = validate_choice_contracts(db_session, node, choices)
+        db_session.add(node)
+        db_session.flush()
+        return node
+    except Exception as error:
+        raise wrap_bundle_error(path, error) from error
+
+
 def apply_creation_flow_mutation(db_session, mutation):
     """Apply compiler output in dependency order and return an honest change review."""
     review = {"created": [], "changed": [], "deleted": [], "unlinked": []}
@@ -211,6 +244,13 @@ def apply_creation_flow_mutation(db_session, mutation):
             f"mutation.adventure_beat_links[{index}]",
         )
         record("adventure_beat_links", item.id, existed)
+
+    for index, data in enumerate(mutation.get("dialogue_choice_actions") or []):
+        item = apply_dialogue_choice_action(db_session, data, f"mutation.dialogue_choice_actions[{index}]")
+        review["changed"].append({
+            "table": "dialogue_nodes", "id": item.id,
+            "details": {"choice_id": data.get("choice_id"), "action_id": data.get("action", {}).get("id")},
+        })
 
     db_session.flush()
     return review

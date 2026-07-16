@@ -20,7 +20,8 @@ class DialogueNode(Base):
 
     requirements_id = Column(String, ForeignKey('requirements.id'))
 
-    choices = Column(JSON)     # List of { choice_text?, next_node_id, requirements_id?, set_flags? }
+    # Stable choice/action ids live inside this versioned JSON contract so existing exports stay compatible.
+    choices = Column(JSON)     # List of { id, choice_text?, next_node_id?, requirements_id?, set_flags?, actions[] }
     set_flags = Column(JSON)   # List of flag IDs set by this node
     tags = Column(JSON)  # List of string tags
 

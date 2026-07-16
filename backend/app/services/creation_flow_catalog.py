@@ -20,7 +20,7 @@ from backend.app.services.bundle_operations import compact_snapshot
 
 
 CREATION_FLOW_FORMAT = "SOA-CREATION-FLOW/1"
-COMPILER_VERSION = "creation-flow/2.0"
+COMPILER_VERSION = "creation-flow/3.0"
 
 REFERENCE_MODELS = {
     "dialogue": ("dialogues", Dialogue),
@@ -46,11 +46,12 @@ REFERENCE_MODELS = {
 COMPILABLE_STEP_KINDS = [
     "dialogue", "encounter", "item_reward", "numeric_reward", "lore_reveal",
     "teleport", "scripted_moment", "make_available", "persistent_fact", "world_state",
+    "open_shop", "join_companion",
 ]
 STORY_ONLY_STEP_KINDS = ["story_placement", "note"]
 BLOCKED_STEP_KINDS = [
-    "unshaped", "custom", "open_shop", "quest_assignment", "quest_turn_in",
-    "inventory_objective", "join_companion", "activate_location_variant",
+    "unshaped", "custom", "quest_assignment", "quest_turn_in",
+    "inventory_objective", "activate_location_variant",
     "activate_character_variant", "activate_item_variant", "gameplay_effect",
 ]
 
@@ -77,12 +78,13 @@ def creation_flow_catalog(db_session):
             if not isinstance(choice, dict):
                 continue
             dialogue_choices.append({
-                "id": f"{node.id}:{index}",
+                "id": choice.get("id") or f"legacy-unidentified:{node.id}:{index}",
                 "node_id": node.id,
                 "dialogue_id": node.dialogue_id,
                 "index": index,
                 "label": choice.get("choice_text") or choice.get("text") or f"Choice {index + 1}",
                 "next_node_id": choice.get("next_node_id"),
+                "actions": choice.get("actions") or [],
             })
     references["dialogue_choice"] = {
         "schema_name": "dialogue_nodes.choices",
@@ -100,6 +102,8 @@ def creation_flow_catalog(db_session):
                 "compilable": ["complete"],
                 "blocked": ["dialogue_choice", "victory", "interaction_closed", "condition", "fallback"],
             },
+            "runtime_unverified_step_kinds": ["open_shop", "join_companion"],
+            "dialogue_choice_actions": ["open_shop", "start_encounter", "join_companion"],
             "requirement_attachment_targets": [
                 "ability", "dialogue_node", "dialogue", "encounter", "event", "item",
                 "location_poi", "location_route", "quest", "shop",
@@ -114,4 +118,3 @@ def creation_flow_catalog(db_session):
             ],
         },
     }
-

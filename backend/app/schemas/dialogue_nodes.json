@@ -67,13 +67,20 @@
       "items": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "description": "Immutable choice identity used by typed actions, transitions, and replay protection",
+            "ui": {
+              "widget": "hidden"
+            }
+          },
           "choice_text": {
             "type": "string",
             "description": "Text shown for this choice (optional for auto-continue)"
           },
           "next_node_id": {
             "type": "string",
-            "description": "ID of the next dialogue node",
+            "description": "Optional next dialogue node. May be omitted when a typed action owns continuation or termination.",
             "ui": {
               "widget": "reference",
               "reference": "dialogue-nodes",
@@ -100,10 +107,53 @@
               "label": "Flags Set (Choice)"
             },
             "description": "Flags set when the player chooses this response."
+          },
+          "actions": {
+            "type": "array",
+            "description": "Typed ordered gameplay handoffs owned by this stable choice.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Immutable action and replay-protection identity"
+                },
+                "action_type": {
+                  "type": "string",
+                  "enum": ["open_shop", "start_encounter", "join_companion"]
+                },
+                "target_shop_id": {
+                  "type": "string",
+                  "ui": {"widget": "reference", "reference": "shops", "label": "Shop"}
+                },
+                "target_encounter_id": {
+                  "type": "string",
+                  "ui": {"widget": "reference", "reference": "encounters", "label": "Encounter"}
+                },
+                "target_character_id": {
+                  "type": "string",
+                  "ui": {"widget": "reference", "reference": "characters", "label": "Companion"}
+                },
+                "continuation_policy": {
+                  "type": "string",
+                  "enum": ["resume_source_dialogue", "continue_dialogue", "end_source_dialogue"]
+                },
+                "sort_order": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "runtime_support": {
+                  "type": "string",
+                  "enum": ["runtime_unverified", "runtime_verified"],
+                  "default": "runtime_unverified"
+                }
+              },
+              "required": ["id", "action_type", "continuation_policy", "sort_order", "runtime_support"]
+            }
           }
         },
         "required": [
-          "next_node_id"
+          "id"
         ]
       }
     },

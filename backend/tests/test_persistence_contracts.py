@@ -86,11 +86,11 @@ def test_sqlite_upgrade_adds_canonical_dialogue_graph_columns():
         )
         connection.exec_driver_sql(
             "CREATE TABLE dialogue_nodes (id VARCHAR PRIMARY KEY, dialogue_id VARCHAR NOT NULL, "
-            "speaker VARCHAR NOT NULL, text TEXT NOT NULL)"
+            "speaker VARCHAR NOT NULL, text TEXT NOT NULL, choices JSON)"
         )
         connection.exec_driver_sql(
-            "INSERT INTO dialogue_nodes (id, dialogue_id, speaker, text) "
-            "VALUES ('node-1', 'dialogue-1', 'NPC', 'Hello')"
+            "INSERT INTO dialogue_nodes (id, dialogue_id, speaker, text, choices) VALUES (?, ?, ?, ?, ?)",
+            ("node-1", "dialogue-1", "NPC", "Hello", json.dumps([{"choice_text": "Continue", "next_node_id": "node-1"}])),
         )
 
     _upgrade_sqlite_schema(engine)
@@ -101,6 +101,11 @@ def test_sqlite_upgrade_adds_canonical_dialogue_graph_columns():
         assert connection.exec_driver_sql(
             "SELECT is_terminal FROM dialogue_nodes WHERE id = 'node-1'"
         ).scalar_one() == 0
+        choices = json.loads(connection.exec_driver_sql(
+            "SELECT choices FROM dialogue_nodes WHERE id = 'node-1'"
+        ).scalar_one())
+        assert choices[0]["id"]
+        assert choices[0]["actions"] == []
 
 
 def _flags_client(monkeypatch):

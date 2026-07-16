@@ -1109,7 +1109,7 @@ test("world builder state layer filters canonical location lifecycle", async ({ 
 const dialoguePacket = {
   dialogue: { id: "dialogue-1", slug: "dialogue-1", title: "Gate Talk", description: "", tags: [] },
   nodes: [
-    { id: "node-1", slug: "node-1", dialogue_id: "dialogue-1", speaker: "Guide", text: "Choose.", choices: [{ choice_text: "Enter", next_node_id: "node-2", requirements_id: "req-1", set_flags: [] }], set_flags: [], tags: [] },
+    { id: "node-1", slug: "node-1", dialogue_id: "dialogue-1", speaker: "Guide", text: "Choose.", choices: [{ id: "choice-enter", choice_text: "Enter", next_node_id: "node-2", requirements_id: "req-1", set_flags: [], actions: [] }], set_flags: [], tags: [] },
     { id: "node-2", slug: "node-2", dialogue_id: "dialogue-1", speaker: "Guide", text: "Welcome.", choices: [], set_flags: [], tags: [] },
   ],
   requirements: [{ id: "req-1", slug: "req-1", required_flags: ["flag-1"], forbidden_flags: [], min_faction_reputation: [] }],
@@ -1168,14 +1168,15 @@ async function mockDialogueApi(
     }
     if (url.pathname === "/api/ui/creation-flow/catalog") return fulfillJson(route, {
       format: "SOA-CREATION-FLOW/1",
-      compiler_version: "creation-flow/2.0",
+      compiler_version: "creation-flow/3.0",
       references: {
         dialogue: { schema_name: "dialogues", entries: [{ id: "dialogue-1", label: "Gate Talk" }] },
+        dialogue_choice: { schema_name: "dialogue_nodes.choices", entries: [{ id: "choice-enter", node_id: "node-1", dialogue_id: "dialogue-1", label: "Enter" }] },
         shop: { schema_name: "shops", entries: [{ id: "shop-1", label: "Mara's Shop" }] },
       },
       capabilities: {
-        compilable_step_kinds: ["dialogue", "scripted_moment"], story_only_step_kinds: ["note"],
-        blocked_step_kinds: ["open_shop"], guarantees: ["transactional_preview_rollback"],
+        compilable_step_kinds: ["dialogue", "scripted_moment", "open_shop"], story_only_step_kinds: ["note"],
+        blocked_step_kinds: [], runtime_unverified_step_kinds: ["open_shop"], guarantees: ["transactional_preview_rollback"],
       },
     });
     if (url.pathname === "/api/ui/creation-flow/preview" && route.request().method() === "POST") {
