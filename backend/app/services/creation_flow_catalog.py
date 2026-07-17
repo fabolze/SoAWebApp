@@ -20,7 +20,7 @@ from backend.app.services.bundle_operations import compact_snapshot
 
 
 CREATION_FLOW_FORMAT = "SOA-CREATION-FLOW/1"
-COMPILER_VERSION = "creation-flow/3.0"
+COMPILER_VERSION = "creation-flow/4.0"
 
 REFERENCE_MODELS = {
     "dialogue": ("dialogues", Dialogue),
@@ -47,12 +47,12 @@ COMPILABLE_STEP_KINDS = [
     "dialogue", "encounter", "item_reward", "numeric_reward", "lore_reveal",
     "teleport", "scripted_moment", "make_available", "persistent_fact", "world_state",
     "open_shop", "join_companion",
+    "quest_assignment", "quest_turn_in", "inventory_objective",
+    "activate_location_variant", "activate_character_variant", "activate_item_variant", "gameplay_effect",
 ]
 STORY_ONLY_STEP_KINDS = ["story_placement", "note"]
 BLOCKED_STEP_KINDS = [
-    "unshaped", "custom", "quest_assignment", "quest_turn_in",
-    "inventory_objective", "activate_location_variant",
-    "activate_character_variant", "activate_item_variant", "gameplay_effect",
+    "unshaped", "custom",
 ]
 
 
@@ -102,7 +102,11 @@ def creation_flow_catalog(db_session):
                 "compilable": ["complete"],
                 "blocked": ["dialogue_choice", "victory", "interaction_closed", "condition", "fallback"],
             },
-            "runtime_unverified_step_kinds": ["open_shop", "join_companion"],
+            "runtime_unverified_step_kinds": [
+                "open_shop", "join_companion", "quest_assignment", "quest_turn_in",
+                "inventory_objective", "activate_location_variant", "activate_character_variant",
+                "activate_item_variant", "gameplay_effect",
+            ],
             "dialogue_choice_actions": ["open_shop", "start_encounter", "join_companion"],
             "requirement_attachment_targets": [
                 "ability", "dialogue_node", "dialogue", "encounter", "event", "item",

@@ -90,6 +90,18 @@ class ItemRoute(BaseRoute):
 
         # JSON fields
         item.effects = data.get("effects") or []
+        item.is_unique = bool(data.get("is_unique", False))
+        item.is_protected = bool(data.get("is_protected", False))
+        item.consumption_policy = data.get("consumption_policy") or "ordinary"
+        if item.consumption_policy not in {"ordinary", "never_consume", "consume_on_use", "consume_on_turn_in"}:
+            raise ValueError("consumption_policy is invalid")
+        variants = data.get("variants") or []
+        if not isinstance(variants, list):
+            raise ValueError("variants must be an array")
+        variant_ids = [str(row.get("id") or "") for row in variants if isinstance(row, dict)]
+        if len(variant_ids) != len(variants) or any(not value for value in variant_ids) or len(set(variant_ids)) != len(variant_ids):
+            raise ValueError("variants require unique non-empty ids")
+        item.variants = variants
         item.tags = data.get("tags") or []
 
         # Additional fields
@@ -186,6 +198,10 @@ class ItemRoute(BaseRoute):
             "weapon_range_type": item.weapon_range_type.value if item.weapon_range_type else None,
             "weapon_range": item.weapon_range,
             "effects": item.effects or [],
+            "is_unique": bool(item.is_unique),
+            "is_protected": bool(item.is_protected),
+            "consumption_policy": item.consumption_policy or "ordinary",
+            "variants": item.variants or [],
             "tags": item.tags or [],
             "icon_path": item.icon_path,
             "requirements_id": item.requirements_id,

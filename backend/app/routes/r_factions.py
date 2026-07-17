@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from flask import abort, request, jsonify
 from backend.app.db.init_db import get_db_session
+from backend.app.services.narrative_contracts import validate_reputation_ranks
 
 class FactionRoute(BaseRoute):
     def __init__(self):
@@ -45,6 +46,7 @@ class FactionRoute(BaseRoute):
         faction.relationships = relationships
         
         faction.reputation_config = data.get("reputation_config", {})
+        faction.reputation_ranks = validate_reputation_ranks(data.get("reputation_ranks", []))
         faction.tags = data.get("tags", [])
 
     def serialize_item(self, faction: Faction) -> Dict[str, Any]:

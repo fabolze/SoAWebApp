@@ -24,6 +24,9 @@ class Quest(Base):
     currency_rewards = Column(JSON)             # List of { currency_id, amount }
     reputation_rewards = Column(JSON)           # List of { faction_id, amount }
     item_rewards = Column(JSON)                 # List of { item_id, quantity }
+    lifecycle = Column(JSON)                    # Discovery/assignment/journal/turn-in contract.
+    reward_policy = Column(JSON)                # Timing plus turn-in mode/target.
+    repeat_policy = Column(String, default="one_shot")
     tags = Column(JSON)
 
     requirements = relationship("Requirement")

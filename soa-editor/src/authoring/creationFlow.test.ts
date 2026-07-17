@@ -68,6 +68,21 @@ describe("Creation Flow draft", () => {
     expect(creationFlowIssues(base).some((issue) => issue.stepId === base.steps[0].id && issue.severity === "warning")).toBe(true);
   });
 
+  it("preserves typed gameplay actions and requires variant payload identity", () => {
+    const actionStep = createCreationFlowStep("Cleanse the party", "gameplay_effect");
+    actionStep.gameplayAction = {
+      actionType: "remove_matching_statuses", target: { scope: "party" },
+      removalMode: "cleanse", filter: { polarity: "Harmful", statusTag: "curse" },
+    };
+    const variantStep = createCreationFlowStep("Show the damaged gate", "activate_location_variant", { kind: "location", canonicalId: "gate" });
+    let draft = addCreationFlowStep(createCreationFlowDraft({ title: "Typed state" }), actionStep);
+    draft = addCreationFlowStep(draft, variantStep);
+    const normalized = normalizeCreationFlowDraft(JSON.parse(JSON.stringify(draft)));
+    expect(normalized.steps[0].gameplayAction).toEqual(actionStep.gameplayAction);
+    expect(normalized.steps[0].support).toBe("runtime_unverified");
+    expect(creationFlowIssues(normalized).some((issue) => issue.stepId === variantStep.id && issue.severity === "blocker")).toBe(true);
+  });
+
   it("keeps prose mentions linked when unambiguous edits move them", () => {
     const mention = { id: "mention", placeholderId: "idea", start: 4, end: 14, text: "Ash Regent" };
     expect(reconcileCreationFlowMentions("The Ash Regent rose", "Long ago, the Ash Regent rose", [mention]))

@@ -15,6 +15,7 @@ from backend.app.models.m_locations import Location
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from backend.app.db.init_db import get_db_session
+from backend.app.services.narrative_contracts import validate_repeat_policy
 
 class EncounterRoute(BaseRoute):
     def __init__(self):
@@ -132,6 +133,22 @@ class EncounterRoute(BaseRoute):
         rewards["flags_set"] = flags_set
         
         encounter.rewards = rewards
+        transitions = _require_list(data.get("outcome_transitions", []), "outcome_transitions")
+        for index, transition in enumerate(transitions):
+            if not isinstance(transition, dict) or transition.get("trigger") not in {"victory", "complete", "condition", "fallback"}:
+                raise ValueError(f"outcome_transitions[{index}].trigger is invalid; defeat belongs in defeat_policy")
+        encounter.outcome_transitions = transitions
+        pre_fight = data.get("pre_fight_policy") or {}
+        defeat = data.get("defeat_policy") or {}
+        if not isinstance(pre_fight, dict) or not isinstance(defeat, dict):
+            raise ValueError("pre_fight_policy and defeat_policy must be objects")
+        if pre_fight.get("save_mode", "inherit") not in {"inherit", "automatic", "none"}:
+            raise ValueError("pre_fight_policy.save_mode is invalid")
+        if defeat.get("mode", "inherit") not in {"inherit", "retry", "load_pre_fight", "respawn"}:
+            raise ValueError("defeat_policy.mode is invalid")
+        encounter.pre_fight_policy = pre_fight
+        encounter.defeat_policy = defeat
+        encounter.repeat_policy = validate_repeat_policy(data.get("repeat_policy"), "repeat_policy")
         encounter.tags = _require_list(data.get("tags", []), "tags")
         
     def serialize_item(self, encounter: Encounter) -> Dict[str, Any]:

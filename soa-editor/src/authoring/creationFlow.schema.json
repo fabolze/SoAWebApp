@@ -52,6 +52,7 @@
         "timing": { "enum": ["immediate", "after_completion", "available_later", "story_only"] },
         "persistence": { "enum": ["none", "session", "permanent"] },
         "repeatPolicy": { "enum": ["unspecified", "inherit_owner", "repeatable", "one_shot"] },
+        "gameplayAction": { "type": "object" },
         "payload": { "type": "object" },
         "targetResolution": { "enum": ["none", "unresolved", "placeholder", "canonical"] },
         "support": { "enum": ["unshaped", "unresolved", "compilable", "story_only", "unsupported", "runtime_unverified"] },

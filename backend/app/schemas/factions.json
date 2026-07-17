@@ -98,6 +98,7 @@
         }
       }
     },
+    "reputation_ranks": { "type": "array", "description": "Canonical ordered reputation ranks; preferred over legacy fixed threshold keys.", "items": { "type": "object", "properties": { "name": { "type": "string" }, "minimum": { "type": "number" }, "sort_order": { "type": "integer" } }, "required": ["name", "minimum"] } },
     "tags": {
       "type": "array",
       "description": "Tags for filtering/searching/categorization",

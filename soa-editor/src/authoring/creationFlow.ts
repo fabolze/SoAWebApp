@@ -336,6 +336,8 @@ export function creationFlowIssues(draft: CreationFlowDraft): CreationFlowIssue[
     if (step.support === "unresolved") issues.push({ severity: "warning", stepId: step.id, message: "This step still needs an existing target or a resolved placeholder." });
     if (step.support === "unsupported") issues.push({ severity: "warning", stepId: step.id, message: "This custom intention is preserved, but no canonical compiler contract exists yet." });
     if (step.support === "runtime_unverified") issues.push({ severity: "info", stepId: step.id, message: "The web/export contract is planned, but runtime execution is not verified." });
+    if (step.kind === "gameplay_effect" && !step.gameplayAction) issues.push({ severity: "blocker", stepId: step.id, message: "Choose the gameplay action and canonical payload before commit." });
+    if (["activate_location_variant", "activate_character_variant", "activate_item_variant"].includes(step.kind) && !String(step.payload?.variantId ?? "").trim()) issues.push({ severity: "blocker", stepId: step.id, message: "Choose the stable variant identity to activate." });
   });
   draft.placeholders.filter((placeholder) => !placeholder.promotedCanonicalId).forEach((placeholder) => issues.push({ severity: "blocker", placeholderId: placeholder.id, message: `${placeholder.label} must be linked or promoted before canonical commit.` }));
   return issues;

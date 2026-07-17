@@ -86,7 +86,12 @@
               "label": "Flags Set",
               "reference": "flags"
             }
-          }
+          },
+          "objective_type": { "type": "string", "enum": ["custom", "inventory_count", "interaction", "encounter", "location"], "default": "custom" },
+          "item_id": { "type": "string", "ui": { "widget": "reference", "reference": "items", "label": "Tracked Item" } },
+          "required_count": { "type": "integer", "minimum": 1, "default": 1 },
+          "inventory_scope": { "type": "string", "enum": ["current_inventory"], "default": "current_inventory" },
+          "consumption_policy": { "type": "string", "enum": ["keep", "consume_on_turn_in", "consume_on_progress"], "default": "keep" }
         },
         "required": [
           "objective_id",
@@ -110,6 +115,19 @@
         "reference": "flags"
       }
     },
+    "lifecycle": {
+      "type": "object",
+      "description": "Distinct discovery, assignment, journal, objectives-met, and turn-in semantics.",
+      "properties": {
+        "assignment_mode": { "type": "string", "enum": ["automatic", "npc_offer", "dialogue_choice", "discovery"], "default": "npc_offer" },
+        "initial_journal_state": { "type": "string", "enum": ["hidden", "discovered", "in_journal"], "default": "hidden" },
+        "reveal_map_marker": { "type": "boolean", "default": false },
+        "turn_in_mode": { "type": "string", "enum": ["automatic", "npc", "location", "none"], "default": "npc" },
+        "turn_in_target_id": { "type": "string" }
+      }
+    },
+    "reward_policy": { "type": "object", "properties": { "timing": { "type": "string", "enum": ["on_objectives_met", "on_turn_in", "immediate"], "default": "on_turn_in" }, "target_scope": { "type": "string", "enum": ["player", "party"], "default": "player" } } },
+    "repeat_policy": { "type": "string", "enum": ["inherit_owner", "one_shot", "repeatable"], "default": "one_shot", "ui": { "widget": "select", "label": "Repeat Policy" } },
     "xp_reward": {
       "type": "number",
       "description": "XP granted when the quest is completed",

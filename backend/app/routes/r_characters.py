@@ -55,6 +55,13 @@ class CharacterRoute(BaseRoute):
         character.home_location_id = data.get("home_location_id") or None
 
         # JSON fields
+        variants = data.get("variants") or []
+        if not isinstance(variants, list):
+            raise ValueError("variants must be an array")
+        variant_ids = [str(row.get("id") or "") for row in variants if isinstance(row, dict)]
+        if len(variant_ids) != len(variants) or any(not value for value in variant_ids) or len(set(variant_ids)) != len(variant_ids):
+            raise ValueError("variants require unique non-empty ids")
+        character.variants = variants
         character.tags = tags
 
     def serialize_item(self, character: Character) -> Dict[str, Any]:

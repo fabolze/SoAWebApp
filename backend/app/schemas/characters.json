@@ -95,7 +95,8 @@
         "label": "Tags"
       },
       "description": "Freeform labels for filtering, grouping, and content rules."
-    }
+    },
+    "variants": { "type": "array", "description": "Progression, allegiance, and presentation stages of this character.", "items": { "type": "object", "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "stage": { "type": "string" }, "allegiance": { "type": "string" }, "overrides": { "type": "object" } }, "required": ["id", "label", "overrides"] } }
   },
   "required": [
     "id",

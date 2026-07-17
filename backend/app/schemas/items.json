@@ -386,6 +386,10 @@
       },
       "description": "Effects triggered, granted, or applied by this item."
     },
+    "is_unique": { "type": "boolean", "default": false, "description": "Only one canonical/player-owned instance is intended." },
+    "is_protected": { "type": "boolean", "default": false, "description": "Protected items cannot be casually sold, dropped, or destroyed." },
+    "consumption_policy": { "type": "string", "enum": ["ordinary", "never_consume", "consume_on_use", "consume_on_turn_in"], "default": "ordinary" },
+    "variants": { "type": "array", "description": "Stable stages of one evolving item identity.", "items": { "type": "object", "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "stage": { "type": "integer" }, "overrides": { "type": "object" } }, "required": ["id", "label", "overrides"] } },
     "requirements_id": {
       "type": "string",
       "description": "Requirement to use this item",

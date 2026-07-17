@@ -10,6 +10,7 @@ from backend.app.models.m_flags import Flag
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from backend.app.db.init_db import get_db_session
+from backend.app.services.narrative_contracts import validate_repeat_policy
 
 class QuestRoute(BaseRoute):
     def __init__(self):
@@ -65,6 +66,23 @@ class QuestRoute(BaseRoute):
             for flag_id in flags_set:
                 if not db_session.get(Flag, flag_id):
                     raise ValueError(f"Invalid flag_id in objective: {flag_id}")
+            objective_type = objective.get("objective_type") or "custom"
+            if objective_type not in {"custom", "inventory_count", "interaction", "encounter", "location"}:
+                raise ValueError(f"Invalid objective_type: {objective_type}")
+            if objective_type == "inventory_count":
+                item_id = objective.get("item_id")
+                if not item_id or not db_session.get(Item, item_id):
+                    raise ValueError(f"Invalid item_id in inventory objective: {item_id}")
+                count = objective.get("required_count", 1)
+                if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+                    raise ValueError("inventory objective required_count must be a positive integer")
+                if objective.get("inventory_scope", "current_inventory") != "current_inventory":
+                    raise ValueError("inventory objectives currently require current_inventory scope")
+                if objective.get("consumption_policy", "keep") not in {"keep", "consume_on_turn_in", "consume_on_progress"}:
+                    raise ValueError("inventory objective consumption_policy is invalid")
+                item = db_session.get(Item, item_id)
+                if item.is_protected and objective.get("consumption_policy", "keep") != "keep":
+                    raise ValueError("protected inventory objective items cannot be consumed")
             normalized_objectives.append(objective)
         quest.objectives = normalized_objectives
         
@@ -118,6 +136,26 @@ class QuestRoute(BaseRoute):
         if data.get("xp_reward") is not None:
             _require_number(data["xp_reward"], "xp_reward")
         quest.xp_reward = data.get("xp_reward")
+        lifecycle = data.get("lifecycle") or {}
+        if not isinstance(lifecycle, dict):
+            raise ValueError("lifecycle must be an object")
+        allowed_assignment = {"automatic", "npc_offer", "dialogue_choice", "discovery"}
+        allowed_journal = {"hidden", "discovered", "in_journal"}
+        allowed_turn_in = {"automatic", "npc", "location", "none"}
+        if lifecycle.get("assignment_mode", "npc_offer") not in allowed_assignment:
+            raise ValueError("lifecycle.assignment_mode is invalid")
+        if lifecycle.get("initial_journal_state", "hidden") not in allowed_journal:
+            raise ValueError("lifecycle.initial_journal_state is invalid")
+        if lifecycle.get("turn_in_mode", "npc") not in allowed_turn_in:
+            raise ValueError("lifecycle.turn_in_mode is invalid")
+        quest.lifecycle = lifecycle
+        reward_policy = data.get("reward_policy") or {}
+        if not isinstance(reward_policy, dict):
+            raise ValueError("reward_policy must be an object")
+        if reward_policy.get("timing", "on_turn_in") not in {"on_objectives_met", "on_turn_in", "immediate"}:
+            raise ValueError("reward_policy.timing is invalid")
+        quest.reward_policy = reward_policy
+        quest.repeat_policy = validate_repeat_policy(data.get("repeat_policy") or "one_shot", "repeat_policy")
         quest.tags = data.get("tags", [])
 
     def serialize_item(self, quest: Quest) -> Dict[str, Any]:

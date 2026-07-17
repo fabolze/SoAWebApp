@@ -1,6 +1,6 @@
 # backend/app/models/m_items.py
 
-from sqlalchemy import Column, String, Float, Enum, Text, JSON, ForeignKey, Integer
+from sqlalchemy import Column, String, Float, Enum, Text, JSON, ForeignKey, Integer, Boolean
 from sqlalchemy.orm import relationship
 from backend.app.models.base import Base
 from backend.app.utils.id import generate_ulid
@@ -119,6 +119,10 @@ class Item(Base):
     weapon_range = Column(Integer)
 
     effects = Column(JSON)
+    is_unique = Column(Boolean, default=False)
+    is_protected = Column(Boolean, default=False)
+    consumption_policy = Column(String, default="ordinary")
+    variants = Column(JSON)  # Stable evolving/custom artifact variants.
     tags = Column(JSON)
     icon_path = Column(String)
 

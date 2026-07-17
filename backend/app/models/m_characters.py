@@ -22,6 +22,7 @@ class Character(Base):
     faction_id = Column(String, ForeignKey("factions.id"))
     home_location_id = Column(String, ForeignKey("locations.id"))
 
+    variants = Column(JSON)  # Progression, allegiance, and presentation stages.
     tags = Column(JSON)
 
     class_template = relationship("CharacterClass")

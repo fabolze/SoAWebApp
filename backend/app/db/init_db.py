@@ -333,6 +333,43 @@ def _upgrade_sqlite_schema(active_engine) -> None:
                 tuning_columns = {column["name"] for column in inspector.get_columns("travel_tuning")}
                 if "place_kind" not in tuning_columns:
                     connection.execute(text("ALTER TABLE travel_tuning ADD COLUMN place_kind VARCHAR"))
+
+            narrative_columns = {
+                "events": {"actions": "JSON", "outcome_transitions": "JSON", "repeat_policy": "VARCHAR", "runtime_support": "VARCHAR"},
+                "quests": {"lifecycle": "JSON", "reward_policy": "JSON", "repeat_policy": "VARCHAR"},
+                "encounters": {"outcome_transitions": "JSON", "pre_fight_policy": "JSON", "defeat_policy": "JSON", "repeat_policy": "VARCHAR"},
+                "items": {"is_unique": "BOOLEAN", "is_protected": "BOOLEAN", "consumption_policy": "VARCHAR", "variants": "JSON"},
+                "locations": {"variants": "JSON"},
+                "characters": {"variants": "JSON"},
+                "factions": {"reputation_ranks": "JSON"},
+                "timelines": {"era_order": "INTEGER", "is_current_playable_era": "BOOLEAN"},
+                "location_pois": {"interaction_actions": "JSON", "repeat_policy": "VARCHAR"},
+            }
+            for table_name, columns in narrative_columns.items():
+                if table_name not in table_names:
+                    continue
+                existing = {column["name"] for column in inspector.get_columns(table_name)}
+                for column_name, column_type in columns.items():
+                    if column_name not in existing:
+                        connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}"))
+            narrative_defaults = {
+                "events": {"actions": "[]", "outcome_transitions": "[]", "repeat_policy": "inherit_owner", "runtime_support": "runtime_unverified"},
+                "quests": {"lifecycle": "{}", "reward_policy": "{}", "repeat_policy": "one_shot"},
+                "encounters": {"outcome_transitions": "[]", "pre_fight_policy": "{}", "defeat_policy": "{}", "repeat_policy": "inherit_owner"},
+                "items": {"is_unique": 0, "is_protected": 0, "consumption_policy": "ordinary", "variants": "[]"},
+                "locations": {"variants": "[]"}, "characters": {"variants": "[]"},
+                "factions": {"reputation_ranks": "[]"},
+                "timelines": {"era_order": 0, "is_current_playable_era": 0},
+                "location_pois": {"interaction_actions": "[]", "repeat_policy": "inherit_owner"},
+            }
+            for table_name, defaults in narrative_defaults.items():
+                if table_name not in table_names:
+                    continue
+                for column_name, default_value in defaults.items():
+                    connection.execute(
+                        text(f"UPDATE {table_name} SET {column_name} = :default_value WHERE {column_name} IS NULL"),
+                        {"default_value": default_value},
+                    )
     except Exception:
         # Keep application startup resilient; model metadata handles fresh databases.
         pass

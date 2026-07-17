@@ -22,6 +22,7 @@ from backend.app.models.m_items import Item, ItemType
 from backend.app.models.m_locations import Location
 from backend.app.models.m_lore_entries import LoreEntry
 from backend.app.models.m_requirements import Requirement
+from backend.app.models.m_quests import Quest
 from backend.app.models.m_shops import Shop
 from backend.app.routes import r_ui_creation_flow
 from backend.app.services.creation_flow_compiler import compile_creation_flow
@@ -58,10 +59,11 @@ def creation_flow_context(monkeypatch):
         Currency(id="currency-1", slug="crowns", name="Crowns", type=CurrencyType.Soft, tags=[]),
         Faction(id="faction-1", slug="watch", name="City Watch", alignment=Alignment.Friendly, tags=[]),
         Item(id="item-1", slug="tower-key", name="Tower Key", type=ItemType.Quest, base_price=0, tags=[]),
-        Location(id="location-1", slug="ash-harbour", name="Ash Harbour", tags=[]),
+        Location(id="location-1", slug="ash-harbour", name="Ash Harbour", variants=[{"id": "damaged", "label": "Damaged", "overrides": {"description": "Burned"}}], tags=[]),
         LoreEntry(id="lore-1", slug="old-fleet", title="The Old Fleet", text="The fleet burned here.", tags=[]),
         AdventureBeat(id="beat-1", slug="chapter-three-echo", title="An old echo", beat_type=AdventureBeatType.Discovery, sort_order=3, tags=[]),
         Shop(id="shop-1", slug="watch-armoury", name="Watch Armoury", tags=[]),
+        Quest(id="quest-1", slug="tower-duty", title="Tower Duty", description="Protect the tower.", objectives=[], tags=[]),
     ])
     session.commit()
     session.close()
@@ -203,20 +205,86 @@ def test_recompile_rejects_concurrent_generated_requirement_child_change(creatio
     assert response.status_code == 409
 
 
-def test_unsupported_semantics_are_step_scoped_blockers(creation_flow_context):
-    client, _ = creation_flow_context
+def test_quest_assignment_compiles_to_runtime_unverified_typed_action(creation_flow_context):
+    client, Session = creation_flow_context
     draft = load_fixture("workflow_3_hybrid.json")["draft"]
-    draft["steps"][0] = {
+    draft["steps"] = [{
         "id": "step-scene", "kind": "quest_assignment", "text": "Assign the quest now",
         "target": {"kind": "quest", "canonicalId": "quest-1"},
         "targetResolution": "canonical", "support": "compilable",
+    }]
+    draft["entryStepId"] = "step-scene"
+    draft["transitions"] = []
+    response = client.post("/api/ui/creation-flow/preview", json={"draft": draft})
+    assert response.status_code == 200, response.get_json()
+    body = response.get_json()
+    assert body["can_commit"] is True
+    action = body["implementation"]["events"][0]["actions"][0]
+    assert action["action_type"] == "assign_quest"
+    assert action["quest_id"] == "quest-1"
+    assert action["runtime_support"] == "runtime_unverified"
+    assert any(issue["code"] == "runtime_unverified_event_action" for issue in body["information"])
+    committed = client.post("/api/ui/creation-flow/bundle", json={
+        "draft": body["normalized_draft"], "preview_hash": body["preview_hash"], "accepted_warning_ids": [],
+    })
+    assert committed.status_code == 200, committed.get_json()
+    session = Session()
+    stored = session.query(Event).one()
+    assert stored.actions[0]["quest_id"] == "quest-1"
+    assert stored.repeat_policy == "inherit_owner"
+    session.close()
+
+
+def test_typed_gameplay_action_and_branch_transitions_compile_without_losing_intent(creation_flow_context):
+    client, _ = creation_flow_context
+    draft = {
+        "format": "SOA-CREATION-FLOW/1", "id": "flow-actions", "revision": 1,
+        "title": "Pay or remember", "shape": "sequence", "returnStack": [], "entryStepId": "pay",
+        "steps": [
+            {"id": "pay", "kind": "gameplay_effect", "text": "Grant emergency funds", "timing": "immediate", "repeatPolicy": "one_shot", "gameplayAction": {"actionType": "grant_currency", "currency": {"kind": "currency", "canonicalId": "currency-1"}, "amount": 3, "target": {"scope": "player"}}},
+            {"id": "remember", "kind": "scripted_moment", "text": "Remember the payment"},
+            {"id": "fallback", "kind": "scripted_moment", "text": "Continue without it"},
+        ],
+        "transitions": [
+            {"id": "paid", "fromStepId": "pay", "toStepId": "remember", "trigger": "condition", "sortOrder": 0, "label": "Payment accepted"},
+            {"id": "not-paid", "fromStepId": "pay", "toStepId": "fallback", "trigger": "fallback", "sortOrder": 1},
+        ],
+        "relations": [], "placeholders": [], "localNotes": [], "artifactIds": {}, "createdAt": 1, "updatedAt": 1,
     }
     response = client.post("/api/ui/creation-flow/preview", json={"draft": draft})
-    assert response.status_code == 200
+    assert response.status_code == 200, response.get_json()
     body = response.get_json()
-    assert body["can_commit"] is False
-    assert any(issue["step_id"] == "step-scene" and issue["code"] == "step_kind_not_compilable" for issue in body["blockers"])
-    assert body["review"]["created"] == []
+    assert body["can_commit"] is True
+    first = body["implementation"]["events"][0]
+    assert first["repeat_policy"] == "one_shot"
+    assert first["actions"][0]["action_type"] == "grant_currency"
+    assert [row["trigger"] for row in first["outcome_transitions"]] == ["condition", "fallback"]
+    assert all(row["runtime_support"] == "runtime_unverified" for row in first["outcome_transitions"])
+
+
+def test_dialogue_origin_state_compiles_directly_to_choice_output_flag(creation_flow_context):
+    client, Session = creation_flow_context
+    session = Session()
+    node = session.get(DialogueNode, "dialogue-node-1")
+    node.choices = [{**node.choices[0], "next_node_id": "dialogue-node-1"}]
+    session.commit()
+    session.close()
+    draft = _choice_action_draft()
+    draft["id"] = "flow-choice-state"
+    draft["steps"] = [{"id": "remember", "kind": "persistent_fact", "text": "Captain trusts the player", "repeatPolicy": "one_shot"}]
+    draft["entryStepId"] = "remember"
+    response = client.post("/api/ui/creation-flow/preview", json={"draft": draft})
+    assert response.status_code == 200, response.get_json()
+    preview = response.get_json()
+    assert preview["can_commit"] is True
+    assert len(preview["implementation"]["dialogue_choice_flags"]) == 1
+    committed = client.post("/api/ui/creation-flow/bundle", json={
+        "draft": preview["normalized_draft"], "preview_hash": preview["preview_hash"], "accepted_warning_ids": [],
+    })
+    assert committed.status_code == 200, committed.get_json()
+    session = Session()
+    assert len(session.get(DialogueNode, "dialogue-node-1").choices[0]["set_flags"]) == 1
+    session.close()
 
 
 def _choice_action_draft():

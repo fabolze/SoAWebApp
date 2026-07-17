@@ -241,7 +241,11 @@
         "widget": "tags",
         "label": "Tags"
       }
-    }
+    },
+    "outcome_transitions": { "type": "array", "description": "Victory/completion transitions. Defeat is configured separately.", "items": { "type": "object", "properties": { "id": { "type": "string" }, "trigger": { "type": "string", "enum": ["victory", "complete", "condition", "fallback"] }, "target_event_id": { "type": "string", "ui": { "widget": "reference", "reference": "events" } }, "requirement_id": { "type": "string", "ui": { "widget": "reference", "reference": "requirements" } }, "sort_order": { "type": "integer" } }, "required": ["id", "trigger", "sort_order"] } },
+    "pre_fight_policy": { "type": "object", "properties": { "save_mode": { "type": "string", "enum": ["inherit", "automatic", "none"], "default": "inherit" }, "checkpoint_id": { "type": "string" } } },
+    "defeat_policy": { "type": "object", "description": "Retry/load/respawn behavior; defeat is not an ordinary narrative branch.", "properties": { "mode": { "type": "string", "enum": ["inherit", "retry", "load_pre_fight", "respawn"], "default": "inherit" }, "respawn_location_id": { "type": "string", "ui": { "widget": "reference", "reference": "locations" } }, "retry_entry_event_id": { "type": "string", "ui": { "widget": "reference", "reference": "events" } } } },
+    "repeat_policy": { "type": "string", "enum": ["inherit_owner", "one_shot", "repeatable"], "default": "inherit_owner", "ui": { "widget": "select", "label": "Repeat Policy" } }
   },
   "required": [
     "id",

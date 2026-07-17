@@ -193,6 +193,46 @@
         ]
       }
     },
+    "actions": {
+      "type": "array",
+      "description": "Ordered typed gameplay and quest actions. Web/export validated; each row declares runtime support separately.",
+      "ui": { "widget": "array", "label": "Gameplay Actions" },
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Stable action/replay identity." },
+          "action_type": { "type": "string", "enum": ["apply_effect", "restore_resource", "apply_status", "remove_status", "remove_matching_statuses", "grant_currency", "take_currency", "discover_quest", "assign_quest", "reveal_map_marker", "turn_in_quest", "track_inventory_objective", "join_companion", "set_party_membership", "activate_location_variant", "activate_character_variant", "activate_item_variant"] },
+          "target_scope": { "type": "string", "enum": ["player", "party", "source_character", "target_character", "encounter_side", "location", "explicit_entity"] },
+          "effect_id": { "type": "string", "ui": { "widget": "reference", "reference": "effects", "label": "Effect" } },
+          "status_id": { "type": "string", "ui": { "widget": "reference", "reference": "statuses", "label": "Status" } },
+          "currency_id": { "type": "string", "ui": { "widget": "reference", "reference": "currencies", "label": "Currency" } },
+          "quest_id": { "type": "string", "ui": { "widget": "reference", "reference": "quests", "label": "Quest" } },
+          "item_id": { "type": "string", "ui": { "widget": "reference", "reference": "items", "label": "Item" } },
+          "character_id": { "type": "string", "ui": { "widget": "reference", "reference": "characters", "label": "Character" } },
+          "location_id": { "type": "string", "ui": { "widget": "reference", "reference": "locations", "label": "Location" } },
+          "location_poi_id": { "type": "string", "ui": { "widget": "reference", "reference": "location_pois", "label": "POI" } },
+          "variant_id": { "type": "string" },
+          "amount": { "type": "number" },
+          "required_count": { "type": "integer", "minimum": 1 },
+          "stacks": { "type": "integer", "minimum": 1 },
+          "duration": { "type": "number", "minimum": 0 },
+          "removal_mode": { "type": "string", "enum": ["cleanse", "dispel", "system"] },
+          "status_filter": { "type": "object", "properties": { "category": { "type": "string" }, "polarity": { "type": "string" }, "tag": { "type": "string" } } },
+          "timing": { "type": "string", "enum": ["immediate", "after_completion", "on_turn_in"], "default": "after_completion" },
+          "repeat_policy": { "type": "string", "enum": ["inherit_owner", "one_shot", "repeatable"], "default": "inherit_owner" },
+          "sort_order": { "type": "integer", "minimum": 0 },
+          "runtime_support": { "type": "string", "enum": ["runtime_unverified", "runtime_verified"], "default": "runtime_unverified" }
+        },
+        "required": ["id", "action_type", "target_scope", "timing", "repeat_policy", "sort_order", "runtime_support"]
+      }
+    },
+    "outcome_transitions": {
+      "type": "array",
+      "description": "Typed authored transitions; defeat belongs to an encounter defeat policy.",
+      "items": { "type": "object", "properties": { "id": { "type": "string" }, "trigger": { "type": "string", "enum": ["complete", "dialogue_choice", "victory", "interaction_closed", "condition", "fallback"] }, "target_event_id": { "type": "string", "ui": { "widget": "reference", "reference": "events" } }, "requirement_id": { "type": "string", "ui": { "widget": "reference", "reference": "requirements" } }, "sort_order": { "type": "integer" } }, "required": ["id", "trigger", "sort_order"] }
+    },
+    "repeat_policy": { "type": "string", "enum": ["inherit_owner", "one_shot", "repeatable"], "default": "inherit_owner", "ui": { "widget": "select", "label": "Repeat Policy" } },
+    "runtime_support": { "type": "string", "enum": ["runtime_unverified", "runtime_verified"], "default": "runtime_unverified", "description": "Verification state for an external consumer, not web validation." },
     "flags_set": {
       "type": "array",
       "description": "Flags that will be set when the event completes",

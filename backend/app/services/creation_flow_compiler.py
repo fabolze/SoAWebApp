@@ -22,6 +22,7 @@ from backend.app.services.creation_flow_catalog import (
     STORY_ONLY_STEP_KINDS,
 )
 from backend.app.services.dialogue_choice_actions import find_dialogue_choice
+from backend.app.services.narrative_contracts import validate_narrative_actions
 
 
 CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -105,7 +106,7 @@ class CreationFlowCompiler:
         self.step_review = []
         self.mutation = {
             "flags": [], "requirements": [], "events": [], "requirement_attachments": [],
-            "adventure_beat_links": [], "dialogue_choice_actions": [],
+            "adventure_beat_links": [], "dialogue_choice_actions": [], "dialogue_choice_flags": [],
         }
         self.event_by_step = {}
         self._snapshot_keys = set()
@@ -239,6 +240,10 @@ class CreationFlowCompiler:
             "item_rewards": [],
             "currency_rewards": [],
             "reputation_rewards": [],
+            "actions": [],
+            "outcome_transitions": [],
+            "repeat_policy": "inherit_owner",
+            "runtime_support": "runtime_unverified",
             "flags_set": [],
             "tags": ["creation-flow", f"creation-flow:{self.flow_id}", f"creation-flow-step:{step_id}"],
             "next_event_id": None,
@@ -378,11 +383,18 @@ class CreationFlowCompiler:
         if kind == "story_placement":
             self._compile_story_placement(step, index)
             return
-        if kind in {"open_shop", "join_companion"}:
+        if kind in {"open_shop", "join_companion"} and self._origin_choice_ref():
             self._compile_dialogue_choice_action(step, index)
+            return
+        if kind == "open_shop":
+            self.blocker("dialogue_choice_origin_required", "Open shop now requires an exact saved dialogue choice origin.", step_id=step_id)
+            self.step_review.append({"step_id": step_id, "kind": kind, "status": "blocked", "artifacts": []})
             return
         if kind == "encounter" and index == 0 and self._origin_choice_ref():
             self._compile_dialogue_choice_action(step, index)
+            return
+        if kind in {"persistent_fact", "world_state"} and index == 0 and self._origin_choice_ref():
+            self._compile_dialogue_choice_flag(step)
             return
         if kind in STORY_ONLY_STEP_KINDS:
             self.info("story_only", "This intention remains in the manifest and does not create runtime data.", step_id=step_id)
@@ -403,6 +415,10 @@ class CreationFlowCompiler:
             "numeric_reward": "ItemReward", "lore_reveal": "LoreDiscovery", "teleport": "Teleport",
             "scripted_moment": "ScriptedScene", "make_available": "ScriptedScene",
             "persistent_fact": "ScriptedScene", "world_state": "ScriptedScene",
+            "quest_assignment": "ScriptedScene", "quest_turn_in": "ScriptedScene",
+            "inventory_objective": "ScriptedScene", "join_companion": "ScriptedScene",
+            "activate_location_variant": "ScriptedScene", "activate_character_variant": "ScriptedScene",
+            "activate_item_variant": "ScriptedScene", "gameplay_effect": "ScriptedScene",
         }[kind]
         event = self._event_base(step, index, event_type)
         expected_kind = TARGET_BY_STEP.get(kind)
@@ -423,22 +439,122 @@ class CreationFlowCompiler:
             self._state_step(step, event)
         if kind == "make_available":
             self._state_step(step, event, availability=True)
-        if step.get("repeatPolicy") not in (None, "unspecified", "inherit_owner"):
-            self.warning(
-                "repeat_policy_unrepresented",
-                "The canonical Event model has no repeat-policy field; the intention is preserved in the manifest only.",
-                step_id=step_id,
-            )
+        if kind in {"quest_assignment", "quest_turn_in", "inventory_objective", "join_companion", "activate_location_variant", "activate_character_variant", "activate_item_variant", "gameplay_effect"}:
+            self._compile_event_action(step, index, event)
+        repeat_policy = step.get("repeatPolicy")
+        event["repeat_policy"] = repeat_policy if repeat_policy in {"inherit_owner", "one_shot", "repeatable"} else "inherit_owner"
         self.mutation["events"].append(event)
         artifacts = []
         for collection, previous_length in before.items():
             artifacts.extend({"kind": collection.rstrip("s"), "id": row.get("id") or row.get("entry_id")} for row in self.mutation[collection][previous_length:])
         self.step_review.append({"step_id": step_id, "kind": kind, "status": "compilable", "artifacts": artifacts})
 
+    def _compile_event_action(self, step, index, event):
+        step_id = step["id"]
+        kind = step.get("kind")
+        payload = step.get("payload") if isinstance(step.get("payload"), dict) else {}
+        action_id = self.artifact_id(f"step:{step_id}:event_action")
+        action = {
+            "id": action_id,
+            "target_scope": "player",
+            "timing": "immediate" if step.get("timing") == "immediate" else "after_completion",
+            "repeat_policy": step.get("repeatPolicy") if step.get("repeatPolicy") in {"inherit_owner", "one_shot", "repeatable"} else "inherit_owner",
+            "sort_order": 0,
+            "runtime_support": "runtime_unverified",
+        }
+        target_kinds = {
+            "quest_assignment": ("quest", "assign_quest", "quest_id"),
+            "quest_turn_in": ("quest", "turn_in_quest", "quest_id"),
+            "inventory_objective": ("item", "track_inventory_objective", "item_id"),
+            "join_companion": ("character", "join_companion", "character_id"),
+            "activate_location_variant": ("location", "activate_location_variant", "location_id"),
+            "activate_character_variant": ("character", "activate_character_variant", "character_id"),
+            "activate_item_variant": ("item", "activate_item_variant", "item_id"),
+        }
+        if kind in target_kinds:
+            expected_kind, action_type, id_field = target_kinds[kind]
+            resolved = self.resolve(step.get("target"), step_id, f"draft.steps[{index}].target", expected_kind)
+            if not resolved:
+                return
+            action.update({"action_type": action_type, id_field: resolved[1].id})
+            if kind == "inventory_objective":
+                action["required_count"] = payload.get("required_count", payload.get("requiredCount", 1))
+                action["inventory_scope"] = "current_inventory"
+                action["consumption_policy"] = payload.get("consumption_policy", payload.get("consumptionPolicy", "keep"))
+            if kind.startswith("activate_"):
+                action["variant_id"] = str(payload.get("variant_id") or payload.get("variantId") or "").strip()
+        else:
+            raw = step.get("gameplayAction") if isinstance(step.get("gameplayAction"), dict) else {}
+            action_type = raw.get("actionType") or raw.get("action_type")
+            action["action_type"] = action_type
+            target = raw.get("target") if isinstance(raw.get("target"), dict) else {}
+            action["target_scope"] = target.get("scope", "player")
+            ref_specs = {
+                "effect": ("effect", "effect_id"), "status": ("status", "status_id"),
+                "currency": ("currency", "currency_id"),
+            }
+            for input_key, (expected_kind, output_key) in ref_specs.items():
+                if raw.get(input_key) is not None:
+                    resolved = self.resolve(raw[input_key], step_id, f"draft.steps[{index}].gameplayAction.{input_key}", expected_kind)
+                    if resolved:
+                        action[output_key] = resolved[1].id
+            for source, target_key in (("amount", "amount"), ("stacks", "stacks"), ("duration", "duration"), ("removalMode", "removal_mode"), ("insufficientPolicy", "insufficient_policy")):
+                if raw.get(source) is not None:
+                    action[target_key] = raw[source]
+            filters = raw.get("filter") if isinstance(raw.get("filter"), dict) else None
+            if filters:
+                action["status_filter"] = {
+                    key: value for key, value in {
+                        "category": filters.get("statusCategory"), "polarity": filters.get("polarity"), "tag": filters.get("statusTag"),
+                    }.items() if value
+                }
+        try:
+            action = validate_narrative_actions(self.db_session, [action], f"draft.steps[{index}].gameplayAction")[0]
+        except ValueError as error:
+            self.blocker("gameplay_action_invalid", str(error), step_id=step_id, path=f"draft.steps[{index}].gameplayAction")
+            return
+        event["actions"].append(action)
+        self.provenance.append({"artifact_kind": "event_action", "artifact_id": action_id, "step_id": step_id})
+        self.info("runtime_unverified_event_action", "The typed action is source/DataTable exportable; consuming runtime execution is not yet verified.", step_id=step_id)
+
     def _origin_choice_ref(self):
         origin = self.draft.get("origin") if isinstance(self.draft.get("origin"), dict) else {}
         sub_ref = origin.get("subRef") if isinstance(origin.get("subRef"), dict) else None
         return sub_ref if sub_ref and sub_ref.get("kind") == "dialogue_choice" else None
+
+    def _compile_dialogue_choice_flag(self, step):
+        step_id = step["id"]
+        choice_ref = self._origin_choice_ref()
+        choice_id = str(choice_ref.get("canonicalId") or "").strip() if choice_ref else ""
+        located = find_dialogue_choice(self.db_session, choice_id) if choice_id else None
+        if not located:
+            self.blocker("dialogue_choice_missing", "The source dialogue choice no longer exists.", step_id=step_id, path="draft.origin.subRef.canonicalId")
+            self.step_review.append({"step_id": step_id, "kind": step.get("kind"), "status": "blocked", "artifacts": []})
+            return
+        node, _choice_index, choice = located
+        flag_id = self.artifact_id(f"step:{step_id}:flag")
+        self._check_generated_ownership(Flag, flag_id, "flag", step_id)
+        flag = {
+            "id": flag_id,
+            "slug": f"creation-flow-{_slug(self.flow_id)[-12:]}-{_slug(step_id)[-8:]}-set",
+            "name": str(step.get("text") or "State change").strip(),
+            "description": f"Generated by narrative creation flow '{self.draft.get('title')}'.",
+            "flag_type": "Story Progress",
+            "default_value": False,
+            "tags": ["creation-flow", f"creation-flow:{self.flow_id}", f"creation-flow-step:{step_id}"],
+        }
+        self.mutation["flags"].append(flag)
+        self.mutation["dialogue_choice_flags"].append({
+            "node_id": node.id,
+            "choice_id": choice_id,
+            "expected_previous": copy.deepcopy(choice),
+            "flag_id": flag_id,
+        })
+        self.provenance.extend([
+            {"artifact_kind": "flag", "artifact_id": flag_id, "step_id": step_id},
+            {"artifact_kind": "dialogue_choice_flag", "artifact_id": f"{choice_id}:{flag_id}", "step_id": step_id},
+        ])
+        self.step_review.append({"step_id": step_id, "kind": step.get("kind"), "status": "compilable", "artifacts": [{"kind": "flag", "id": flag_id}, {"kind": "dialogue_choice_flag", "id": choice_id}]})
 
     def _compile_dialogue_choice_action(self, step, index):
         step_id = step["id"]
@@ -589,28 +705,42 @@ class CreationFlowCompiler:
             if source == target:
                 self.blocker("transition_self_cycle", "A step cannot transition directly to itself.", step_id=source, path=path)
                 continue
-            if transition.get("trigger", "complete") != "complete" or transition.get("requirementId") or transition.get("sourceRefId"):
-                self.blocker(
-                    "transition_semantics_unsupported",
-                    "Only unconditional 'complete' transitions compile to Event.next_event_id today.",
-                    step_id=source,
-                    path=path,
-                )
+            trigger = transition.get("trigger", "complete")
+            if trigger not in {"complete", "dialogue_choice", "victory", "interaction_closed", "condition", "fallback"}:
+                self.blocker("transition_trigger_invalid", "Transition trigger is invalid.", step_id=source, path=f"{path}.trigger")
                 continue
-            outgoing.setdefault(source, []).append(target)
-        for source, targets in outgoing.items():
-            if len(targets) > 1:
-                self.blocker(
-                    "transition_branch_unsupported",
-                    "Event.next_event_id is linear; this step has more than one outgoing runtime transition.",
-                    step_id=source,
-                )
-                continue
+            requirement_id = str(transition.get("requirementId") or "").strip()
+            if requirement_id:
+                requirement = self.db_session.get(Requirement, requirement_id)
+                self.snapshot("requirement", requirement_id, requirement)
+                if requirement is None:
+                    self.blocker("transition_requirement_missing", "Transition requirement no longer exists.", step_id=source, path=f"{path}.requirementId")
+                    continue
+            outgoing.setdefault(source, []).append({"target": target, "transition": transition, "index": index})
+        for source, rows in outgoing.items():
             source_event = self.event_by_step.get(source)
-            target_event = self.event_by_step.get(targets[0])
-            if source_event and target_event:
-                source_event["next_event_id"] = target_event["id"]
-            elif source_event or target_event:
+            executable_rows = [(row, self.event_by_step.get(row["target"])) for row in rows]
+            if source_event and len(rows) == 1 and rows[0]["transition"].get("trigger", "complete") == "complete" and not rows[0]["transition"].get("requirementId") and not rows[0]["transition"].get("sourceRefId") and executable_rows[0][1]:
+                source_event["next_event_id"] = executable_rows[0][1]["id"]
+                continue
+            if source_event:
+                for row, target_event in executable_rows:
+                    if not target_event:
+                        self.warning("story_transition_not_executable", "A transition touches a story-only step and remains manifest-only.", step_id=source)
+                        continue
+                    transition = row["transition"]
+                    source_event["outcome_transitions"].append({
+                        "id": str(transition.get("id") or self.artifact_id(f"transition:{source}:{row['target']}:{row['index']}")),
+                        "trigger": transition.get("trigger", "complete"),
+                        "target_event_id": target_event["id"],
+                        "requirement_id": transition.get("requirementId") or None,
+                        "source_ref_id": transition.get("sourceRefId") or None,
+                        "sort_order": transition.get("sortOrder", row["index"]),
+                        "label": transition.get("label") or None,
+                        "runtime_support": "runtime_unverified",
+                    })
+                    self.info("runtime_unverified_transition", "The typed transition is exportable; consuming runtime execution is not yet verified.", step_id=source)
+            elif any(target_event for _row, target_event in executable_rows):
                 self.warning(
                     "story_transition_not_executable",
                     "A transition touches a story-only step and is preserved only in the manifest.",
@@ -624,8 +754,8 @@ class CreationFlowCompiler:
             if node in visited:
                 return False
             visiting.add(node)
-            for target in outgoing.get(node, []):
-                if visit(target):
+            for row in outgoing.get(node, []):
+                if visit(row["target"]):
                     return True
             visiting.remove(node)
             visited.add(node)

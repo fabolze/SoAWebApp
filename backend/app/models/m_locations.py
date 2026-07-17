@@ -100,6 +100,7 @@ class Location(Base):
     is_safe_zone = Column(Boolean, default=False)
     is_fast_travel_point = Column(Boolean, default=False)
     has_respawn_point = Column(Boolean, default=False)
+    variants = Column(JSON)  # Typed presentation/state overrides.
 
     tags = Column(JSON)               # List of string tags
 

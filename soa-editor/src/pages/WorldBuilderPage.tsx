@@ -1514,6 +1514,7 @@ function InlineWorldPacketEditor({
   const [deletions, setDeletions] = useState<WorldBundlePatch["deletions"]>({});
   const [saving, setSaving] = useState(false);
   const [gatePoiId, setGatePoiId] = useState("");
+  const [flowPoi, setFlowPoi] = useState<EntryRecord | null>(null);
   const original = JSON.stringify({ pois, encounterTables, briefs });
   const dirty = JSON.stringify({ pois: poiDrafts, encounterTables: tableDrafts, briefs: briefDrafts }) !== original || Object.values(deletions || {}).some((ids) => ids && ids.length > 0);
   const locationId = entryId(location);
@@ -1599,6 +1600,7 @@ function InlineWorldPacketEditor({
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(poi.is_discoverable)} onChange={(event) => updateRow(setPoiDrafts, index, { is_discoverable: event.target.checked })} /> Discoverable</label>
               <button type="button" className="text-left text-xs font-medium text-red-600 dark:text-red-300" onClick={() => removeOwnedRow("pois", poi, setPoiDrafts)}>Delete POI on save</button>
               {pois.some((savedPoi) => entryId(savedPoi) === entryId(poi)) && <button type="button" className="text-left text-xs font-medium text-blue-700 dark:text-blue-300" onClick={() => setGatePoiId(entryId(poi))}>Edit Access Gate</button>}
+              {pois.some((savedPoi) => entryId(savedPoi) === entryId(poi)) && <button type="button" className="text-left text-xs font-medium text-violet-700 dark:text-violet-300" onClick={() => setFlowPoi(poi)}>On interaction, then…</button>}
             </div>
           ))}
           <button type="button" className={inactiveButton} onClick={addPoi}>Add POI</button>
@@ -1620,6 +1622,7 @@ function InlineWorldPacketEditor({
           })()}
         </div>
       </details>
+      {flowPoi && <ThenComposer open mode="then" origin={{ ref: { kind: "location_poi", canonicalId: entryId(flowPoi), label: label(flowPoi) } }} originLabel={label(flowPoi)} returnFrame={{ workspace: "world-builder", context: { kind: "location_poi", canonicalId: entryId(flowPoi), label: label(flowPoi) }, selectedId: entryId(flowPoi), localViewState: { ownerLocationId: locationId, outcome: "interaction_closed" } }} onClose={() => setFlowPoi(null)} />}
 
       <details className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
         <summary className="cursor-pointer text-sm font-semibold">Encounter Placement Tables ({tableDrafts.length})</summary>

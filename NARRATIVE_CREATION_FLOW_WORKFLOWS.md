@@ -1219,4 +1219,51 @@ The implementation was re-audited against all three workflows after the dialogue
 
 Verification for this slice: frontend ESLint passes, all 101 frontend unit tests pass, the TypeScript/Vite production build succeeds, all 219 backend tests pass, and five focused Chromium tests pass across standalone create/resume, quest objective flow entry/return, encounter victory flow entry/return, dialogue recovery, and canonical preview/commit. The existing production chunk-size advisory is unchanged in kind.
 
-The workflow corpus still intentionally exposes advanced canonical gaps. Shared gameplay actions, full quest lifecycle/inventory contracts, repeatability, defeat policy fields, faction ranks, variants, and remaining Event/POI embeds follow the ordered 3A–6 implementation batches in `NARRATIVE_CREATION_FLOW_PLAN.md`. Representative-writer evaluation and Unreal execution verification remain external acceptance work and are not claimed by these web tests.
+The advanced gaps named in that audit are now closed by the repository implementation described below. Representative-writer evaluation and Unreal execution verification remain external acceptance work and are not claimed by web tests.
+
+## Implementation Coverage — 2026-07-17 Phase 3A Completion
+
+### Cross-workflow canonical contracts
+
+- Event actions are now ordered typed rows with stable replay identity, action type, target scope, canonical payload references, timing, repeat ownership, sort order, and explicit runtime support. Effect/status work includes apply/remove/filtered removal, while currency transfer and resource restoration share the same envelope.
+- Creation Flow compiler `4.0` emits those rows for gameplay effects, quest assignment/turn-in, current-inventory objectives, companion joins, and stable location/character/item variant activation. Invalid references, protected-item consumption, missing filters, bad quantities, unknown action types, and variants not owned by the selected canonical record block the owning step.
+- Typed non-linear transitions compile into `outcome_transitions`; a single unconditional completion still uses `next_event_id` for compatibility. Conditional, fallback, victory, dialogue-choice, and interaction-close transitions retain their trigger and runtime-verification boundary.
+- A first state step captured from an exact dialogue choice compiles directly to that choice's output flags with stale protection. Later state steps remain Event-owned, preventing duplicated flag application.
+- All new canonical columns pass through normal source and UE CSV/DataTable serialization. `runtime_unverified` is data, not warning prose, and remains the default until an external consumer proves execution.
+
+### Workflow 1 closure
+
+- Quest records distinguish discovery/assignment mode, initial journal state, marker reveal, objectives-met state, turn-in mode/target, reward timing, and repeat policy. Inventory-count objectives explicitly use current inventory and declare whether the item is kept or consumed.
+- Items declare uniqueness, protection, consumption policy, and stable variants. A protected item cannot be authored as consumed by a quest objective or compiled inventory action.
+- Dialogue-origin companion intent and quest assignment/turn-in now compile as typed actions instead of blockers. Direct choice actions for shop, encounter, and companion entry retain their existing continuation and replay contracts.
+- Encounter victory remains a narrative outcome; defeat is configured separately through pre-fight save/checkpoint and retry/load/respawn policy, including respawn-location and retry-entry references.
+
+These changes complete the repository-owned portions of W1-B through W1-H without collapsing discovery into possession, possession into turn-in, or defeat into a normal story branch.
+
+### Workflow 2 closure
+
+- Locations, characters, and items now own typed stable variants rather than representing damaged places, allegiance stages, or evolving artifacts as tags or duplicate identities.
+- Timelines expose explicit era order and a current-playable-era lens. The existing canonical parent-location hierarchy continues to provide World → Continent → Region → place lookup while retaining the legacy `region` field for compatibility.
+- Event and POI editors now open the shared protected composer from Event completion and POI interaction. Saved POIs expose the same action inside World Builder's inline location packet.
+- Faction ranks are ordered canonical rows rather than three fixed threshold keys. Existing numeric reputation requirements continue to trace consumers while rank names provide the author-facing path.
+
+These changes satisfy W2-A through W2-I at the web/export contract level. Runtime presentation of variants and faction rank UI remains an external consumer concern.
+
+### Workflow 3 and scale-tool closure
+
+- Per-content repeat ownership is canonical on Events, Quests, Encounters, and POI interactions, with `inherit_owner` restricted to actual owner-backed records.
+- The standalone Creation Flow workspace now filters browser-local drafts by text, shape, and blocker state; the same text lens filters committed manifests.
+- Every local or committed card can expand an inline topology comparison showing ordered steps, typed transitions/branches, and non-temporal creative relations without conflating them.
+- Additive SQLite startup migration installs all advanced columns and backfills safe defaults, while route validation treats legacy null fields as their declared defaults. Existing bundle workflows remain backward compatible.
+
+This closes W3-A through W3-G for repository-owned authoring. Capture-inbox promotion remains optional because no representative-writer pilot has established a separate inbox as necessary.
+
+### Verification and remaining external acceptance
+
+Focused contract coverage now includes deterministic typed quest actions, ordered gameplay actions, typed branch transitions, direct dialogue-choice output flags, preview rollback, atomic commit, stale protection, and source/export preservation through the shared serializers. Frontend coverage includes typed-action draft preservation and variant-identity health alongside the existing host/resume interactions.
+
+The only open acceptance activities require people or systems outside this repository:
+
+- Representative writers complete all three workflows and report context-switch/technical-interruption results.
+- The consuming runtime proves action ordering, replay protection, transition completion, quest journal/turn-in persistence, defeat/save behavior, active variants, and save/load semantics.
+- After those consumer tests, only the rows actually executed successfully may change from `runtime_unverified` to `runtime_verified`.

@@ -39,6 +39,8 @@ class LocationPoi(Base):
     placement_notes = Column(Text)
     is_discoverable = Column(Boolean, default=True)
     discovery_hint = Column(Text)
+    interaction_actions = Column(JSON)  # Ordered typed actions performed on interaction.
+    repeat_policy = Column(String, default="inherit_owner")
     tags = Column(JSON)
 
     location = relationship("Location", foreign_keys=[location_id])

@@ -1,6 +1,6 @@
 # backend/app/models/m_timelines.py
 
-from sqlalchemy import Column, String, Text, Integer, JSON
+from sqlalchemy import Boolean, Column, String, Text, Integer, JSON
 from backend.app.models.base import Base
 from backend.app.utils.id import generate_ulid
 
@@ -16,5 +16,7 @@ class Timeline(Base):
 
     start_year = Column(Integer)
     end_year = Column(Integer)
+    era_order = Column(Integer, default=0)
+    is_current_playable_era = Column(Boolean, default=False)
 
     tags = Column(JSON)  # List of string tags

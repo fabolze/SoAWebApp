@@ -312,7 +312,8 @@
         "widget": "tags",
         "label": "Tags"
       }
-    }
+    },
+    "variants": { "type": "array", "description": "Stateful intact/damaged/presentation variants with a bounded override set.", "items": { "type": "object", "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "state": { "type": "string" }, "overrides": { "type": "object" } }, "required": ["id", "label", "overrides"] } }
   },
   "required": [
     "id",

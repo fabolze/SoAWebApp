@@ -50,6 +50,8 @@
         "label": "End Year"
       }
     },
+    "era_order": { "type": "integer", "default": 0, "description": "Explicit chronology order when dates are approximate or overlap." },
+    "is_current_playable_era": { "type": "boolean", "default": false, "description": "Marks the era used as the current playable lens." },
     "tags": {
       "type": "array",
       "description": "Tags for filtering/searching/categorization",

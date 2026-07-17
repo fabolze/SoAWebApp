@@ -1,6 +1,6 @@
 // soa-editor/src/components/SchemaEditor.tsx
 // This file acts as a template for the other pages
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ArchiveBoxArrowDownIcon,
@@ -28,6 +28,7 @@ interface SchemaEditorProps {
   title: string;
   apiPath: string;
   idField?: string;
+  renderSelectedAccessory?: (context: { data: EntryRecord; persisted: boolean; label: string }) => ReactNode;
 }
 
 interface SchemaPropertyConfig {
@@ -137,6 +138,7 @@ export default function SchemaEditor({
   title,
   apiPath,
   idField = "id",
+  renderSelectedAccessory,
 }: SchemaEditorProps) {
   const [schema, setSchema] = useState<SchemaDefinition | null>(null);
   const location = useLocation();
@@ -1215,6 +1217,8 @@ export default function SchemaEditor({
           onOpenRecentEntry={handleOpenRecentEntry}
         />
         {showEditor && (
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
+          {renderSelectedAccessory?.({ data, persisted: entries.some((entry) => getEntryId(entry) === getEntryId(data)), label: getEntryLabel(data) })}
           <EntryFormPanel
             schemaName={schemaName}
             schema={schema}
@@ -1238,6 +1242,7 @@ export default function SchemaEditor({
             onCreateBundleDrafts={handleCreateBundleDrafts}
             changedFieldKeys={changedFieldKeys}
           />
+          </div>
         )}
       </div>
       {/* DaisyUI modal for delete confirmation */}

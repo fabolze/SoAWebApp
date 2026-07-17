@@ -10,6 +10,7 @@ from backend.app.models.m_location_pois import LocationPoi, PoiType
 from backend.app.models.m_locations import Location
 from backend.app.models.m_requirements import Requirement
 from backend.app.routes.base_route import BaseRoute
+from backend.app.services.narrative_contracts import validate_narrative_actions, validate_repeat_policy
 
 
 class LocationPoiRoute(BaseRoute):
@@ -67,6 +68,8 @@ class LocationPoiRoute(BaseRoute):
         poi.placement_notes = data.get("placement_notes")
         poi.is_discoverable = data.get("is_discoverable", True)
         poi.discovery_hint = data.get("discovery_hint")
+        poi.interaction_actions = validate_narrative_actions(db_session, data.get("interaction_actions", []), "interaction_actions")
+        poi.repeat_policy = validate_repeat_policy(data.get("repeat_policy"), "repeat_policy")
         poi.tags = data.get("tags", [])
 
     def serialize_item(self, poi: LocationPoi) -> Dict[str, Any]:

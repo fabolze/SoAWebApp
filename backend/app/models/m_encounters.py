@@ -27,6 +27,10 @@ class Encounter(Base):
     participants = Column(JSON)  # [{ character_id, contexts, combat_side }]
 
     rewards = Column(JSON)       # { xp, items, currencies, reputation, flags_set }
+    outcome_transitions = Column(JSON)  # Victory/completion transitions; defeat uses defeat_policy.
+    pre_fight_policy = Column(JSON)     # Automatic save/checkpoint behavior.
+    defeat_policy = Column(JSON)        # Retry/load/respawn behavior and overrides.
+    repeat_policy = Column(String, default="inherit_owner")
     tags = Column(JSON)  # List of string tags
 
     requirements = relationship("Requirement")  # optional: add back_populates

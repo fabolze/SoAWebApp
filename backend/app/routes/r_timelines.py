@@ -29,6 +29,13 @@ class TimelineRoute(BaseRoute):
         timeline.description = data.get("description")
         timeline.start_year = parse_dragon_era_year(data.get("start_year"))
         timeline.end_year = parse_dragon_era_year(data.get("end_year"))
+        era_order = data.get("era_order") or 0
+        if isinstance(era_order, bool) or not isinstance(era_order, int):
+            raise ValueError("era_order must be an integer")
+        timeline.era_order = era_order
+        if data.get("is_current_playable_era") is not None and not isinstance(data.get("is_current_playable_era"), bool):
+            raise ValueError("is_current_playable_era must be a boolean")
+        timeline.is_current_playable_era = bool(data.get("is_current_playable_era", False))
         
         timeline.tags = data.get("tags", [])
 

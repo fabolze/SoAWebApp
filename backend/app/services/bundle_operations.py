@@ -13,6 +13,7 @@ from backend.app.models.m_flags import Flag
 from backend.app.models.m_items import Item
 from backend.app.models.m_location_pois import LocationPoi
 from backend.app.models.m_location_routes import LocationRoute
+from backend.app.models.m_locations import Location
 from backend.app.models.m_lore_entries import LoreEntry
 from backend.app.models.m_quests import Quest
 from backend.app.models.m_requirements import Requirement
@@ -23,6 +24,7 @@ from backend.app.routes.r_flags import route as flag_route
 from backend.app.routes.r_requirements import route as requirement_route
 from backend.app.routes.r_adventure_narrative import adventure_beat_link_route
 from backend.app.services.dialogue_choice_actions import validate_choice_contracts
+from backend.app.services.narrative_contracts import validate_narrative_actions, validate_repeat_policy
 
 
 REQUIREMENT_TARGETS = {
@@ -111,6 +113,7 @@ def upsert_event(db_session, data, path, *, defer_next=False):
             "encounter_id": Encounter,
             "dialogue_id": Dialogue,
             "lore_id": LoreEntry,
+            "location_id": Location,
         }
         for field, model in refs.items():
             if data.get(field) and not db_session.get(model, data[field]):
@@ -133,6 +136,13 @@ def upsert_event(db_session, data, path, *, defer_next=False):
         event.xp_reward = data.get("xp_reward")
         event.currency_rewards = data.get("currency_rewards") or []
         event.reputation_rewards = data.get("reputation_rewards") or []
+        event.actions = validate_narrative_actions(db_session, data.get("actions") or [], f"{path}.actions")
+        event.outcome_transitions = data.get("outcome_transitions") or []
+        event.repeat_policy = validate_repeat_policy(data.get("repeat_policy"), f"{path}.repeat_policy")
+        runtime_support = data.get("runtime_support", "runtime_unverified")
+        if runtime_support not in {"runtime_unverified", "runtime_verified"}:
+            abort(400, description=f"{path}.runtime_support is invalid")
+        event.runtime_support = runtime_support
         event.flags_set = data.get("flags_set") or []
         event.tags = [str(tag).strip().lower() for tag in data.get("tags") or [] if str(tag).strip()]
         if not defer_next:
@@ -198,6 +208,30 @@ def apply_dialogue_choice_action(db_session, change, path):
         raise wrap_bundle_error(path, error) from error
 
 
+def apply_dialogue_choice_flag(db_session, change, path):
+    """Attach a generated output flag to one stable choice with stale protection."""
+    try:
+        node = db_session.get(DialogueNode, change.get("node_id"))
+        if not node:
+            abort(400, description=f"{path}.node_id references a missing dialogue node")
+        choices = [dict(choice) for choice in node.choices or [] if isinstance(choice, dict)]
+        index = next((position for position, choice in enumerate(choices) if choice.get("id") == change.get("choice_id")), None)
+        if index is None:
+            abort(400, description=f"{path}.choice_id references a missing canonical choice")
+        if choices[index] != change.get("expected_previous"):
+            abort(409, description=f"{path}.expected_previous is stale")
+        flag_id = change.get("flag_id")
+        if not db_session.get(Flag, flag_id):
+            abort(400, description=f"{path}.flag_id references a missing flag")
+        choices[index] = {**choices[index], "set_flags": list(dict.fromkeys([*(choices[index].get("set_flags") or []), flag_id]))}
+        node.choices = validate_choice_contracts(db_session, node, choices)
+        db_session.add(node)
+        db_session.flush()
+        return node
+    except Exception as error:
+        raise wrap_bundle_error(path, error) from error
+
+
 def apply_creation_flow_mutation(db_session, mutation):
     """Apply compiler output in dependency order and return an honest change review."""
     review = {"created": [], "changed": [], "deleted": [], "unlinked": []}
@@ -250,6 +284,13 @@ def apply_creation_flow_mutation(db_session, mutation):
         review["changed"].append({
             "table": "dialogue_nodes", "id": item.id,
             "details": {"choice_id": data.get("choice_id"), "action_id": data.get("action", {}).get("id")},
+        })
+
+    for index, data in enumerate(mutation.get("dialogue_choice_flags") or []):
+        item = apply_dialogue_choice_flag(db_session, data, f"mutation.dialogue_choice_flags[{index}]")
+        review["changed"].append({
+            "table": "dialogue_nodes", "id": item.id,
+            "details": {"choice_id": data.get("choice_id"), "flag_id": data.get("flag_id")},
         })
 
     db_session.flush()

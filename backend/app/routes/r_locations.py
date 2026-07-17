@@ -117,6 +117,18 @@ class LocationRoute(BaseRoute):
             if not db_session.get(Encounter, encounter_id):
                 raise ValueError(f"Invalid encounter_id in encounters: {encounter_id}")
         location.encounters = encounters
+        variants = data.get("variants") or []
+        if not isinstance(variants, list):
+            raise ValueError("variants must be an array")
+        variant_ids = [str(row.get("id") or "") for row in variants if isinstance(row, dict)]
+        if len(variant_ids) != len(variants) or any(not value for value in variant_ids) or len(set(variant_ids)) != len(variant_ids):
+            raise ValueError("variants require unique non-empty ids")
+        allowed_overrides = {"name", "description", "image_path", "biome", "biome_modifier", "environment_tags", "is_safe_zone", "is_fast_travel_point", "has_respawn_point"}
+        for index, variant in enumerate(variants):
+            overrides = variant.get("overrides", {})
+            if not isinstance(overrides, dict) or any(key not in allowed_overrides for key in overrides):
+                raise ValueError(f"variants[{index}].overrides contains an unsupported field")
+        location.variants = variants
         location.tags = data.get("tags", [])
         
     def serialize_item(self, location: Location) -> Dict[str, Any]:

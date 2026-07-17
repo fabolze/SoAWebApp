@@ -34,6 +34,10 @@ class Event(Base):
     xp_reward = Column(Float)
     currency_rewards = Column(JSON)  # [{ currency_id, amount }]
     reputation_rewards = Column(JSON)  # [{ faction_id, amount }]
+    actions = Column(JSON)  # Ordered typed narrative gameplay actions.
+    outcome_transitions = Column(JSON)  # Typed completion/victory/condition/fallback transitions.
+    repeat_policy = Column(String, default="inherit_owner")
+    runtime_support = Column(String, default="runtime_unverified")
     flags_set = Column(JSON)        # [flag_id, ...]
     tags = Column(JSON)  # List of string tags
 
