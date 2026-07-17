@@ -281,6 +281,57 @@ def test_typed_gameplay_action_and_branch_transitions_compile_without_losing_int
     assert first["actions"][0]["action_type"] == "grant_currency"
     assert [row["trigger"] for row in first["outcome_transitions"]] == ["condition", "fallback"]
     assert all(row["runtime_support"] == "runtime_unverified" for row in first["outcome_transitions"])
+    assert len(body["rehearsal"]["paths"]) == 2
+    assert [path["trace"][0]["step_id"] for path in body["rehearsal"]["paths"]] == ["pay", "pay"]
+    assert [path["trace"][1]["via_transition"]["trigger"] for path in body["rehearsal"]["paths"]] == ["condition", "fallback"]
+    assert [path["trace"][1]["via_transition"]["label"] for path in body["rehearsal"]["paths"]] == ["Payment accepted", None]
+    assert body["rehearsal"]["truncated"] is False
+
+
+def test_entry_step_is_validated_and_missing_sequence_entry_is_defaulted(creation_flow_context):
+    client, _ = creation_flow_context
+    fixture = load_fixture("workflow_1_sequence.json")
+    invalid = {**fixture["draft"], "entryStepId": "missing-step"}
+    invalid_body = client.post("/api/ui/creation-flow/preview", json={"draft": invalid}).get_json()
+    assert invalid_body["can_commit"] is False
+    assert "entry_step_missing" in {issue["code"] for issue in invalid_body["blockers"]}
+
+    non_root = {**fixture["draft"], "entryStepId": fixture["draft"]["steps"][1]["id"]}
+    non_root_body = client.post("/api/ui/creation-flow/preview", json={"draft": non_root}).get_json()
+    assert non_root_body["can_commit"] is False
+    assert "entry_step_has_incoming_transition" in {issue["code"] for issue in non_root_body["blockers"]}
+
+    missing = {key: value for key, value in fixture["draft"].items() if key != "entryStepId"}
+    missing_body = client.post("/api/ui/creation-flow/preview", json={"draft": missing}).get_json()
+    assert missing_body["normalized_draft"]["entryStepId"] == missing_body["normalized_draft"]["steps"][0]["id"]
+    assert "entry_step_defaulted" in {issue["code"] for issue in missing_body["warnings"]}
+
+
+def test_rehearsal_blocks_branch_explosion_after_bounded_path_preview(creation_flow_context):
+    client, _ = creation_flow_context
+    steps = [{"id": "start", "kind": "scripted_moment", "text": "Start"}]
+    transitions = []
+    previous = ["start"]
+    for layer in range(8):
+        current = [f"layer-{layer}-left", f"layer-{layer}-right"]
+        steps.extend({"id": step_id, "kind": "scripted_moment", "text": step_id} for step_id in current)
+        for source in previous:
+            transitions.extend([
+                {"id": f"{source}-left", "fromStepId": source, "toStepId": current[0], "trigger": "complete", "sortOrder": 0},
+                {"id": f"{source}-right", "fromStepId": source, "toStepId": current[1], "trigger": "complete", "sortOrder": 1},
+            ])
+        previous = current
+    draft = {
+        "format": "SOA-CREATION-FLOW/1", "id": "flow-path-limit", "revision": 1,
+        "title": "Too many outcomes", "shape": "sequence", "entryStepId": "start",
+        "returnStack": [], "steps": steps, "transitions": transitions, "relations": [],
+        "placeholders": [], "localNotes": [], "artifactIds": {}, "createdAt": 1, "updatedAt": 1,
+    }
+    body = client.post("/api/ui/creation-flow/preview", json={"draft": draft}).get_json()
+    assert body["can_commit"] is False
+    assert "rehearsal_path_limit_exceeded" in {issue["code"] for issue in body["blockers"]}
+    assert body["rehearsal"]["truncated"] is True
+    assert len(body["rehearsal"]["paths"]) == body["rehearsal"]["path_limit"] == 128
 
 
 @pytest.mark.parametrize(("transition", "code"), [

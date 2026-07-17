@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import heapq
 import json
 import re
 from typing import Any
@@ -26,6 +27,7 @@ from backend.app.services.narrative_contracts import validate_narrative_actions
 
 
 CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+MAX_REHEARSAL_PATHS = 128
 TARGET_BY_STEP = {
     "dialogue": "dialogue",
     "encounter": "encounter",
@@ -769,20 +771,35 @@ class CreationFlowCompiler:
                     step_id=source,
                 )
 
-        visiting, visited = set(), set()
-        def visit(node):
-            if node in visiting:
-                return True
-            if node in visited:
-                return False
-            visiting.add(node)
+        entry_step_id = str(self.draft.get("entryStepId") or "").strip()
+        if entry_step_id and any(
+            row["target"] == entry_step_id
+            for rows in outgoing.values()
+            for row in rows
+        ):
+            self.blocker(
+                "entry_step_has_incoming_transition",
+                "The selected flow entry must be a root step with no incoming transition.",
+                step_id=entry_step_id,
+                path="draft.entryStepId",
+            )
+
+        indegree = {step_id: 0 for step_id in step_ids}
+        for rows in outgoing.values():
+            for row in rows:
+                indegree[row["target"]] = indegree.get(row["target"], 0) + 1
+        roots = [step_id for step_id, count in indegree.items() if count == 0]
+        heapq.heapify(roots)
+        visited_count = 0
+        while roots:
+            node = heapq.heappop(roots)
+            visited_count += 1
             for row in outgoing.get(node, []):
-                if visit(row["target"]):
-                    return True
-            visiting.remove(node)
-            visited.add(node)
-            return False
-        if any(visit(node) for node in step_ids if node not in visited):
+                target = row["target"]
+                indegree[target] -= 1
+                if indegree[target] == 0:
+                    heapq.heappush(roots, target)
+        if visited_count != len(indegree):
             self.blocker("transition_cycle_unsupported", "Canonical Event chains cannot contain a cycle.", path="draft.transitions")
 
     def compile(self):
@@ -800,6 +817,26 @@ class CreationFlowCompiler:
         self._check_unique_ids(transitions, "transitions")
         self._check_unique_ids(relations, "relations")
         self._check_unique_ids(placeholders, "placeholders")
+        entry_step_id = str(self.draft.get("entryStepId") or "").strip()
+        if entry_step_id and entry_step_id not in step_ids:
+            self.blocker(
+                "entry_step_missing",
+                "The flow entry must reference an existing step.",
+                path="draft.entryStepId",
+            )
+        elif not entry_step_id and steps and self.draft.get("shape") != "constellation":
+            first_step_id = next(
+                (str(step.get("id") or "").strip() for step in steps if isinstance(step, dict) and step.get("id")),
+                "",
+            )
+            if first_step_id:
+                self.draft["entryStepId"] = first_step_id
+                self.warning(
+                    "entry_step_defaulted",
+                    "No entry was selected, so rehearsal uses the first captured step.",
+                    step_id=first_step_id,
+                    path="draft.entryStepId",
+                )
         for index, step in enumerate(steps):
             if isinstance(step, dict) and step.get("id"):
                 self._compile_step(step, index)
@@ -817,6 +854,7 @@ class CreationFlowCompiler:
             self.warning("flow_empty", "This flow has no steps to compile.")
 
         self.snapshots.sort(key=lambda row: (row["kind"], row["id"]))
+        rehearsal = self._build_rehearsal()
         preview_hash = _stable_hash({
             "compiler_version": COMPILER_VERSION,
             "draft": self.draft,
@@ -833,7 +871,6 @@ class CreationFlowCompiler:
             f"{len(self.mutation['adventure_beat_links'])} story link{'s' if len(self.mutation['adventure_beat_links']) != 1 else ''}, "
             f"{len(self.mutation['dialogue_choice_actions'])} dialogue action{'s' if len(self.mutation['dialogue_choice_actions']) != 1 else ''}."
         )
-        rehearsal = self._build_rehearsal()
         return {
             "format": CREATION_FLOW_FORMAT,
             "compiler_version": COMPILER_VERSION,
@@ -861,37 +898,130 @@ class CreationFlowCompiler:
 
     def _build_rehearsal(self):
         events = {event["id"]: event for event in self.mutation["events"]}
-        targeted = {event.get("next_event_id") for event in events.values() if event.get("next_event_id")}
-        starts = [event_id for event_id in events if event_id not in targeted]
         step_by_event = {
             row["artifact_id"]: row["step_id"]
             for row in self.provenance
             if row.get("artifact_kind") == "event"
         }
+        edges = {event_id: [] for event_id in events}
+        targeted = set()
+        for event_id, event in events.items():
+            next_event_id = event.get("next_event_id")
+            if next_event_id in events:
+                edges[event_id].append({
+                    "id": f"next:{event_id}:{next_event_id}",
+                    "trigger": "complete",
+                    "target_event_id": next_event_id,
+                    "sort_order": 0,
+                    "label": None,
+                    "requirement_id": None,
+                    "source_ref_id": None,
+                })
+                targeted.add(next_event_id)
+            outcome_rows = event.get("outcome_transitions") or []
+            if isinstance(outcome_rows, list):
+                for outcome in outcome_rows:
+                    if not isinstance(outcome, dict) or outcome.get("target_event_id") not in events:
+                        continue
+                    edges[event_id].append(outcome)
+                    targeted.add(outcome["target_event_id"])
+            edges[event_id].sort(key=lambda row: (row.get("sort_order", 0), str(row.get("id") or "")))
+
+        starts = sorted(event_id for event_id in events if event_id not in targeted)
+        requested_entry = str(self.draft.get("entryStepId") or "").strip()
+        requested_event = self.event_by_step.get(requested_entry)
+        requested_event_id = requested_event.get("id") if requested_event else None
+        if requested_event_id in starts:
+            starts.remove(requested_event_id)
+            starts.insert(0, requested_event_id)
+        elif requested_event_id in events:
+            starts.insert(0, requested_event_id)
+        if not starts and events:
+            starts = [requested_event_id] if requested_event_id in events else [sorted(events)[0]]
+
         paths = []
-        for start in starts:
-            trace, flags, current, seen = [], [], start, set()
-            while current and current in events and current not in seen:
-                seen.add(current)
+        covered_events = set()
+        truncated = False
+
+        def append_path(start, trace, terminal_reason):
+            nonlocal truncated
+            if len(paths) >= MAX_REHEARSAL_PATHS:
+                truncated = True
+                return
+            paths.append({
+                "entry_event_id": start,
+                "trace": trace,
+                "terminal_event_id": trace[-1]["event_id"] if trace else None,
+                "terminal_reason": terminal_reason,
+            })
+
+        def walk(start):
+            nonlocal truncated
+            stack = [(start, [], [], set(), None)]
+            while stack and not truncated:
+                current, trace, flags, seen, incoming = stack.pop()
+                if current not in events:
+                    continue
+                if current in seen:
+                    append_path(start, trace, "cycle_blocked")
+                    continue
+                covered_events.add(current)
                 event = events[current]
-                new_flags = [flag_id for flag_id in event.get("flags_set") or [] if flag_id not in flags]
-                flags.extend(new_flags)
-                trace.append({
+                next_flags = list(flags)
+                new_flags = [flag_id for flag_id in event.get("flags_set") or [] if flag_id not in next_flags]
+                next_flags.extend(new_flags)
+                row = {
                     "event_id": current,
                     "step_id": step_by_event.get(current),
                     "title": event.get("title"),
                     "event_type": event.get("type"),
                     "target_id": event.get("dialogue_id") or event.get("encounter_id") or event.get("lore_id") or event.get("location_id"),
                     "flags_added": new_flags,
-                    "state_after": {"flags": list(flags)},
-                })
-                current = event.get("next_event_id")
-            paths.append({"entry_event_id": start, "trace": trace, "terminal_event_id": trace[-1]["event_id"] if trace else None})
+                    "state_after": {"flags": next_flags},
+                }
+                if incoming:
+                    row["via_transition"] = {
+                        "id": incoming.get("id"),
+                        "trigger": incoming.get("trigger", "complete"),
+                        "label": incoming.get("label"),
+                        "requirement_id": incoming.get("requirement_id"),
+                        "source_ref_id": incoming.get("source_ref_id"),
+                    }
+                next_trace = [*trace, row]
+                outgoing = edges.get(current, [])
+                if not outgoing:
+                    append_path(start, next_trace, "completed")
+                    continue
+                next_seen = {*seen, current}
+                for edge in reversed(outgoing):
+                    target = edge.get("target_event_id")
+                    if target in next_seen or target == current:
+                        append_path(start, next_trace, "cycle_blocked")
+                    else:
+                        stack.append((target, next_trace, next_flags, next_seen, edge))
+
+        for start in starts:
+            if truncated:
+                break
+            walk(start)
+        for event_id in sorted(set(events) - covered_events):
+            if truncated:
+                break
+            walk(event_id)
+
+        if truncated:
+            self.blocker(
+                "rehearsal_path_limit_exceeded",
+                f"This flow produces more than {MAX_REHEARSAL_PATHS} rehearsal paths. Split the flow before canonical commit so every outcome can be reviewed.",
+                path="draft.transitions",
+            )
         return {
             "runtime_claim": "web_contract_only",
             "paths": paths,
-            "disconnected_event_count": sum(1 for path in paths if len(path["trace"]) == 1),
-            "note": "This is a temporary canonical sequence/state trace, not runtime execution verification.",
+            "disconnected_event_count": sum(1 for event_id in events if not edges[event_id] and event_id not in targeted),
+            "truncated": truncated,
+            "path_limit": MAX_REHEARSAL_PATHS,
+            "note": "This is a temporary canonical branch/sequence/state trace, not runtime execution verification.",
         }
 
 

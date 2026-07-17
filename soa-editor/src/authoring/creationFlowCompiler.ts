@@ -54,17 +54,27 @@ export interface CreationFlowPreview extends BundleReviewResult {
     paths: Array<{
       entry_event_id: string;
       terminal_event_id?: string;
+      terminal_reason: "completed" | "cycle_blocked";
       trace: Array<{
         event_id: string;
         step_id?: string;
         title?: string;
         event_type?: string;
         target_id?: string;
+        via_transition?: {
+          id?: string;
+          trigger: "complete" | "dialogue_choice" | "victory" | "interaction_closed" | "condition" | "fallback";
+          label?: string;
+          requirement_id?: string;
+          source_ref_id?: string;
+        };
         flags_added: string[];
         state_after: { flags: string[] };
       }>;
     }>;
     disconnected_event_count: number;
+    truncated: boolean;
+    path_limit: number;
     note: string;
   };
   warnings: CreationFlowCompilerIssue[];

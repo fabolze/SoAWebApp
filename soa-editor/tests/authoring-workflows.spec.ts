@@ -1696,7 +1696,13 @@ test("dialogue Then flow resolves a canonical target, previews, and commits with
     story_summary: { title: draft.title }, implementation_summary: "1 event, 0 flags, 0 requirements.",
     implementation: { events: [{ id: "event-generated" }], flags: [], requirements: [], requirement_attachments: [] },
     step_review: [], information: [], warnings: [], blockers: [], preview_hash: "preview-hash-1", can_commit: true,
-    rehearsal: { runtime_claim: "web_contract_only", paths: [{ entry_event_id: "event-generated", terminal_event_id: "event-generated", trace: [{ event_id: "event-generated", title: "Continue the gate conversation", event_type: "Dialogue", flags_added: [], state_after: { flags: [] } }] }], disconnected_event_count: 1, note: "This is a temporary canonical sequence/state trace, not runtime execution verification." },
+    rehearsal: { runtime_claim: "web_contract_only", paths: [
+      { entry_event_id: "event-generated", terminal_event_id: "event-generated", terminal_reason: "completed", trace: [{ event_id: "event-generated", title: "Continue the gate conversation", event_type: "Dialogue", flags_added: [], state_after: { flags: [] } }] },
+      { entry_event_id: "event-generated", terminal_event_id: "event-branch", terminal_reason: "completed", trace: [
+        { event_id: "event-generated", title: "Continue the gate conversation", event_type: "Dialogue", flags_added: [], state_after: { flags: [] } },
+        { event_id: "event-branch", title: "Open the guarded gate", event_type: "ScriptedScene", via_transition: { trigger: "condition", label: "Only when allowed", requirement_id: "req-1" }, flags_added: [], state_after: { flags: [] } },
+      ] },
+    ], disconnected_event_count: 0, truncated: false, path_limit: 128, note: "This is a temporary canonical branch/sequence/state trace, not runtime execution verification." },
     review: { created: [{ table: "events", id: "event-generated" }], changed: [], deleted: [], unlinked: [] },
     ...(isCommitted ? { committed: true, manifest: { id: draft.id, compiler_version: "creation-flow/2.0" } } : {}),
   });
@@ -1721,6 +1727,7 @@ test("dialogue Then flow resolves a canonical target, previews, and commits with
 
   const review = page.getByRole("dialog", { name: "Creation Flow Bundle Review" });
   await expect(review.getByText("1 created")).toBeVisible();
+  await expect(review.getByText("via Only when allowed")).toBeVisible();
   await review.getByRole("button", { name: "Commit Creation Flow" }).click();
   await expect.poll(() => previewed).not.toBeNull();
   await expect.poll(() => committed).not.toBeNull();

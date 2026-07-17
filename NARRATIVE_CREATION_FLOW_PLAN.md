@@ -1,6 +1,6 @@
 # Narrative-First Creation Flow And “Then…” Composer Plan
 
-Status: The repository-owned web release is implemented end to end: capture, typed canonical compilation, stable dialogue-choice actions and output flags, Dialogue/World/Encounter/Quest/Event/POI embeds, rehearsal, atomic commit, committed-manifest resume, and a searchable standalone Creation Flow workspace with topology comparison. Representative-writer evaluation and external runtime verification remain open acceptance activities.
+Status: The repository-owned web release is implemented end to end: capture, typed canonical compilation, stable dialogue-choice actions and output flags, Dialogue/World/Encounter/Quest/Event/POI embeds, branch-aware bounded rehearsal, atomic commit, committed-manifest resume, and a searchable standalone Creation Flow workspace with topology comparison. Representative-writer evaluation and external runtime verification remain open acceptance activities.
 
 Drafted: 2026-07-15
 
@@ -155,7 +155,22 @@ The implementation plan for those gaps is complete:
 
 Verification after hardening: all **224 backend tests**, **104 frontend unit tests**, frontend ESLint, the TypeScript/Vite production build, `git diff --check`, and **6 focused Chromium Creation Flow journeys** pass. The full browser baseline was also measured before this hardening pass: 26 of 52 broad authoring-workspace tests passed, with 26 failures concentrated in pre-existing non-Creation-Flow mock/selector/time-out debt. That repository-wide suite debt is not presented as a failure of the six passing Creation Flow journeys and is not silently relabeled as complete.
 
-No repository-owned Narrative Creation Flow implementation point remains open after this batch. Representative-writer evaluation, performance observation with real content, and Unreal/runtime execution remain external acceptance gates because they require people or systems outside this web repository.
+At that checkpoint no known repository-owned Narrative Creation Flow implementation point remained open. Representative-writer evaluation, performance observation with real content, and Unreal/runtime execution remained external acceptance gates because they require people or systems outside this web repository.
+
+### Branch rehearsal completion and final audit — 2026-07-17
+
+A subsequent end-to-end audit found one remaining repository defect behind the green contract suite: `outcome_transitions` were compiled and exported correctly, but temporary rehearsal traversed only legacy `next_event_id`. Conditional, fallback, dialogue-choice, victory, and interaction-close outcomes therefore appeared as disconnected single-event traces instead of comparable playable paths.
+
+The repository-owned closure plan is complete:
+
+| Batch | Delivered change | Exit evidence |
+|---|---|---|
+| Branch-aware rehearsal | Rehearsal now walks both linear and typed outcome edges, enumerates deterministic root-to-terminal paths, preserves the transition trigger/label/Requirement/choice identity used to enter each trace step, and carries temporary flags independently along each outcome. | The typed condition/fallback fixture produces two paths from the same entry with the correct outcome identity. |
+| Entry integrity | An invalid `entryStepId`, or an entry with an incoming transition, blocks preview. A legacy non-constellation draft without an entry is normalized to its first captured step and returns an acknowledgement warning. | Focused compiler tests cover missing, non-root, and defaulted entries. |
+| Bounded review | Rehearsal enumerates at most 128 outcomes. A larger branch product returns the first 128 paths, marks the review as truncated, and blocks canonical commit until the author splits the flow. Cycles remain blocked separately. | A generated 256-outcome fixture proves deterministic capping and the commit blocker. |
+| Author-facing comparison | Bundle Review shows the transition label or trigger beside each path step and displays the truncation boundary when present. | TypeScript production build and ESLint pass. |
+
+Verification for this batch: **24 focused Creation Flow backend tests**, all **226 backend tests**, all **104 frontend unit tests**, frontend ESLint, the TypeScript/Vite production build, `git diff --check`, and **6 focused Chromium Creation Flow journeys** pass. The existing large-chunk build advisory remains unchanged in kind. The only intentionally open activities remain representative-writer evaluation, real-content performance observation, and external runtime execution verification.
 
 ## Executive Decision
 
@@ -570,23 +585,23 @@ This should follow the embedded prototype, not precede it. The first validation 
 | Encounter | Start an encounter | `events.type = Encounter` plus `encounter_id` | Supported through existing event model |
 | Item reward | Give one or more items | Event, encounter, or quest reward fields depending on timing | Supported; composer must make timing explicit |
 | Currency/XP/reputation | Grant payoff | Existing event, encounter, or quest reward fields | Supported where a valid source exists |
-| Faction rank progression | Cross a named reputation threshold and unlock information/content | Minimum faction-reputation requirements exist, but named rank tiers do not | Add ordered faction-rank records and compile their consumers into explicit reputation requirements |
+| Faction rank progression | Cross a named reputation threshold and unlock information/content | Ordered faction ranks plus minimum-reputation requirements | Implemented in the web/export contract; runtime presentation remains external |
 | Lore reveal | Reveal lore | `events.type = LoreDiscovery` plus `lore_id` | Supported through existing event model |
 | Teleport | Move the player | `events.type = Teleport`; exact payload contract must be verified | Partially modeled; block commit until destination semantics are complete |
 | Scripted moment | Play explosion/cutscene direction | `events.type = ScriptedScene`; no rich scene payload currently exists | Capture and event shell supported; detailed execution unresolved |
-| Shop now | Suspend the source dialogue, immediately open a shop, and resume the same dialogue context when the shop closes | No current typed dialogue-choice action | Confirmed required choice-action/export contract; an ordinary dialogue-completion event is incorrect |
+| Shop now | Suspend the source dialogue, immediately open a shop, and resume the same dialogue context when the shop closes | Stable dialogue-choice `open_shop` action with `resume_source_dialogue` | Implemented and exported as `runtime_unverified` |
 | Shop later | Make a shop available later | Flag + requirement + `shops.requirements_id` | Compilable with existing records |
 | Quest available | Make a quest discoverable/eligible | Flag + requirement + `quests.requirements_id` | Compilable with existing records |
-| Quest discovery/assignment/marker | Discover from knowledge, receive from an NPC, and/or reveal a map marker | No single current action contract | Confirmed as distinct surfacing actions; discovery or assignment records the quest without a decline state |
-| Inventory-count objective | Require a current quantity of any item | Quest objective currently stores prose, requirement, and completion flags | Confirmed typed objective/export contract; protection and turn-in consumption are separate policies |
-| Companion join | Add a dialogue character to the active party | Story lifecycle supports `joins`, but party membership action is absent | Confirmed required authoring/export action and consumer-state contract |
+| Quest discovery/assignment/marker | Discover from knowledge, receive from an NPC, and/or reveal a map marker | Typed quest lifecycle fields and assignment/turn-in actions | Implemented; runtime journal presentation remains external |
+| Inventory-count objective | Require a current quantity of any item | Typed current-inventory objective with count and keep/consume policy | Implemented with protected-item validation |
+| Companion join | Add a dialogue character to the active party | Typed `join_companion` action with stable replay identity | Implemented and exported as `runtime_unverified` |
 | Persistent fact | Remember that something happened | Existing flag | Supported, but generate only when later logic needs it or one-shot behavior requires it |
 | Location/character/item/faction story state | Mark introduced, injured, damaged, destroyed, obtained, restored, etc. | Lifecycle-aware `adventure_beat_links` | Supported as story meaning; not automatically runtime state |
-| Location variant | Switch one logical place between intact/damaged presentations | No canonical location-variant contract | Confirmed need for stateful description/shop/inhabitant/POI overrides |
-| Character variant | Switch one logical person between authored progression stages | No canonical character-variant contract | Confirmed need for one stable identity plus typed presentation, allegiance, level, profile, and interaction overrides |
-| Item variant | Switch one logical artifact between dormant/awakened/reforged/corrupted/restored or custom stages | No canonical item-variant contract | Confirmed need for stable identity plus typed presentation, effect, requirement, and modifier overrides |
+| Location variant | Switch one logical place between intact/damaged presentations | Stable location-owned variants plus activation action | Implemented and exported as `runtime_unverified` |
+| Character variant | Switch one logical person between authored progression stages | Stable character-owned variants plus activation action | Implemented and exported as `runtime_unverified` |
+| Item variant | Switch one logical artifact between dormant/awakened/reforged/corrupted/restored or custom stages | Stable item-owned variants plus activation action | Implemented and exported as `runtime_unverified` |
 | Gameplay world state | Change collision, services, population, visuals, routes, etc. | Varies; often flag-gated content, sometimes no field | Resolve per target; never claim generic support |
-| Typed gameplay action | Damage or heal, apply/remove a status or curse, restore a resource, grant currency, or apply another canonical effect | Existing `effects`, `statuses`, `currencies`, rewards, stats, and entity references provide most payload records, but no shared narrative action envelope exists | Add the typed web/export contract below; export supported intent as `runtime_unverified` until a consumer confirms execution |
+| Typed gameplay action | Damage or heal, apply/remove a status or curse, restore a resource, grant currency, or apply another canonical effect | Ordered typed action envelope over canonical payload references | Implemented and exported as `runtime_unverified` until a consumer confirms execution |
 | Timeline placement | Put this moment in a timeline/arc | `adventure_beats` and `adventure_beat_links` | Supported and optional |
 | Note | Preserve creative direction | Local draft note | Always supported as draft, never silently executable |
 
@@ -595,15 +610,15 @@ This should follow the embedded prototype, not precede it. The first validation 
 | Author wording | Meaning | Current support |
 |---|---|---|
 | Then | Continue after successful completion | `events.next_event_id` supports one linear follow-up |
-| When player chooses X | Branch from a specific dialogue choice | Not canonically represented as an event transition |
-| Open shop | Suspend the dialogue and immediately display the shop | Confirmed behavior; nested shop action/return contract is absent |
-| Start encounter | Close the dialogue and immediately enter the encounter | Confirmed behavior; choice-specific transition contract is absent |
-| Retreat for now | End dialogue, return to the originating interaction view, and allow later re-entry | Confirmed behavior; origin/return context needs a runtime contract |
-| On victory | Continue after encounter victory | Confirmed V1 outcome; typed transition is absent |
-| On defeat | Stop ordinary narrative continuation and invoke the encounter's retry/load/respawn policy | Confirmed not to be a normal consequence branch; exact restore target remains open |
-| When shop closes | Close the shop and resume the exact suspended dialogue interaction | Confirmed behavior; nested interaction stack/session contract is absent |
-| If state is true | Conditional transition | Requirements can gate content, but transition-specific conditions need a contract |
-| Otherwise | Fallback branch | Not represented |
+| When player chooses X | Branch from a specific dialogue choice | Typed outcome transition references the stable saved choice |
+| Open shop | Suspend the dialogue and immediately display the shop | Stable choice action declares `resume_source_dialogue` |
+| Start encounter | Close the dialogue and immediately enter the encounter | Stable choice action declares `end_source_dialogue` |
+| Retreat for now | End dialogue, return to the originating interaction view, and allow later re-entry | Protected authoring return frame is implemented; runtime interaction restoration remains external |
+| On victory | Continue after encounter victory | Typed victory transition and Encounter host entry are implemented |
+| On defeat | Stop ordinary narrative continuation and invoke the encounter's retry/load/respawn policy | Authored defeat policy is implemented; restore execution remains external |
+| When shop closes | Close the shop and resume the exact suspended dialogue interaction | Choice-action continuation contract is implemented; runtime session execution remains external |
+| If state is true | Conditional transition | Typed condition transition references a canonical Requirement |
+| Otherwise | Fallback branch | Typed, unique, unconditional, last-ordered fallback transition |
 | Stop here | Intentional end | Event chain may end without `next_event_id`; author-facing terminal meaning should be explicit |
 
 Linear **Then** chains can use current `next_event_id`. Branch-specific, outcome-specific, and fallback transitions must not be simulated through naming conventions or tags.
@@ -1168,7 +1183,7 @@ Do not choose Option C merely because a graph looks attractive. Choose it only w
 
 ### Decision status
 
-The third workflow closes the V1 corpus and Option B/C gate. Canonical web-schema implementation may proceed once the remaining explicit field layouts are transcribed into model/schema/export changes. Unknown Unreal execution details do not block web contracts when behavior is preserved honestly and marked `runtime_unverified`. Current status:
+The third workflow closed the V1 corpus and Option B/C gate. The explicit field layouts have since been implemented in the model/schema/export contract. Unknown Unreal execution details do not block web contracts when behavior is preserved honestly and marked `runtime_unverified`. Current status:
 
 1. **Open external integration question:** Does the consuming runtime execute `next_event_id`, and what counts as completion? The web app may preserve/export it but must not mark it runtime-verified without that answer.
 2. **Confirmed:** Dialogue choices directly select immediate shop, encounter, and companion-join actions; immutable choice identity is required.
@@ -1494,7 +1509,7 @@ Exit gate:
 - Every unsupported step is named rather than hand-waved.
 - Completion and repeat semantics are explicit in the export contract; externally unverified behavior is labeled rather than claimed.
 
-Workflow 3 and Author Reviews 4–5 satisfy the V1 corpus and canonical-direction portions of this gate. The remaining work is implementation-level schema/export transcription and the explicitly listed external verification items.
+Workflow 3 and Author Reviews 4–5 satisfied the V1 corpus and canonical-direction portions of this gate. Schema/export transcription is complete; only the explicitly listed external verification items remain.
 
 ### Phase 1: capture-only embedded prototype
 
@@ -1537,9 +1552,9 @@ Deliverables:
 - [x] Backend step-grouped implementation review and canonical change review.
 - [x] Frontend Bundle Review, warning acceptance, and commit controls in the shared Dialogue/World Builder composer.
 - [x] Direct navigation from a compiler blocker/warning to its owning composer step.
-- [x] Temporary sequence/state rehearsal for proposed Event paths and accumulated generated flags, explicitly labeled as web-contract tracing rather than runtime execution.
+- [x] Temporary branch/sequence/state rehearsal for proposed Event paths and accumulated generated flags, including typed outcome identity and a 128-path review ceiling, explicitly labeled as web-contract tracing rather than runtime execution.
 
-This phase may ship behind a feature flag before the confirmed Shop Now choice-action schema is implemented. The UI must label the step as not yet compilable rather than substituting a shop-unlock flag.
+Historical gate: this phase was permitted to ship behind a feature flag before the Shop Now choice-action schema existed. That schema is now implemented; no shop-unlock flag is substituted for an immediate shop action.
 
 ### Phase 3A: canonical web data and DataTable export contracts
 
@@ -1599,7 +1614,7 @@ The standalone surface follows successful embedded use; it is not required to pr
 
 ### Phase 6: external runtime handoff and web production hardening
 
-Implementation status on 2026-07-17: the repository portion is complete through typed fixtures/validation, compatibility migrations and defaults, explicit `runtime_support`, and the consumer expectations recorded above. Representative-writer evaluation, external performance measurement, and Unreal/runtime execution are external acceptance activities.
+Implementation status on 2026-07-17: the repository portion is complete through typed fixtures/validation, compatibility migrations and defaults, explicit `runtime_support`, cycle rejection, bounded branch rehearsal, and the consumer expectations recorded above. Representative-writer evaluation, external performance measurement, and Unreal/runtime execution are external acceptance activities.
 
 Deliverables:
 

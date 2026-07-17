@@ -270,7 +270,7 @@ All fields remain local until resolved into honest records. Resolution may:
 
 This lets the author specify what the encounter should feel like and why it exists without choosing levels, abilities, combat profiles, or final creature identities during the creative pass.
 
-## Current-Model Capability Map
+## Baseline Capability Map (Before Creation Flow Implementation)
 
 | Workflow intention | Current support | Gap or caution |
 |---|---|---|
@@ -647,7 +647,7 @@ The composer should offer:
 
 The current model has story arcs, timelines, and adventure beats but no dedicated general `chapter` record. Product review must decide whether “chapter” is author-facing grouping over story arcs/beats or a new canonical concept.
 
-## Current-Model Capability Map
+## Baseline Capability Map (Before Creation Flow Implementation)
 
 | Workflow intention | Current support | Gap or caution |
 |---|---|---|
@@ -1041,7 +1041,7 @@ One quest result may grant reputation, cross a rank threshold, reveal informatio
 
 The author explicitly does not want an indie project to require highly complex choice topology. The composer should support clear linear outcomes, small local choices, and faction requirements without encouraging combinatorial branching. A small branch graph plus linked flows is sufficient for V1; nested executable subflows and a universal runtime sequence model are not required.
 
-## Current-Model Capability Map
+## Baseline Capability Map (Before Creation Flow Implementation)
 
 | Workflow intention | Current support | Gap or caution |
 |---|---|---|
@@ -1291,4 +1291,31 @@ All three workflow shapes already had repository-owned coverage: Workflow 1's ma
 
 ### Remaining acceptance boundary
 
-The workflow corpus has no remaining repository-owned implementation blocker. Representative writers must still run the three scenarios with real project content, and the Unreal consumer must still prove ordering, replay protection, completion triggers, journal/turn-in persistence, defeat/save behavior, active variants, and save/load semantics before any row is marked `runtime_verified`.
+At that checkpoint the workflow corpus had no known repository-owned implementation blocker. Representative writers still had to run the three scenarios with real project content, and the Unreal consumer still had to prove ordering, replay protection, completion triggers, journal/turn-in persistence, defeat/save behavior, active variants, and save/load semantics before any row could be marked `runtime_verified`.
+
+## Implementation Coverage — 2026-07-17 Branch Rehearsal Completion
+
+### Audit result
+
+The final workflow/code comparison found one web-owned mismatch: typed causal outcomes survived capture and compiled into `outcome_transitions`, but Bundle Review rehearsal traversed only `next_event_id`. This understated W1-E and W3-C by displaying conditional/fallback/choice outcomes as unrelated events rather than paths from their shared cause.
+
+### Changes implemented
+
+- Rehearsal now follows both linear completion and typed outcome transitions, producing deterministic root-to-terminal path comparisons.
+- Each entered step retains the trigger, author label, Requirement id, and exact dialogue-choice id that selected that outcome. Temporary flags are accumulated independently per path.
+- Invalid or non-root flow entries block preview. Legacy sequence/hybrid drafts without an entry normalize to their first step with an acknowledgement warning; constellations may remain intentionally multi-rooted.
+- Review is deliberately bounded at 128 paths. If branch multiplication exceeds that ceiling, the preview is marked truncated and canonical commit is blocked until the author splits the flow. Existing cycle rejection remains in force.
+- Bundle Review displays the outcome label/trigger inline, so **Payment accepted** and **Otherwise**, for example, are compared as two consequences of the same authored moment.
+
+### Workflow impact
+
+- **W1-E:** cave choices and victory/fallback consequences can now be inspected as complete alternative traces before commit.
+- **W2 constellation:** disconnected ideas remain separate roots and are not falsely converted into runtime order.
+- **W3-C/W3-F:** the causal pressure chain and explicitly ordered consequences remain visible, while genuine branches produce separate comparable paths.
+- **Bounded complexity:** authors receive a concrete split-flow gate instead of a slow, incomplete, or misleading exponential preview.
+
+### Verification and remaining boundary
+
+Twenty-four focused backend Creation Flow tests pass, including two-path condition/fallback rehearsal, entry validation/defaulting, and a 256-outcome branch-product limit test. The final regression run passes all 226 backend tests, all 104 frontend unit tests, frontend ESLint, the TypeScript/Vite production build, `git diff --check`, and six focused Chromium journeys covering standalone resume, quest and encounter return context, dialogue recovery, canonical preview/commit, and typed condition/variant recovery. The existing large-chunk build advisory remains unchanged in kind.
+
+No known repository-owned workflow blocker remains after this closure. Representative-writer sessions, real-content performance observation, and Unreal/runtime execution verification still require external people or systems and remain acceptance activities rather than web implementation tasks.
