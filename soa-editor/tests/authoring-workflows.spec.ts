@@ -119,6 +119,8 @@ test("character studio exposes an understandable creation path and editable stor
 
 test("roadmap authoring routes render without replacing rich item authoring", async ({ page }) => {
   await mockApi(page);
+  await page.goto("/author/creation-flow");
+  await expect(page.getByRole("heading", { name: "Creation Flow" })).toBeVisible();
   await page.goto("/author/quests");
   await expect(page.getByRole("heading", { name: "Quest Journey Board" })).toBeVisible();
   await page.goto("/author/dependencies");
@@ -126,6 +128,19 @@ test("roadmap authoring routes render without replacing rich item authoring", as
   await expect(page.getByTestId("dependency-graph-panel")).toBeVisible();
   await page.goto("/author/story-timeline");
   await expect(page.getByRole("heading", { name: "Story Timeline & Adventure Board" })).toBeVisible();
+});
+
+test("standalone Creation Flow starts and resumes a browser-local sequence", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/author/creation-flow");
+  await page.getByRole("button", { name: "New sequence" }).click();
+  const composer = page.getByRole("dialog", { name: "Then composer" });
+  await composer.getByLabel("Capture next idea").fill("The gate opens");
+  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByText("Untitled creation flow")).toBeVisible();
+  await page.getByRole("button", { name: "Open flow" }).click();
+  await expect(page.getByRole("dialog", { name: "Then composer" }).getByLabel("Step 1 text")).toHaveValue("The gate opens");
 });
 
 test("global workspace switcher opens authoring routes", async ({ page }) => {
@@ -191,6 +206,7 @@ test("quest journey board places the quest into story as player journey", async 
   await page.route("http://localhost:5000/api/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/ui/quests/quest-1") return fulfillJson(route, questPacket);
+    if (url.pathname === "/api/ui/scoped-gates") return fulfillJson(route, { requirements: [], requirement_usages_by_id: {}, flags: [], flag_usage_by_id: {}, requirement_targets: [], dependency_index: { nodes: [], edges: [] } });
     if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimelinePacket);
     if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as Record<string, unknown>;
@@ -231,6 +247,10 @@ test("quest journey board places the quest into story as player journey", async 
 
   await page.goto("/author/quests/quest-1");
   await expect(page.getByRole("heading", { name: "Quest Journey Board" })).toBeVisible();
+  await page.locator("article").filter({ hasText: "Reach the city." }).getByRole("button", { name: "Then…" }).click();
+  await expect(page.getByRole("dialog", { name: "Then composer" }).getByRole("heading", { name: "Reach the city." })).toBeVisible();
+  await page.getByRole("dialog", { name: "Then composer" }).getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("button", { name: "On completion, then…" })).toBeVisible();
   await expect(page.getByTestId("story-presets-quest")).toContainText("Escalates");
   await page.getByTestId("story-preset-quest-resolves").click();
   await page.getByRole("button", { name: "Edit Lifecycle Details" }).click();
@@ -1895,6 +1915,7 @@ async function mockEncounterApi(page: Page, onBundle?: (payload: Record<string, 
     const url = new URL(route.request().url());
     if (url.pathname === "/api/ui/encounters/enc-1") return fulfillJson(route, encounterPacket);
     if (url.pathname === "/api/ui/encounters") return fulfillJson(route, encounterPacket);
+    if (url.pathname === "/api/ui/scoped-gates") return fulfillJson(route, { requirements: encounterPacket.requirements, requirement_usages_by_id: encounterPacket.requirement_usages_by_id, flags: encounterPacket.flags, flag_usage_by_id: {}, requirement_targets: [], dependency_index: { nodes: [], edges: [] } });
     if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, encounterStageStoryPacket);
     if (url.pathname === "/api/ui/encounters/bundle" && route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as Record<string, unknown>;
@@ -1907,6 +1928,18 @@ async function mockEncounterApi(page: Page, onBundle?: (payload: Record<string, 
     return fulfillJson(route, []);
   });
 }
+
+test("encounter victory opens a scoped Creation Flow and preserves encounter context", async ({ page }) => {
+  await mockEncounterApi(page);
+  await page.goto("/author/encounters/enc-1");
+  await page.getByRole("button", { name: "On victory, then…" }).click();
+  const composer = page.getByRole("dialog", { name: "Then composer" });
+  await expect(composer.getByRole("heading", { name: "Road Ambush — victory" })).toBeVisible();
+  await composer.getByLabel("Capture next idea").fill("Make the road safe");
+  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("heading", { name: "Road Ambush" })).toBeVisible();
+});
 
 test("encounter stage composes participants, rewards, and placement into one bundle", async ({ page }) => {
   let saved: Record<string, unknown> | null = null;

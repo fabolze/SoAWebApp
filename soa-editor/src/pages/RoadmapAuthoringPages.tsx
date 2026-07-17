@@ -8,6 +8,7 @@ import { record } from "../authoring/storyPlacement";
 import { EditableTagList, ReferenceChipPicker, ReferenceManageLink, rowLabel, useReferenceOptions } from "../authoringViews/controls";
 import { buildQuestWalkthrough, type QuestWalkthroughStep } from "../authoring/questWalkthrough";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
+import ThenComposer from "../components/authoring/ThenComposer";
 import ScopedGateSection from "../components/authoring/ScopedGateSection";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useEntityStoryPlacement } from "../components/storyPlacement/useEntityStoryPlacement";
@@ -100,13 +101,14 @@ function MultiReferencePicker({ label, values, options, onChange, emptyText = "N
   </div>;
 }
 
-function ObjectiveBoard({ objectives, flags, selectedObjectiveId = "", canReviewConsequences = false, onChange, onReviewConsequence }: {
+function ObjectiveBoard({ objectives, flags, selectedObjectiveId = "", canReviewConsequences = false, onChange, onReviewConsequence, onComposeNext }: {
   objectives: unknown;
   flags: EntryRecord[];
   selectedObjectiveId?: string;
   canReviewConsequences?: boolean;
   onChange: (objectives: EntryRecord[]) => void;
   onReviewConsequence?: (objectiveId: string) => void;
+  onComposeNext?: (objective: EntryRecord) => void;
 }) {
   const objectiveRows = rows(objectives);
   const update = (index: number, patch: EntryRecord) => onChange(objectiveRows.map((objective, rowIndex) => rowIndex === index ? { ...objective, ...patch } : objective));
@@ -122,6 +124,7 @@ function ObjectiveBoard({ objectives, flags, selectedObjectiveId = "", canReview
         <div><div className="text-xs font-semibold uppercase text-slate-500">Objective {index + 1}</div><div className="text-sm font-medium">{text(objective.description) || "Describe what the player must accomplish."}</div></div>
         <div className="flex gap-1">
           {canReviewConsequences && onReviewConsequence && <button type="button" className={`rounded border px-2 py-1 text-xs ${selectedObjectiveId === text(objective.objective_id) ? "border-blue-600 bg-blue-600 text-white" : "border-blue-300 text-blue-700 dark:border-blue-800 dark:text-blue-300"}`} disabled={!text(objective.objective_id)} onClick={() => onReviewConsequence(text(objective.objective_id))}>Review Consequence</button>}
+          {canReviewConsequences && onComposeNext && <button type="button" className={`${BUTTON_CLASSES.violet} ${BUTTON_SIZES.xs}`} disabled={!text(objective.objective_id)} onClick={() => onComposeNext(objective)}>Then…</button>}
           <button type="button" className="rounded border px-2 py-1 text-xs disabled:opacity-40" disabled={index === 0} onClick={() => move(index, -1)}>Up</button>
           <button type="button" className="rounded border px-2 py-1 text-xs disabled:opacity-40" disabled={index === objectiveRows.length - 1} onClick={() => move(index, 1)}>Down</button>
           <button type="button" className="rounded border border-red-300 px-2 py-1 text-xs text-red-700" onClick={() => onChange(objectiveRows.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>
@@ -342,6 +345,7 @@ export function QuestJourneyPage() {
   const [selectedObjectiveConsequenceId, setSelectedObjectiveConsequenceId] = useState("");
   const [selectedBranchIndex, setSelectedBranchIndex] = useState<number | null>(null);
   const [branchAcknowledged, setBranchAcknowledged] = useState(false);
+  const [creationFlowContext, setCreationFlowContext] = useState<{ kind: "objective" | "completion"; objectiveId?: string; label: string } | null>(null);
   const originalPacket = useMemo(() => {
     try { return JSON.parse(original) as EntryRecord; } catch { return empty; }
   }, [empty, original]);
@@ -387,7 +391,7 @@ export function QuestJourneyPage() {
     <AuthoringPanel title="Invitation" help="Define how the quest appears to the player, which unlock requirement controls availability, and which interaction profiles can offer it."><div className="space-y-3"><label className="block text-sm">Title<input className={`${inputClass} mt-1`} value={text(quest.title)} onChange={(event) => update("title", event.target.value)} /></label><label className="block text-sm">Slug<input className={`${inputClass} mt-1`} value={text(quest.slug)} onChange={(event) => update("slug", event.target.value)} /></label><label className="block text-sm">Description<textarea className={`${inputClass} mt-1 min-h-24`} value={text(quest.description)} onChange={(event) => update("description", event.target.value)} /></label><ReferenceChipPicker label="Quest Unlock Requirement" value={quest.requirements_id} reference="requirements" onChange={(requirements_id) => update("requirements_id", requirements_id)} /><MultiReferencePicker label="Quest Givers" values={packet.quest_giver_profile_ids} options={interactionProfiles} onChange={(quest_giver_profile_ids) => setPacket({ ...packet, quest_giver_profile_ids })} /><EditableTagList tags={quest.tags} onChange={(tags) => update("tags", tags)} /></div></AuthoringPanel>
     <AuthoringPanel title="Journey Health" help="Use this checklist before review. It flags missing objectives, missing player-facing text, missing payoff, and missing state links." status={<span className={`rounded-full px-2 py-1 text-xs font-semibold ${rows(quest.objectives).length && !objectiveIssues ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{rows(quest.objectives).length && !objectiveIssues ? "Ready to review" : "Needs attention"}</span>}><div className="space-y-2 text-sm">{rows(quest.objectives).length === 0 && <StatusNotice tone="warning">Add at least one objective.</StatusNotice>}{objectiveIssues > 0 && <StatusNotice tone="warning">{objectiveIssues} objective(s) need both an ID and player-facing description.</StatusNotice>}{strings(quest.flags_set_on_completion).length === 0 && <EmptyState variant="compact" title="No completion flag">Add a completion flag when this quest should directly unlock flag-gated content.</EmptyState>}{!hasRewards && <StatusNotice tone="warning">Quest has no authored payoff.</StatusNotice>}{strings(packet.quest_giver_profile_ids).length === 0 && <EmptyState variant="compact" title="No quest giver">Add a quest giver when this quest should be offered by a character or interaction profile.</EmptyState>}</div></AuthoringPanel>
     {!isNew && text(quest.id) && <section className="xl:col-span-2"><ScopedGateSection targetSchema="quests" targetId={text(quest.id)} targetLabel={text(quest.title, text(quest.id))} requirementId={text(quest.requirements_id)} title="Quest Access Gate" subtitle="Create or reuse the player-state requirement that unlocks this quest." tag="quest-gate" onRequirementCommitted={syncCommittedGate} /></section>}
-    <AuthoringPanel className="xl:col-span-2" title="Ordered Objectives" help="Author the player-facing steps in order. Saved objectives can review their completion flags through the objective consequence composer."><ObjectiveBoard objectives={quest.objectives} flags={questFlags} selectedObjectiveId={selectedObjectiveConsequenceId} canReviewConsequences={!isNew && text(quest.id) !== ""} onReviewConsequence={setSelectedObjectiveConsequenceId} onChange={(objectives) => update("objectives", objectives)} />
+    <AuthoringPanel className="xl:col-span-2" title="Ordered Objectives" help="Author the player-facing steps in order. Saved objectives can review their completion flags or continue into a scoped Creation Flow without losing the quest draft."><ObjectiveBoard objectives={quest.objectives} flags={questFlags} selectedObjectiveId={selectedObjectiveConsequenceId} canReviewConsequences={!isNew && text(quest.id) !== ""} onReviewConsequence={setSelectedObjectiveConsequenceId} onComposeNext={(objective) => setCreationFlowContext({ kind: "objective", objectiveId: text(objective.objective_id), label: text(objective.description, text(objective.objective_id)) })} onChange={(objectives) => update("objectives", objectives)} />
       {!isNew && selectedObjectiveConsequenceId && !objectiveConsequenceSource && <p className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Save this objective before reviewing its consequence packet.</p>}
       {!isNew && objectiveConsequenceSource && <div className="mt-4">
         <ConsequenceComposer
@@ -462,6 +466,7 @@ export function QuestJourneyPage() {
       </div>
     </AuthoringPanel>
     <AuthoringPanel title="Completion & Payoff" help="Set the state and rewards granted when the full quest completes. Use the consequence review below for saved quests when you need an atomic commit."><div className="space-y-4"><MultiReferencePicker label="Completion Flags" values={quest.flags_set_on_completion} options={questFlags} onChange={(flags) => update("flags_set_on_completion", flags)} /><label className="block text-xs font-semibold uppercase text-slate-500">Experience Reward<input className={`${inputClass} mt-1`} type="number" value={text(quest.xp_reward)} onChange={(event) => update("xp_reward", Number(event.target.value))} /></label><RewardRows label="Item Reward" rowsValue={quest.item_rewards} reference="items" idKey="item_id" amountKey="quantity" onChange={(value) => update("item_rewards", value)} /><RewardRows label="Currency Reward" rowsValue={quest.currency_rewards} reference="currencies" idKey="currency_id" amountKey="amount" onChange={(value) => update("currency_rewards", value)} /><RewardRows label="Reputation Reward" rowsValue={quest.reputation_rewards} reference="factions" idKey="faction_id" amountKey="amount" onChange={(value) => update("reputation_rewards", value)} /></div></AuthoringPanel>
+    {!isNew && text(quest.id) && <AuthoringPanel title="After quest completion" subtitle="Narrative Creation Flow" help="Capture follow-up dialogue, encounters, rewards, unlocks, world changes, and story placement as one reviewed continuation."><p className="text-sm text-slate-600 dark:text-slate-300">The quest remains the owning context while the composer is open, including any browser-local quest edits.</p><button type="button" className={`${BUTTON_CLASSES.violet} ${BUTTON_SIZES.sm} mt-3`} onClick={() => setCreationFlowContext({ kind: "completion", label: `${text(quest.title, text(quest.id))} completion` })}>On completion, then…</button></AuthoringPanel>}
     {!isNew && text(quest.id) && <AuthoringPanel title="Quest Consequence Review" help="Review and commit completion flags, payoff rewards, reputation, and follow-up story consequences through one shared packet."><ConsequenceComposer
       sourceKind="quest"
       source={quest}
@@ -477,6 +482,14 @@ export function QuestJourneyPage() {
     <AuthoringPanel title="Walkthrough & Aftermath" help="Test the quest flow with temporary player state and inspect prerequisite or downstream dependency context."><QuestWalkthroughPanel packet={packet} /><Link className="mt-4 inline-block text-sm font-semibold text-primary" to="/author/dependencies">Inspect Dependency Map</Link></AuthoringPanel>
     {!isNew && text(quest.id) && <section className="xl:col-span-2"><StoryPlacementPanel entityKind="quest" entityId={text(quest.id)} entityLabel={text(quest.title) || text(quest.id)} entity={quest} storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} /></section>}
     <AuthoringPanel className="xl:col-span-2" title="Advanced Arc & Branch Data" help="Use this advanced JSON editor only when the structured story path and branch controls do not expose the needed arc data."><JsonEditor label="Arc selection and branches" value={packet.arc} onChange={(value) => setPacket({ ...packet, arc: value })} /></AuthoringPanel>
+    {creationFlowContext && !isNew && text(quest.id) && <ThenComposer
+      open
+      mode="then"
+      origin={{ ref: { kind: "quest", canonicalId: text(quest.id), label: text(quest.title, text(quest.id)) }, ...(creationFlowContext.kind === "objective" ? { subRef: { kind: "quest_objective", canonicalId: creationFlowContext.objectiveId, label: creationFlowContext.label } } : {}) }}
+      originLabel={creationFlowContext.label}
+      returnFrame={{ workspace: "quest-journey", context: { kind: "quest", canonicalId: text(quest.id), label: text(quest.title, text(quest.id)) }, selectedId: creationFlowContext.objectiveId || text(quest.id), localViewState: { scope: creationFlowContext.kind } }}
+      onClose={() => setCreationFlowContext(null)}
+    />}
   </div></Shell>;
 }
 

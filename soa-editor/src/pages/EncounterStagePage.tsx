@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { deriveEncounterAftermathRows, type EncounterAftermathRow } from "../authoring/encounterAftermath";
 import { emptyScopedGatePacket, type ScopedGatePacket } from "../authoring/scopedGate";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
+import ThenComposer from "../components/authoring/ThenComposer";
 import ScopedGateBuilder from "../components/authoring/ScopedGateBuilder";
 import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import SearchableSelect from "../components/SearchableSelect";
@@ -179,6 +180,7 @@ export default function EncounterStagePage() {
   const [gateSelectedRequirementId, setGateSelectedRequirementId] = useState("");
   const [gateTargetSchema, setGateTargetSchema] = useState("encounters");
   const [gateTargetId, setGateTargetId] = useState("");
+  const [creationFlowOpen, setCreationFlowOpen] = useState(false);
   const dirtySource = useRef(`encounter-stage-${id}`);
   const { setDirty } = useDirtyState();
   const serialized = stable(cleanPacket(packet));
@@ -363,6 +365,10 @@ export default function EncounterStagePage() {
             <Stage packet={packet} setPacket={setPacket} selectedCharacter={selectedCharacter} setSelectedCharacter={setSelectedCharacter} />
             <RewardPanel packet={packet} updateEncounter={updateEncounter} />
             <AftermathPanel rows={aftermathRows} loading={storyPlacement.loading} error={storyPlacement.error} />
+            {!isNew && displayText(packet.encounter.id) && <Panel title="On victory, what happens next?" subtitle="Narrative Creation Flow" help="Capture and compile the ordered aftermath from this encounter without leaving Encounter Stage. Defeat remains a retry/load/respawn policy, not an ordinary narrative branch.">
+              <p className="text-sm text-slate-600 dark:text-slate-300">Start from the saved encounter and keep this staged bundle as the protected return context.</p>
+              <button type="button" className={`${BUTTON_CLASSES.violet} ${BUTTON_SIZES.sm} mt-3`} onClick={() => setCreationFlowOpen(true)}>On victory, then…</button>
+            </Panel>}
             {!isNew && displayText(packet.encounter.id) && <ConsequenceComposer
               sourceKind="encounter"
               source={packet.encounter}
@@ -395,6 +401,14 @@ export default function EncounterStagePage() {
           <button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={reset}>Reset Draft</button>
           <button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || issues.blockers.length > 0} onClick={() => void save()}>{saving ? "Saving..." : "Save Encounter Bundle"}</button>
         </div>
+        {creationFlowOpen && !isNew && displayText(packet.encounter.id) && <ThenComposer
+          open
+          mode="then"
+          origin={{ ref: { kind: "encounter", canonicalId: displayText(packet.encounter.id), label: displayText(packet.encounter.name, displayText(packet.encounter.id)) } }}
+          originLabel={`${displayText(packet.encounter.name, displayText(packet.encounter.id))} — victory`}
+          returnFrame={{ workspace: "encounter-stage", context: { kind: "encounter", canonicalId: displayText(packet.encounter.id) }, selectedId: displayText(packet.encounter.id), localViewState: { outcome: "victory" } }}
+          onClose={() => setCreationFlowOpen(false)}
+        />}
           </main>
       </div>
     </AuthoringPageShell>

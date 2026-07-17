@@ -1,6 +1,6 @@
 # Narrative Creation Flow Workflow Corpus
 
-Status: V1 corpus gate satisfied; Phase 1 browser-local capture is implemented for Dialogue Flow and World Builder with focused browser coverage passing; representative-writer evaluation, compiler work, technical web-schema/DataTable transcription, and deferred runtime verification remain
+Status: V1 corpus gate satisfied; capture and bounded compilation are implemented across Dialogue Flow, World Builder, Encounter Stage, Quest Journey, and standalone Creation Flow with focused browser coverage passing. Advanced web-schema/DataTable transcription, representative-writer evaluation, and deferred runtime verification remain.
 
 This document preserves exemplary workflows in the author's own language and derives product, compiler, schema, and acceptance-test implications from them. The original narrative is the source of truth. The structured interpretation exists to make the workflow testable; it must not overwrite the creative intent.
 
@@ -1206,3 +1206,17 @@ The combined focused backend compiler/progression/consequence/recovery suite rea
 The combined focused backend set now passes 44 tests, including concurrent generated-requirement child-state protection. Frontend ESLint, all 91 unit tests, and the production build pass after this slice.
 
 Final validation for this implementation pass also runs the entire backend suite: 206 tests pass. `git diff --check` is clean and the three focused Chromium Creation Flow interactions pass. The previously recorded broad Playwright mock/time-out debt remains separate and is not presented as resolved.
+
+## Implementation Coverage — 2026-07-17
+
+The implementation was re-audited against all three workflows after the dialogue-action work landed.
+
+- Stable dialogue choices and ordered typed actions now compile `open_shop`, `start_encounter`, and `join_companion` from an exact saved choice. Shop close declares `resume_source_dialogue`; encounter start declares `end_source_dialogue`; every action has stable replay identity and remains `runtime_unverified` until the consuming runtime is tested.
+- Encounter Stage now begins a protected **On victory, then…** flow from a saved canonical encounter. This directly supports the victory-consequence portion of W1-E while keeping defeat on the retry/load/respawn policy boundary.
+- Quest Journey now begins a protected flow from an individual saved objective or from whole-quest completion. This removes the context switch between objective/payoff authoring and mixed-content follow-up capture required by W1-B, W1-C, W3-D, and W3-F.
+- The standalone **Creation Flow** workspace lists every recoverable local flow and committed manifest, creates temporal sequences or scoped constellations, shows unresolved blocker counts, and opens the exact draft in the shared resolution/rehearsal/review/commit experience. This closes the product-access portion of W3-A.
+- Draft saves and deletes now refresh global and standalone draft inventories immediately.
+
+Verification for this slice: frontend ESLint passes, all 101 frontend unit tests pass, the TypeScript/Vite production build succeeds, all 219 backend tests pass, and five focused Chromium tests pass across standalone create/resume, quest objective flow entry/return, encounter victory flow entry/return, dialogue recovery, and canonical preview/commit. The existing production chunk-size advisory is unchanged in kind.
+
+The workflow corpus still intentionally exposes advanced canonical gaps. Shared gameplay actions, full quest lifecycle/inventory contracts, repeatability, defeat policy fields, faction ranks, variants, and remaining Event/POI embeds follow the ordered 3A–6 implementation batches in `NARRATIVE_CREATION_FLOW_PLAN.md`. Representative-writer evaluation and Unreal execution verification remain external acceptance work and are not claimed by these web tests.

@@ -1,6 +1,6 @@
 # Narrative-First Creation Flow And “Then…” Composer Plan
 
-Status: Phase 1 capture and the Phase 2 bounded existing-record compiler are implemented end to end in the Dialogue Flow and World Builder composer, including temporary rehearsal, supported story links, and committed-manifest resume; wider host rollout and representative-writer evaluation remain open
+Status: The first useful web release is implemented end to end: capture, bounded compilation, stable dialogue-choice actions, Dialogue/World/Encounter/Quest embeds, temporary rehearsal, atomic commit, committed-manifest resume, and a standalone Creation Flow workspace. Advanced Phase 3A contracts, the remaining Event/POI embeds, representative-writer evaluation, and external runtime verification remain open.
 
 Drafted: 2026-07-15
 
@@ -15,12 +15,12 @@ Likely implementation hosts: Dialogue Scene Room, Encounter Stage, Quest Journey
 | Workflow corpus | V1 corpus gate satisfied; three examples plus six behavior reviews captured | Golden fixtures preserve the map-to-quest sequence, place-story constellation, and resume-and-expand hybrid workflow in author language |
 | Semantic vocabulary | Drafted here | Product wording distinguishes immediate actions, future availability, persistent state, and story placement without requiring technical vocabulary |
 | Current-model capability map | Drafted here | Every proposed gesture is classified as supported, compilable, story-only, or canonically unsupported |
-| Capture-only prototype | Implemented for Dialogue Flow and World Builder; representative-writer evaluation pending | An author can preserve a mixed-content sequence or place constellation locally without creating flags, requirements, beats, or records |
+| Capture-only prototype | Implemented for Dialogue Flow, World Builder, Encounter Stage, Quest Journey, and standalone Creation Flow; representative-writer evaluation pending | An author can preserve a mixed-content sequence or place constellation locally without creating flags, requirements, beats, or records |
 | Existing-record compiler | Implemented end to end for the bounded existing-model subset, including temporary rehearsal and supported origin-to-beat links | Supported steps compile deterministically into reviewed existing records and links |
 | Canonical action/transition decision | V1 direction decided: Option B plus project-local committed-flow manifests | Typed choice actions, ordered atomic consequence groups, victory transitions, defeat policies, return behavior, and committed-flow provenance are explicit without a universal playable-sequence runtime model |
-| Embedded Then… composer | Dialogue choice/ending and selected-location embeds implemented; encounter/quest rollout remains Phase 4 | Dialogue choices/endings and encounter/quest outcomes can open a scoped composer without route switching |
-| Standalone Creation Flow workspace | Not started | Larger sequences and scoped story constellations can be shaped, resolved, rehearsed/traced, and committed from one focused workspace |
-| Web data/export contract | Product-level contract drafted; technical transcription not started | Authoring schemas and DataTable export shapes preserve completion, limited branching, per-content repeatability, typed gameplay actions, shop actions, quest state, variants, and runtime-verification status honestly; Unreal execution remains outside this implementation |
+| Embedded Then… composer | Implemented for dialogue choices/endings, selected locations, encounter victory, quest objectives, and quest completion; Event/POI rollout remains | Owning workspaces can open a scoped composer without route switching and retain an explicit return frame |
+| Standalone Creation Flow workspace | Implemented for the first useful release | Local drafts and committed manifests can be opened as working revisions; authors can create sequence or constellation drafts and use the shared shaping/rehearsal/review/commit loop |
+| Web data/export contract | Partially implemented: stable dialogue choices and typed ordered shop/encounter/companion actions are canonical and exportable; broader Phase 3A transcription remains | Authoring schemas and DataTable export shapes preserve completion, limited branching, per-content repeatability, typed gameplay actions, quest state, variants, and runtime-verification status honestly; Unreal execution remains outside this implementation |
 | Writer evaluation | Pending external evaluation | Representative authors complete the workflow corpus with materially less interruption than the current multi-workspace path |
 
 ### Implementation progress — 2026-07-16
@@ -90,6 +90,31 @@ Major step 6, reward editing and issue return, is complete:
 - Backend regression coverage adds step-scoped numeric reward validation and stale protection for concurrent edits to generated requirement-child rows. The combined focused backend set now passes 44 tests; frontend lint, 91 unit tests, and production build pass after this slice.
 
 Final repository validation for this implementation pass: all 206 backend tests pass, `git diff --check` is clean, frontend ESLint passes, all 91 frontend unit tests pass, the production build succeeds, and the three focused Chromium Creation Flow interactions pass. The previously recorded broad 49-test Playwright-suite debt was not reclassified by these focused results.
+
+### Implementation audit and open-point plan — 2026-07-17
+
+The code review found that this document lagged behind the merged implementation in one important area. Stable dialogue choice identity, ordered typed choice actions, `open_shop` with `resume_source_dialogue`, `start_encounter` with `end_source_dialogue`, and `join_companion` already exist in the model/schema, compiler, bundle transaction, validation, source/UE export, and focused tests. They are no longer “not started.” Runtime execution remains correctly labeled `runtime_unverified`.
+
+This pass closes the remaining first-release web-surface gaps:
+
+1. **Standalone access — complete.** `/author/creation-flow` is a first-class authoring mode. It lists browser-local drafts and committed manifests, creates sequence or story-seed drafts, reports unresolved blockers, opens exact working revisions, and reuses the same preview/rehearsal/atomic-commit surface as embedded flows.
+2. **Encounter host — complete for V1.** A saved encounter exposes **On victory, then…**. The flow origin is the canonical encounter and the protected return frame records the victory outcome. Defeat is deliberately not offered as an ordinary branch.
+3. **Quest host — complete for V1.** Every saved objective exposes **Then…**, and the saved quest exposes **On completion, then…**. Objective identity is retained as the origin sub-context while the quest remains the canonical owner.
+4. **Draft inventory synchronization — complete.** Creation Flow save/delete operations immediately notify the global draft inventory and standalone library instead of waiting for navigation or a browser storage event.
+5. **Focused regression coverage — complete.** Browser tests cover standalone create/resume, quest-objective return context, encounter-victory return context, dialogue recovery, and canonical preview/commit. Frontend lint, all 101 unit tests, production build, all 219 backend tests, and five focused browser interactions pass.
+
+The remaining implementation plan is deliberately split from external validation:
+
+| Batch | Remaining web work | Exit gate |
+|---|---|---|
+| 3A-1 action envelope | Transcribe shared typed gameplay-action rows, targets, timing, repeat ownership, status removal filters, and runtime-support fields into normalized models/schemas/export validation | Every supported action round-trips through source and UE exports, compiles from Creation Flow, rejects unknown payloads, and remains `runtime_unverified` until a consumer test exists |
+| 3A-2 quest lifecycle | Add discovery, assignment, marker reveal, journal/objective/turn-in state, inventory-count objectives, reward timing, protected/unique item rules, and companion party intent | Workflow 1 quest paths compile without collapsing distinct discovery/assignment/turn-in semantics |
+| 3A-3 state and repeatability | Add encounter defeat/pre-fight policy, per-content repeat policy, named faction ranks, hierarchy/era metadata, and typed location/character/item variants | Workflow 2 and 3 state changes export without tags or manifest-only substitutes |
+| 4 remaining embeds | Add Event outcome and canonical POI/location-interaction entry points using the same draft/origin/return contract | Every host named in Phase 4 opens the shared composer and has one focused return-context browser test |
+| 5 advanced scale tools | Add branch-topology comparison, large-flow search/filter lenses, and capture-inbox promotion only where writer pilots show the compact workspace is insufficient | Representative writers can complete all three workflows without reconstructing context or losing unresolved ideas |
+| 6 hardening/handoff | Add exported golden fixtures for every new contract, dependency/performance checks, compatibility migrations, and the external consumer handoff document | All repository suites pass; external runtime expectations are explicit and no web test is presented as runtime execution |
+
+Representative-writer evaluation and Unreal/runtime execution cannot be completed by repository changes alone. They remain acceptance activities, not hidden implementation blockers.
 
 ## Executive Decision
 
@@ -1457,7 +1482,7 @@ Implementation status at the Phase 1 checkpoint on 2026-07-16: the reusable capt
 
 ### Phase 2: existing-record compiler
 
-Implementation status on 2026-07-16: the authoritative backend, golden corpus, catalog resolution, embedded preview/review, warning acknowledgement, atomic commit, and durable manifest path are implemented for the bounded subset. Rehearsal and the remaining authoring refinements are still in progress.
+Implementation status through 2026-07-17: the authoritative backend, golden corpus, catalog resolution, embedded preview/review, warning acknowledgement, atomic commit, durable manifest path, rehearsal, reward editing, and issue return are implemented for the bounded subset.
 
 Deliverables:
 
@@ -1465,7 +1490,7 @@ Deliverables:
 - [x] Backend catalog, rollback-only preview, and atomic bundle endpoints.
 - [x] Compilation for bounded existing event payloads and linear `next_event_id` chains.
 - [x] Compilation for Event item, XP, currency, and reputation rewards. Encounter/quest-owned reward rewriting remains deferred because no current capture step can identify that mutation without ambiguity.
-- [ ] Compilation for dialogue node/choice output flags; stable canonical choice identity remains a Phase 3A prerequisite.
+- [ ] Direct Creation Flow compilation into dialogue node/choice output flags. Stable canonical choice identity and typed choice-action compilation are implemented; output-flag ownership remains in the 3A action/state transcription batch so it is not duplicated across a choice and generated Event.
 - [x] Compilation for generated flags, new scoped requirements, and supported attachments, with destructive requirement replacement blocked.
 - [x] Optional Adventure Beat link creation for an existing beat plus a supported canonical flow origin; unsupported/missing origins remain manifest-only.
 - [x] Backend step-grouped implementation review and canonical change review.
@@ -1498,6 +1523,8 @@ The typed gameplay-action contract is part of the web/export implementation. Its
 
 ### Phase 4: full embedded composer rollout
 
+Implementation status on 2026-07-17: Dialogue choice/end, World Builder location, encounter victory, quest objective, and quest completion embeds are implemented with protected return frames. Event outcome and canonical POI/location-interaction entries remain.
+
 Deliverables:
 
 - Dialogue choice/end embeds.
@@ -1511,6 +1538,8 @@ Deliverables:
 Roll out one host at a time using the same draft and compiler contract.
 
 ### Phase 5: standalone Creation Flow workspace
+
+Implementation status on 2026-07-17: the first useful standalone workspace is implemented. It provides a draft library, committed-manifest working revisions, sequence/constellation creation, issue counts, and the shared outline, target resolution, rehearsal, review, and commit loop. A separate visual branch-topology comparison and capture-inbox promotion remain scale-up features gated by writer evaluation.
 
 Deliverables:
 

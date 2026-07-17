@@ -26,6 +26,7 @@ interface ThenComposerProps {
   origin: NonNullable<CreationFlowDraft["origin"]>;
   originLabel: string;
   returnFrame: CreationFlowReturnFrame;
+  initialDraftId?: string;
   onClose: () => void;
 }
 interface CommittedCreationFlowSummary {
@@ -74,7 +75,7 @@ function objectRows(value: unknown): Array<Record<string, unknown>> {
   return Array.isArray(value) ? value.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object" && !Array.isArray(row)) : [];
 }
 
-export default function ThenComposer({ open, mode, origin, originLabel, returnFrame, onClose }: ThenComposerProps) {
+export default function ThenComposer({ open, mode, origin, originLabel, returnFrame, initialDraftId, onClose }: ThenComposerProps) {
   const [draft, setDraft] = useState<CreationFlowDraft | null>(null);
   const [recent, setRecent] = useState<CreationFlowDraftSummary[]>([]);
   const [snapshots, setSnapshots] = useState<CreationFlowSnapshot[]>([]);
@@ -113,13 +114,14 @@ export default function ThenComposer({ open, mode, origin, originLabel, returnFr
     if (!open) return;
     const matching = draftsForOrigin(origin);
     setRecent(matching);
-    const restored = matching[0] ? loadCreationFlowDraft(matching[0].id) : null;
+    const requested = initialDraftId ? loadCreationFlowDraft(initialDraftId) : null;
+    const restored = requested ?? (matching[0] ? loadCreationFlowDraft(matching[0].id) : null);
     if (restored) {
       setDraft(restored); setSnapshots(readCreationFlowSnapshots(restored.id)); setNotice("Continued the most recent browser-local draft for this context.");
     } else startNew();
     // Opening is deliberately keyed to the stable origin, not object identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, mode, originLabel, origin.ref.canonicalId, origin.ref.draftId, origin.subRef?.canonicalId, origin.subRef?.draftId]);
+  }, [open, mode, originLabel, initialDraftId, origin.ref.canonicalId, origin.ref.draftId, origin.subRef?.canonicalId, origin.subRef?.draftId]);
 
   useEffect(() => {
     if (!open) return;

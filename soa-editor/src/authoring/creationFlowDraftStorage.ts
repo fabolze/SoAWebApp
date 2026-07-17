@@ -46,6 +46,7 @@ export function saveCreationFlowDraft(draftValue: CreationFlowDraft, storage: St
   storage.setItem(`${DRAFT_PREFIX}${draft.id}`, JSON.stringify(draft));
   const next = [summary(draft), ...listCreationFlowDrafts(storage).filter((row) => row.id !== draft.id)];
   storage.setItem(INDEX_KEY, JSON.stringify(next));
+  if (typeof window !== "undefined" && storage === window.localStorage) window.dispatchEvent(new Event("soa:creation-flow-drafts-changed"));
   return draft;
 }
 
@@ -59,6 +60,7 @@ export function deleteCreationFlowDraft(id: string, storage: StorageLike = local
   storage.removeItem(`${DRAFT_PREFIX}${id}`);
   storage.removeItem(`${SNAPSHOT_PREFIX}${id}`);
   storage.setItem(INDEX_KEY, JSON.stringify(listCreationFlowDrafts(storage).filter((row) => row.id !== id)));
+  if (typeof window !== "undefined" && storage === window.localStorage) window.dispatchEvent(new Event("soa:creation-flow-drafts-changed"));
 }
 
 export function draftsForOrigin(origin: CreationFlowDraft["origin"], storage: StorageLike = localStorage): CreationFlowDraftSummary[] {

@@ -104,6 +104,14 @@ export const AUTHORING_MODES: readonly AuthoringModeConfig[] = [
     icon: ClipboardDocumentListIcon,
   },
   {
+    id: "creation-flow",
+    route: "/author/creation-flow",
+    label: "Creation Flow",
+    description: "Resume and shape narrative sequences or story constellations, then rehearse, review, and commit them atomically.",
+    supportedEntities: ["creation_flow_manifests", "events", "dialogues", "encounters", "quests", "locations", "adventure_beats"],
+    icon: SparklesIcon,
+  },
+  {
     id: "progression-flow",
     route: "/author/progression-flow",
     label: "Progression Flow",
