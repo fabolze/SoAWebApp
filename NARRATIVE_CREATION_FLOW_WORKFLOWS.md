@@ -1,8 +1,26 @@
 # Narrative Creation Flow Workflow Corpus
 
-Status: V1 corpus gate satisfied; capture and bounded compilation are implemented across Dialogue Flow, World Builder, Encounter Stage, Quest Journey, and standalone Creation Flow with focused browser coverage passing. Advanced web-schema/DataTable transcription, representative-writer evaluation, and deferred runtime verification remain.
+Status: The V1 corpus and all repository-owned authoring/compiler/export work are implemented across Dialogue Flow, World Builder, Encounter Stage, Quest Journey, Event/POI hosts, and standalone Creation Flow. Representative-writer evaluation, real-content performance observation, and external runtime verification remain acceptance activities.
 
 This document preserves exemplary workflows in the author's own language and derives product, compiler, schema, and acceptance-test implications from them. The original narrative is the source of truth. The structured interpretation exists to make the workflow testable; it must not overwrite the creative intent.
+
+## How To Use This Corpus
+
+This is the canonical source for creative intent, workflow-derived requirements, and W1/W2/W3 acceptance scenarios. Use [`NARRATIVE_CREATION_FLOW_PLAN.md`](NARRATIVE_CREATION_FLOW_PLAN.md) for the current product contract, implementation architecture, delivery state, and external handoff boundary.
+
+| Workflow | Acceptance IDs | Repository evidence | Current boundary |
+|---|---|---|---|
+| W1: map to quest | W1-A–W1-H | Frontend and backend `workflow1`/`workflow_1` golden fixtures; dialogue, quest, encounter, preview/commit, and branch-rehearsal tests | Writer observation and runtime execution |
+| W2: expand a place | W2-A–W2-I | Frontend and backend `workflow2`/`workflow_2` fixtures; prose/card identity, World Builder, story-link, and variant tests | Writer observation and runtime presentation |
+| W3: resume a city plot | W3-A–W3-G | Frontend and backend `workflow3`/`workflow_3` fixtures; manifest resume, topology, rank/gate, typed transition, and bounded-rehearsal tests | Writer observation and runtime persistence |
+
+Evidence uses three distinct meanings throughout this corpus:
+
+- **Specified:** the author intent and expected behavior are approved here.
+- **Repository verified:** a golden, contract, unit, or browser test proves the web authoring/export behavior.
+- **Runtime verified:** an external consumer proves the exported execution semantics. No row should receive this status from a web test.
+
+The pre-implementation traceability snapshot and its historical CF-01–CF-22 mapping remain available at `3b5e728`; see **Consolidation and historical provenance** in the plan for exact recovery commands. Dated implementation sections at the end of this corpus record how the workflow gaps were closed without rewriting the original author narratives.
 
 ## Workflow 1: An Evening Map-To-Quest Creation Session
 

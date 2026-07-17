@@ -1,12 +1,38 @@
 # Narrative-First Creation Flow And “Then…” Composer Plan
 
-Status: The repository-owned web release is implemented end to end: capture, typed canonical compilation, stable dialogue-choice actions and output flags, Dialogue/World/Encounter/Quest/Event/POI embeds, branch-aware bounded rehearsal, atomic commit, committed-manifest resume, and a searchable standalone Creation Flow workspace with topology comparison. Representative-writer evaluation and external runtime verification remain open acceptance activities.
+Status: The repository-owned web release is implemented end to end: capture, typed canonical compilation, stable dialogue-choice actions and output flags, Dialogue/World/Encounter/Quest/Event/POI embeds, branch-aware bounded rehearsal, atomic commit, committed-manifest resume, and a searchable standalone Creation Flow workspace with topology comparison. Representative-writer evaluation, real-content performance observation, and external runtime verification remain open acceptance activities.
 
 Drafted: 2026-07-15
 
 Proposed primary surface: embedded **Then…** composer plus a focused Creation Flow workspace
 
 Likely implementation hosts: Dialogue Scene Room, Encounter Stage, Quest Journey Board, Shop Authoring, World Builder, Story Timeline, and the existing Progression Flow infrastructure
+
+## How To Use This Document
+
+This is the canonical product, contract, implementation, and handoff document for Narrative Creation Flow.
+
+| Need | Read this section |
+|---|---|
+| Current completion state and remaining work | **Implementation Tracker** and the dated audit/completion entries immediately below it |
+| Approved game-design behavior | **Confirmed Product Decisions From Author Review** |
+| Author interaction and terminology | **Target Author Experience**, **Primary Product Surfaces**, and **Author-Facing Vocabulary** |
+| Canonical data and compiler behavior | **Step And Transition Semantics** through **Compilation Architecture** |
+| Delivery and verification expectations | **Delivery Phases**, **Testing Strategy**, and **Definition Of Done** |
+| Original creative scenarios and acceptance IDs | [`NARRATIVE_CREATION_FLOW_WORKFLOWS.md`](NARRATIVE_CREATION_FLOW_WORKFLOWS.md) |
+
+Current truth takes precedence over historical wording inside dated progress entries. The three intentionally open acceptance activities are representative-writer evaluation, performance observation with real project content, and external runtime execution verification.
+
+### Consolidation and historical provenance — 2026-07-17
+
+An earlier merge preserved two additional working-tree copies named `NARRATIVE_CREATION_FLOW_CAPTURE_PLAN.md` and `NARRATIVE_CREATION_FLOW_CAPTURE_WORKFLOWS.md`. They were snapshots of the canonical documents from local commit `3b5e728`, plus a preservation header, and were never referenced by the application or documentation index. Their unique value was historical: the pre-implementation audit baseline (194 backend tests and 84 frontend unit tests), the first capture/provenance milestone (201 backend tests and 94 frontend unit tests), the superseded Phase 0–9 execution order, and the historical CF-01–CF-22 open-point register.
+
+Those snapshots were consolidated into the current tracker, dated implementation record, delivery phases, and workflow coverage sections, then removed to prevent stale “open” statuses from competing with current truth. Their exact original text remains available without ambiguity:
+
+```powershell
+git show 3b5e728:NARRATIVE_CREATION_FLOW_PLAN.md
+git show 3b5e728:NARRATIVE_CREATION_FLOW_WORKFLOWS.md
+```
 
 ## Implementation Tracker
 
