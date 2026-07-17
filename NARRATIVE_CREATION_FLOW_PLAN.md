@@ -1,6 +1,6 @@
 # Narrative-First Creation Flow And “Then…” Composer Plan
 
-Status: The repository-owned web release is implemented end to end: capture, typed canonical compilation, stable dialogue-choice actions and output flags, Dialogue/World/Encounter/Quest/Event/POI embeds, branch-aware bounded rehearsal, atomic commit, committed-manifest resume, and a searchable standalone Creation Flow workspace with topology comparison. Representative-writer evaluation, real-content performance observation, and external runtime verification remain open acceptance activities.
+Status: The repository-owned web release is implemented end to end: capture, typed canonical compilation, stable dialogue-choice actions and output flags, Dialogue/World/Encounter/Quest/Event/POI embeds, branch-aware bounded rehearsal, atomic commit, committed-manifest resume, and a searchable standalone Creation Flow workspace with topology comparison and story/state/reward/runtime/issue lenses. Representative-writer evaluation, real-content performance observation, and external runtime verification remain open acceptance activities.
 
 Drafted: 2026-07-15
 
@@ -45,7 +45,7 @@ git show 3b5e728:NARRATIVE_CREATION_FLOW_WORKFLOWS.md
 | Existing-record compiler | Implemented end to end for the bounded existing-model subset, including temporary rehearsal and supported origin-to-beat links | Supported steps compile deterministically into reviewed existing records and links |
 | Canonical action/transition decision | V1 direction decided: Option B plus project-local committed-flow manifests | Typed choice actions, ordered atomic consequence groups, victory transitions, defeat policies, return behavior, and committed-flow provenance are explicit without a universal playable-sequence runtime model |
 | Embedded Then… composer | Implemented for dialogue choices/endings, selected locations and POIs, encounter victory, quest objectives/completion, and Event completion | Owning workspaces can open a scoped composer without route switching and retain an explicit return frame |
-| Standalone Creation Flow workspace | Implemented, including search/filter and topology comparison | Local drafts and committed manifests can be opened as working revisions; authors can compare sequence branches and constellation relations before using the shared shaping/rehearsal/review/commit loop |
+| Standalone Creation Flow workspace | Implemented, including full-text/shape/issue filters, story/state/reward/runtime/attention lenses, and topology comparison | Local drafts and committed manifests use the same discovery filters, can be opened as working revisions, and expose sequence branches and constellation relations before the shared shaping/rehearsal/review/commit loop |
 | Web data/export contract | Implemented for the repository-owned Phase 3A contract; all executable rows remain runtime-unverified by default | Authoring schemas and source/UE DataTable exports preserve typed actions, quest lifecycle, repeatability, transitions, defeat policy, ranks, eras, item rules, variants, and explicit runtime-verification state |
 | Writer evaluation | Pending external evaluation | Representative authors complete the workflow corpus with materially less interruption than the current multi-workspace path |
 
@@ -245,6 +245,34 @@ The closure plan was to add one model-owned shape conversion, model-owned placeh
 Verification after this batch: all **227 backend tests**, all **107 frontend unit tests**, frontend ESLint, the TypeScript/Vite production build, **7 focused Chromium Creation Flow journeys**, and `git diff --check` pass. The World Builder journey now proves selected-prose creation → canonical promotion → second-card relation → relation removal → idea removal → close/reload with the first promoted identity intact. The standalone journey proves shape conversion, Undo/Redo, and reload recovery. The existing large-chunk build advisory remains unchanged in kind.
 
 No known repository-owned workflow blocker remains. The only open activities still require evidence outside this repository: representative-writer sessions, performance observation with real project content, and execution by the consuming runtime. Those activities must not be marked complete from web tests.
+
+### Standalone library-lens audit and completion — 2026-07-17
+
+#### Review of what was already done
+
+The standalone workspace already listed browser-local drafts and committed manifests, resumed either source through the shared composer, searched titles and step prose, filtered local work by shape/blocker state, and compared temporal transitions with creative relations. The capture-to-commit implementation and all 227 backend tests remained green before this pass.
+
+#### Open points found and implementation plan
+
+The Phase 5 deliverables named story, state, reward, runtime, and issue lenses, but the active workspace only described those concepts in its subtitle; no semantic lens control existed. Shape and issue filters applied only to browser-local drafts, despite local and committed flows forming one author-facing library. Search also omitted idea cards, prose notes, transition labels, and creative-relation language. Finally, an unshaped captured step was not included in author-attention health even though **Validation And Health** lists it as a draft-level issue.
+
+The closure plan was one shared, model-owned library filter contract used by both local drafts and committed manifests, an explicit overlapping content-lens selector, expanded author-language search indexing, honest empty states for filtered committed results, and unit/browser regressions.
+
+#### Implemented behavior
+
+| Open point | Implemented behavior | Design rule |
+|---|---|---|
+| Missing content lenses | **Story and lore**, **State and unlocks**, **Rewards and progress**, **Executable runtime intent**, and **Needs author attention** are explicit library lenses. | Lenses overlap by design: a quest turn-in may be both story and reward intent, while runtime includes compilable and runtime-unverified executable work without claiming game execution. |
+| Inconsistent local/committed discovery | Text, composition shape, blocker state, and content lens now use the same filter function for browser-local drafts and committed manifests. | Durable provenance is not made harder to find than unfinished local work. |
+| Narrow text index | Search includes titles, origin context, step prose/kind/target labels, idea labels and direction, local prose notes, transition labels/triggers, and creative-relation language. | Search remains author-language discovery; it does not infer new story meaning or mutate a draft. |
+| Hidden author-attention state | Unshaped steps now produce a navigable warning, and the attention lens includes blockers and warnings but excludes informational runtime-verification notices. | `runtime_unverified` remains visible information, not a false authoring error. |
+| Blank filtered result | The committed panel distinguishes **no committed flows** from **no committed flows match these filters** and gives a recovery action in plain language. | A filter must never look like data loss. |
+
+#### Acceptance evidence and remaining boundary
+
+All **227 backend tests**, **108 frontend unit tests**, frontend ESLint, the TypeScript/Vite production build, and **7 focused Chromium Creation Flow journeys** pass. The standalone journey now proves reward-lens exclusion, attention-lens recovery, and reopening the same browser-local revision; the other focused journeys retain quest, World Builder, dialogue, typed condition/variant, canonical commit, and encounter-host coverage. `git diff --check` is clean; the existing large-chunk build advisory remains unchanged.
+
+No known repository-owned Narrative Creation Flow blocker remains. Representative-writer evaluation, real-project performance observation, and Unreal/runtime execution verification are still external acceptance activities and are not represented as completed by this web pass.
 
 ## Executive Decision
 
@@ -1671,7 +1699,7 @@ Roll out one host at a time using the same draft and compiler contract.
 
 ### Phase 5: standalone Creation Flow workspace
 
-Implementation status on 2026-07-17: complete for the evidence-backed scope. The workspace provides a draft library, committed-manifest working revisions, sequence/constellation creation, issue counts, text/shape/issue filtering, inline branch/relation topology comparison, and the shared outline, target resolution, rehearsal, review, and commit loop. Capture-inbox promotion remains optional and gated by writer evidence because no independent inbox currently exists.
+Implementation status on 2026-07-17: complete for the evidence-backed scope. The workspace provides a draft library, committed-manifest working revisions, sequence/constellation creation, issue counts, shared local/committed text/shape/issue filtering, explicit story/state/reward/runtime/attention lenses, inline branch/relation topology comparison, and the shared outline, target resolution, rehearsal, review, and commit loop. Capture-inbox promotion remains optional and gated by writer evidence because no independent inbox currently exists.
 
 Deliverables:
 
