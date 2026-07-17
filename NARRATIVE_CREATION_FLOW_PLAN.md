@@ -198,6 +198,23 @@ The repository-owned closure plan is complete:
 
 Verification for this batch: **24 focused Creation Flow backend tests**, all **226 backend tests**, all **104 frontend unit tests**, frontend ESLint, the TypeScript/Vite production build, `git diff --check`, and **6 focused Chromium Creation Flow journeys** pass. The existing large-chunk build advisory remains unchanged in kind. The only intentionally open activities remain representative-writer evaluation, real-content performance observation, and external runtime execution verification.
 
+### Creative-editing safety audit and completion — 2026-07-17
+
+A final senior game-design pass reviewed the implemented composer as a moment-to-moment writing tool, not only as a compiler contract. The capture, resolution, branch, rehearsal, commit, and resume systems were already complete and green. One repository-owned usability gap remained behind that status: the testing strategy promised insertion, duplication, and undo, but the active `ThenComposer` offered only append, reorder, and remove. Removing a middle step also removed both adjacent anonymous completion links without reconnecting the remaining sequence.
+
+The closure plan was implemented as one bounded editing-safety batch:
+
+| Open point | Implemented behavior | Exit evidence |
+|---|---|---|
+| Insert without rebuilding | Every sequence card now offers **Insert after**. The new unshaped card is placed exactly at that point and the anonymous linear completion path is regenerated around it. | Frontend model regression and standalone Chromium journey pass. |
+| Reuse a captured intention | **Duplicate** copies the selected step with a fresh stable step id, preserves its typed target/payload, and deliberately does not copy incoming/outgoing branches. Prose-linked idea cards are excluded because they share one placeholder identity rather than representing repeatable sequence rows. | The regression proves new identity, payload preservation, and deterministic order. |
+| Recover from shaping mistakes | The composer now keeps a bounded 100-edit history with visible **Undo** and **Redo** controls. Switching to another flow starts a separate history; autosave persists whichever revision is currently active. Named snapshots and JSON recovery remain the durable browser-local safety layers. | The enhanced standalone journey duplicates, undoes, redoes, closes, and restores the resulting draft. |
+| Delete from the middle safely | Removing a card still deletes transitions/relations owned by that card, then reconnects the remaining anonymous linear sequence. Explicit typed outcome transitions between surviving cards are preserved. | Unit coverage removes the inserted middle card and asserts that no dangling reference survives. |
+
+Verification after this batch: all **226 backend tests**, all **105 frontend unit tests**, frontend ESLint, the TypeScript/Vite production build, **7 focused Chromium Creation Flow journeys** (including the enhanced standalone editing/recovery journey), and `git diff --check` pass. The build retains the existing large-chunk advisory.
+
+This closes the last repository-owned discrepancy found by the current audit. The remaining activities are unchanged and cannot be truthfully completed by web code alone: representative writers must run the corpus, real project content must supply performance observations, and the consuming runtime must execute the exported contracts before any row becomes `runtime_verified`.
+
 ## Executive Decision
 
 The product should add a narrative-first authoring layer where the author records **what happens next** before defining how the database represents it.

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   addCreationFlowStep, createCreationFlowDraft, createCreationFlowStep, creationFlowIssues,
-  deriveStepSupport, getStableArtifactId, moveCreationFlowStep, normalizeCreationFlowDraft,
-  patchCreationFlowStep, reconcileCreationFlowMentions, removeCreationFlowStep,
+  deriveStepSupport, duplicateCreationFlowStep, getStableArtifactId, insertCreationFlowStep,
+  moveCreationFlowStep, normalizeCreationFlowDraft, patchCreationFlowStep,
+  reconcileCreationFlowMentions, removeCreationFlowStep,
 } from "./creationFlow";
 import {
   draftsForOrigin, exportCreationFlowDraft, importCreationFlowDraft, listCreationFlowDrafts,
@@ -58,6 +59,36 @@ describe("Creation Flow draft", () => {
     draft = removeCreationFlowStep(draft, second.id);
     expect(draft.transitions).toEqual([]);
     expect(draft.entryStepId).toBe(first.id);
+  });
+
+  it("inserts and duplicates ideas without breaking the remaining linear sequence", () => {
+    const first = createCreationFlowStep("First", "scripted_moment");
+    const last = createCreationFlowStep("Last", "scripted_moment");
+    const inserted = createCreationFlowStep("Inserted", "item_reward", { kind: "item", canonicalId: "item-1" });
+    let draft = addCreationFlowStep(addCreationFlowStep(createCreationFlowDraft({ title: "Editable sequence" }), first), last);
+    draft = insertCreationFlowStep(draft, inserted, 1, 100);
+    expect(draft.steps.map((step) => step.text)).toEqual(["First", "Inserted", "Last"]);
+    expect(draft.transitions.map((transition) => [transition.fromStepId, transition.toStepId])).toEqual([
+      [first.id, inserted.id], [inserted.id, last.id],
+    ]);
+    draft = normalizeCreationFlowDraft({
+      ...draft,
+      transitions: [...draft.transitions, {
+        id: "surviving-branch", fromStepId: first.id, toStepId: last.id,
+        trigger: "condition", requirementId: "requirement-1", label: "Take the shortcut", sortOrder: 10,
+      }],
+    });
+
+    draft = duplicateCreationFlowStep(draft, inserted.id, 110);
+    expect(draft.steps.map((step) => step.text)).toEqual(["First", "Inserted", "Inserted", "Last"]);
+    expect(draft.steps[2].id).not.toBe(inserted.id);
+    expect(draft.steps[2].target).toEqual(inserted.target);
+
+    const duplicateId = draft.steps[2].id;
+    draft = removeCreationFlowStep(draft, inserted.id, 120);
+    expect(draft.transitions.some((transition) => transition.fromStepId === first.id && transition.toStepId === duplicateId)).toBe(true);
+    expect(draft.transitions).toContainEqual(expect.objectContaining({ id: "surviving-branch", requirementId: "requirement-1" }));
+    expect(draft.transitions.some((transition) => transition.fromStepId === inserted.id || transition.toStepId === inserted.id)).toBe(false);
   });
 
   it("keeps artifact ids stable and localizes unresolved issues", () => {

@@ -137,10 +137,19 @@ test("standalone Creation Flow starts and resumes a browser-local sequence", asy
   const composer = page.getByRole("dialog", { name: "Then composer" });
   await composer.getByLabel("Capture next idea").fill("The gate opens");
   await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByRole("button", { name: "Insert after" }).click();
+  await composer.getByLabel("Step 2 text").fill("The warning bells ring");
+  await composer.locator("article").nth(1).getByRole("button", { name: "Duplicate" }).click();
+  await expect(composer.getByLabel("Step 3 text")).toHaveValue("The warning bells ring");
+  await composer.getByRole("button", { name: "Undo" }).click();
+  await expect(composer.getByLabel("Step 3 text")).toHaveCount(0);
+  await composer.getByRole("button", { name: "Redo" }).click();
+  await expect(composer.getByLabel("Step 3 text")).toHaveValue("The warning bells ring");
   await composer.getByRole("button", { name: "Close" }).click();
   await expect(page.getByText("Untitled creation flow")).toBeVisible();
   await page.getByRole("button", { name: "Open flow" }).click();
   await expect(page.getByRole("dialog", { name: "Then composer" }).getByLabel("Step 1 text")).toHaveValue("The gate opens");
+  await expect(page.getByRole("dialog", { name: "Then composer" }).getByLabel("Step 3 text")).toHaveValue("The warning bells ring");
 });
 
 test("global workspace switcher opens authoring routes", async ({ page }) => {

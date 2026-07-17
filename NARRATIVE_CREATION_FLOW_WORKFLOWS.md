@@ -1337,3 +1337,27 @@ The final workflow/code comparison found one web-owned mismatch: typed causal ou
 Twenty-four focused backend Creation Flow tests pass, including two-path condition/fallback rehearsal, entry validation/defaulting, and a 256-outcome branch-product limit test. The final regression run passes all 226 backend tests, all 104 frontend unit tests, frontend ESLint, the TypeScript/Vite production build, `git diff --check`, and six focused Chromium journeys covering standalone resume, quest and encounter return context, dialogue recovery, canonical preview/commit, and typed condition/variant recovery. The existing large-chunk build advisory remains unchanged in kind.
 
 No known repository-owned workflow blocker remains after this closure. Representative-writer sessions, real-content performance observation, and Unreal/runtime execution verification still require external people or systems and remain acceptance activities rather than web implementation tasks.
+
+## Implementation Coverage — 2026-07-17 Creative Editing Safety
+
+### Review of what was already done
+
+All W1–W3 semantic and compilation contracts remained implemented: capture-first sequence/constellation/hybrid drafts, prose-linked ideas, typed actions and outcomes, canonical resolution, branch-aware rehearsal, atomic commit, provenance, host return context, and standalone resume/search/topology. The full baseline remained green at 226 backend tests and 104 frontend unit tests before this editing pass.
+
+### Open workflow point found
+
+W1-D says a spontaneous important item can be inserted anywhere without rebuilding downstream work. The data model could be reordered into that result, but the active composer had no direct insertion or duplication gesture and no short-horizon undo/redo. More importantly, removing the middle of an anonymous linear chain did not reconnect its surviving neighbors. That made exploration unnecessarily fragile even though compilation itself was correct.
+
+### Implemented plan and workflow impact
+
+- Each captured card offers **Insert after**, so W1-D can place a newly discovered reward, clue, encounter, or other intention at the exact creative moment.
+- **Duplicate** creates a fresh step identity while preserving the reusable intention's typed fields. It never duplicates branch ownership, and prose-linked idea cards remain one shared placeholder identity.
+- Visible **Undo** and **Redo** keep up to 100 composer edits and work alongside autosave, named snapshots, and JSON recovery.
+- Removing an inserted/middle card rebuilds only the anonymous completion chain, deletes links owned by the removed card, and preserves explicit surviving outcomes.
+- The standalone W3-A resume journey now exercises insert → duplicate → undo → redo → close → reopen, proving the final sequence survives browser-local recovery.
+
+### Acceptance evidence and remaining boundary
+
+All 105 frontend unit tests, frontend ESLint, and the TypeScript/Vite production build pass. Seven focused Chromium Creation Flow journeys pass, including the enhanced standalone editing/recovery path; the unchanged backend suite remains 226/226. The production build still reports the previously documented large-chunk advisory.
+
+No repository-owned W1–W3 implementation blocker remains. Representative-writer sessions, observation with real project content, and external runtime execution remain the only open acceptance work; the repository must not fabricate their results.

@@ -296,12 +296,38 @@ export function touchCreationFlowDraft(draft: CreationFlowDraft, patch: Partial<
 }
 
 export function addCreationFlowStep(draft: CreationFlowDraft, step: CreationFlowStep, now = Date.now()): CreationFlowDraft {
-  const previous = draft.steps[draft.steps.length - 1];
-  const temporal = draft.shape !== "constellation" && previous;
+  return insertCreationFlowStep(draft, step, draft.steps.length, now);
+}
+
+function rebuildLinearTransitions(draft: CreationFlowDraft, steps: CreationFlowStep[]): CreationFlowTransition[] {
+  const explicitTransitions = draft.transitions.filter((transition) =>
+    transition.trigger !== "complete" || Boolean(transition.requirementId || transition.sourceRefId || transition.label),
+  );
+  if (draft.shape === "constellation") return explicitTransitions;
+  const linearTransitions = steps.slice(0, -1).map((step, order): CreationFlowTransition => ({
+    id: generateUlid(), fromStepId: step.id, toStepId: steps[order + 1].id,
+    trigger: "complete", sortOrder: order,
+  }));
+  return [...explicitTransitions, ...linearTransitions];
+}
+
+export function insertCreationFlowStep(draft: CreationFlowDraft, step: CreationFlowStep, index: number, now = Date.now()): CreationFlowDraft {
+  const insertionIndex = Math.max(0, Math.min(Math.trunc(index), draft.steps.length));
+  const steps = [...draft.steps];
+  steps.splice(insertionIndex, 0, step);
   return touchCreationFlowDraft(draft, {
-    steps: [...draft.steps, step], entryStepId: draft.entryStepId || step.id,
-    transitions: temporal ? [...draft.transitions, { id: generateUlid(), fromStepId: previous.id, toStepId: step.id, trigger: "complete", sortOrder: draft.transitions.length }] : draft.transitions,
+    steps,
+    entryStepId: draft.entryStepId || steps[0]?.id,
+    transitions: rebuildLinearTransitions(draft, steps),
   }, now);
+}
+
+export function duplicateCreationFlowStep(draft: CreationFlowDraft, stepId: string, now = Date.now()): CreationFlowDraft {
+  const index = draft.steps.findIndex((step) => step.id === stepId);
+  if (index < 0) return draft;
+  const duplicate = normalizeStep({ ...draft.steps[index], id: generateUlid() });
+  if (!duplicate) return draft;
+  return insertCreationFlowStep(draft, duplicate, index + 1, now);
 }
 
 export function patchCreationFlowStep(draft: CreationFlowDraft, stepId: string, patch: Partial<CreationFlowStep>, now = Date.now()): CreationFlowDraft {
@@ -319,17 +345,18 @@ export function moveCreationFlowStep(draft: CreationFlowDraft, stepId: string, o
   if (index < 0 || targetIndex < 0 || targetIndex >= draft.steps.length) return draft;
   const steps = [...draft.steps];
   [steps[index], steps[targetIndex]] = [steps[targetIndex], steps[index]];
-  const linearTransitionIds = new Set(draft.transitions.filter((transition) => transition.trigger === "complete" && !transition.requirementId && !transition.sourceRefId && !transition.label).map((transition) => transition.id));
-  const transitions = draft.transitions.filter((transition) => !linearTransitionIds.has(transition.id));
-  if (draft.shape !== "constellation") steps.slice(0, -1).forEach((step, order) => transitions.push({ id: generateUlid(), fromStepId: step.id, toStepId: steps[order + 1].id, trigger: "complete", sortOrder: order }));
-  return touchCreationFlowDraft(draft, { steps, entryStepId: steps[0]?.id, transitions }, now);
+  return touchCreationFlowDraft(draft, { steps, entryStepId: steps[0]?.id, transitions: rebuildLinearTransitions(draft, steps) }, now);
 }
 
 export function removeCreationFlowStep(draft: CreationFlowDraft, stepId: string, now = Date.now()): CreationFlowDraft {
   const steps = draft.steps.filter((step) => step.id !== stepId);
-  const transitions = draft.transitions.filter((transition) => transition.fromStepId !== stepId && transition.toStepId !== stepId);
+  const survivingTransitions = draft.transitions.filter((transition) => transition.fromStepId !== stepId && transition.toStepId !== stepId);
   const relations = draft.relations.filter((relation) => relation.fromStepId !== stepId && relation.toStepId !== stepId);
-  return touchCreationFlowDraft(draft, { steps, transitions, relations, entryStepId: draft.entryStepId === stepId ? steps[0]?.id : draft.entryStepId }, now);
+  return touchCreationFlowDraft(
+    { ...draft, transitions: survivingTransitions },
+    { steps, transitions: rebuildLinearTransitions({ ...draft, transitions: survivingTransitions }, steps), relations, entryStepId: draft.entryStepId === stepId ? steps[0]?.id : draft.entryStepId },
+    now,
+  );
 }
 
 export function getStableArtifactId(draft: CreationFlowDraft, key: string): { draft: CreationFlowDraft; id: string } {

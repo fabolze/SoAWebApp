@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CREATION_FLOW_STEP_KINDS, addCreationFlowStep, createCreationFlowDraft, createCreationFlowStep,
-  creationFlowIssues, moveCreationFlowStep, patchCreationFlowStep, reconcileCreationFlowMentions,
-  removeCreationFlowStep, touchCreationFlowDraft, type CreationFlowDraft, type CreationFlowLocalNote,
+  creationFlowIssues, duplicateCreationFlowStep, insertCreationFlowStep, moveCreationFlowStep,
+  patchCreationFlowStep, reconcileCreationFlowMentions, removeCreationFlowStep,
+  touchCreationFlowDraft, type CreationFlowDraft, type CreationFlowLocalNote,
   type CreationFlowPlaceholder, type CreationFlowRefKind, type CreationFlowReturnFrame,
   type CreationFlowStepKind, type CreationFlowTiming, type NarrativeGameplayAction,
 } from "../../authoring/creationFlow";
@@ -16,6 +17,7 @@ import {
   type CreationFlowCatalog, type CreationFlowPreview,
 } from "../../authoring/creationFlowCompiler";
 import { apiFetch } from "../../lib/api";
+import { createHistory, pushHistory, redoHistory, undoHistory, type HistoryState } from "../../dialogues/history";
 import { BUTTON_CLASSES, BUTTON_SIZES, ISSUE_CLASSES } from "../../styles/uiTokens";
 import { generateUlid } from "../../utils/generateId";
 import BundleReview from "./BundleReview";
@@ -88,7 +90,17 @@ function objectRows(value: unknown): Array<Record<string, unknown>> {
 }
 
 export default function ThenComposer({ open, mode, origin, originLabel, returnFrame, initialDraftId, onClose }: ThenComposerProps) {
-  const [draft, setDraft] = useState<CreationFlowDraft | null>(null);
+  const [draftHistory, setDraftHistory] = useState<HistoryState<CreationFlowDraft> | null>(null);
+  const draft = draftHistory?.present ?? null;
+  const setDraft = (value: CreationFlowDraft | null | ((current: CreationFlowDraft | null) => CreationFlowDraft | null)) => {
+    setDraftHistory((currentHistory) => {
+      const current = currentHistory?.present ?? null;
+      const next = typeof value === "function" ? value(current) : value;
+      if (!next) return null;
+      if (!currentHistory || currentHistory.present.id !== next.id) return createHistory(next);
+      return pushHistory(currentHistory, next);
+    });
+  };
   const [recent, setRecent] = useState<CreationFlowDraftSummary[]>([]);
   const [snapshots, setSnapshots] = useState<CreationFlowSnapshot[]>([]);
   const [quickText, setQuickText] = useState("");
@@ -226,6 +238,14 @@ export default function ThenComposer({ open, mode, origin, originLabel, returnFr
     const next = saveCreationFlowSnapshot({ id: generateUlid(), name, createdAt: Date.now(), draft });
     setSnapshots(next); setNotice(`Created local snapshot “${name}”.`);
   };
+  const undoDraft = () => {
+    setDraftHistory((current) => current ? undoHistory(current) : current);
+    setNotice("Undid the latest flow edit.");
+  };
+  const redoDraft = () => {
+    setDraftHistory((current) => current ? redoHistory(current) : current);
+    setNotice("Restored the next flow edit.");
+  };
   const download = () => {
     const blob = new Blob([exportCreationFlowDraft(draft)], { type: "application/json" });
     const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
@@ -303,7 +323,7 @@ export default function ThenComposer({ open, mode, origin, originLabel, returnFr
             <button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm} mt-2 w-full`} onClick={startNew}>New scoped draft</button>
           </section>
           <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-            <h3 className="text-sm font-semibold">Recovery</h3><div className="mt-2 grid gap-2"><button type="button" className={smallButton} onClick={createSnapshot}>Named snapshot</button><button type="button" className={smallButton} onClick={download}>Export JSON</button><button type="button" className={smallButton} onClick={() => importRef.current?.click()}>Import JSON</button><input ref={importRef} className="hidden" type="file" accept="application/json,.json" onChange={(event) => void importFile(event.target.files?.[0])} /></div>
+            <h3 className="text-sm font-semibold">Recovery</h3><div className="mt-2 grid grid-cols-2 gap-2"><button type="button" className={smallButton} disabled={!draftHistory?.past.length} onClick={undoDraft}>Undo</button><button type="button" className={smallButton} disabled={!draftHistory?.future.length} onClick={redoDraft}>Redo</button><button type="button" className={`${smallButton} col-span-2`} onClick={createSnapshot}>Named snapshot</button><button type="button" className={smallButton} onClick={download}>Export JSON</button><button type="button" className={smallButton} onClick={() => importRef.current?.click()}>Import JSON</button><input ref={importRef} className="hidden" type="file" accept="application/json,.json" onChange={(event) => void importFile(event.target.files?.[0])} /></div>
             {snapshots.length > 0 && <div className="mt-3 space-y-1">{snapshots.slice().reverse().map((snapshot) => <button key={snapshot.id} type="button" className="block w-full truncate rounded border border-slate-200 p-1 text-left text-xs dark:border-slate-800" onClick={() => { setDraft(snapshot.draft); setNotice(`Restored snapshot “${snapshot.name}”.`); }}>{snapshot.name}</button>)}</div>}
           </section>
         </aside>
@@ -323,7 +343,7 @@ export default function ThenComposer({ open, mode, origin, originLabel, returnFr
 
           <section className="space-y-2"><div className="flex items-center justify-between"><h3 className="font-semibold">{draft.shape === "constellation" ? "Captured ideas" : "What happens next"}</h3><span className="text-xs text-slate-500">{draft.steps.length} steps</span></div>
             {draft.steps.map((step, index) => <article id={`creation-flow-step-${step.id}`} key={step.id} className="scroll-mt-4 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex flex-wrap items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-slate-100 text-xs font-bold dark:bg-slate-800">{index + 1}</span><span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${supportClass(step.support)}`}>{step.support.replace(/_/g, " ")}</span><div className="ml-auto flex gap-1"><button type="button" aria-label="Move step up" className={smallButton} disabled={index === 0} onClick={() => setDraft(moveCreationFlowStep(draft, step.id, -1))}>↑</button><button type="button" aria-label="Move step down" className={smallButton} disabled={index === draft.steps.length - 1} onClick={() => setDraft(moveCreationFlowStep(draft, step.id, 1))}>↓</button><button type="button" className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`} onClick={() => setDraft(removeCreationFlowStep(draft, step.id))}>Remove</button></div></div>
+              <div className="flex flex-wrap items-center gap-2"><span className="grid h-6 w-6 place-items-center rounded-full bg-slate-100 text-xs font-bold dark:bg-slate-800">{index + 1}</span><span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${supportClass(step.support)}`}>{step.support.replace(/_/g, " ")}</span><div className="ml-auto flex flex-wrap gap-1"><button type="button" aria-label="Move step up" className={smallButton} disabled={index === 0} onClick={() => setDraft(moveCreationFlowStep(draft, step.id, -1))}>↑</button><button type="button" aria-label="Move step down" className={smallButton} disabled={index === draft.steps.length - 1} onClick={() => setDraft(moveCreationFlowStep(draft, step.id, 1))}>↓</button><button type="button" className={smallButton} onClick={() => setDraft(insertCreationFlowStep(draft, createCreationFlowStep("New idea"), index + 1))}>Insert after</button><button type="button" className={smallButton} disabled={typeof step.payload?.ideaPlaceholderId === "string"} title={typeof step.payload?.ideaPlaceholderId === "string" ? "Idea cards share a placeholder identity and are not duplicated as sequence steps." : "Duplicate this step without copying its branches."} onClick={() => setDraft(duplicateCreationFlowStep(draft, step.id))}>Duplicate</button><button type="button" className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`} onClick={() => setDraft(removeCreationFlowStep(draft, step.id))}>Remove</button></div></div>
               <textarea aria-label={`Step ${index + 1} text`} className={`${inputClass} mt-2`} rows={2} value={step.text} onChange={(event) => setDraft(patchCreationFlowStep(draft, step.id, { text: event.target.value }))} />
               <div className="mt-2 grid gap-2 md:grid-cols-3"><label className="text-[10px] font-semibold uppercase text-slate-500">Meaning<select className={`${inputClass} mt-1 normal-case`} value={step.kind} onChange={(event) => setDraft(patchCreationFlowStep(draft, step.id, { kind: event.target.value as CreationFlowStepKind }))}>{CREATION_FLOW_STEP_KINDS.map((kind) => <option key={kind} value={kind}>{LABELS[kind]}</option>)}</select></label><label className="text-[10px] font-semibold uppercase text-slate-500">When<select className={`${inputClass} mt-1 normal-case`} value={step.timing ?? "after_completion"} onChange={(event) => setDraft(patchCreationFlowStep(draft, step.id, { timing: event.target.value as CreationFlowTiming }))}><option value="immediate">Do now</option><option value="after_completion">Then, after completion</option><option value="available_later">Make available later</option><option value="story_only">Story only</option></select></label><label className="text-[10px] font-semibold uppercase text-slate-500">Repeat<select className={`${inputClass} mt-1 normal-case`} value={step.repeatPolicy ?? "unspecified"} onChange={(event) => setDraft(patchCreationFlowStep(draft, step.id, { repeatPolicy: event.target.value as CreationFlowDraft["steps"][number]["repeatPolicy"] }))}><option value="unspecified">Decide later</option><option value="inherit_owner">Inherit owner</option><option value="repeatable">Repeatable</option><option value="one_shot">One shot</option></select></label></div>
               {step.kind !== "note" && targetKindsForStep(step.kind).length > 0 && <label className="mt-2 block text-[10px] font-semibold uppercase text-slate-500">Existing canonical target<select aria-label={`Step ${index + 1} canonical target`} className={`${inputClass} mt-1 normal-case`} value={step.target?.canonicalId ? `${step.target.kind}:${step.target.canonicalId}` : step.target?.draftId ? `local:${step.target.draftId}` : ""} onChange={(event) => {

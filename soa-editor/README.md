@@ -31,6 +31,7 @@ Working:
 - Item, shop, Character Studio, location, atlas, and World Builder authoring.
 - Dialogue Flow Room with graph editing, atomic bundle save, health analysis, local drafts/layout, and playthrough.
 - Encounter Stage, Item Ecosystem, Quest Journey Board, Adventure Dependency Map, and Ability Spellcraft Lab.
+- Narrative Creation Flow through embedded Dialogue/World/Encounter/Quest/Event/POI entry points and `/author/creation-flow`, with safe insert/duplicate/undo editing, local recovery, typed branch rehearsal, canonical review, and atomic commit.
 - Interactive Story Timeline and Adventure Board with scoped canonical lanes, Story Navigator overview, switchable entity occurrence tracks, focused lenses, drag/drop local planning, typed lifecycle attachments, preview, and atomic commit to canonical adventure beats.
 - Project Health, deterministic local authoring helpers, and heuristic simulation.
 
