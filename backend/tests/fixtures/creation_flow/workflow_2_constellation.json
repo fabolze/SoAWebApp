@@ -1,0 +1,21 @@
+{
+  "name": "Workflow 2 place constellation with story-only context",
+  "draft": {
+    "format": "SOA-CREATION-FLOW/1",
+    "id": "flow-workflow-2",
+    "revision": 2,
+    "title": "Ash harbour story seed",
+    "shape": "constellation",
+    "origin": {"ref": {"kind": "location", "canonicalId": "location-1"}},
+    "returnStack": [],
+    "steps": [
+      {"id": "step-lore", "kind": "lore_reveal", "text": "Reveal why the harbour burned", "target": {"kind": "lore_entry", "canonicalId": "lore-1"}, "targetResolution": "canonical", "support": "compilable"},
+      {"id": "step-fact", "kind": "persistent_fact", "text": "The harbour remembers the old fleet", "persistence": "permanent", "targetResolution": "none", "support": "compilable"},
+      {"id": "step-placement", "kind": "story_placement", "text": "Echo this in chapter three", "target": {"kind": "story_beat", "canonicalId": "beat-1"}, "timing": "story_only", "targetResolution": "canonical", "support": "story_only"}
+    ],
+    "transitions": [],
+    "relations": [{"id": "relation-1", "fromStepId": "step-lore", "toStepId": "step-placement", "relation": "foreshadows", "resolution": "local_intent"}],
+    "placeholders": [], "localNotes": [], "artifactIds": {}, "createdAt": 1, "updatedAt": 2
+  },
+  "expected": {"events": 2, "flags": 1, "requirements": 0, "story_links": 1, "blockers": 0}
+}

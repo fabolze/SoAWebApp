@@ -22,49 +22,93 @@ def _object(data: Dict[str, Any], key: str) -> Dict[str, Any]:
     return value
 
 
+def _list(data: Dict[str, Any], key: str) -> List[Any]:
+    value = data.get(key, [])
+    if not isinstance(value, list):
+        raise ValueError(f"{key} must be an array")
+    return value
+
+
 class CreationFlowManifestRoute(BaseRoute):
+    """CRUD compatibility for compiler manifests and capture-era manifests."""
+
+    COMPILER_FIELDS = {
+        "revision", "shape", "preview_hash", "provenance", "accepted_warnings", "canonical_snapshots",
+    }
+    CAPTURE_FIELDS = {
+        "slug", "schema_version", "origin_kind", "origin_id", "origin_sub_kind", "origin_sub_id",
+        "accepted_warning_ids", "source_snapshots", "artifact_dispositions", "tags",
+    }
+
     def __init__(self):
         super().__init__(CreationFlowManifest, "creation_flow_manifests", "/api/creation-flow-manifests")
 
     def get_required_fields(self) -> List[str]:
-        return ["id", "slug", "title", "format", "schema_version", "compiler_version", "normalized_draft", "created_at", "updated_at"]
+        return ["id", "title", "format", "compiler_version", "normalized_draft"]
 
     def get_id_from_data(self, data: Dict[str, Any]) -> str:
         return data["id"]
 
-    def serialize_item(self, item: CreationFlowManifest) -> Dict[str, Any]:
-        return self.serialize_model(item)
-
     def process_input_data(self, db_session: Session, item: CreationFlowManifest, data: Dict[str, Any]) -> None:
         del db_session
+        required = self.get_required_fields()
+        self.validate_required_fields(data, required)
         draft = _object(data, "normalized_draft")
         if data.get("format") != "SOA-CREATION-FLOW/1" or draft.get("format") != "SOA-CREATION-FLOW/1":
             raise ValueError("manifest and normalized_draft must use SOA-CREATION-FLOW/1")
         if str(draft.get("id") or "") != str(data["id"]):
             raise ValueError("normalized_draft.id must match manifest id")
-        schema_version = data.get("schema_version")
-        if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version < 1:
-            raise ValueError("schema_version must be an integer >= 1")
-        for key in ("created_at", "updated_at"):
-            value = data.get(key)
-            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-                raise ValueError(f"{key} must be a non-negative integer")
-        item.slug = str(data["slug"]).strip()
+
         item.title = str(data["title"]).strip()
-        item.format = data["format"]
-        item.schema_version = schema_version
+        item.format = str(data["format"]).strip()
         item.compiler_version = str(data["compiler_version"]).strip()
-        item.origin_kind = data.get("origin_kind") or None
-        item.origin_id = data.get("origin_id") or None
-        item.origin_sub_kind = data.get("origin_sub_kind") or None
-        item.origin_sub_id = data.get("origin_sub_id") or None
         item.normalized_draft = draft
-        item.accepted_warning_ids = _string_array(data, "accepted_warning_ids")
-        item.source_snapshots = _object(data, "source_snapshots")
-        item.artifact_dispositions = _object(data, "artifact_dispositions")
-        item.created_at = data["created_at"]
-        item.updated_at = data["updated_at"]
-        item.tags = _string_array(data, "tags")
+
+        compiler_payload = bool(self.COMPILER_FIELDS & set(data))
+        capture_payload = bool(self.CAPTURE_FIELDS & set(data))
+        if compiler_payload:
+            self.validate_required_fields(data, sorted(self.COMPILER_FIELDS))
+            revision = data["revision"]
+            if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+                raise ValueError("revision must be an integer >= 1")
+            if data["shape"] not in {"sequence", "constellation", "hybrid"}:
+                raise ValueError("shape must be sequence, constellation, or hybrid")
+            item.revision = revision
+            item.shape = data["shape"]
+            item.preview_hash = str(data["preview_hash"]).strip()
+            item.provenance = _list(data, "provenance")
+            item.accepted_warnings = _string_array(data, "accepted_warnings")
+            item.canonical_snapshots = _list(data, "canonical_snapshots")
+            item.implementation_summary = data.get("implementation_summary") or None
+
+        if capture_payload:
+            self.validate_required_fields(
+                data,
+                ["slug", "schema_version", "accepted_warning_ids", "source_snapshots", "artifact_dispositions", "created_at", "updated_at", "tags"],
+            )
+            schema_version = data["schema_version"]
+            if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version < 1:
+                raise ValueError("schema_version must be an integer >= 1")
+            item.slug = str(data["slug"]).strip()
+            item.schema_version = schema_version
+            item.origin_kind = data.get("origin_kind") or None
+            item.origin_id = data.get("origin_id") or None
+            item.origin_sub_kind = data.get("origin_sub_kind") or None
+            item.origin_sub_id = data.get("origin_sub_id") or None
+            item.accepted_warning_ids = _string_array(data, "accepted_warning_ids")
+            item.source_snapshots = _object(data, "source_snapshots")
+            item.artifact_dispositions = _object(data, "artifact_dispositions")
+            item.tags = _string_array(data, "tags")
+
+        if not compiler_payload and not capture_payload:
+            raise ValueError("manifest must include compiler provenance or capture provenance")
+        if "created_at" in data:
+            item.created_at = float(data["created_at"])
+        if "updated_at" in data:
+            item.updated_at = float(data["updated_at"])
+
+    def serialize_item(self, item: CreationFlowManifest) -> Dict[str, Any]:
+        return self.serialize_model(item)
 
 
 class CreationFlowArtifactRoute(BaseRoute):
@@ -95,10 +139,8 @@ class CreationFlowArtifactRoute(BaseRoute):
             if not str(data.get(key) or "").strip():
                 raise ValueError(f"{key} is required")
         duplicate = db_session.query(CreationFlowArtifact).filter_by(
-            manifest_id=data["manifest_id"],
-            step_id=data["step_id"],
-            artifact_kind=data["artifact_kind"],
-            artifact_id=data["artifact_id"],
+            manifest_id=data["manifest_id"], step_id=data["step_id"],
+            artifact_kind=data["artifact_kind"], artifact_id=data["artifact_id"],
         ).first()
         if duplicate and duplicate.id != data["id"]:
             raise ValueError("manifest step already references this artifact")
@@ -116,5 +158,6 @@ class CreationFlowArtifactRoute(BaseRoute):
 
 manifest_route = CreationFlowManifestRoute()
 artifact_route = CreationFlowArtifactRoute()
-creation_flow_manifests_bp = manifest_route.bp
+route = manifest_route
+bp = creation_flow_manifests_bp = manifest_route.bp
 creation_flow_artifacts_bp = artifact_route.bp

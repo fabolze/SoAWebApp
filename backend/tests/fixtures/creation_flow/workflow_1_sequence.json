@@ -1,0 +1,26 @@
+{
+  "name": "Workflow 1 bounded dialogue-to-reward sequence",
+  "draft": {
+    "format": "SOA-CREATION-FLOW/1",
+    "id": "flow-workflow-1",
+    "revision": 3,
+    "title": "The bell tower bargain",
+    "shape": "sequence",
+    "returnStack": [],
+    "entryStepId": "step-dialogue",
+    "steps": [
+      {"id": "step-dialogue", "kind": "dialogue", "text": "Hear the watch captain's offer", "target": {"kind": "dialogue", "canonicalId": "dialogue-1"}, "targetResolution": "canonical", "support": "compilable"},
+      {"id": "step-encounter", "kind": "encounter", "text": "Break the bell tower ambush", "target": {"kind": "encounter", "canonicalId": "encounter-1"}, "targetResolution": "canonical", "support": "compilable"},
+      {"id": "step-item", "kind": "item_reward", "text": "Recover the tower key", "target": {"kind": "item", "canonicalId": "item-1"}, "payload": {"quantity": 1}, "targetResolution": "canonical", "support": "compilable"},
+      {"id": "step-reward", "kind": "numeric_reward", "text": "Receive the watch bounty", "payload": {"xpReward": 75, "currencyRewards": [{"currencyId": "currency-1", "amount": 20}], "reputationRewards": [{"factionId": "faction-1", "amount": 5}]}, "targetResolution": "none", "support": "compilable"}
+    ],
+    "transitions": [
+      {"id": "transition-1", "fromStepId": "step-dialogue", "toStepId": "step-encounter", "trigger": "complete", "sortOrder": 0},
+      {"id": "transition-2", "fromStepId": "step-encounter", "toStepId": "step-item", "trigger": "complete", "sortOrder": 1},
+      {"id": "transition-3", "fromStepId": "step-item", "toStepId": "step-reward", "trigger": "complete", "sortOrder": 2}
+    ],
+    "relations": [], "placeholders": [], "localNotes": [], "artifactIds": {},
+    "createdAt": 1, "updatedAt": 2
+  },
+  "expected": {"events": 4, "flags": 0, "requirements": 0, "story_links": 0, "blockers": 0}
+}

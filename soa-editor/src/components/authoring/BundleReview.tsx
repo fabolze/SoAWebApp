@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../../styles/uiTokens";
 import { AuthoringStatusChip, EmptyState, StatusNotice } from "../authoringUi";
 import { BUNDLE_REVIEW_CHANGE_KINDS, normalizeBundleReview, type BundleReviewResult } from "./bundleReviewModel";
@@ -19,6 +19,7 @@ interface BundleReviewProps {
   additionalBlockers?: string[];
   onCancel: () => void;
   onCommit: (acceptedWarningIds: string[]) => void;
+  children?: ReactNode;
 }
 
 function humanize(value: string): string {
@@ -53,6 +54,7 @@ export default function BundleReview({
   additionalBlockers = [],
   onCancel,
   onCommit,
+  children,
 }: BundleReviewProps) {
   const headingId = useId();
   const [acceptedWarningIds, setAcceptedWarningIds] = useState<string[]>([]);
@@ -90,6 +92,8 @@ export default function BundleReview({
       <AuthoringStatusChip tone={advisoryWarnings.length || requiredWarnings.length ? "warning" : "neutral"}><strong>{advisoryWarnings.length + requiredWarnings.length}</strong> warnings</AuthoringStatusChip>
       <AuthoringStatusChip tone={blockers.length ? "error" : "neutral"}><strong>{blockers.length}</strong> blockers</AuthoringStatusChip>
     </div>}
+
+    {children}
 
     {result && totalChanges === 0 && !advisoryWarnings.length && !requiredWarnings.length && !blockers.length && !error && (
       <EmptyState className="mt-4" title="No record changes in this review">Continue editing until the preview contains records to create, update, delete, or unlink.</EmptyState>

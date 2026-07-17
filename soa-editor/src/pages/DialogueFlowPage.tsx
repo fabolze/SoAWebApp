@@ -18,8 +18,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { EditableTagList, ReferenceChipPicker, displayText, isRecord } from "../authoringViews/controls";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
-import ThenComposer from "../components/authoring/ThenComposer";
 import ScopedGateSection from "../components/authoring/ScopedGateSection";
+import ThenComposer from "../components/authoring/ThenComposer";
 import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import { useDirtyState } from "../components/useDirtyState";
@@ -27,6 +27,7 @@ import { apiFetch } from "../lib/api";
 import { formatApiError } from "../lib/apiErrors";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import type { EntryRecord } from "../types/editorQol";
+import type { CreationFlowDraft } from "../authoring/creationFlow";
 import { generateSlug, generateUlid } from "../utils/generateId";
 import DialogueScriptView from "../dialogues/script/DialogueScriptView";
 import DialogueImportDialog from "../dialogues/dlg/DialogueImportDialog";
@@ -37,15 +38,6 @@ type Lens = "choices" | "consequences" | "locks" | "speakers" | "reachability" |
 type InspectorTab = "edit" | "beat" | "health" | "context";
 type Point = { x: number; y: number };
 type ChoiceSelection = { nodeId: string; index: number } | null;
-
-const CHOICE_ACTION_OPTIONS = [
-  { value: "open_shop", label: "Open shop now", targetType: "shop", continuation: "resume_source_dialogue" },
-  { value: "start_encounter", label: "Start encounter", targetType: "encounter", continuation: "end_source_dialogue" },
-  { value: "join_companion", label: "Companion joins", targetType: "character", continuation: "advance_to_next_node" },
-  { value: "discover_quest", label: "Discover quest", targetType: "quest", continuation: "advance_to_next_node" },
-  { value: "assign_quest", label: "Assign quest", targetType: "quest", continuation: "advance_to_next_node" },
-  { value: "reveal_map_marker", label: "Reveal map marker", targetType: "location_poi", continuation: "advance_to_next_node" },
-] as const;
 
 interface CoverageGroup { matched: EntryRecord[]; missing: string[] }
 interface BeatCoverage {
@@ -122,6 +114,21 @@ const draftKey = (id: string) => `soa.draft.dialogue_flow.${id}`;
 const groupKey = (id: string) => `soa.dialogue-flow.beat-groups.${id}`;
 const uiKey = (id: string) => `soa.dialogue-flow.ui.${id}`;
 
+function normalizeChoice(choice: EntryRecord, forceNew = false): EntryRecord {
+  return {
+    ...choice,
+    id: forceNew || !text(choice.id) ? generateUlid() : text(choice.id),
+    actions: rows(choice.actions).map((action, index) => ({
+      ...action,
+      id: forceNew || !text(action.id) ? generateUlid() : text(action.id),
+      sort_order: Number.isInteger(action.sort_order) ? Number(action.sort_order) : index,
+      runtime_support: text(action.runtime_support, "runtime_unverified"),
+    })),
+  };
+}
+
+function newChoice(choice: EntryRecord): EntryRecord { return normalizeChoice({ actions: [], ...choice }, true); }
+
 function readRecord(key: string): Record<string, Point> {
   try {
     const value = JSON.parse(localStorage.getItem(key) || "{}");
@@ -149,28 +156,6 @@ function emptyNode(dialogueId: string, index: number, speaker = "NPC"): EntryRec
   };
 }
 
-function normalizedChoice(choice: EntryRecord, nodeId: string, index: number): EntryRecord {
-  return {
-    ...choice,
-    choice_id: text(choice.choice_id, `legacy-choice-${nodeId}-${index + 1}`),
-    actions: rows(choice.actions),
-    set_flags: strings(choice.set_flags),
-  };
-}
-
-function newChoice(choiceText: string, nextNodeId: string): EntryRecord {
-  return { choice_id: generateUlid(), choice_text: choiceText, next_node_id: nextNodeId, actions: [], set_flags: [] };
-}
-
-function newChoiceAction(actionType: string, sortOrder: number): EntryRecord {
-  const option = CHOICE_ACTION_OPTIONS.find((entry) => entry.value === actionType) || CHOICE_ACTION_OPTIONS[0];
-  return {
-    action_id: generateUlid(), action_type: option.value, target_ref_type: option.targetType, target_ref_id: "",
-    timing: "immediate", repeat_policy: "inherit_owner", continuation_policy: option.continuation,
-    sort_order: sortOrder, runtime_support: "runtime_unverified",
-  };
-}
-
 function normalizePacket(value: EntryRecord, fallback: DialoguePacket): DialoguePacket {
   const context = isRecord(value.context) ? value.context : {};
   const echo = isRecord(value.world_echo) ? value.world_echo : {};
@@ -178,10 +163,7 @@ function normalizePacket(value: EntryRecord, fallback: DialoguePacket): Dialogue
     ...fallback,
     ...value,
     dialogue: isRecord(value.dialogue) ? value.dialogue : fallback.dialogue,
-    nodes: rows(value.nodes).map((node) => ({
-      ...node,
-      choices: rows(node.choices).map((choice, index) => normalizedChoice(choice, text(node.id), index)),
-    })),
+    nodes: rows(value.nodes).map((node) => ({ ...node, choices: rows(node.choices).map((choice) => normalizeChoice(choice)) })),
     story_beats: rows(value.story_beats),
     beat_coverage: isRecord(value.beat_coverage) ? value.beat_coverage as Record<string, BeatCoverage> : {},
     requirements: rows(value.requirements),
@@ -231,7 +213,7 @@ function autoLayout(nodes: EntryRecord[]): Record<string, Point> {
     if (depth.has(item.id)) continue;
     depth.set(item.id, item.depth);
     const node = nodes.find((row) => text(row.id) === item.id);
-    rows(node?.choices).forEach((choice) => queue.push({ id: text(choice.next_node_id), depth: item.depth + 1 }));
+    rows(node?.choices).forEach((choice) => { if (text(choice.next_node_id)) queue.push({ id: text(choice.next_node_id), depth: item.depth + 1 }); });
   }
   nodes.forEach((node) => { if (!depth.has(text(node.id))) depth.set(text(node.id), Math.max(0, ...depth.values()) + 1); });
   const lanes = new Map<number, string[]>();
@@ -253,9 +235,13 @@ function analyze(nodes: EntryRecord[], packet: DialoguePacket, groups: Record<st
     const consequences = new Set<string>();
     rows(node.choices).forEach((choice, index) => {
       const target = text(choice.next_node_id);
-      if (!target || !ids.has(target)) blockers.push(`${label(node)} choice ${index + 1} targets a missing node.`);
-      else { inbound.set(target, (inbound.get(target) || 0) + 1); adjacency.get(nodeId)?.push(target); }
-      const signature = `${target}|${text(choice.requirements_id)}|${strings(choice.set_flags).sort().join(",")}`;
+      const actions = rows(choice.actions);
+      if (!text(choice.id)) blockers.push(`${label(node)} choice ${index + 1} needs stable identity.`);
+      if (!target && !actions.length) blockers.push(`${label(node)} choice ${index + 1} needs a next line or typed action.`);
+      if (target && !ids.has(target)) blockers.push(`${label(node)} choice ${index + 1} targets a missing node.`);
+      else if (target) { inbound.set(target, (inbound.get(target) || 0) + 1); adjacency.get(nodeId)?.push(target); }
+      if (target && actions.some((action) => ["open_shop", "start_encounter"].includes(text(action.action_type)))) blockers.push(`${label(node)} choice ${index + 1} cannot navigate and replace the interaction at the same time.`);
+      const signature = `${target}|${text(choice.requirements_id)}|${strings(choice.set_flags).sort().join(",")}|${stable(actions)}`;
       if (consequences.has(signature)) warnings.push(`${label(node)} has choices with identical consequences.`);
       consequences.add(signature);
     });
@@ -396,6 +382,8 @@ export default function DialogueFlowPage() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [localSavedAt, setLocalSavedAt] = useState<number | null>(null);
   const [snapshots, setSnapshots] = useState<LocalSnapshot<DialoguePacket>[]>([]);
+  const [creationFlowOrigin, setCreationFlowOrigin] = useState<NonNullable<CreationFlowDraft["origin"]> | null>(null);
+  const [creationFlowLabel, setCreationFlowLabel] = useState("");
   const dirtySource = useRef(`dialogue-flow-${id || "index"}`);
   const undoStack = useRef<DialoguePacket[]>([]);
   const redoStack = useRef<DialoguePacket[]>([]);
@@ -415,6 +403,24 @@ export default function DialogueFlowPage() {
   const health = useMemo(() => analyze(activeNodes, packet, groups), [activeNodes, groups, packet]);
   const dirty = Boolean(original) && stable({ dialogue: packet.dialogue, nodes: packet.nodes, story_beats: packet.story_beats, deletions, beatUnlinks }) !== stable({ dialogue: original?.dialogue, nodes: original?.nodes, story_beats: original?.story_beats, deletions: [], beatUnlinks: [] });
   const saveBlocked = health.blockers.length > 0 || !text(packet.dialogue.title) || !text(packet.dialogue.slug);
+
+  const openThenComposer = () => {
+    const dialogueRef = { kind: "dialogue" as const, ...(isNew ? { draftId: currentId } : { canonicalId: currentId }), label: label(packet.dialogue) };
+    if (selectedChoice && selectedChoiceRow) {
+      const choiceLabel = text(selectedChoiceRow.choice_text, "Continue");
+      setCreationFlowOrigin({ ref: dialogueRef, subRef: {
+        kind: "dialogue_choice",
+        ...(isNew || !text(selectedChoiceRow.id) ? { draftId: text(selectedChoiceRow.id, `${selectedChoice.nodeId}:choice:${selectedChoice.index}`) } : { canonicalId: text(selectedChoiceRow.id) }),
+        label: choiceLabel,
+      } });
+      setCreationFlowLabel(`${label(packet.dialogue)} · ${choiceLabel}`);
+      return;
+    }
+    if (selectedNode) {
+      setCreationFlowOrigin({ ref: dialogueRef, subRef: { kind: "dialogue_node", ...(selectedNode.__new ? { draftId: text(selectedNode.id) } : { canonicalId: text(selectedNode.id) }), label: text(selectedNode.text, "Dialogue ending") } });
+      setCreationFlowLabel(`${label(packet.dialogue)} · ending`);
+    }
+  };
 
   useEffect(() => { const source = dirtySource.current; setDirty(source, dirty); return () => setDirty(source, false); }, [dirty, setDirty]);
 
@@ -532,7 +538,7 @@ export default function DialogueFlowPage() {
     node.speaker_character_id = recentDistinct?.speaker_character_id || source?.speaker_character_id || null;
     mutatePacket((current) => ({
       ...current,
-      nodes: [...current.nodes.map((entry) => text(entry.id) === sourceId ? { ...entry, is_terminal: false, choices: [...rows(entry.choices), newChoice(automatic ? "" : "New response", text(node.id))] } : entry), node],
+      nodes: [...current.nodes.map((entry) => text(entry.id) === sourceId ? { ...entry, is_terminal: false, choices: [...rows(entry.choices), newChoice({ choice_text: automatic ? "" : "New response", next_node_id: node.id, set_flags: [] })] } : entry), node],
     }), `add:${sourceId}`);
     const sourcePosition = positions[sourceId] || { x: 50, y: 50 };
     setPositions((current) => ({ ...current, [text(node.id)]: { x: sourcePosition.x + 330, y: sourcePosition.y + rows(source?.choices).length * 190 } }));
@@ -542,7 +548,7 @@ export default function DialogueFlowPage() {
   const addChoiceNode = useCallback((sourceId: string, choiceLabel: string) => {
     const source = packet.nodes.find((node) => text(node.id) === sourceId);
     const node = emptyNode(currentId, packet.nodes.length + 1, text(packet.nodes.slice().reverse().find((entry) => text(entry.speaker) !== text(source?.speaker))?.speaker, text(source?.speaker, "NPC")));
-    mutatePacket((current) => ({ ...current, nodes: [...current.nodes.map((entry) => text(entry.id) === sourceId ? { ...entry, is_terminal: false, choices: [...rows(entry.choices), newChoice(choiceLabel, text(node.id))] } : entry), node] }), `choice:${sourceId}`);
+    mutatePacket((current) => ({ ...current, nodes: [...current.nodes.map((entry) => text(entry.id) === sourceId ? { ...entry, is_terminal: false, choices: [...rows(entry.choices), newChoice({ choice_text: choiceLabel, next_node_id: node.id, set_flags: [] })] } : entry), node] }), `choice:${sourceId}`);
     setSelectedNodeId(text(node.id)); setSelectedChoice(null);
     window.setTimeout(() => document.getElementById(`script-line-${text(node.id)}`)?.querySelector("textarea")?.focus(), 0);
   }, [currentId, mutatePacket, packet.nodes]);
@@ -563,13 +569,13 @@ export default function DialogueFlowPage() {
     const byId = new Map(current.nodes.map((node) => [text(node.id), node])); const branch = new Set<string>(); const queue = [targetId];
     while (queue.length && branch.size < 100) { const id = queue.shift()!; if (branch.has(id) || !byId.has(id)) continue; branch.add(id); rows(byId.get(id)?.choices).forEach((edge) => queue.push(text(edge.next_node_id))); }
     const mapped = Object.fromEntries([...branch].map((id) => [id, generateUlid()]));
-    const copies = [...branch].map((id, index) => { const node = byId.get(id)!; return { ...node, id: mapped[id], slug: generateSlug(`${text(node.slug, "line")}-copy-${index + 1}-${mapped[id].slice(-4)}`), choices: rows(node.choices).map((edge) => ({ ...edge, choice_id: generateUlid(), actions: rows(edge.actions).map((action, actionIndex) => ({ ...action, action_id: generateUlid(), sort_order: actionIndex })), next_node_id: mapped[text(edge.next_node_id)] || edge.next_node_id })), __new: true }; });
-    return { ...current, nodes: [...current.nodes.map((node) => text(node.id) === sourceId ? { ...node, choices: [...rows(node.choices), { ...choice, choice_id: generateUlid(), actions: rows(choice.actions).map((action, index) => ({ ...action, action_id: generateUlid(), sort_order: index })), choice_text: `Copy: ${text(choice.choice_text, "Continue")}`, next_node_id: mapped[targetId] }] } : node), ...copies] };
+    const copies = [...branch].map((id, index) => { const node = byId.get(id)!; return { ...node, id: mapped[id], slug: generateSlug(`${text(node.slug, "line")}-copy-${index + 1}-${mapped[id].slice(-4)}`), choices: rows(node.choices).map((edge) => normalizeChoice({ ...edge, next_node_id: mapped[text(edge.next_node_id)] || edge.next_node_id }, true)), __new: true }; });
+    return { ...current, nodes: [...current.nodes.map((node) => text(node.id) === sourceId ? { ...node, choices: [...rows(node.choices), normalizeChoice({ ...choice, choice_text: `Copy: ${text(choice.choice_text, "Continue")}`, next_node_id: mapped[targetId] }, true)] } : node), ...copies] };
   }, `duplicate:${sourceId}:${choiceIndex}`), [mutatePacket]);
   const connect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target || connection.source === connection.target) return;
     const source = packet.nodes.find((node) => text(node.id) === connection.source);
-    updateNode(connection.source, { is_terminal: false, choices: [...rows(source?.choices), newChoice("New response", connection.target)] });
+    updateNode(connection.source, { is_terminal: false, choices: [...rows(source?.choices), newChoice({ choice_text: "New response", next_node_id: connection.target, set_flags: [] })] });
   }, [packet.nodes, updateNode]);
 
   const flowNodes = useMemo<Node<CardData>[]>(() => activeNodes.map((node) => ({
@@ -588,16 +594,17 @@ export default function DialogueFlowPage() {
     },
   })), [activeNodes, addLinkedNode, deletions, groups, health, lens, mutatePacket, packet.characters, packet.dialogue.starting_node_id, positions, selectedBeatId, selectedChoice, selectedNodeId, updateNode]);
 
-  const flowEdges = useMemo<Edge[]>(() => activeNodes.flatMap((node) => rows(node.choices).map((choice, index) => {
+  const flowEdges = useMemo<Edge[]>(() => activeNodes.flatMap((node) => rows(node.choices).flatMap((choice, index) => {
+    if (!text(choice.next_node_id)) return [];
     const selected = selectedChoice?.nodeId === text(node.id) && selectedChoice.index === index;
     const consequential = strings(choice.set_flags).length > 0;
-    return {
+    return [{
       id: `${text(node.id)}:${index}`, source: text(node.id), target: text(choice.next_node_id), label: text(choice.choice_text, "Continue"),
       type: "smoothstep", markerEnd: { type: MarkerType.ArrowClosed },
       animated: selected,
       style: { strokeWidth: selected ? 4 : 2, stroke: text(choice.requirements_id) ? "#d97706" : consequential ? "#a21caf" : "#64748b" },
       labelStyle: { fontSize: 11, fontWeight: selected ? 700 : 500 },
-    };
+    }];
   })), [activeNodes, selectedChoice]);
 
   const cleanBeat = (beat: EntryRecord) => Object.fromEntries(Object.entries(beat).filter(([key]) => !key.startsWith("__") && key !== "expected_previous"));
@@ -661,18 +668,18 @@ export default function DialogueFlowPage() {
     let created: EntryRecord[] = [];
     if (recipe === "Greeting") {
       const a = make("Welcome. What can I do for you?"); const b = make("Tell me about this place."); const c = make("Safe travels.");
-      a.choices = [newChoice("Ask about the area", text(b.id)), newChoice("Leave", text(c.id))]; b.choices = [newChoice("Thanks", text(c.id))]; created = [a, b, c];
+      a.choices = [{ choice_text: "Ask about the area", next_node_id: b.id, set_flags: [] }, { choice_text: "Leave", next_node_id: c.id, set_flags: [] }]; b.choices = [{ choice_text: "Thanks", next_node_id: c.id, set_flags: [] }]; created = [a, b, c];
     } else if (recipe === "Quest Briefing") {
       const a = make("I need your help."); const b = make("Will you take the task?"); const c = make("Then we have an agreement."); const d = make("I understand.");
-      a.choices = [newChoice("What happened?", text(b.id))]; b.choices = [newChoice("Accept", text(c.id)), newChoice("Refuse", text(d.id))]; created = [a, b, c, d];
+      a.choices = [{ choice_text: "What happened?", next_node_id: b.id, set_flags: [] }]; b.choices = [{ choice_text: "Accept", next_node_id: c.id, set_flags: [] }, { choice_text: "Refuse", next_node_id: d.id, set_flags: [] }]; created = [a, b, c, d];
     } else if (recipe === "Negotiation") {
       const a = make("Give me one reason to agree."); const b = make("That is convincing."); const c = make("That changes nothing."); const d = make("We are done.");
-      a.choices = [newChoice("Appeal", text(b.id)), newChoice("Offer proof", text(b.id)), newChoice("Threaten", text(c.id))]; c.choices = [newChoice("Leave", text(d.id))]; created = [a, b, c, d];
+      a.choices = [{ choice_text: "Appeal", next_node_id: b.id, set_flags: [] }, { choice_text: "Offer proof", next_node_id: b.id, set_flags: [] }, { choice_text: "Threaten", next_node_id: c.id, set_flags: [] }]; c.choices = [{ choice_text: "Leave", next_node_id: d.id, set_flags: [] }]; created = [a, b, c, d];
     } else {
       const a = make("It is over. Are you hurt?"); const b = make("Then let us decide what comes next."); const c = make("We should move.");
-      a.choices = [newChoice("Discuss what happened", text(b.id)), newChoice("Move on", text(c.id))]; b.choices = [newChoice("Continue", text(c.id))]; created = [a, b, c];
+      a.choices = [{ choice_text: "Discuss what happened", next_node_id: b.id, set_flags: [] }, { choice_text: "Move on", next_node_id: c.id, set_flags: [] }]; b.choices = [{ choice_text: "Continue", next_node_id: c.id, set_flags: [] }]; created = [a, b, c];
     }
-    created = created.map((node) => ({ ...node, is_terminal: rows(node.choices).length === 0 }));
+    created = created.map((node) => ({ ...node, choices: rows(node.choices).map((choice) => normalizeChoice(choice)), is_terminal: rows(node.choices).length === 0 }));
     mutatePacket((current) => ({ ...current, dialogue: { ...current.dialogue, starting_node_id: created[0]?.id || null }, nodes: created }), "recipe");
     setPositions(autoLayout(created)); setSelectedNodeId(text(created[0]?.id)); setNotice(`${recipe} starter staged.`);
   };
@@ -771,9 +778,10 @@ export default function DialogueFlowPage() {
           help="The dock changes with the selected tab. Edit works on the selected node or choice, Beat edits story milestones, Health explains blockers and warnings, and Context shows linked world records."
         >
           <div className="mb-3 flex flex-wrap gap-1">{(["edit", "beat", "health", "context"] as InspectorTab[]).map((item) => <button key={item} className={tab === item ? active : inactive} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}<button className={inactive} onClick={() => setInspectorOpen(false)} aria-label="Close context dock">Hide</button></div>
-          {tab === "edit" && selectedChoice && selectedChoiceRow ? <ChoiceEditor choice={selectedChoiceRow} nodes={packet.nodes} flags={packet.flags} deletions={deletions} onChange={(patch) => updateChoice(selectedChoice.nodeId, selectedChoice.index, patch)} onRemove={() => { const node = packet.nodes.find((entry) => text(entry.id) === selectedChoice.nodeId); updateNode(selectedChoice.nodeId, { choices: rows(node?.choices).filter((_, index) => index !== selectedChoice.index) }); setSelectedChoice(null); }} />
+          {tab === "edit" && selectedChoice && selectedChoiceRow ? <ChoiceEditor choice={selectedChoiceRow} nodes={packet.nodes} deletions={deletions} onChange={(patch) => updateChoice(selectedChoice.nodeId, selectedChoice.index, patch)} onRemove={() => { const node = packet.nodes.find((entry) => text(entry.id) === selectedChoice.nodeId); updateNode(selectedChoice.nodeId, { choices: rows(node?.choices).filter((_, index) => index !== selectedChoice.index) }); setSelectedChoice(null); }} />
             : tab === "edit" && selectedNode ? <NodeEditor node={selectedNode} packet={packet} groupedBeatId={groups[text(selectedNode.id)] || ""} selectedBeatId={selectedBeatId} onChange={(patch) => updateNode(text(selectedNode.id), patch)} onGroup={(beatId) => { const next = { ...groups, [text(selectedNode.id)]: beatId }; if (!beatId) delete next[text(selectedNode.id)]; setGroups(next); localStorage.setItem(groupKey(currentId), JSON.stringify(next)); }} onDelete={() => selectedNode.__new ? setPacket((current) => ({ ...current, nodes: current.nodes.filter((entry) => text(entry.id) !== text(selectedNode.id)) })) : setDeletions((current) => [...new Set([...current, text(selectedNode.id)])])} />
-              : tab === "edit" ? <DialogueEditor dialogue={packet.dialogue} onChange={updateDialogue} /> : null}
+               : tab === "edit" ? <DialogueEditor dialogue={packet.dialogue} onChange={updateDialogue} /> : null}
+          {tab === "edit" && Boolean((selectedChoice && selectedChoiceRow) || (selectedNode && rows(selectedNode.choices).length === 0 && selectedNode.is_terminal !== false)) && <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3 dark:border-violet-900 dark:bg-violet-950/30"><div className="text-sm font-semibold text-violet-950 dark:text-violet-100">What happens next?</div><p className="mt-1 text-xs text-violet-800 dark:text-violet-200">Capture a mixed-content continuation without leaving this dialogue or creating canonical machinery.</p><button type="button" className={`${BUTTON_CLASSES.violet} ${BUTTON_SIZES.sm} mt-2`} onClick={openThenComposer}>Then…</button></div>}
           {tab === "edit" && selectedConsequenceNode && !selectedConsequenceNode.__new && <div className="mt-3">
             <ConsequenceComposer
               sourceKind="dialogue_node"
@@ -803,26 +811,6 @@ export default function DialogueFlowPage() {
               }}
             />
           </div>}
-          {tab === "edit" && selectedChoice && selectedChoiceRow && <div className="mt-3">
-            <ThenComposer
-              title={`After '${text(selectedChoiceRow.choice_text, "Continue")}'`}
-              origin={{
-                ref: { kind: "dialogue", ...(isNew ? { draftId: currentId } : { canonicalId: currentId }), label: label(packet.dialogue) },
-                subRef: { kind: "dialogue_choice", canonicalId: text(selectedChoiceRow.choice_id), label: text(selectedChoiceRow.choice_text, "Continue") },
-              }}
-              returnFrame={{ workspace: `/author/dialogues/${encodeURIComponent(currentId)}`, context: { kind: "dialogue", ...(isNew ? { draftId: currentId } : { canonicalId: currentId }), label: label(packet.dialogue) }, selectedId: selectedChoice.nodeId, localViewState: { tab: "edit", choiceIndex: selectedChoice.index } }}
-            />
-          </div>}
-          {tab === "edit" && selectedNode && Boolean(selectedNode.is_terminal) && <div className="mt-3">
-            <ThenComposer
-              title={`After ${label(selectedNode, "dialogue ending")}`}
-              origin={{
-                ref: { kind: "dialogue", ...(isNew ? { draftId: currentId } : { canonicalId: currentId }), label: label(packet.dialogue) },
-                subRef: { kind: "dialogue_node", ...(selectedNode.__new ? { draftId: text(selectedNode.id) } : { canonicalId: text(selectedNode.id) }), label: text(selectedNode.text, label(selectedNode)) },
-              }}
-              returnFrame={{ workspace: `/author/dialogues/${encodeURIComponent(currentId)}`, context: { kind: "dialogue", ...(isNew ? { draftId: currentId } : { canonicalId: currentId }), label: label(packet.dialogue) }, selectedId: text(selectedNode.id), localViewState: { tab: "edit" } }}
-            />
-          </div>}
           {tab === "beat" && selectedBeat ? <BeatEditor beat={selectedBeat} packet={packet} coverage={packet.beat_coverage[text(selectedBeat.id)]} onChange={(patch) => updateBeat(text(selectedBeat.id), patch)} onUnlink={() => unlinkBeat(selectedBeat)} /> : tab === "beat" ? <Empty title="No story beat selected.">Select an existing beat or add one from the Story Beat Track to edit its milestone details.</Empty> : null}
           {tab === "health" && <HealthPanel health={health} onSelect={(nodeId) => { setSelectedNodeId(nodeId); setView("flow"); }} />}
           {tab === "context" && <ContextPanel packet={packet} />}
@@ -830,7 +818,8 @@ export default function DialogueFlowPage() {
        </div>
          </main>
      </div>
-    {commandOpen && <div role="dialog" aria-modal="true" aria-label="Dialogue commands" className="fixed inset-0 z-50 bg-slate-950/50 p-4" onMouseDown={() => setCommandOpen(false)}><div className="mx-auto mt-20 max-w-lg rounded-xl bg-white p-4 shadow-2xl dark:bg-slate-900" onMouseDown={(event) => event.stopPropagation()}><div className="mb-3 flex items-center justify-between"><b>Dialogue commands</b><button onClick={() => setCommandOpen(false)} aria-label="Close commands">✕</button></div><div className="grid gap-2">
+    {creationFlowOrigin && <ThenComposer open mode="then" origin={creationFlowOrigin} originLabel={creationFlowLabel} returnFrame={{ workspace: "dialogue-flow", context: creationFlowOrigin.ref, selectedId: selectedChoice ? `${selectedChoice.nodeId}:choice:${selectedChoice.index}` : selectedNodeId, localViewState: { view, tab } }} onClose={() => setCreationFlowOrigin(null)} />}
+     {commandOpen && <div role="dialog" aria-modal="true" aria-label="Dialogue commands" className="fixed inset-0 z-50 bg-slate-950/50 p-4" onMouseDown={() => setCommandOpen(false)}><div className="mx-auto mt-20 max-w-lg rounded-xl bg-white p-4 shadow-2xl dark:bg-slate-900" onMouseDown={(event) => event.stopPropagation()}><div className="mb-3 flex items-center justify-between"><b>Dialogue commands</b><button onClick={() => setCommandOpen(false)} aria-label="Close commands">✕</button></div><div className="grid gap-2">
       <button className={inactive} disabled={!selectedNodeId} onClick={() => { if (selectedNodeId) addLinkedNode(selectedNodeId, true); setCommandOpen(false); }}>Add continuation</button>
       <button className={inactive} disabled={!selectedNodeId} onClick={() => { const choice = window.prompt("Player choice label"); if (selectedNodeId && choice?.trim()) addChoiceNode(selectedNodeId, choice.trim()); setCommandOpen(false); }}>Add choice</button>
       <button className={inactive} onClick={() => { setFocusMode((value) => !value); setCommandOpen(false); }}>Toggle focus mode</button>
@@ -842,7 +831,7 @@ export default function DialogueFlowPage() {
     {importOpen && <DialogueImportDialog dialogueId={currentId} characters={packet.characters} onCancel={() => setImportOpen(false)} onStage={(candidate) => {
       const snapshot = { id: generateUlid(), name: "Before DLG/1 import", createdAt: Date.now(), value: packet };
       setSnapshots(saveSnapshot(currentId, snapshot));
-      mutatePacket((current) => ({ ...current, dialogue: { ...current.dialogue, ...candidate.dialogue }, nodes: candidate.nodes }), "dlg-import");
+      mutatePacket((current) => ({ ...current, dialogue: { ...current.dialogue, ...candidate.dialogue }, nodes: candidate.nodes.map((node) => ({ ...node, choices: rows(node.choices).map((choice) => normalizeChoice(choice)) })) }), "dlg-import");
       setPositions(autoLayout(candidate.nodes)); setSelectedNodeId(text(candidate.dialogue.starting_node_id)); setView("script"); setImportOpen(false); setNotice("DLG/1 candidate staged as a local draft. Review, rehearse, and preview before committing.");
     }} />}
     {review && <BundleReview result={review} title="Dialogue Scene Bundle Review" description="Dialogue, lines, and story beats will commit atomically." variant="modal" commitLabel="Commit Bundle" saving={saving} error={reviewError} warningAcknowledgement="required" onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={(acceptedWarningIds) => void commit(acceptedWarningIds)} />}
@@ -879,35 +868,33 @@ function NodeEditor({ node, packet, groupedBeatId, selectedBeatId, onChange, onG
   return <div className="space-y-3"><label className="block text-xs font-semibold uppercase text-slate-500">Linked Speaker<select className={`${inputClass} mt-1 normal-case`} value={text(node.speaker_character_id)} onChange={(event) => { const character = packet.characters.find((entry) => text(entry.id) === event.target.value); onChange({ speaker_character_id: event.target.value || null, speaker: character ? label(character) : node.speaker }); }}><option value="">Fallback speaker only</option>{packet.characters.map((character) => <option key={text(character.id)} value={text(character.id)}>{label(character)}</option>)}</select></label><Field label="Fallback Speaker" value={node.speaker} onChange={(speaker) => onChange({ speaker })} /><Field label="Slug" value={node.slug} onChange={(slug) => onChange({ slug })} /><Field label="Dialogue Text" value={node.text} textarea onChange={(value) => onChange({ text: value })} /><ReferenceChipPicker label="Requirement" value={node.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} /><FlagPicker label="Flags Produced By Line" value={node.set_flags} options={packet.flags} onChange={(set_flags) => onChange({ set_flags })} /><label className="block text-xs font-semibold uppercase text-slate-500">Local Story Beat Group<select aria-label="Local Story Beat Group" className={`${inputClass} mt-1 normal-case`} value={groupedBeatId} onChange={(event) => onGroup(event.target.value)}><option value="">No local grouping</option>{packet.story_beats.map((beat) => <option key={text(beat.id)} value={text(beat.id)}>{label(beat)}</option>)}</select></label>{selectedBeatId && groupedBeatId !== selectedBeatId && <button className={inactive} onClick={() => onGroup(selectedBeatId)}>Group With Selected Beat</button>}<button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={onDelete}>{node.__new ? "Discard Line" : "Delete Line On Save"}</button></div>;
 }
 
-function ChoiceEditor({ choice, nodes, flags, deletions, onChange, onRemove }: { choice: EntryRecord; nodes: EntryRecord[]; flags: EntryRecord[]; deletions: string[]; onChange: (patch: EntryRecord) => void; onRemove: () => void }) {
-  const [actionType, setActionType] = useState("open_shop");
-  const actions = rows(choice.actions);
-  const setActions = (next: EntryRecord[]) => onChange({ actions: next.map((action, index) => ({ ...action, sort_order: index })) });
-  const updateAction = (index: number, patch: EntryRecord) => setActions(actions.map((action, actionIndex) => actionIndex === index ? { ...action, ...patch } : action));
-  const referenceFor = (targetType: string) => ({ shop: "shops", encounter: "encounters", character: "characters", quest: "quests", location_poi: "location-pois" }[targetType] || "");
+function ChoiceEditor({ choice, nodes, deletions, onChange, onRemove }: { choice: EntryRecord; nodes: EntryRecord[]; deletions: string[]; onChange: (patch: EntryRecord) => void; onRemove: () => void }) {
+  const actions = rows(choice.actions).sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
+  const hasInteractionReplacement = actions.some((action) => ["open_shop", "start_encounter"].includes(text(action.action_type)));
+  const patchAction = (id: string, patch: EntryRecord) => onChange({ actions: actions.map((action) => text(action.id) === id ? { ...action, ...patch } : action) });
+  const moveAction = (id: string, offset: -1 | 1) => {
+    const next = [...actions]; const index = next.findIndex((action) => text(action.id) === id); const target = index + offset;
+    if (index < 0 || target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange({ actions: next.map((action, sort_order) => ({ ...action, sort_order })) });
+  };
+  const addAction = (action_type: "open_shop" | "start_encounter" | "join_companion") => {
+    const continuation_policy = action_type === "open_shop" ? "resume_source_dialogue" : action_type === "start_encounter" ? "end_source_dialogue" : "continue_dialogue";
+    const next = [...actions, { id: generateUlid(), action_type, continuation_policy, sort_order: actions.length, runtime_support: "runtime_unverified" }];
+    onChange({ actions: next, ...(action_type !== "join_companion" ? { next_node_id: "" } : {}) });
+  };
   return <div className="space-y-3">
-    <div className="rounded border border-slate-200 bg-slate-50 p-2 text-xs dark:border-slate-800 dark:bg-slate-950"><span className="font-semibold">Stable choice</span><code className="ml-2 break-all text-slate-500">{text(choice.choice_id)}</code></div>
+    <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950"><b>Choice identity</b><div className="mt-1 break-all font-mono text-[10px] text-slate-500">{text(choice.id)}</div></div>
     <Field label="Player Choice (blank = continue)" value={choice.choice_text} onChange={(choice_text) => onChange({ choice_text })} />
-    <label className="block text-xs font-semibold uppercase text-slate-500">Target<select className={`${inputClass} mt-1 normal-case`} value={text(choice.next_node_id)} onChange={(event) => onChange({ next_node_id: event.target.value })}>{nodes.map((node) => <option key={text(node.id)} value={text(node.id)} disabled={deletions.includes(text(node.id))}>{label(node, text(node.text, "Empty line"))}</option>)}</select></label>
+    <label className="block text-xs font-semibold uppercase text-slate-500">Next dialogue line (optional with an action)<select className={`${inputClass} mt-1 normal-case`} value={text(choice.next_node_id)} onChange={(event) => onChange({ next_node_id: event.target.value })}><option value="">No dialogue navigation</option>{nodes.map((node) => <option key={text(node.id)} value={text(node.id)} disabled={deletions.includes(text(node.id))}>{label(node, text(node.text, "Empty line"))}</option>)}</select></label>
     <ReferenceChipPicker label="Requirement" value={choice.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} />
-    <FlagPicker label="Flags Produced By Choice" value={choice.set_flags} options={flags} onChange={(set_flags) => onChange({ set_flags })} />
-    <div className="rounded-md border border-violet-200 p-3 dark:border-violet-800">
-      <div className="text-xs font-semibold uppercase text-violet-700 dark:text-violet-300">Immediate typed actions</div>
-      <p className="mt-1 text-xs text-slate-500">Actions are ordered and export as runtime unverified until the game consumer is verified.</p>
-      <div className="mt-2 flex gap-2"><select aria-label="New choice action" className={inputClass} value={actionType} onChange={(event) => setActionType(event.target.value)}>{CHOICE_ACTION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><button type="button" className={active} onClick={() => setActions([...actions, newChoiceAction(actionType, actions.length)])}>Add action</button></div>
-      <div className="mt-3 space-y-2">{actions.map((action, index) => {
-        const selected = CHOICE_ACTION_OPTIONS.find((option) => option.value === text(action.action_type)) || CHOICE_ACTION_OPTIONS[0];
-        return <div key={text(action.action_id, String(index))} className="rounded border border-slate-200 p-2 dark:border-slate-800">
-          <div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold">{index + 1}. {selected.label}</span><span className="text-[10px] uppercase text-amber-700">{text(action.runtime_support).replace(/_/g, " ")}</span></div>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <label className="text-xs font-semibold uppercase text-slate-500">Action type<select className={`${inputClass} mt-1 normal-case`} value={selected.value} onChange={(event) => { const option = CHOICE_ACTION_OPTIONS.find((entry) => entry.value === event.target.value) || CHOICE_ACTION_OPTIONS[0]; updateAction(index, { action_type: option.value, target_ref_type: option.targetType, target_ref_id: "", continuation_policy: option.continuation }); }}>{CHOICE_ACTION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-            <ReferenceChipPicker label="Canonical target" value={action.target_ref_id} reference={referenceFor(selected.targetType)} allowEmpty={false} onChange={(target_ref_id) => updateAction(index, { target_ref_id })} />
-            <label className="text-xs font-semibold uppercase text-slate-500">Timing<select className={`${inputClass} mt-1 normal-case`} value={text(action.timing)} onChange={(event) => updateAction(index, { timing: event.target.value })}><option value="immediate">Immediate</option><option value="after_completion">After completion</option><option value="on_turn_in">On turn-in</option></select></label>
-            <label className="text-xs font-semibold uppercase text-slate-500">Repeat policy<select className={`${inputClass} mt-1 normal-case`} value={text(action.repeat_policy)} onChange={(event) => updateAction(index, { repeat_policy: event.target.value })}><option value="inherit_owner">Inherit choice owner</option><option value="one_shot">One shot</option><option value="repeatable">Repeatable</option></select></label>
-          </div>
-          <div className="mt-2 flex gap-1"><button type="button" aria-label={`Move action ${index + 1} up`} disabled={index === 0} className={inactive} onClick={() => { const next = [...actions]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; setActions(next); }}>↑</button><button type="button" aria-label={`Move action ${index + 1} down`} disabled={index === actions.length - 1} className={inactive} onClick={() => { const next = [...actions]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; setActions(next); }}>↓</button><button type="button" className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={() => setActions(actions.filter((_, actionIndex) => actionIndex !== index))}>Remove action</button></div>
-        </div>;
-      })}{actions.length === 0 && <div className="text-xs text-slate-500">No typed action. This choice only navigates and applies its existing flags.</div>}</div>
+    <FlagPicker label="Flags Produced By Choice" value={choice.set_flags} options={[]} onChange={(set_flags) => onChange({ set_flags })} />
+    <div className="rounded-lg border border-violet-200 p-3 dark:border-violet-900"><div className="text-sm font-semibold">Typed choice actions</div><p className="mt-1 text-xs text-slate-500">Actions are ordered, carry replay-protection identity, and export as runtime-unverified until the game consumer confirms them.</p>
+      <div className="mt-2 space-y-2">{actions.map((action, actionIndex) => <div key={text(action.id)} className="rounded border border-slate-200 p-2 dark:border-slate-800"><div className="flex items-center justify-between gap-2"><b className="text-xs">{text(action.action_type).replace(/_/g, " ")}</b><div className="flex gap-1"><button aria-label="Move action up" disabled={hasInteractionReplacement || actionIndex === 0} className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => moveAction(text(action.id), -1)}>↑</button><button aria-label="Move action down" disabled={hasInteractionReplacement || actionIndex === actions.length - 1} className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => moveAction(text(action.id), 1)}>↓</button><button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`} onClick={() => onChange({ actions: actions.filter((row) => text(row.id) !== text(action.id)).map((row, index) => ({ ...row, sort_order: index })) })}>Remove</button></div></div>
+        <div className="mt-2">{text(action.action_type) === "open_shop" ? <ReferenceChipPicker label="Shop" value={action.target_shop_id} reference="shops" onChange={(target_shop_id) => patchAction(text(action.id), { target_shop_id })} /> : text(action.action_type) === "start_encounter" ? <ReferenceChipPicker label="Encounter" value={action.target_encounter_id} reference="encounters" onChange={(target_encounter_id) => patchAction(text(action.id), { target_encounter_id })} /> : <ReferenceChipPicker label="Companion" value={action.target_character_id} reference="characters" onChange={(target_character_id) => patchAction(text(action.id), { target_character_id })} />}</div>
+        {text(action.action_type) === "join_companion" && <label className="mt-2 block text-xs font-semibold uppercase text-slate-500">After joining<select className={`${inputClass} mt-1 normal-case`} value={text(action.continuation_policy, "continue_dialogue")} onChange={(event) => patchAction(text(action.id), { continuation_policy: event.target.value })}><option value="continue_dialogue">Continue dialogue</option><option value="end_source_dialogue">End dialogue</option></select></label>}
+        <div className="mt-2 break-all font-mono text-[10px] text-slate-500">{text(action.id)} · {text(action.runtime_support)}</div></div>)}{!actions.length && <div className="text-xs text-slate-500">No typed action. The choice must navigate to another line.</div>}</div>
+      <div className="mt-2 flex flex-wrap gap-1"><button disabled={hasInteractionReplacement} className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => addAction("open_shop")}>Open shop</button><button disabled={hasInteractionReplacement} className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => addAction("start_encounter")}>Start encounter</button><button disabled={hasInteractionReplacement} className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => addAction("join_companion")}>Companion joins</button></div>
     </div>
     <button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={onRemove}>Remove Choice</button>
   </div>;
@@ -938,8 +925,8 @@ function Rehearsal({ packet, health, groups, selectedBeatId, onBeat }: { packet:
   }, [current, dialogueGate.available, groups, nodeGate.available, onBeat, selectedBeatId]);
   if (!current) return <div className="p-6"><Empty title="No dialogue line to rehearse.">Create a line or apply a starter recipe before using rehearsal.</Empty></div>;
   return <div className="grid min-h-[760px] gap-4 bg-slate-50 p-4 dark:bg-slate-950 lg:grid-cols-[1fr_330px]">
-    <div className="flex flex-col justify-center"><div className="mx-auto w-full max-w-3xl rounded-xl border border-slate-300 bg-white p-6 shadow-lg dark:border-slate-700 dark:bg-slate-900"><div className="text-xs font-semibold uppercase text-violet-600">{speakerLabel(current, packet.characters)}</div>{!dialogueGate.available ? <Issue tone="amber">Dialogue locked: {dialogueGate.reason}</Issue> : !nodeGate.available ? <Issue tone="amber">Line locked: {nodeGate.reason}</Issue> : <><div className="mt-3 whitespace-pre-wrap text-lg">{text(current.text)}</div><div className="mt-6 grid gap-2">{rows(current.choices).map((choice, index) => { const state = requirementState(choice.requirements_id, packet.requirements, flags, reputation); return <button key={index} disabled={!state.available} className="rounded border border-blue-300 p-3 text-left text-sm hover:bg-blue-50 disabled:opacity-40 dark:hover:bg-blue-950" onClick={() => { setTranscript((value) => [...value, { speaker: speakerLabel(current, packet.characters), line: current.text, choice: text(choice.choice_text, "Continue") }]); setFlags((value) => new Set([...value, ...strings(choice.set_flags)])); setCurrentId(text(choice.next_node_id)); }}>{text(choice.choice_text, "Continue")}{!state.available && <span className="block text-xs text-amber-700">{state.reason}</span>}</button>; })}{rows(current.choices).length === 0 && <div className="rounded bg-slate-100 p-3 text-sm dark:bg-slate-800">End of conversation.</div>}</div></>}</div></div>
-    <aside className="space-y-3"><Panel title="Rehearsal Controls" help="Rehearsal uses temporary player state only. It does not save flags or reputation; it just shows which requirements would allow each line or choice."><div className="flex gap-2"><button className={inactive} onClick={restart}>Restart</button><button className={inactive} onClick={() => setSnapshots((value) => [...value, transcript])}>Snapshot Path</button></div><details className="mt-3"><summary className="cursor-pointer text-sm font-semibold">Temporary Player State</summary><div className="mt-2"><FlagPicker value={[...flags]} options={packet.flags} onChange={(next) => setFlags(new Set(next))} />{packet.factions.map((faction) => <label key={text(faction.id)} className="mt-2 block text-xs">{label(faction)}<input className={inputClass} type="number" value={reputation[text(faction.id)] || 0} onChange={(event) => setReputation((value) => ({ ...value, [text(faction.id)]: Number(event.target.value) }))} /></label>)}</div></details></Panel><Panel title="Transcript">{transcript.map((row, index) => <div key={index} className="mb-2 rounded border border-slate-200 p-2 text-xs dark:border-slate-800"><b>{text(row.speaker)}</b>: {text(row.line)}<div className="mt-1 text-blue-700">→ {text(row.choice)}</div></div>)}{!transcript.length && <Empty title="No rehearsal choices yet.">Choices appear here as you play through the scene.</Empty>}</Panel>{snapshots.length > 0 && <Panel title="Path Comparison">{snapshots.map((path, index) => <div key={index} className="mb-2 rounded border p-2 text-xs">Path {index + 1}: {path.map((row) => text(row.choice)).join(" → ") || "Start"}</div>)}</Panel>}</aside>
+    <div className="flex flex-col justify-center"><div className="mx-auto w-full max-w-3xl rounded-xl border border-slate-300 bg-white p-6 shadow-lg dark:border-slate-700 dark:bg-slate-900"><div className="text-xs font-semibold uppercase text-violet-600">{speakerLabel(current, packet.characters)}</div>{!dialogueGate.available ? <Issue tone="amber">Dialogue locked: {dialogueGate.reason}</Issue> : !nodeGate.available ? <Issue tone="amber">Line locked: {nodeGate.reason}</Issue> : <><div className="mt-3 whitespace-pre-wrap text-lg">{text(current.text)}</div><div className="mt-6 grid gap-2">{rows(current.choices).map((choice, index) => { const state = requirementState(choice.requirements_id, packet.requirements, flags, reputation); const actions = rows(choice.actions); const actionSummary = actions.map((action) => text(action.action_type).replace(/_/g, " ")).join(" then "); return <button key={text(choice.id, String(index))} disabled={!state.available} className="rounded border border-blue-300 p-3 text-left text-sm hover:bg-blue-50 disabled:opacity-40 dark:hover:bg-blue-950" onClick={() => { setTranscript((value) => [...value, { speaker: speakerLabel(current, packet.characters), line: current.text, choice: text(choice.choice_text, "Continue"), action_summary: actionSummary }]); setFlags((value) => new Set([...value, ...strings(choice.set_flags)])); const target = text(choice.next_node_id); if (target) setCurrentId(target); else if (!actions.some((action) => text(action.action_type) === "open_shop")) setCurrentId(""); }}>{text(choice.choice_text, "Continue")}{actionSummary && <span className="block text-xs text-violet-700">Contract trace: {actionSummary} ({actions.every((action) => text(action.runtime_support) === "runtime_verified") ? "runtime verified" : "runtime unverified"})</span>}{!state.available && <span className="block text-xs text-amber-700">{state.reason}</span>}</button>; })}{rows(current.choices).length === 0 && <div className="rounded bg-slate-100 p-3 text-sm dark:bg-slate-800">End of conversation.</div>}</div></>}</div></div>
+    <aside className="space-y-3"><Panel title="Rehearsal Controls" help="Rehearsal uses temporary player state only. It does not save flags or reputation; it just shows which requirements would allow each line or choice."><div className="flex gap-2"><button className={inactive} onClick={restart}>Restart</button><button className={inactive} onClick={() => setSnapshots((value) => [...value, transcript])}>Snapshot Path</button></div><details className="mt-3"><summary className="cursor-pointer text-sm font-semibold">Temporary Player State</summary><div className="mt-2"><FlagPicker value={[...flags]} options={packet.flags} onChange={(next) => setFlags(new Set(next))} />{packet.factions.map((faction) => <label key={text(faction.id)} className="mt-2 block text-xs">{label(faction)}<input className={inputClass} type="number" value={reputation[text(faction.id)] || 0} onChange={(event) => setReputation((value) => ({ ...value, [text(faction.id)]: Number(event.target.value) }))} /></label>)}</div></details></Panel><Panel title="Transcript">{transcript.map((row, index) => <div key={index} className="mb-2 rounded border border-slate-200 p-2 text-xs dark:border-slate-800"><b>{text(row.speaker)}</b>: {text(row.line)}<div className="mt-1 text-blue-700">→ {text(row.choice)}</div>{text(row.action_summary) && <div className="mt-1 text-violet-700">Contract only: {text(row.action_summary)}</div>}</div>)}{!transcript.length && <Empty title="No rehearsal choices yet.">Choices appear here as you play through the scene.</Empty>}</Panel>{snapshots.length > 0 && <Panel title="Path Comparison">{snapshots.map((path, index) => <div key={index} className="mb-2 rounded border p-2 text-xs">Path {index + 1}: {path.map((row) => text(row.choice)).join(" → ") || "Start"}</div>)}</Panel>}</aside>
   </div>;
 }
 

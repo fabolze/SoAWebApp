@@ -1,31 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
-  appendCreationFlowStep,
-  classifyCreationFlowStep,
-  createCreationFlowDraft,
-  createCreationFlowStep,
-  moveCreationFlowStep,
-  normalizeCreationFlowDraft,
-  removeCreationFlowStep,
-  updateCreationFlowStep,
-  validateCreationFlowDraft,
+  addCreationFlowStep, createCreationFlowDraft, createCreationFlowStep, creationFlowIssues,
+  deriveStepSupport, getStableArtifactId, moveCreationFlowStep, normalizeCreationFlowDraft,
+  patchCreationFlowStep, reconcileCreationFlowMentions, removeCreationFlowStep,
 } from "./creationFlow";
 import {
-  exportCreationFlowDraft,
-  findCreationFlowDrafts,
-  importCreationFlowDraft,
-  listCreationFlowDrafts,
-  readCreationFlowDraft,
-  readCreationFlowSnapshots,
-  saveCreationFlowDraft,
-  saveCreationFlowSnapshot,
-  type StorageLike,
+  draftsForOrigin, exportCreationFlowDraft, importCreationFlowDraft, listCreationFlowDrafts,
+  loadCreationFlowDraft, readCreationFlowSnapshots, saveCreationFlowDraft, saveCreationFlowSnapshot,
 } from "./creationFlowDraftStorage";
-import workflow1 from "./fixtures/creationFlow/workflow1-map-to-quest.json";
-import workflow2 from "./fixtures/creationFlow/workflow2-expand-place.json";
-import workflow3 from "./fixtures/creationFlow/workflow3-resume-faction.json";
 
-class MemoryStorage implements StorageLike {
+class MemoryStorage implements Storage {
   private values = new Map<string, string>();
   get length() { return this.values.size; }
   clear() { this.values.clear(); }
@@ -35,116 +19,82 @@ class MemoryStorage implements StorageLike {
   setItem(key: string, value: string) { this.values.set(key, value); }
 }
 
-const origin = {
-  ref: { kind: "dialogue" as const, canonicalId: "dialogue-1", label: "Mara" },
-  subRef: { kind: "dialogue_node" as const, canonicalId: "node-1", label: "Trade" },
-};
+const origin = { ref: { kind: "dialogue" as const, canonicalId: "dialogue-1", label: "Mara" }, subRef: { kind: "dialogue_choice" as const, draftId: "node-1:choice:0", label: "Trade" } };
 
-describe("Creation Flow draft contract", () => {
-  it("creates, appends, reorders, reclassifies, and removes a local sequence", () => {
-    let draft = createCreationFlowDraft({ title: "Mara aftermath", origin, now: 10 });
-    const trade = createCreationFlowStep("Open Mara's shop now", "open_shop");
-    const encounter = createCreationFlowStep("Start the raider encounter", "encounter");
-    draft = appendCreationFlowStep(draft, trade, 11);
-    draft = appendCreationFlowStep(draft, encounter, 12);
+describe("Creation Flow draft", () => {
+  it("creates, normalizes, and orders a versioned sequence", () => {
+    let draft = createCreationFlowDraft({ title: "Trade then fight", origin, now: 10 });
+    const shop = createCreationFlowStep("Open Mara's shop", "open_shop", { kind: "shop", canonicalId: "shop-1", label: "Mara's shop" });
+    const fight = createCreationFlowStep("Start Portal Raiders", "encounter", { kind: "encounter", draftId: "placeholder-1", label: "Portal Raiders" });
+    draft = addCreationFlowStep(draft, shop, 20);
+    draft = addCreationFlowStep(draft, fight, 30);
 
-    expect(draft.entryStepId).toBe(trade.id);
-    expect(draft.transitions).toEqual([expect.objectContaining({ fromStepId: trade.id, toStepId: encounter.id, trigger: "complete" })]);
+    expect(draft.format).toBe("SOA-CREATION-FLOW/1");
+    expect(draft.entryStepId).toBe(shop.id);
+    expect(draft.transitions).toMatchObject([{ fromStepId: shop.id, toStepId: fight.id, trigger: "complete" }]);
     expect(draft.steps[0].support).toBe("runtime_unverified");
-    expect(draft.steps[1].support).toBe("compilable");
+    expect(draft.steps[1].support).toBe("unresolved");
+    expect(normalizeCreationFlowDraft(JSON.parse(JSON.stringify(draft)))).toEqual(draft);
+  });
 
-    draft = moveCreationFlowStep(draft, encounter.id, -1, 13);
-    expect(draft.steps.map((step) => step.id)).toEqual([encounter.id, trade.id]);
-    expect(draft.transitions[0]).toEqual(expect.objectContaining({ fromStepId: encounter.id, toStepId: trade.id }));
+  it("re-derives support instead of trusting imported support", () => {
+    const step = createCreationFlowStep("Do something", "unshaped");
+    const draft = createCreationFlowDraft({ title: "Draft" });
+    const normalized = normalizeCreationFlowDraft({ ...draft, steps: [{ ...step, kind: "custom", support: "compilable" }] });
+    expect(normalized.steps[0].support).toBe("unsupported");
+    expect(deriveStepSupport(normalized.steps[0])).toBe("unsupported");
+  });
 
-    draft = updateCreationFlowStep(draft, trade.id, { targetResolution: "placeholder" }, 14);
-    expect(draft.steps.find((step) => step.id === trade.id)?.support).toBe("unresolved");
-    expect(validateCreationFlowDraft(draft)).toContainEqual(expect.objectContaining({ severity: "blocker", path: "steps[1].target" }));
-
-    draft = removeCreationFlowStep(draft, encounter.id, 15);
-    expect(draft.steps).toHaveLength(1);
+  it("patches targets, reorders linear transitions, and cleans removed links", () => {
+    let draft = createCreationFlowDraft({ title: "Sequence" });
+    const first = createCreationFlowStep("First", "dialogue");
+    const second = createCreationFlowStep("Second", "note");
+    draft = addCreationFlowStep(addCreationFlowStep(draft, first), second);
+    draft = patchCreationFlowStep(draft, first.id, { target: { kind: "dialogue", canonicalId: "dlg" } });
+    expect(draft.steps[0].support).toBe("compilable");
+    draft = moveCreationFlowStep(draft, second.id, -1);
+    expect(draft.steps.map((step) => step.id)).toEqual([second.id, first.id]);
+    expect(draft.transitions[0]).toMatchObject({ fromStepId: second.id, toStepId: first.id });
+    draft = removeCreationFlowStep(draft, second.id);
     expect(draft.transitions).toEqual([]);
+    expect(draft.entryStepId).toBe(first.id);
   });
 
-  it("migrates the legacy capture shape and rejects unknown formats", () => {
-    const migrated = normalizeCreationFlowDraft({
-      format: "SOA-CREATION-FLOW/0",
-      id: "flow-1",
-      title: "Legacy",
-      shape: "hybrid",
-      nodes: [{ id: "step-1", text: "A note", kind: "note", targetResolution: "none" }],
-    }, 50);
-    expect(migrated.format).toBe("SOA-CREATION-FLOW/1");
-    expect(migrated.revision).toBe(1);
-    expect(migrated.steps[0]).toEqual(expect.objectContaining({ id: "step-1", support: "story_only" }));
-    expect(() => normalizeCreationFlowDraft({ format: "SOA-CREATION-FLOW/99" })).toThrow(/Unsupported Creation Flow format/);
+  it("keeps artifact ids stable and localizes unresolved issues", () => {
+    const base = addCreationFlowStep(createCreationFlowDraft({ title: "Flow" }), createCreationFlowStep("Open it", "open_shop"));
+    const first = getStableArtifactId(base, "step:shop:event");
+    const second = getStableArtifactId(first.draft, "step:shop:event");
+    expect(second.id).toBe(first.id);
+    expect(creationFlowIssues(base).some((issue) => issue.stepId === base.steps[0].id && issue.severity === "warning")).toBe(true);
   });
 
-  it("keeps local ideas independent from prose mentions", () => {
-    const draft = normalizeCreationFlowDraft({
-      ...createCreationFlowDraft({ title: "Place seed", shape: "constellation", now: 1 }),
-      placeholders: [{ id: "idea-1", kind: "character", label: "Ash Regent" }],
-      localNotes: [{ id: "note-1", text: "The Ash Regent vanished." }],
-      mentions: [{ id: "mention-1", ideaId: "idea-1", noteId: "note-1", start: 4, end: 14, quotedText: "Ash Regent" }],
-    });
-    expect(validateCreationFlowDraft(draft)).toEqual([]);
-    const withoutMention = normalizeCreationFlowDraft({ ...draft, mentions: [] });
-    expect(withoutMention.placeholders).toEqual([expect.objectContaining({ id: "idea-1" })]);
-  });
-
-  it("reports current-record and new-contract support honestly", () => {
-    expect(classifyCreationFlowStep({ kind: "story_placement", targetResolution: "none" }).support).toBe("compilable");
-    expect(classifyCreationFlowStep({ kind: "gameplay_effect", targetResolution: "none" }).support).toBe("runtime_unverified");
-    expect(classifyCreationFlowStep({ kind: "custom", targetResolution: "none" }).support).toBe("unsupported");
+  it("keeps prose mentions linked when unambiguous edits move them", () => {
+    const mention = { id: "mention", placeholderId: "idea", start: 4, end: 14, text: "Ash Regent" };
+    expect(reconcileCreationFlowMentions("The Ash Regent rose", "Long ago, the Ash Regent rose", [mention]))
+      .toEqual([{ ...mention, start: 14, end: 24 }]);
+    expect(reconcileCreationFlowMentions("The Ash Regent rose", "Nothing remains", [mention])).toEqual([]);
+    expect(reconcileCreationFlowMentions("The Ash Regent rose", "Ash Regent met Ash Regent", [mention])).toEqual([]);
   });
 });
-
-describe("Creation Flow browser-local storage", () => {
-  it("round-trips, searches by origin, exports, imports, and snapshots drafts", () => {
+describe("Creation Flow local persistence", () => {
+  it("indexes drafts by origin and recovers snapshots", () => {
     const storage = new MemoryStorage();
-    const draft = createCreationFlowDraft({ title: "Trade flow", origin, now: 100 });
-    saveCreationFlowDraft(draft, storage);
+    const first = createCreationFlowDraft({ title: "Mara follow-up", origin, now: 100 });
+    const other = createCreationFlowDraft({ title: "Other", now: 200 });
+    saveCreationFlowDraft(first, storage);
+    saveCreationFlowDraft(other, storage);
+    expect(listCreationFlowDrafts(storage).map((row) => row.title)).toEqual(["Other", "Mara follow-up"]);
+    expect(draftsForOrigin(origin, storage).map((row) => row.id)).toEqual([first.id]);
+    expect(loadCreationFlowDraft(first.id, storage)?.title).toBe("Mara follow-up");
 
-    expect(readCreationFlowDraft(draft.id, storage)?.title).toBe("Trade flow");
-    expect(listCreationFlowDrafts(storage)).toHaveLength(1);
-    expect(findCreationFlowDrafts(origin, storage).map((entry) => entry.id)).toEqual([draft.id]);
-
-    const exported = exportCreationFlowDraft(draft);
-    const imported = importCreationFlowDraft(exported, storage);
-    expect(imported.format).toBe("SOA-CREATION-FLOW/1");
-
-    saveCreationFlowSnapshot(draft, "Before shaping", storage);
-    expect(readCreationFlowSnapshots(draft.id, storage)).toEqual([expect.objectContaining({ name: "Before shaping" })]);
+    saveCreationFlowSnapshot({ id: "snap-1", name: "Before shaping", createdAt: 300, draft: first }, storage);
+    expect(readCreationFlowSnapshots(first.id, storage)[0].name).toBe("Before shaping");
   });
 
-  it("ignores corrupt local entries without losing healthy drafts", () => {
-    const storage = new MemoryStorage();
-    const draft = createCreationFlowDraft({ title: "Healthy", now: 1 });
-    saveCreationFlowDraft(draft, storage);
-    storage.setItem("soa.creation-flow.draft.corrupt", "{not-json");
-    expect(listCreationFlowDrafts(storage).map((entry) => entry.title)).toEqual(["Healthy"]);
-  });
-});
-
-describe("Creation Flow golden workflow fixtures", () => {
-  it.each([
-    ["W1", workflow1, "hybrid"],
-    ["W2", workflow2, "constellation"],
-    ["W3", workflow3, "hybrid"],
-  ])("normalizes %s without losing its creative shape", (_name, fixture, shape) => {
-    const draft = normalizeCreationFlowDraft(fixture);
-    expect(draft.shape).toBe(shape);
-    expect(draft.steps.length).toBeGreaterThan(4);
-    expect(draft.origin?.ref.kind).toBe("location");
-  });
-
-  it("keeps W1 runtime order, W2 creative relations, and W3 placeholder blockers distinct", () => {
-    const w1 = normalizeCreationFlowDraft(workflow1);
-    const w2 = normalizeCreationFlowDraft(workflow2);
-    const w3 = normalizeCreationFlowDraft(workflow3);
-    expect(w1.transitions.length).toBeGreaterThan(4);
-    expect(w2.transitions).toEqual([]);
-    expect(w2.relations.length).toBeGreaterThan(2);
-    expect(validateCreationFlowDraft(w3).filter((issue) => issue.severity === "blocker").length).toBeGreaterThan(0);
+  it("round-trips recovery JSON and rejects malformed imports", () => {
+    const draft = createCreationFlowDraft({ title: "Recovery" });
+    expect(importCreationFlowDraft(exportCreationFlowDraft(draft))).toEqual(draft);
+    expect(() => importCreationFlowDraft("not json")).toThrow("not valid JSON");
+    expect(() => importCreationFlowDraft('{"format":"SOA-CREATION-FLOW/99"}')).toThrow("Unsupported");
   });
 });

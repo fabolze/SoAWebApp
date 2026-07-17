@@ -67,9 +67,16 @@
       "items": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "description": "Immutable choice identity used by typed actions, transitions, and replay protection",
+            "ui": {
+              "widget": "hidden"
+            }
+          },
           "choice_id": {
             "type": "string",
-            "description": "Immutable choice identity used by actions, transitions, and replay protection. Legacy choices receive a deterministic id when loaded or saved."
+            "description": "Backward-compatible alias for immutable choice identity."
           },
           "choice_text": {
             "type": "string",
@@ -77,7 +84,7 @@
           },
           "next_node_id": {
             "type": "string",
-            "description": "ID of the next dialogue node",
+            "description": "Optional next dialogue node. May be omitted when a typed action owns continuation or termination.",
             "ui": {
               "widget": "reference",
               "reference": "dialogue-nodes",
@@ -107,40 +114,61 @@
           },
           "actions": {
             "type": "array",
-            "description": "Ordered typed actions owned by this stable choice. Web export is runtime_unverified until an external consumer is verified.",
+            "description": "Typed ordered gameplay handoffs owned by this stable choice.",
             "items": {
               "type": "object",
-              "additionalProperties": false,
               "properties": {
-                "action_id": { "type": "string", "description": "Stable replay-protection identity." },
+                "id": {
+                  "type": "string",
+                  "description": "Immutable action and replay-protection identity"
+                },
+                "action_id": {
+                  "type": "string",
+                  "description": "Backward-compatible alias for action identity"
+                },
                 "action_type": {
                   "type": "string",
-                  "enum": ["open_shop", "start_encounter", "join_companion", "discover_quest", "assign_quest", "reveal_map_marker"]
+                  "enum": ["open_shop", "start_encounter", "join_companion"]
+                },
+                "target_shop_id": {
+                  "type": "string",
+                  "ui": {"widget": "reference", "reference": "shops", "label": "Shop"}
+                },
+                "target_encounter_id": {
+                  "type": "string",
+                  "ui": {"widget": "reference", "reference": "encounters", "label": "Encounter"}
+                },
+                "target_character_id": {
+                  "type": "string",
+                  "ui": {"widget": "reference", "reference": "characters", "label": "Companion"}
                 },
                 "target_ref_type": {
                   "type": "string",
                   "enum": ["shop", "encounter", "character", "quest", "location_poi"]
                 },
-                "target_ref_id": { "type": "string" },
-                "timing": { "type": "string", "enum": ["immediate", "after_completion", "on_turn_in"] },
-                "repeat_policy": { "type": "string", "enum": ["inherit_owner", "one_shot", "repeatable"] },
+                "target_ref_id": {"type": "string"},
+                "timing": {"type": "string", "enum": ["immediate", "after_completion", "on_turn_in"]},
+                "repeat_policy": {"type": "string", "enum": ["inherit_owner", "one_shot", "repeatable"]},
                 "continuation_policy": {
                   "type": "string",
-                  "enum": ["advance_to_next_node", "resume_source_dialogue", "end_source_dialogue", "return_to_origin"]
+                  "enum": ["resume_source_dialogue", "continue_dialogue", "end_source_dialogue"]
                 },
-                "sort_order": { "type": "integer", "minimum": 0 },
-                "runtime_support": { "type": "string", "enum": ["runtime_unverified", "runtime_verified"] }
+                "sort_order": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "runtime_support": {
+                  "type": "string",
+                  "enum": ["runtime_unverified", "runtime_verified"],
+                  "default": "runtime_unverified"
+                }
               },
-              "required": [
-                "action_id", "action_type", "target_ref_type", "target_ref_id", "timing",
-                "repeat_policy", "continuation_policy", "sort_order", "runtime_support"
-              ]
+              "required": ["id", "action_type", "continuation_policy", "sort_order", "runtime_support"]
             }
           }
         },
         "required": [
-          "choice_id",
-          "next_node_id"
+          "id"
         ]
       }
     },

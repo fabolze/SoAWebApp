@@ -12,9 +12,10 @@ from backend.app.models.m_events import Event, EventType
 from backend.app.models.m_flags import Flag, FlagType
 from backend.app.models.m_interaction_profiles import InteractionProfile
 from backend.app.models.m_locations import Location
+from backend.app.models.m_shops import Shop
+from backend.app.models.m_encounters import Encounter, EncounterType
 from backend.app.models.m_location_pois import LocationPoi, PoiType
 from backend.app.models.m_requirements import Requirement, RequirementRequiredFlag
-from backend.app.models.m_shops import Shop
 from backend.app.routes import base_route, r_dialogue_nodes, r_ui_dialogues
 
 
@@ -141,7 +142,39 @@ def test_bundle_creates_new_cross_linked_nodes_atomically(monkeypatch):
     session.close()
 
 
-def test_bundle_assigns_stable_choice_identity_to_legacy_payload(monkeypatch):
+def test_bundle_persists_stable_choice_identity_and_typed_actions(monkeypatch):
+    client, Session = _client(monkeypatch)
+    session = Session()
+    session.add_all([
+        Shop(id="shop-1", slug="shop-1", name="Mara's Forge", tags=[]),
+        Encounter(id="encounter-1", slug="encounter-1", name="Raiders", encounter_type=EncounterType.Combat, participants=[], rewards={}, tags=[]),
+        Character(id="companion-1", slug="companion-1", name="Mara", tags=[]),
+    ])
+    session.commit()
+    session.close()
+    response = client.post("/api/ui/dialogues/bundle", json={
+        "dialogue": _dialogue(),
+        "nodes": [{
+            **_node("node-1", choices=[{
+                "id": "choice-trade", "choice_text": "Trade", "set_flags": [],
+                "actions": [{
+                    "id": "action-shop", "action_type": "open_shop", "target_shop_id": "shop-1",
+                    "continuation_policy": "resume_source_dialogue", "sort_order": 0,
+                    "runtime_support": "runtime_unverified",
+                }],
+            }]),
+            "is_terminal": False,
+        }],
+    })
+    assert response.status_code == 200, response.get_json()
+    session = Session()
+    choice = session.get(DialogueNode, "node-1").choices[0]
+    assert choice["id"] == "choice-trade"
+    assert choice["actions"][0]["target_shop_id"] == "shop-1"
+    session.close()
+
+
+def test_bundle_keeps_capture_era_choice_identity_compatible(monkeypatch):
     client, Session = _client(monkeypatch)
     response = client.post("/api/ui/dialogues/bundle", json={
         "dialogue": _dialogue(),
@@ -151,18 +184,17 @@ def test_bundle_assigns_stable_choice_identity_to_legacy_payload(monkeypatch):
         ],
     })
     assert response.status_code == 200
-    first_id = response.get_json()["nodes"][0]["choices"][0]["choice_id"]
-    assert first_id.startswith("choice-")
-    assert response.get_json()["nodes"][0]["choices"][0]["actions"] == []
-
+    first_choice = response.get_json()["nodes"][0]["choices"][0]
+    assert first_choice["choice_id"].startswith("choice-")
+    assert first_choice["id"] == first_choice["choice_id"]
     packet = client.get("/api/ui/dialogues/dialogue-1").get_json()
-    assert packet["nodes"][0]["choices"][0]["choice_id"] == first_id
+    assert packet["nodes"][0]["choices"][0]["choice_id"] == first_choice["choice_id"]
     session = Session()
-    assert session.get(DialogueNode, "node-1").choices[0]["choice_id"] == first_id
+    assert session.get(DialogueNode, "node-1").choices[0]["choice_id"] == first_choice["choice_id"]
     session.close()
 
 
-def test_bundle_persists_valid_ordered_open_shop_action(monkeypatch):
+def test_bundle_keeps_capture_era_generic_action_envelope(monkeypatch):
     client, Session = _client(monkeypatch)
     session = Session()
     session.add(Shop(id="shop-1", slug="shop-1", name="Mara's Forge", tags=[]))
@@ -182,11 +214,14 @@ def test_bundle_persists_valid_ordered_open_shop_action(monkeypatch):
     response = client.post("/api/ui/dialogues/bundle", json={
         "dialogue": _dialogue(),
         "nodes": [
-            _node("node-1", choices=[{"choice_id": "choice-trade", "choice_text": "Trade", "next_node_id": "node-2", "actions": [action], "set_flags": []}]),
+            _node("node-1", choices=[{
+                "choice_id": "choice-trade", "choice_text": "Trade", "next_node_id": "node-2",
+                "actions": [action], "set_flags": [],
+            }]),
             _node("node-2"),
         ],
     })
-    assert response.status_code == 200
+    assert response.status_code == 200, response.get_json()
     persisted = response.get_json()["nodes"][0]["choices"][0]
     assert persisted["choice_id"] == "choice-trade"
     assert persisted["actions"] == [action]
@@ -198,45 +233,20 @@ def test_bundle_rejects_invalid_or_ambiguous_choice_actions(monkeypatch):
     session.add(Shop(id="shop-1", slug="shop-1", name="Mara's Forge", tags=[]))
     session.commit()
     session.close()
-    base_action = {
-        "action_id": "action-trade",
-        "action_type": "open_shop",
-        "target_ref_type": "shop",
-        "target_ref_id": "shop-1",
-        "timing": "immediate",
-        "repeat_policy": "inherit_owner",
-        "continuation_policy": "end_source_dialogue",
-        "sort_order": 0,
+    action = {
+        "id": "action-shop", "action_type": "open_shop", "target_shop_id": "shop-1",
+        "continuation_policy": "resume_source_dialogue", "sort_order": 0,
         "runtime_support": "runtime_unverified",
     }
-    invalid_continuation = client.post("/api/ui/dialogues/preview", json={
+    response = client.post("/api/ui/dialogues/bundle", json={
         "dialogue": _dialogue(),
-        "nodes": [
-            _node("node-1", choices=[{"choice_id": "choice-trade", "next_node_id": "node-2", "actions": [base_action]}]),
-            _node("node-2"),
-        ],
+        "nodes": [{**_node("node-1", choices=[{"id": "choice-trade", "next_node_id": "node-2", "actions": [action]}]), "is_terminal": False}, _node("node-2")],
     })
-    missing_target = client.post("/api/ui/dialogues/preview", json={
-        "dialogue": _dialogue(),
-        "nodes": [
-            _node("node-1", choices=[{"choice_id": "choice-trade", "next_node_id": "node-2", "actions": [{**base_action, "continuation_policy": "resume_source_dialogue", "target_ref_id": "missing"}]}]),
-            _node("node-2"),
-        ],
-    })
-    duplicate_choice = client.post("/api/ui/dialogues/preview", json={
-        "dialogue": _dialogue(),
-        "nodes": [
-            _node("node-1", choices=[{"choice_id": "duplicate", "next_node_id": "node-2"}]),
-            _node("node-2", choices=[{"choice_id": "duplicate", "next_node_id": "node-3"}]),
-            _node("node-3"),
-        ],
-    })
-    assert invalid_continuation.status_code == 400
-    assert "resume_source_dialogue" in invalid_continuation.get_json()["message"]
-    assert missing_target.status_code == 400
-    assert "existing shop" in missing_target.get_json()["message"]
-    assert duplicate_choice.status_code == 400
-    assert "choice_id" in duplicate_choice.get_json()["message"]
+    assert response.status_code == 400
+    assert "cannot combine next_node_id" in response.get_json()["message"]
+    session = Session()
+    assert session.get(Dialogue, "dialogue-1") is None
+    session.close()
 
 
 def test_bundle_rolls_back_for_invalid_choice_requirement(monkeypatch):

@@ -91,7 +91,6 @@ test("character starter applies once and reset restores the unsaved bundle", asy
   await page.getByRole("button", { name: "Reset" }).first().click();
   await expect(page.getByRole("button", { name: "Add Combat Profile" })).toBeVisible();
 });
-
 test("character studio exposes an understandable creation path and editable story beats", async ({ page }) => {
   await mockApi(page);
   await page.goto("/author/characters/new");
@@ -793,6 +792,37 @@ test("world builder restores a sketch draft into quick edit on page load", async
   expect(savedLocation.region).toBe("Recovered Coast");
 });
 
+test("world builder expands a place into prose-linked local idea cards and restores it", async ({ page }) => {
+  const world = {
+    ...emptyWorld,
+    locations: [{
+      id: "location-seed", slug: "hollow-basilica", name: "Hollow Basilica", location_type: "Zone", place_kind: "Settlement",
+      coordinates: { x: 50, y: 50 }, level_range: { min: 1, max: 3 }, tags: [], environment_tags: [],
+    }],
+  };
+  await mockApi(page, world);
+  await page.goto("/author/world?selected=location-seed");
+
+  await page.getByRole("button", { name: "Expand this place" }).click();
+  const composer = page.getByRole("dialog", { name: "Expand this place" });
+  await expect(composer.getByText("Browser-local work in progress.")).toBeVisible();
+  const prose = composer.getByLabel("Lore prose");
+  await prose.fill("The Ash Regent once guarded the basilica.");
+  await prose.evaluate((element) => {
+    const field = element as HTMLTextAreaElement;
+    field.setSelectionRange(4, 14);
+  });
+  await composer.getByRole("button", { name: "Create/link card from selection" }).click();
+  await expect(composer.getByText("Ash Regent", { exact: true }).first()).toBeVisible();
+  await expect(composer.getByText("Local placeholder", { exact: true })).toBeVisible();
+  await composer.getByRole("button", { name: "Close" }).click();
+
+  await page.reload();
+  await page.getByRole("button", { name: "Expand this place" }).click();
+  await expect(page.getByRole("dialog", { name: "Expand this place" }).getByLabel("Lore prose")).toHaveValue("The Ash Regent once guarded the basilica.");
+  await expect(page.getByText("Continued the most recent browser-local draft for this context.")).toBeVisible();
+});
+
 test("world builder places a selected location state through a semantic preset", async ({ page }) => {
   const world = {
     ...emptyWorld,
@@ -1076,10 +1106,10 @@ test("world builder state layer filters canonical location lifecycle", async ({ 
 });
 
 const dialoguePacket = {
-  dialogue: { id: "dialogue-1", slug: "dialogue-1", title: "Gate Talk", description: "", tags: [], starting_node_id: "node-1" },
+  dialogue: { id: "dialogue-1", slug: "dialogue-1", title: "Gate Talk", description: "", tags: [] },
   nodes: [
-    { id: "node-1", slug: "node-1", dialogue_id: "dialogue-1", speaker: "Guide", text: "Choose.", choices: [{ choice_text: "Enter", next_node_id: "node-2", requirements_id: "req-1", set_flags: [] }], set_flags: [], tags: [], is_terminal: false },
-    { id: "node-2", slug: "node-2", dialogue_id: "dialogue-1", speaker: "Guide", text: "Welcome.", choices: [], set_flags: [], tags: [], is_terminal: true },
+    { id: "node-1", slug: "node-1", dialogue_id: "dialogue-1", speaker: "Guide", text: "Choose.", choices: [{ id: "choice-enter", choice_text: "Enter", next_node_id: "node-2", requirements_id: "req-1", set_flags: [], actions: [] }], set_flags: [], tags: [] },
+    { id: "node-2", slug: "node-2", dialogue_id: "dialogue-1", speaker: "Guide", text: "Welcome.", choices: [], set_flags: [], tags: [] },
   ],
   requirements: [{ id: "req-1", slug: "req-1", required_flags: ["flag-1"], forbidden_flags: [], min_faction_reputation: [] }],
   flags: [{ id: "flag-1", slug: "flag-1", name: "Allowed", description: "", default_value: false, tags: [] }],
@@ -1102,6 +1132,8 @@ async function mockDialogueApi(
   onBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
   onStoryPlacementBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
   onPreview?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
+  onCreationFlowPreview?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
+  onCreationFlowBundle?: (payload: Record<string, unknown>, route: Route) => Promise<void>,
 ) {
   await page.route("http://localhost:5000/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -1121,14 +1153,7 @@ async function mockDialogueApi(
     if (url.pathname === "/api/flags") return fulfillJson(route, dialoguePacket.flags);
     if (url.pathname === "/api/factions") return fulfillJson(route, []);
     if (url.pathname === "/api/characters") return fulfillJson(route, dialoguePacket.characters);
-    if (url.pathname === "/api/ui/scoped-gates") return fulfillJson(route, {
-      requirements: dialoguePacket.requirements,
-      requirement_usages_by_id: {},
-      flags: dialoguePacket.flags,
-      flag_usage_by_id: {},
-      requirement_targets: [],
-      dependency_index: { nodes: [], edges: [] },
-    });
+    if (url.pathname === "/api/ui/scoped-gates") return fulfillJson(route, { requirements: dialoguePacket.requirements, requirement_usages_by_id: {}, flags: dialoguePacket.flags, flag_usage_by_id: {}, requirement_targets: [], dependency_index: { nodes: [], edges: [] } });
     if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimelinePacket);
     if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as Record<string, unknown>;
@@ -1139,6 +1164,27 @@ async function mockDialogueApi(
       const payload = route.request().postDataJSON() as Record<string, unknown>;
       if (onStoryPlacementBundle) return onStoryPlacementBundle(payload, route);
       return fulfillJson(route, { result: { review: { created: [], changed: [], deleted: [] }, warnings: [], blockers: [] }, packet: storyTimelinePacket });
+    }
+    if (url.pathname === "/api/ui/creation-flow/catalog") return fulfillJson(route, {
+      format: "SOA-CREATION-FLOW/1",
+      compiler_version: "creation-flow/3.0",
+      references: {
+        dialogue: { schema_name: "dialogues", entries: [{ id: "dialogue-1", label: "Gate Talk" }] },
+        dialogue_choice: { schema_name: "dialogue_nodes.choices", entries: [{ id: "choice-enter", node_id: "node-1", dialogue_id: "dialogue-1", label: "Enter" }] },
+        shop: { schema_name: "shops", entries: [{ id: "shop-1", label: "Mara's Shop" }] },
+      },
+      capabilities: {
+        compilable_step_kinds: ["dialogue", "scripted_moment", "open_shop"], story_only_step_kinds: ["note"],
+        blocked_step_kinds: [], runtime_unverified_step_kinds: ["open_shop"], guarantees: ["transactional_preview_rollback"],
+      },
+    });
+    if (url.pathname === "/api/ui/creation-flow/preview" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      if (onCreationFlowPreview) return onCreationFlowPreview(payload, route);
+    }
+    if (url.pathname === "/api/ui/creation-flow/bundle" && route.request().method() === "POST") {
+      const payload = route.request().postDataJSON() as Record<string, unknown>;
+      if (onCreationFlowBundle) return onCreationFlowBundle(payload, route);
     }
     return fulfillJson(route, []);
   });
@@ -1550,11 +1596,11 @@ test("dialogue flow sketches, connects, and saves a complete bundle", async ({ p
   });
   await page.goto("/author/dialogues/dialogue-1");
 
-  await page.getByTestId("dialogue-node-node-2").getByRole("button", { name: "Add choice after Guide" }).click();
-  await expect(page.locator('[data-testid^="dialogue-node-"]')).toHaveCount(3);
-  await expect(page.getByRole("button", { name: "Review Dialogue Bundle" })).toBeDisabled();
+  await page.getByTestId("dialogue-node-node-2").getByRole("button", { name: "+ Choice" }).click();
+  await expect(page.getByText("3 lines /")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save Flow" })).toBeDisabled();
   await page.locator('[data-testid^="dialogue-node-"]').last().getByRole("textbox").fill("A newly drafted line.");
-  await page.getByRole("button", { name: "Review Dialogue Bundle" }).click();
+  await page.getByRole("button", { name: "Save Flow" }).click();
   await expect(page.getByRole("button", { name: "Commit Bundle" })).toBeDisabled();
   await page.getByText("Acknowledge this reassignment.").click();
   await expect(page.getByRole("button", { name: "Commit Bundle" })).toBeEnabled();
@@ -1562,6 +1608,70 @@ test("dialogue flow sketches, connects, and saves a complete bundle", async ({ p
 
   await expect.poll(() => saved).not.toBeNull();
   expect((saved?.nodes as unknown[]).length).toBe(3);
+});
+
+test("dialogue ending captures and restores a browser-local Then flow", async ({ page }) => {
+  await mockDialogueApi(page);
+  await page.goto("/author/dialogues/dialogue-1");
+  await page.getByRole("button", { name: "Script" }).click();
+  await page.locator("#script-line-node-2 textarea").focus();
+  await page.getByRole("button", { name: "Then…" }).click();
+
+  const composer = page.getByRole("dialog", { name: "Then composer" });
+  await expect(composer.getByText(/Capture locally, resolve existing targets/)).toBeVisible();
+  await composer.getByLabel("Capture next idea").fill("Open Mara's shop now");
+  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByLabel("Meaning").selectOption("open_shop");
+  await expect(composer.getByText("unresolved", { exact: true })).toBeVisible();
+  await composer.getByRole("button", { name: "Close" }).click();
+
+  await page.reload();
+  await page.getByRole("button", { name: "Script" }).click();
+  await page.locator("#script-line-node-2 textarea").focus();
+  await page.getByRole("button", { name: "Then…" }).click();
+  await expect(page.getByRole("dialog", { name: "Then composer" }).getByLabel("Step 1 text")).toHaveValue("Open Mara's shop now");
+  await expect(page.getByText("Continued the most recent browser-local draft for this context.")).toBeVisible();
+});
+
+test("dialogue Then flow resolves a canonical target, previews, and commits with provenance", async ({ page }) => {
+  let previewed: Record<string, unknown> | null = null;
+  let committed: Record<string, unknown> | null = null;
+  const compilerResult = (draft: Record<string, unknown>, isCommitted = false) => ({
+    format: "SOA-CREATION-FLOW/1", compiler_version: "creation-flow/2.0",
+    normalized_draft: { ...draft, artifactIds: { "step:generated:event": "event-generated" } },
+    story_summary: { title: draft.title }, implementation_summary: "1 event, 0 flags, 0 requirements.",
+    implementation: { events: [{ id: "event-generated" }], flags: [], requirements: [], requirement_attachments: [] },
+    step_review: [], information: [], warnings: [], blockers: [], preview_hash: "preview-hash-1", can_commit: true,
+    rehearsal: { runtime_claim: "web_contract_only", paths: [{ entry_event_id: "event-generated", terminal_event_id: "event-generated", trace: [{ event_id: "event-generated", title: "Continue the gate conversation", event_type: "Dialogue", flags_added: [], state_after: { flags: [] } }] }], disconnected_event_count: 1, note: "This is a temporary canonical sequence/state trace, not runtime execution verification." },
+    review: { created: [{ table: "events", id: "event-generated" }], changed: [], deleted: [], unlinked: [] },
+    ...(isCommitted ? { committed: true, manifest: { id: draft.id, compiler_version: "creation-flow/2.0" } } : {}),
+  });
+  await mockDialogueApi(page, undefined, undefined, undefined, async (payload, route) => {
+    previewed = payload;
+    await fulfillJson(route, compilerResult(payload.draft as Record<string, unknown>));
+  }, async (payload, route) => {
+    committed = payload;
+    await fulfillJson(route, compilerResult(payload.draft as Record<string, unknown>, true));
+  });
+  await page.goto("/author/dialogues/dialogue-1");
+  await page.getByRole("button", { name: "Script" }).click();
+  await page.locator("#script-line-node-2 textarea").focus();
+  await page.getByRole("button", { name: "Then…" }).click();
+
+  const composer = page.getByRole("dialog", { name: "Then composer" });
+  await composer.getByLabel("Capture next idea").fill("Continue the gate conversation");
+  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByLabel("Meaning").selectOption("dialogue");
+  await composer.getByLabel("Step 1 canonical target").selectOption("dialogue:dialogue-1");
+  await composer.getByRole("button", { name: "Preview canonical bundle" }).click();
+
+  const review = page.getByRole("dialog", { name: "Creation Flow Bundle Review" });
+  await expect(review.getByText("1 created")).toBeVisible();
+  await review.getByRole("button", { name: "Commit Creation Flow" }).click();
+  await expect.poll(() => previewed).not.toBeNull();
+  await expect.poll(() => committed).not.toBeNull();
+  expect(committed?.preview_hash).toBe("preview-hash-1");
+  await expect(composer.getByText("Committed with provenance.")).toBeVisible();
 });
 
 test("dialogue flow places a dialogue state consequence through a semantic preset", async ({ page }) => {
@@ -1698,50 +1808,6 @@ test("new dialogue draft survives a full reload", async ({ page }) => {
   await page.reload();
   await expect(page.getByText("Restored unsaved dialogue flow draft.")).toBeVisible();
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue("Reloadable New Dialogue");
-});
-
-test("creation flow captures and restores a continuation from a terminal dialogue node", async ({ page }) => {
-  await mockDialogueApi(page);
-  await page.goto("/author/dialogues/dialogue-1");
-  await page.getByTestId("dialogue-node-node-2").click();
-  await page.getByRole("button", { name: "Then…", exact: true }).click();
-
-  await expect(page.getByText("Local only", { exact: true })).toBeVisible();
-  await page.getByLabel("What happens next?").fill("The guide opens the city archive.");
-  await page.getByRole("combobox", { name: "Behavior", exact: true }).selectOption({ label: "Open shop now" });
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  await expect(page.locator('input[value="The guide opens the city archive."]')).toBeVisible();
-  await expect(page.getByText("runtime unverified", { exact: true })).toBeVisible();
-  await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("soa.creation-flow.draft.")))).toBe(true);
-
-  await page.reload();
-  await page.getByTestId("dialogue-node-node-2").click();
-  await page.getByRole("button", { name: "Then…", exact: true }).click();
-  await expect(page.locator('input[value="The guide opens the city archive."]')).toBeVisible();
-});
-
-test("creation flow expands a place with independent lore cards and steps", async ({ page }) => {
-  const world = {
-    ...emptyWorld,
-    locations: [{
-      id: "zone-1", slug: "zone-1", name: "Test Zone", location_type: "Zone", place_kind: "Wilderness",
-      coordinates: { x: 50, y: 50 }, level_range: { min: 1, max: 3 }, tags: [], environment_tags: [],
-    }],
-  };
-  await mockApi(page, world);
-  await page.goto("/author/world?selected=zone-1");
-  await page.getByRole("button", { name: "Expand this place", exact: true }).click();
-
-  await page.getByLabel("Lore / brainstorming prose").fill("The Ash Regent vanished beneath the old road.");
-  await page.getByPlaceholder("Ash Regent").fill("Ash Regent");
-  await page.getByRole("button", { name: "Add idea", exact: true }).click();
-  await expect(page.getByText("Ash Regent", { exact: true })).toBeVisible();
-  await expect(page.getByText(/unresolved/).first()).toBeVisible();
-
-  await page.getByLabel("What happens next?").fill("Displaced bandits establish a hidden camp.");
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  await expect(page.locator('input[value="Displaced bandits establish a hidden camp."]')).toBeVisible();
-  await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("soa.creation-flow.draft.")))).toBe(true);
 });
 
 test("dialogue scene starter recipes are interactive", async ({ page }) => {

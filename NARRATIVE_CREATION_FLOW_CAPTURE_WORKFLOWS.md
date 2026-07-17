@@ -1,8 +1,45 @@
+> Preserved from local commit 3b5e728 during the Creation Flow merge. The canonical compiler workflows remain in NARRATIVE_CREATION_FLOW_WORKFLOWS.md.
+
 # Narrative Creation Flow Workflow Corpus
 
-Status: V1 corpus gate satisfied; Phase 1 browser-local capture is implemented for Dialogue Flow and World Builder with focused browser coverage passing; representative-writer evaluation, compiler work, technical web-schema/DataTable transcription, and deferred runtime verification remain
+Status: V1 corpus and author decisions are approved. Golden intent fixtures and the first local-capture interactions are automated; canonical compilation and runtime execution are not yet automated or verified.
+
+Last implementation audit: 2026-07-17
 
 This document preserves exemplary workflows in the author's own language and derives product, compiler, schema, and acceptance-test implications from them. The original narrative is the source of truth. The structured interpretation exists to make the workflow testable; it must not overwrite the creative intent.
+
+## Implementation Traceability
+
+The implementation source of truth is the audited delivery plan and open-point register in `NARRATIVE_CREATION_FLOW_PLAN.md`. Acceptance scenarios in this corpus use three statuses:
+
+- **Specified:** author intent and expected behavior are approved here.
+- **Automated:** a golden, contract, or interaction test proves the behavior in the web app.
+- **Runtime verified:** an external consumer proves exported execution semantics. This status is required only for behavior the web app does not execute.
+
+As of 2026-07-17, all W1–W3 scenarios are **Specified**. Their draft normalization/restore corpus is automated through golden intent fixtures. W2 has an **Expand this place** interaction test and the dialogue continuation/reload behavior used by W1/W3 has interaction coverage. No workflow is yet automated through canonical compile/commit, and no external runtime behavior is verified.
+
+| Workflow | Approved design outcome | Reusable implementation foundation | Main remaining evidence |
+|---|---|---|---|
+| W1: map to quest | Preserve a spontaneous, mostly linear map/quest/encounter/item flow with placeholders and honest inventory semantics | Golden draft fixture, local sequence capture, dialogue continuation/reload, World Builder, return links, Quest Journey, Encounter Stage, rewards, gates, consequences, and story placement | Canonical compile/export fixture plus complete map-to-quest Playwright flow; plan IDs CF-03, CF-10–11, CF-15–19 |
+| W2: expand a place | Grow prose and idea cards into one scoped reference graph while separating history, discovery, runtime recruitment, farming, and artifact evolution | Golden draft fixture, selected-place expansion Playwright, shared mention/card lifecycle test, World Builder, Timeline, Character Studio, and item/encounter workspaces | Chronology/variant contracts, constellation compiler, and complete W2 interaction suite; plan IDs CF-13–15, CF-19 |
+| W3: resume a city plot | Resume local/project context and promote a bounded causal faction plot with ordered reputation consequences and gated equipment | Golden draft fixture, local draft/manifest resume foundation, World Builder context, faction thresholds, shop gates, and dependency analysis | Related-edit/next-question resume, ordered rank model/trace, placeholder blocker, and canonical W3 suite; plan IDs CF-05, CF-12, CF-15–19 |
+
+### Automated evidence — 2026-07-17
+
+- `soa-editor/src/authoring/fixtures/workflow1-map-to-quest.json`, `workflow2-expand-place.json`, and `workflow3-resume-faction.json` are loaded by `creationFlow.test.ts` and prove versioned normalization plus honest support classification.
+- `creationFlow.test.ts` proves migration, stable draft lifecycle, local storage/recovery, malformed-entry rejection, and mention/card independence.
+- `soa-editor/tests/authoring-workflows.spec.ts` proves terminal-dialogue **Then…** capture/restoration and selected-location **Expand this place** prose/card/step capture in Chromium.
+- `backend/tests/test_creation_flow_manifest_contracts.py` proves project-local manifest/provenance CRUD, recovery ordering, cascade behavior, and UE-export exclusion.
+- `backend/tests/test_dialogue_flow_contracts.py` proves deterministic legacy `choice_id` migration and typed ordered `open_shop` action validation, including canonical target and `resume_source_dialogue` policy.
+
+These tests automate capture and contract slices only. They do not count as W1–W3 canonical compile, Unreal execution, or writer-evaluation evidence.
+
+### Corpus change-control rule
+
+- Do not rewrite the original author narratives to match implementation shortcuts.
+- When a scenario becomes automated, append the test/fixture path and date to that scenario; do not replace its creative-language acceptance statement.
+- When external runtime behavior is verified, record the consumer/fixture and status separately from web implementation.
+- Any changed author decision must be reflected both in the relevant workflow/review section and in the plan's confirmed decisions, open-point register, schemas, and golden fixtures.
 
 ## Workflow 1: An Evening Map-To-Quest Creation Session
 
@@ -1136,73 +1173,19 @@ Source: author feedback supplied on 2026-07-15.
 
 The **Expand this place** surface is not merely a text editor beside a card board. Text spans and cards are two views and creation gestures over the same local idea/reference graph. Editing prose must not destroy cards; moving or editing a card must not corrupt prose; deleting a mention must not silently delete the underlying idea when another relation or card still uses it. Canonical commit remains blocked until every required placeholder is resolved or promoted.
 
-## Implementation Coverage — 2026-07-16
+## Documentation Change Log
 
-The first Phase 1 implementation step now turns the shared workflow findings into an executable frontend contract:
+### 2026-07-17 — capture, provenance, and choice-action implementation evidence
 
-- All three workflow shapes can be represented by the versioned `SOA-CREATION-FLOW/1` draft as sequences, constellations, or hybrids.
-- Temporal transitions and non-temporal relations are stored separately and normalized independently, preserving the W2 and W3 rule that creative association is not runtime order.
-- Drafts are indexed by their originating dialogue choice, ending, location, or other local reference so “continue where I stopped” can recover the relevant work without label matching.
-- Placeholder targets remain explicit and produce localized unresolved issues; they are never discarded during normalization or JSON recovery.
-- Idea-card placeholders and selected prose mentions share one placeholder id in the implemented local-note shape, satisfying the identity portion of W2-B and Author Review 6 without creating empty canonical records.
-- Step support is recalculated when a draft is loaded. Serialized claims that a custom or unresolved step is compilable are not trusted.
+- Marked W1–W3 golden draft normalization as automated without claiming canonical compilation.
+- Linked the dialogue continuation/reload and selected-location expansion interaction tests.
+- Recorded local mention/card identity, manifest recovery/UE exclusion, and stable choice/typed action contract evidence.
+- Kept compiler, runtime verification, full workflow interactions, and writer evaluation explicitly open.
 
-UI interaction coverage and the actual Dialogue Flow / World Builder embeds remain the next Phase 1 step. Canonical compilation and runtime/DataTable behavior remain intentionally outside this completed capture-foundation milestone.
+### 2026-07-17 — implementation traceability audit
 
-### Capture UI and host coverage
-
-The second Phase 1 step is implemented:
-
-- Workflow 1 can start a scoped **Then…** draft from a Dialogue Flow choice or ending, keep the unsaved dialogue page intact, capture/reorder mixed-content steps, label a local alternative, and resume the origin-scoped draft after closing or reloading.
-- Workflow 2 can start **Expand this place** from the selected World Builder location, write lore prose, create idea cards directly, promote selected prose into the same card identity, and connect cards through explicitly non-temporal relationships.
-- Workflow 3 can use a hybrid shape, mix existing context labels with new placeholders, preserve per-step timing/repeat intent, and recover named snapshots or exported JSON without creating empty canonical shells.
-- Every capture surface labels work as browser-local and exposes no canonical commit action. “Compilable” is a capability classification only; it is not presented as successful backend preview or runtime verification.
-
-Automated verification now covers 91 frontend unit tests, ESLint, a production TypeScript/Vite build, and two passing Chromium interactions: Dialogue ending capture/reload and World Builder selected-prose/card capture/reload. Fast close is explicitly covered and flushes the pending local save. Representative-author evaluation remains open before Phase 1 is treated as evaluated rather than implemented.
-
-The full existing Playwright suite was run separately and currently reports 20 passing and 29 failing tests across multiple authoring workspaces, with widespread mock-contract gaps and timeouts. This does not invalidate the two focused Creation Flow checks, but it prevents claiming repository-wide browser regression success.
-
-### Authoritative compiler and commit coverage
-
-The first Phase 2 backend milestone is implemented across the workflow corpus:
-
-- Workflow 1 now has a golden sequence fixture that deterministically compiles an existing dialogue, encounter, item reward, and XP/currency/reputation reward into a validated linear Event chain. The larger quest assignment/turn-in, choice-action, victory, and shop-now portions remain localized blockers until their Phase 3A contracts exist.
-- Workflow 2 now has a golden constellation fixture that compiles its bounded lore reveal and persistent fact. Its existing story beat plus canonical location origin compile to a typed Adventure Beat link; creative relations remain only in the authoring manifest and are never converted into `next_event_id` or implicit story links.
-- Workflow 3 now has a golden hybrid fixture that compiles a scripted moment, persistent world-state flag, and a safe availability gate over an existing shop. It creates a generated producer flag and scoped requirement atomically, while refusing to overwrite a pre-existing unrelated gate.
-- Backend preview uses normal route/schema validation and rolls back all proposed records. Commit recompiles, checks a content-sensitive preview hash, requires current warning acceptance, and writes all canonical artifacts plus one project-local provenance manifest in a single transaction.
-- Generated artifact identity is deterministic for the flow/step/compiler version and is returned in the normalized draft. Existing-id collisions are accepted only when ownership tags show that the artifact belongs to the same creation flow.
-- `creation_flow_manifests` participates in project source recovery but is excluded from runtime/UE DataTable export.
-
-Automated coverage at this backend milestone initially comprised nine new compiler/catalog/preview/commit tests and three checked-in workflow fixtures, with the focused 32-test progression, consequence, and recovery regression set also passing. Later milestones below add rehearsal/story-link coverage and bring the combined focused backend set to 42 passing tests.
-
-### Embedded resolution, review, and commit coverage
-
-The shared Dialogue Flow / World Builder composer now exposes the implemented Phase 2 backend without changing the workflow's narrative-first entry point:
-
-- Authors still capture prose or “what happens next” before choosing database structure. When a step needs an existing target, its editor now lists only compatible canonical catalog groups and preserves a selected local placeholder as unresolved work.
-- Workflow 1's bounded dialogue, encounter, item, lore, location, and availability references can be resolved in place. Confirmed `open_shop`, choice-action, victory, quest lifecycle, gameplay-effect, and variant intentions remain visible but receive backend blockers rather than substitute flags or misleading success copy.
-- Workflow 2's prose, cards, and non-temporal relations remain browser-local capture inputs. Its supported lore/state subset may be reviewed and committed. Story placement emits a typed link only for an existing beat plus supported canonical origin; relations never become temporal or story links.
-- Workflow 3's supported existing-record and availability subset can now proceed from hybrid capture through one Bundle Review and atomic commit. The review shows canonical additions/updates and requires acknowledgement of compiler warnings.
-- A successful commit visibly distinguishes the durable project-local provenance manifest from the still-browser-local working draft and from unverified runtime/DataTable execution.
-
-Frontend verification passes ESLint, 91 unit tests, the production build, and three focused Chromium flows: Dialogue capture/reload, World Builder prose/card capture/reload, and Dialogue canonical target resolution → rollback preview → commit. A later same-day slice adds direct issue-to-step navigation and compact item/currency/reputation editing.
-
-### Rehearsal, story-link, and committed-resume coverage
-
-- Workflow 1's supported linear subset now previews as one ordered temporary rehearsal path with payload targets and cumulative generated flags visible per step.
-- Workflow 2's disconnected executable ideas rehearse as separate paths. Its story placement creates one deterministic, validated location-to-beat link from the canonical flow origin; the fixture proves preview rollback leaves no link behind.
-- Workflow 3's supported sequence rehearsal shows the state flags produced before its generated shop availability requirement becomes relevant.
-- The rehearsal is labeled as a web-contract trace and does not claim Unreal/runtime execution, save/load, shop presentation, quest journal behavior, or other external integration.
-- The composer resume area now lists origin-matched committed manifests beside browser-local drafts. Selecting one opens its normalized draft as a new local working revision without erasing the durable manifest or silently committing changes.
-
-The combined focused backend compiler/progression/consequence/recovery suite reached 42 tests at this milestone. Frontend lint, 91 unit tests, production build, and three focused Chromium flows continue to pass.
-
-### Reward editing and issue-return coverage
-
-- Workflow 1's bounded reward portion is editable without JSON: an item row has quantity, while a numeric reward has XP plus add/remove Currency and Faction rows resolved from the canonical catalog.
-- Backend validation rejects zero/negative currency rewards at the owning step and reports a zero reputation delta as an acknowledgement warning. Positive and negative reputation deltas remain valid.
-- Any backend blocker or warning with a step identity appears in **Issues by step**. Selecting **Open owning step** returns from Bundle Review to the exact captured card, preserving the working draft.
-
-The combined focused backend set now passes 44 tests, including concurrent generated-requirement child-state protection. Frontend ESLint, all 91 unit tests, and the production build pass after this slice.
-
-Final validation for this implementation pass also runs the entire backend suite: 206 tests pass. `git diff --check` is clean and the three focused Chromium Creation Flow interactions pass. The previously recorded broad Playwright mock/time-out debt remains separate and is not presented as resolved.
+- Clarified that W1–W3 and Author Reviews 1–6 are approved requirements, not claims of implemented Creation Flow behavior.
+- Added the **Specified**, **Automated**, and **Runtime verified** status model.
+- Mapped each workflow to reusable repository foundations, remaining evidence, and CF open-point IDs in `NARRATIVE_CREATION_FLOW_PLAN.md`.
+- Added change-control rules so future implementation updates add test/runtime evidence without rewriting the original author narratives.
+- Made no changes to the original narratives, confirmed author decisions, provisional semantic fixtures, or acceptance intent.

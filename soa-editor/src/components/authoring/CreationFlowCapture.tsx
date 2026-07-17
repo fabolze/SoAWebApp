@@ -16,7 +16,7 @@ import {
   type CreationFlowRef,
   type CreationFlowShape,
   type CreationFlowStepKind,
-} from "../../authoring/creationFlow";
+} from "../../authoring/creationFlowLegacy";
 import {
   downloadCreationFlowDraft,
   findCreationFlowDrafts,
@@ -25,7 +25,7 @@ import {
   readCreationFlowDraft,
   saveCreationFlowDraft,
   saveCreationFlowSnapshot,
-} from "../../authoring/creationFlowDraftStorage";
+} from "../../authoring/creationFlowDraftStorageLegacy";
 import { generateUlid } from "../../utils/generateId";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../../styles/uiTokens";
 import { apiFetch } from "../../lib/api";

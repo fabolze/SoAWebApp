@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import os
 from threading import RLock
 from typing import Tuple
@@ -9,6 +10,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 
 from backend.app.config import DATA_DIR, SQLALCHEMY_DATABASE_URI
 from backend.app.models.base import Base
+from backend.app.services.dialogue_choice_actions import normalize_choice_contracts
 
 _engine_lock = RLock()
 
@@ -119,6 +121,33 @@ def init_db():
     _upgrade_sqlite_schema(active_engine)
 
 
+def _backfill_dialogue_choice_ids(connection) -> None:
+    """Persist immutable identities for legacy JSON choices exactly once."""
+    rows = connection.execute(text("SELECT id, choices FROM dialogue_nodes")).mappings().all()
+    for row in rows:
+        raw_choices = row["choices"]
+        if raw_choices in (None, ""):
+            choices = []
+        elif isinstance(raw_choices, str):
+            try:
+                choices = json.loads(raw_choices)
+            except json.JSONDecodeError:
+                continue
+        else:
+            choices = raw_choices
+        try:
+            normalized = normalize_choice_contracts(choices, str(row["id"]))
+        except ValueError:
+            # Invalid legacy rows remain visible to normal route validation instead of
+            # making application startup destructive or unavailable.
+            continue
+        if normalized != choices:
+            connection.execute(
+                text("UPDATE dialogue_nodes SET choices = :choices WHERE id = :id"),
+                {"choices": json.dumps(normalized, ensure_ascii=False), "id": row["id"]},
+            )
+
+
 def _upgrade_sqlite_schema(active_engine) -> None:
     """Apply tiny additive SQLite upgrades for existing local databases."""
     if active_engine.dialect.name != "sqlite":
@@ -204,6 +233,43 @@ def _upgrade_sqlite_schema(active_engine) -> None:
                 if "is_terminal" not in dialogue_node_columns:
                     connection.execute(text("ALTER TABLE dialogue_nodes ADD COLUMN is_terminal BOOLEAN NOT NULL DEFAULT 0"))
                 connection.execute(text("UPDATE dialogue_nodes SET is_terminal = 0 WHERE is_terminal IS NULL"))
+                if "choices" in dialogue_node_columns:
+                    _backfill_dialogue_choice_ids(connection)
+
+            if "creation_flow_manifests" in table_names:
+                manifest_columns = {column["name"] for column in inspector.get_columns("creation_flow_manifests")}
+                additive_manifest_columns = {
+                    "slug": "VARCHAR",
+                    "schema_version": "INTEGER",
+                    "origin_kind": "VARCHAR",
+                    "origin_id": "VARCHAR",
+                    "origin_sub_kind": "VARCHAR",
+                    "origin_sub_id": "VARCHAR",
+                    "accepted_warning_ids": "JSON",
+                    "source_snapshots": "JSON",
+                    "artifact_dispositions": "JSON",
+                    "tags": "JSON",
+                    "revision": "INTEGER",
+                    "shape": "VARCHAR",
+                    "preview_hash": "VARCHAR",
+                    "provenance": "JSON",
+                    "accepted_warnings": "JSON",
+                    "canonical_snapshots": "JSON",
+                    "implementation_summary": "TEXT",
+                }
+                for column_name, column_type in additive_manifest_columns.items():
+                    if column_name not in manifest_columns:
+                        connection.execute(text(f"ALTER TABLE creation_flow_manifests ADD COLUMN {column_name} {column_type}"))
+                connection.execute(text("UPDATE creation_flow_manifests SET revision = 1 WHERE revision IS NULL"))
+                connection.execute(text("UPDATE creation_flow_manifests SET schema_version = 1 WHERE schema_version IS NULL"))
+                for column_name, empty_value in {
+                    "accepted_warning_ids": "[]", "source_snapshots": "{}", "artifact_dispositions": "{}",
+                    "tags": "[]", "provenance": "[]", "accepted_warnings": "[]", "canonical_snapshots": "[]",
+                }.items():
+                    connection.execute(
+                        text(f"UPDATE creation_flow_manifests SET {column_name} = :empty_value WHERE {column_name} IS NULL"),
+                        {"empty_value": empty_value},
+                    )
 
             if "character_story_beats" in table_names:
                 beat_columns = {column["name"] for column in inspector.get_columns("character_story_beats")}

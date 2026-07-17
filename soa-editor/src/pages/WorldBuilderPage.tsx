@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import ScopedGateSection from "../components/authoring/ScopedGateSection";
-import ExpandPlaceComposer from "../components/authoring/ExpandPlaceComposer";
 import { AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
+import ThenComposer from "../components/authoring/ThenComposer";
 import {
   packetStoryPlacementWarningRecords,
   parseEntityTrackOccurrences,
@@ -14,6 +14,7 @@ import { responseErrorMessage } from "../lib/apiErrors";
 import { CommaSeparatedInput } from "../authoringViews/controls";
 import { buildProjectHealthSummary, healthIssueTarget, type HealthIssue } from "../health/projectHealth";
 import { generateSlug, generateUlid } from "../utils/generateId";
+import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 import {
   coordinatesFromEntry,
   coordinatesFromPointer,
@@ -50,7 +51,6 @@ interface WorldBuilderPayload {
   dialogues: EntryRecord[];
   warnings: EntryRecord[];
 }
-
 type WorldBundlePatch = Partial<Pick<WorldBuilderPayload, "locations" | "routes" | "pois" | "encounter_tables" | "route_event_bindings" | "travel_tuning" | "creative_briefs">> & {
   deletions?: Partial<Record<"pois" | "encounter_tables" | "creative_briefs", string[]>>;
 };
@@ -351,6 +351,7 @@ export default function WorldBuilderPage() {
   const [payload, setPayload] = useState<WorldBuilderPayload | null>(null);
   const [storyPacket, setStoryPacket] = useState<EntryRecord | null>(null);
   const [selectedId, setSelectedId] = useState("");
+  const [expandPlaceOpen, setExpandPlaceOpen] = useState(false);
   const [healthIssues, setHealthIssues] = useState<HealthIssue[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1132,15 +1133,10 @@ export default function WorldBuilderPage() {
                 onCreateEncounterEvent={() => createRouteEncounterEventDraft(selectedRoute)}
                 onRequirementCommitted={(requirements_id) => setPayload((current) => current ? { ...current, routes: current.routes.map((route) => entryId(route) === entryId(selectedRoute) ? { ...route, requirements_id } : route) } : current)}
               />
-             ) : selectedLocation ? (
-               <div className="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4">
-                 <ExpandPlaceComposer
-                   title={`Expand ${label(selectedLocation)}`}
-                   context={{ kind: "location", ...(selectedIsDraft ? { draftId: entryId(selectedLocation) } : { canonicalId: entryId(selectedLocation) }), label: label(selectedLocation) }}
-                   origin={{ ref: { kind: "location", ...(selectedIsDraft ? { draftId: entryId(selectedLocation) } : { canonicalId: entryId(selectedLocation) }), label: label(selectedLocation) } }}
-                   returnFrame={{ workspace: WORLD_RETURN, context: { kind: "location", ...(selectedIsDraft ? { draftId: entryId(selectedLocation) } : { canonicalId: entryId(selectedLocation) }), label: label(selectedLocation) }, selectedId: entryId(selectedLocation), localViewState: { layer, storyFilter } }}
-                 />
-                 {!selectedIsDraft && (
+            ) : selectedLocation ? (
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4">
+                <AuthoringPanel title="Give this place a story" subtitle="Narrative Creation Flow" help="Capture lore prose, idea cards, creative relationships, and playable next steps as browser-local work before deciding which canonical records they need."><p className="text-sm text-slate-600 dark:text-slate-300">Start from {label(selectedLocation)} and keep the selected place as the protected return context.</p><button type="button" className={`${BUTTON_CLASSES.violet} ${BUTTON_SIZES.sm} mt-3`} onClick={() => setExpandPlaceOpen(true)}>Expand this place</button></AuthoringPanel>
+                {!selectedIsDraft && (
                   <StoryPlacementPanel
                     entityKind="location"
                     entityId={entryId(selectedLocation)}
@@ -1183,6 +1179,7 @@ export default function WorldBuilderPage() {
           </section>
         </div>
       </div>
+      {expandPlaceOpen && selectedLocation && <ThenComposer open mode="expand" origin={{ ref: { kind: "location", ...(selectedIsDraft ? { draftId: entryId(selectedLocation) } : { canonicalId: entryId(selectedLocation) }), label: label(selectedLocation) } }} originLabel={label(selectedLocation)} returnFrame={{ workspace: "world-builder", context: { kind: "location", ...(selectedIsDraft ? { draftId: entryId(selectedLocation) } : { canonicalId: entryId(selectedLocation) }), label: label(selectedLocation) }, selectedId: entryId(selectedLocation), localViewState: { mode, layer } }} onClose={() => setExpandPlaceOpen(false)} />}
     </AuthoringPageShell>
   );
 }

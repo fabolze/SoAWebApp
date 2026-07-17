@@ -1,0 +1,23 @@
+{
+  "name": "Workflow 3 bounded hybrid with an availability gate",
+  "draft": {
+    "format": "SOA-CREATION-FLOW/1",
+    "id": "flow-workflow-3",
+    "revision": 4,
+    "title": "Earn the quartermaster's trust",
+    "shape": "hybrid",
+    "returnStack": [],
+    "entryStepId": "step-scene",
+    "steps": [
+      {"id": "step-scene", "kind": "scripted_moment", "text": "The quartermaster acknowledges the proof", "targetResolution": "none", "support": "compilable"},
+      {"id": "step-state", "kind": "world_state", "text": "The city watch trusts the player", "persistence": "permanent", "targetResolution": "none", "support": "compilable"},
+      {"id": "step-shop", "kind": "make_available", "text": "Unlock the watch armoury", "target": {"kind": "shop", "canonicalId": "shop-1"}, "targetResolution": "canonical", "support": "compilable"}
+    ],
+    "transitions": [
+      {"id": "transition-1", "fromStepId": "step-scene", "toStepId": "step-state", "trigger": "complete", "sortOrder": 0},
+      {"id": "transition-2", "fromStepId": "step-state", "toStepId": "step-shop", "trigger": "complete", "sortOrder": 1}
+    ],
+    "relations": [], "placeholders": [], "localNotes": [], "artifactIds": {}, "createdAt": 1, "updatedAt": 2
+  },
+  "expected": {"events": 3, "flags": 2, "requirements": 1, "story_links": 0, "blockers": 0}
+}
