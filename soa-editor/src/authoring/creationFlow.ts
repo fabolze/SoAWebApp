@@ -311,6 +311,23 @@ function rebuildLinearTransitions(draft: CreationFlowDraft, steps: CreationFlowS
   return [...explicitTransitions, ...linearTransitions];
 }
 
+export function changeCreationFlowShape(draft: CreationFlowDraft, shape: CreationFlowShape, now = Date.now()): CreationFlowDraft {
+  if (draft.shape === shape) return draft;
+  const shapedDraft = { ...draft, shape };
+  if (shape === "constellation") {
+    return touchCreationFlowDraft(draft, {
+      shape,
+      entryStepId: undefined,
+      transitions: rebuildLinearTransitions(shapedDraft, draft.steps),
+    }, now);
+  }
+  return touchCreationFlowDraft(draft, {
+    shape,
+    entryStepId: draft.steps[0]?.id,
+    transitions: rebuildLinearTransitions(shapedDraft, draft.steps),
+  }, now);
+}
+
 export function insertCreationFlowStep(draft: CreationFlowDraft, step: CreationFlowStep, index: number, now = Date.now()): CreationFlowDraft {
   const insertionIndex = Math.max(0, Math.min(Math.trunc(index), draft.steps.length));
   const steps = [...draft.steps];
@@ -357,6 +374,62 @@ export function removeCreationFlowStep(draft: CreationFlowDraft, stepId: string,
     { steps, transitions: rebuildLinearTransitions({ ...draft, transitions: survivingTransitions }, steps), relations, entryStepId: draft.entryStepId === stepId ? steps[0]?.id : draft.entryStepId },
     now,
   );
+}
+
+export function resolveCreationFlowPlaceholder(
+  draft: CreationFlowDraft,
+  placeholderId: string,
+  canonicalTarget?: CreationFlowRef,
+  now = Date.now(),
+): CreationFlowDraft {
+  const placeholder = draft.placeholders.find((row) => row.id === placeholderId);
+  if (!placeholder) return draft;
+  const canonicalId = canonicalTarget?.canonicalId?.trim();
+  const resolvedTarget = canonicalId && canonicalTarget ? canonicalTarget : undefined;
+  if (resolvedTarget && resolvedTarget.kind !== placeholder.kind) return draft;
+  const placeholders = draft.placeholders.map((row) => row.id === placeholderId
+    ? { ...row, promotedCanonicalId: canonicalId || undefined }
+    : row);
+  const steps = draft.steps.map((step) => {
+    if (step.target?.draftId !== placeholderId) return step;
+    const target = resolvedTarget
+      ? { ...step.target, kind: resolvedTarget.kind, canonicalId, label: resolvedTarget.label || placeholder.label }
+      : { kind: step.target.kind, draftId: placeholderId, label: placeholder.label };
+    const next = { ...step, target, targetResolution: deriveTargetResolution(target) };
+    return { ...next, support: deriveStepSupport(next) };
+  });
+  return touchCreationFlowDraft(draft, { placeholders, steps }, now);
+}
+
+export function removeCreationFlowPlaceholder(draft: CreationFlowDraft, placeholderId: string, now = Date.now()): CreationFlowDraft {
+  if (!draft.placeholders.some((placeholder) => placeholder.id === placeholderId)) return draft;
+  const removedStepIds = new Set(draft.steps
+    .filter((step) => step.payload?.ideaPlaceholderId === placeholderId)
+    .map((step) => step.id));
+  const steps = draft.steps
+    .filter((step) => !removedStepIds.has(step.id))
+    .map((step) => {
+      if (step.target?.draftId !== placeholderId) return step;
+      const next = { ...step, target: undefined, targetResolution: "none" as const };
+      return { ...next, support: deriveStepSupport(next) };
+    });
+  const survivingTransitions = draft.transitions.filter((transition) =>
+    !removedStepIds.has(transition.fromStepId) && !removedStepIds.has(transition.toStepId));
+  const shapedDraft = { ...draft, transitions: survivingTransitions };
+  return touchCreationFlowDraft(draft, {
+    steps,
+    transitions: rebuildLinearTransitions(shapedDraft, steps),
+    relations: draft.relations.filter((relation) =>
+      !removedStepIds.has(relation.fromStepId) && !removedStepIds.has(relation.toStepId)),
+    placeholders: draft.placeholders.filter((placeholder) => placeholder.id !== placeholderId),
+    localNotes: draft.localNotes.map((note) => ({
+      ...note,
+      mentions: note.mentions?.filter((mention) => mention.placeholderId !== placeholderId),
+    })),
+    entryStepId: draft.shape === "constellation"
+      ? undefined
+      : removedStepIds.has(draft.entryStepId || "") ? steps[0]?.id : draft.entryStepId,
+  }, now);
 }
 
 export function getStableArtifactId(draft: CreationFlowDraft, key: string): { draft: CreationFlowDraft; id: string } {

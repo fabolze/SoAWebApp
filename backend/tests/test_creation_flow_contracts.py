@@ -494,5 +494,26 @@ def test_unresolved_placeholder_blocks_commit_without_being_discarded(creation_f
     assert body["normalized_draft"]["placeholders"][0]["label"] == "Ashblade"
 
 
+def test_promoted_placeholder_must_reference_an_existing_canonical_record(creation_flow_context):
+    client, _ = creation_flow_context
+    draft = _choice_action_draft()
+    draft["placeholders"] = [{
+        "id": "placeholder-item", "kind": "item", "label": "Ashblade", "promotedCanonicalId": "missing-item",
+    }]
+    body = client.post("/api/ui/creation-flow/preview", json={"draft": draft}).get_json()
+    issue = next(issue for issue in body["blockers"] if issue["code"] == "placeholder_target_missing")
+    assert issue["placeholder_id"] == "placeholder-item"
+    assert body["can_commit"] is False
+
+    draft["placeholders"][0]["promotedCanonicalId"] = "item-1"
+    body = client.post("/api/ui/creation-flow/preview", json={"draft": draft}).get_json()
+    assert not any(issue.get("placeholder_id") == "placeholder-item" for issue in body["blockers"])
+
+    draft["placeholders"][0].update({"kind": "custom", "promotedCanonicalId": "item-1"})
+    body = client.post("/api/ui/creation-flow/preview", json={"draft": draft}).get_json()
+    issue = next(issue for issue in body["blockers"] if issue["code"] == "placeholder_kind_unsupported")
+    assert issue["placeholder_id"] == "placeholder-item"
+
+
 def test_manifest_is_source_recoverable_but_excluded_from_runtime_export():
     assert "creation_flow_manifests" in AUTHORING_ONLY_TABLES

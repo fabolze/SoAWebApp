@@ -58,6 +58,15 @@ async function mockApi(
       return fulfillJson(route, world);
     }
     if (url.pathname === "/api/ui/dependencies") return fulfillJson(route, dependencyPacket);
+    if (url.pathname === "/api/ui/creation-flow/catalog") return fulfillJson(route, {
+      format: "SOA-CREATION-FLOW/1", compiler_version: "creation-flow/test",
+      references: {
+        character: { schema_name: "characters", entries: [{ id: "char-1", label: "Guide" }] },
+        item: { schema_name: "items", entries: [{ id: "item-1", label: "Signal Key" }] },
+      },
+      capabilities: { compilable_step_kinds: [], story_only_step_kinds: ["note"], blocked_step_kinds: [], guarantees: [] },
+    });
+    if (url.pathname === "/api/creation-flow-manifests") return fulfillJson(route, []);
     if (url.pathname === "/api/ui/world_builder/bundle" && route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as Record<string, unknown>;
       if (onBundle) return onBundle(payload, route);
@@ -145,11 +154,19 @@ test("standalone Creation Flow starts and resumes a browser-local sequence", asy
   await expect(composer.getByLabel("Step 3 text")).toHaveCount(0);
   await composer.getByRole("button", { name: "Redo" }).click();
   await expect(composer.getByLabel("Step 3 text")).toHaveValue("The warning bells ring");
+  await composer.getByLabel("Composition shape").selectOption("constellation");
+  await composer.getByLabel("Composition shape").selectOption("hybrid");
+  await composer.getByRole("button", { name: "Undo" }).click();
+  await expect(composer.getByLabel("Composition shape")).toHaveValue("constellation");
+  await composer.getByRole("button", { name: "Redo" }).click();
+  await expect(composer.getByLabel("Composition shape")).toHaveValue("hybrid");
+  await expect(composer.getByLabel("Step 3 text")).toHaveValue("The warning bells ring");
   await composer.getByRole("button", { name: "Close" }).click();
   await expect(page.getByText("Untitled creation flow")).toBeVisible();
   await page.getByRole("button", { name: "Open flow" }).click();
   await expect(page.getByRole("dialog", { name: "Then composer" }).getByLabel("Step 1 text")).toHaveValue("The gate opens");
   await expect(page.getByRole("dialog", { name: "Then composer" }).getByLabel("Step 3 text")).toHaveValue("The warning bells ring");
+  await expect(page.getByRole("dialog", { name: "Then composer" }).getByLabel("Composition shape")).toHaveValue("hybrid");
 });
 
 test("global workspace switcher opens authoring routes", async ({ page }) => {
@@ -844,11 +861,23 @@ test("world builder expands a place into prose-linked local idea cards and resto
   await composer.getByRole("button", { name: "Create/link card from selection" }).click();
   await expect(composer.getByText("Ash Regent", { exact: true }).first()).toBeVisible();
   await expect(composer.getByText("Local placeholder", { exact: true })).toBeVisible();
+  await composer.getByLabel("Canonical link for Ash Regent").selectOption("char-1");
+  await expect(composer.getByText("Linked to an existing canonical record")).toBeVisible();
+  await composer.getByLabel("Idea label").fill("Sunken Choir");
+  await composer.getByRole("button", { name: "Add idea card" }).click();
+  await composer.getByLabel("Relation from").selectOption({ label: "Ash Regent" });
+  await composer.getByLabel("Relation to").selectOption({ label: "Sunken Choir" });
+  await composer.getByRole("button", { name: "Connect ideas" }).click();
+  await expect(composer.getByRole("button", { name: "Remove relation relates to" })).toBeVisible();
+  await composer.getByRole("button", { name: "Remove relation relates to" }).click();
+  await composer.getByRole("button", { name: "Remove idea" }).nth(1).click();
+  await expect(composer.getByText("Sunken Choir", { exact: true })).toHaveCount(0);
   await composer.getByRole("button", { name: "Close" }).click();
 
   await page.reload();
   await page.getByRole("button", { name: "Expand this place" }).click();
   await expect(page.getByRole("dialog", { name: "Expand this place" }).getByLabel("Lore prose")).toHaveValue("The Ash Regent once guarded the basilica.");
+  await expect(page.getByRole("dialog", { name: "Expand this place" }).getByLabel("Canonical link for Ash Regent")).toHaveValue("char-1");
   await expect(page.getByText("Continued the most recent browser-local draft for this context.")).toBeVisible();
 });
 

@@ -842,10 +842,32 @@ class CreationFlowCompiler:
                 self._compile_step(step, index)
         self._compile_transitions(transitions, step_ids)
         for placeholder in placeholders:
-            if isinstance(placeholder, dict) and not placeholder.get("promotedCanonicalId"):
+            if not isinstance(placeholder, dict):
+                continue
+            promoted_id = str(placeholder.get("promotedCanonicalId") or "").strip()
+            if not promoted_id:
                 self.blocker(
                     "placeholder_unresolved",
                     f"Placeholder '{placeholder.get('label') or placeholder.get('id')}' must be linked or promoted before canonical commit.",
+                    placeholder_id=placeholder.get("id"),
+                )
+                continue
+            kind = str(placeholder.get("kind") or "").strip()
+            model_entry = REFERENCE_MODELS.get(kind)
+            if not model_entry:
+                self.blocker(
+                    "placeholder_kind_unsupported",
+                    f"Placeholder '{placeholder.get('label') or placeholder.get('id')}' cannot link to unsupported kind '{kind or 'missing'}'.",
+                    placeholder_id=placeholder.get("id"),
+                )
+                continue
+            _, model = model_entry
+            target = self.db_session.get(model, promoted_id)
+            self.snapshot(f"placeholder_{kind}", promoted_id, target)
+            if target is None:
+                self.blocker(
+                    "placeholder_target_missing",
+                    f"The canonical {kind} linked to placeholder '{placeholder.get('label') or placeholder.get('id')}' no longer exists.",
                     placeholder_id=placeholder.get("id"),
                 )
         if relations:

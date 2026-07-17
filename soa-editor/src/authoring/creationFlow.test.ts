@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  addCreationFlowStep, createCreationFlowDraft, createCreationFlowStep, creationFlowIssues,
+  addCreationFlowStep, changeCreationFlowShape, createCreationFlowDraft, createCreationFlowStep, creationFlowIssues,
   deriveStepSupport, duplicateCreationFlowStep, getStableArtifactId, insertCreationFlowStep,
   moveCreationFlowStep, normalizeCreationFlowDraft, patchCreationFlowStep,
-  reconcileCreationFlowMentions, removeCreationFlowStep,
+  reconcileCreationFlowMentions, removeCreationFlowPlaceholder, removeCreationFlowStep,
+  resolveCreationFlowPlaceholder,
 } from "./creationFlow";
 import {
   draftsForOrigin, exportCreationFlowDraft, importCreationFlowDraft, listCreationFlowDrafts,
@@ -89,6 +90,64 @@ describe("Creation Flow draft", () => {
     expect(draft.transitions.some((transition) => transition.fromStepId === first.id && transition.toStepId === duplicateId)).toBe(true);
     expect(draft.transitions).toContainEqual(expect.objectContaining({ id: "surviving-branch", requirementId: "requirement-1" }));
     expect(draft.transitions.some((transition) => transition.fromStepId === inserted.id || transition.toStepId === inserted.id)).toBe(false);
+  });
+
+  it("converts composition shapes without leaking or losing execution topology", () => {
+    const first = createCreationFlowStep("First", "scripted_moment");
+    const second = createCreationFlowStep("Second", "scripted_moment");
+    const third = createCreationFlowStep("Third", "scripted_moment");
+    let draft = addCreationFlowStep(addCreationFlowStep(addCreationFlowStep(
+      createCreationFlowDraft({ title: "Shape conversion" }), first,
+    ), second), third);
+    draft = normalizeCreationFlowDraft({
+      ...draft,
+      transitions: [...draft.transitions, {
+        id: "authored-outcome", fromStepId: first.id, toStepId: third.id,
+        trigger: "condition", requirementId: "requirement-1", label: "Take the shortcut", sortOrder: 10,
+      }],
+    });
+
+    draft = changeCreationFlowShape(draft, "constellation", 100);
+    expect(draft.entryStepId).toBeUndefined();
+    expect(draft.transitions).toEqual([expect.objectContaining({ id: "authored-outcome" })]);
+
+    draft = changeCreationFlowShape(draft, "hybrid", 110);
+    expect(draft.entryStepId).toBe(first.id);
+    expect(draft.transitions).toContainEqual(expect.objectContaining({ id: "authored-outcome" }));
+    expect(draft.transitions.filter((transition) => transition.trigger === "complete" && !transition.label)
+      .map((transition) => [transition.fromStepId, transition.toStepId])).toEqual([
+      [first.id, second.id], [second.id, third.id],
+    ]);
+  });
+
+  it("promotes and safely removes a prose-linked idea identity", () => {
+    const idea = createCreationFlowStep("Idea: Ashblade", "note", { kind: "item", draftId: "idea-1", label: "Ashblade" });
+    idea.payload = { ideaPlaceholderId: "idea-1" };
+    const relatedIdea = createCreationFlowStep("Idea: Old hero", "note", { kind: "character", draftId: "idea-2", label: "Old hero" });
+    relatedIdea.payload = { ideaPlaceholderId: "idea-2" };
+    const reward = createCreationFlowStep("Give the Ashblade", "item_reward", { kind: "item", draftId: "idea-1", label: "Ashblade" });
+    let draft = normalizeCreationFlowDraft({
+      ...createCreationFlowDraft({ title: "Linked ideas", shape: "constellation" }),
+      steps: [idea, relatedIdea, reward],
+      placeholders: [
+        { id: "idea-1", kind: "item", label: "Ashblade" },
+        { id: "idea-2", kind: "character", label: "Old hero" },
+      ],
+      relations: [{ id: "relation-1", fromStepId: idea.id, toStepId: relatedIdea.id, relation: "was carried by", resolution: "local_intent" }],
+      localNotes: [{ id: "note-1", text: "The Ashblade vanished.", mentions: [{ id: "mention-1", placeholderId: "idea-1", start: 4, end: 12, text: "Ashblade" }] }],
+    });
+
+    draft = resolveCreationFlowPlaceholder(draft, "idea-1", { kind: "item", canonicalId: "item-1", label: "Tower Key" }, 100);
+    expect(draft.placeholders[0].promotedCanonicalId).toBe("item-1");
+    expect(draft.steps.filter((step) => step.target?.draftId === "idea-1").every((step) => step.target?.canonicalId === "item-1")).toBe(true);
+    expect(creationFlowIssues(draft).filter((issue) => issue.placeholderId === "idea-1")).toEqual([]);
+
+    draft = removeCreationFlowPlaceholder(draft, "idea-1", 110);
+    expect(draft.placeholders.map((placeholder) => placeholder.id)).toEqual(["idea-2"]);
+    expect(draft.steps.some((step) => step.id === idea.id)).toBe(false);
+    expect(draft.steps.find((step) => step.id === reward.id)).toEqual(expect.objectContaining({ target: undefined, support: "unresolved" }));
+    expect(draft.localNotes[0].mentions).toEqual([]);
+    expect(draft.relations).toEqual([]);
   });
 
   it("keeps artifact ids stable and localizes unresolved issues", () => {

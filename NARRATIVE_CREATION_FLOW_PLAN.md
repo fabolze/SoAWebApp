@@ -215,6 +215,37 @@ Verification after this batch: all **226 backend tests**, all **105 frontend uni
 
 This closes the last repository-owned discrepancy found by the current audit. The remaining activities are unchanged and cannot be truthfully completed by web code alone: representative writers must run the corpus, real project content must supply performance observations, and the consuming runtime must execute the exported contracts before any row becomes `runtime_verified`.
 
+### Shape and idea-lifecycle audit and completion — 2026-07-17
+
+#### Review of what was already done
+
+The repository already provided the complete capture-to-commit loop, the three composition shapes, prose-linked idea identities, explicit creative relations, canonical catalogs, branch-aware rehearsal, atomic commit, host return context, insertion/duplication, and undo/redo. All 226 backend tests, 105 frontend unit tests, and seven focused Creation Flow browser journeys were green at the start of this audit.
+
+#### Open points found and implementation plan
+
+The senior game-design review found three repository-owned lifecycle gaps behind that green baseline:
+
+1. **Make shape changes semantic.** Changing Sequence, Constellation, or Hybrid changed only the stored label. Automatic completion links could leak into a constellation, while a promoted constellation could remain disconnected.
+2. **Complete the idea-card lifecycle.** The contract and Definition of Done promised placeholder promotion, but the active composer did not expose a canonical-link action. Idea cards and creative relations also lacked durable removal after the undo window or a reload.
+3. **Make promotion authoritative.** The compiler treated any non-empty `promotedCanonicalId` as resolved without validating the placeholder kind or the referenced canonical record.
+
+The closure plan was to add one model-owned shape conversion, model-owned placeholder promotion/removal, composer controls that use those operations, backend validation through the canonical model map, and model/browser/backend regressions before updating completion status.
+
+#### Implemented behavior
+
+| Open point | Implemented behavior | Author-safety rule |
+|---|---|---|
+| Sequence ↔ constellation ↔ hybrid | Shape changes now rebuild only anonymous completion order. A constellation drops automatic order and its single entry; sequence/hybrid use visible card order and the first card as entry. | Deliberately authored condition, fallback, choice, victory, interaction-close, or labeled completion outcomes are preserved. The composer explains the topology change and Undo can reverse it. |
+| Idea promotion and unlinking | Every idea card whose kind has a canonical catalog exposes **Canonical link**. Promotion retains the local `draftId` identity and adds the canonical id to all references to that idea; unlinking removes only the canonical id. | Prose mentions, idea-card identity, relations, and dependent references do not need to be re-entered. Unsupported idea kinds remain honestly local. |
+| Canonical promotion validation | Preview now verifies that the placeholder kind maps to a supported canonical model and that `promotedCanonicalId` exists, while snapshotting the checked record for stale preview protection. | Fabricated, deleted, or unsupported promotion targets block commit at the owning placeholder. |
+| Durable idea cleanup | **Remove idea** deletes the idea card, its prose mentions, and relations owned by it. Other steps that targeted that placeholder remain in the draft with their target cleared and become visibly unresolved. Creative relations have their own **Remove** action. | Removing an idea never silently deletes another authored gameplay intention; sequence neighbors are safely reconnected where applicable. |
+
+#### Acceptance evidence and remaining boundary
+
+Verification after this batch: all **227 backend tests**, all **107 frontend unit tests**, frontend ESLint, the TypeScript/Vite production build, **7 focused Chromium Creation Flow journeys**, and `git diff --check` pass. The World Builder journey now proves selected-prose creation → canonical promotion → second-card relation → relation removal → idea removal → close/reload with the first promoted identity intact. The standalone journey proves shape conversion, Undo/Redo, and reload recovery. The existing large-chunk build advisory remains unchanged in kind.
+
+No known repository-owned workflow blocker remains. The only open activities still require evidence outside this repository: representative-writer sessions, performance observation with real project content, and execution by the consuming runtime. Those activities must not be marked complete from web tests.
+
 ## Executive Decision
 
 The product should add a narrative-first authoring layer where the author records **what happens next** before defining how the database represents it.

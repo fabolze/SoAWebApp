@@ -1361,3 +1361,30 @@ W1-D says a spontaneous important item can be inserted anywhere without rebuildi
 All 105 frontend unit tests, frontend ESLint, and the TypeScript/Vite production build pass. Seven focused Chromium Creation Flow journeys pass, including the enhanced standalone editing/recovery path; the unchanged backend suite remains 226/226. The production build still reports the previously documented large-chunk advisory.
 
 No repository-owned W1–W3 implementation blocker remains. Representative-writer sessions, observation with real project content, and external runtime execution remain the only open acceptance work; the repository must not fabricate their results.
+
+## Implementation Coverage — 2026-07-17 Shape And Idea Lifecycle Completion
+
+### Review result
+
+The existing implementation already covered W1–W3 capture, resolution, typed branches/actions, branch-aware rehearsal, atomic commit, provenance, host return context, standalone resume, and editing recovery. The remaining audit compared the advertised composition and placeholder behavior with the actual author controls and found three web-owned gaps: shape changes did not transform topology, idea cards could not be canonically promoted or durably removed, and the backend did not verify a serialized promotion target.
+
+### Implemented plan
+
+- Composition-shape conversion now has explicit semantics. Moving to a constellation removes anonymous execution order and its single entry; moving to sequence or hybrid creates the visible-card completion path and first-card entry. Authored outcomes remain intact.
+- Idea cards now link and unlink against the compatible canonical catalog without replacing their local identity. Every step referencing that placeholder receives the same canonical id, so prose, card, and executable use stay one idea.
+- Canonical preview resolves every promoted placeholder through the backend model map. Missing records and unsupported kinds are placeholder-scoped commit blockers rather than trusted client claims.
+- Authors can remove a creative relation after reload and can remove an idea card without leaving mentions, relations, or dangling placeholder references. Dependent non-card steps survive as unresolved intentions.
+
+### Workflow impact
+
+- **W1-D:** a spontaneous item can be inserted, moved between composition shapes, promoted to an existing Item, or removed without rebuilding downstream steps.
+- **W2-B/W2-C:** a prose-selected hero, cult, relic, or other idea can grow into one canonical identity and remain linked to the original prose/card context.
+- **W2-A/W2 constellation:** changing between exploratory constellation and ordered/hybrid planning no longer misrepresents creative association as hidden runtime order.
+- **W2-I:** an artifact idea may link to the existing logical item instead of creating a duplicate identity; stale or invented links cannot pass preview.
+- **W3-A/W3-C:** a resumed flow preserves its selected shape, entry, authored outcomes, promotions, and cleanup across browser recovery.
+
+### Acceptance evidence and remaining boundary
+
+All **227 backend tests**, **107 frontend unit tests**, frontend ESLint, the production build, and **7 focused Chromium journeys** pass. The enhanced World Builder journey covers prose selection, promotion, relation creation/removal, idea deletion, and reload; the standalone journey covers shape conversion with Undo/Redo and reload. `git diff --check` is clean, and the known large-chunk build advisory is unchanged.
+
+The workflow corpus has no known repository-owned implementation blocker after this pass. Representative-writer evaluation, real-content performance observation, and Unreal/runtime execution verification remain external acceptance activities.
