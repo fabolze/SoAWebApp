@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addCreationFlowStep, changeCreationFlowShape, createCreationFlowDraft, createCreationFlowStep, creationFlowIssues,
-  deriveStepSupport, duplicateCreationFlowStep, getStableArtifactId, insertCreationFlowStep,
+  creationFlowMatchesLibraryFilters, creationFlowMatchesLibraryLens, deriveStepSupport, duplicateCreationFlowStep, getStableArtifactId, insertCreationFlowStep,
   moveCreationFlowStep, normalizeCreationFlowDraft, patchCreationFlowStep,
   reconcileCreationFlowMentions, removeCreationFlowPlaceholder, removeCreationFlowStep,
   resolveCreationFlowPlaceholder,
@@ -197,6 +197,41 @@ describe("Creation Flow draft", () => {
     expect(creationFlowIssues(conditionDraft)).toContainEqual(expect.objectContaining({ severity: "blocker", stepId: first.id, message: expect.stringContaining("canonical requirement") }));
     const choiceDraft = normalizeCreationFlowDraft({ ...base, transitions: [{ id: "choice", fromStepId: first.id, toStepId: second.id, trigger: "dialogue_choice", sortOrder: 0 }] });
     expect(creationFlowIssues(choiceDraft)).toContainEqual(expect.objectContaining({ severity: "blocker", stepId: first.id, message: expect.stringContaining("exact saved choice") }));
+  });
+
+  it("filters local and committed library drafts through honest content lenses", () => {
+    const story = normalizeCreationFlowDraft({
+      ...createCreationFlowDraft({ title: "Ash Regent constellation", shape: "constellation" }),
+      localNotes: [{ id: "note-1", text: "The sealed monarch is remembered here." }],
+      placeholders: [{ id: "idea-1", kind: "character", label: "Ash Regent", direction: "A disputed local legend" }],
+    });
+    const state = addCreationFlowStep(
+      createCreationFlowDraft({ title: "Gate aftermath", shape: "hybrid" }),
+      createCreationFlowStep("Leave the gate damaged", "world_state"),
+    );
+    const reward = addCreationFlowStep(
+      createCreationFlowDraft({ title: "Relic payoff" }),
+      createCreationFlowStep("Give the Ashblade", "item_reward", { kind: "item", canonicalId: "item-1", label: "Ashblade" }),
+    );
+    const unshaped = addCreationFlowStep(
+      createCreationFlowDraft({ title: "Unresolved sketch" }),
+      createCreationFlowStep("Something changes"),
+    );
+
+    expect(creationFlowMatchesLibraryLens(story, "story")).toBe(true);
+    expect(creationFlowMatchesLibraryLens(story, "runtime")).toBe(false);
+    expect(creationFlowMatchesLibraryLens(state, "state")).toBe(true);
+    expect(creationFlowMatchesLibraryLens(state, "runtime")).toBe(true);
+    expect(creationFlowMatchesLibraryLens(reward, "reward")).toBe(true);
+    expect(creationFlowMatchesLibraryLens(unshaped, "issues")).toBe(true);
+    expect(creationFlowIssues(unshaped)).toContainEqual(expect.objectContaining({
+      severity: "warning", message: expect.stringContaining("Choose what this step means"),
+    }));
+
+    expect(creationFlowMatchesLibraryFilters(story, { query: "disputed local legend", shape: "constellation", lens: "story" })).toBe(true);
+    expect(creationFlowMatchesLibraryFilters(story, { shape: "sequence", lens: "story" })).toBe(false);
+    expect(creationFlowMatchesLibraryFilters(reward, { query: "ashblade", lens: "reward", issue: "ready" })).toBe(true);
+    expect(creationFlowMatchesLibraryFilters(reward, { lens: "state" })).toBe(false);
   });
 
   it("keeps prose mentions linked when unambiguous edits move them", () => {

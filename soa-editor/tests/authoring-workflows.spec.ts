@@ -163,6 +163,10 @@ test("standalone Creation Flow starts and resumes a browser-local sequence", asy
   await expect(composer.getByLabel("Step 3 text")).toHaveValue("The warning bells ring");
   await composer.getByRole("button", { name: "Close" }).click();
   await expect(page.getByText("Untitled creation flow")).toBeVisible();
+  await page.getByLabel("Content lens").selectOption("reward");
+  await expect(page.getByText("Untitled creation flow")).toHaveCount(0);
+  await page.getByLabel("Content lens").selectOption("issues");
+  await expect(page.getByText("Untitled creation flow")).toBeVisible();
   await page.getByRole("button", { name: "Open flow" }).click();
   await expect(page.getByRole("dialog", { name: "Then composer" }).getByLabel("Step 1 text")).toHaveValue("The gate opens");
   await expect(page.getByRole("dialog", { name: "Then composer" }).getByLabel("Step 3 text")).toHaveValue("The warning bells ring");

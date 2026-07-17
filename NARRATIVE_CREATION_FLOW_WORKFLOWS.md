@@ -1388,3 +1388,31 @@ The existing implementation already covered W1–W3 capture, resolution, typed b
 All **227 backend tests**, **107 frontend unit tests**, frontend ESLint, the production build, and **7 focused Chromium journeys** pass. The enhanced World Builder journey covers prose selection, promotion, relation creation/removal, idea deletion, and reload; the standalone journey covers shape conversion with Undo/Redo and reload. `git diff --check` is clean, and the known large-chunk build advisory is unchanged.
 
 The workflow corpus has no known repository-owned implementation blocker after this pass. Representative-writer evaluation, real-content performance observation, and Unreal/runtime execution verification remain external acceptance activities.
+
+## Implementation Coverage — 2026-07-17 Standalone Library Lenses
+
+### Review result
+
+The creation library already supported local and committed resume, text search, local shape/blocker filtering, topology comparison, and the shared composer/rehearsal/commit loop. The audit found that the advertised story/state/reward/runtime/issue lenses were not real controls, committed manifests did not receive the same non-text filters as local drafts, and author-language search did not include notes, ideas, outcomes, or creative relations.
+
+### Implemented plan
+
+- Added overlapping **Story and lore**, **State and unlocks**, **Rewards and progress**, **Executable runtime intent**, and **Needs author attention** lenses.
+- Applied query, shape, blocker-state, and lens filtering through one model-owned contract for both browser-local drafts and committed manifests.
+- Expanded search to origin context, target labels, idea-card labels/direction, prose notes, transition labels/triggers, and relation language as well as titles and step prose.
+- Classified unshaped steps as author-attention warnings, while keeping `runtime_unverified` as information rather than an error.
+- Added a filtered committed-manifest empty state so a narrowed result cannot be mistaken for lost project data.
+
+### Workflow impact
+
+- **W1-D/W1-E:** reward ideas and branch wording can be recovered directly even when the author remembers the item, outcome label, or relation rather than the flow title.
+- **W2-A–W2-D:** lore prose, idea cards, and constellation relations are discoverable through the story lens and full author-language index.
+- **W2-G:** repeatable gameplay/runtime intent can be separated from story-only placement without converting farming into a story beat.
+- **W3-A:** local work and committed provenance now obey the same filters, so resuming a city/faction thread does not depend on remembering which persistence layer owns it.
+- **W3-D–W3-F:** state/unlock, reward/progress, runtime, and attention views expose overlapping dependency intent without forcing one exclusive category onto a mixed flow.
+
+### Acceptance evidence and remaining boundary
+
+All **227 backend tests**, **108 frontend unit tests**, frontend ESLint, the TypeScript/Vite production build, and **7 focused Chromium Creation Flow journeys** pass. The focused set covers standalone lens/recovery behavior plus quest, World Builder, dialogue recovery, typed condition/variant, canonical commit, and encounter-host paths. `git diff --check` is clean, and the known large-chunk build advisory is unchanged.
+
+No repository-owned W1–W3 implementation blocker is known after this audit. Representative-writer sessions, observation with real project content, and external runtime execution remain the only open acceptance activities; their results cannot be fabricated by repository changes.

@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { createCreationFlowDraft, creationFlowIssues, type CreationFlowDraft } from "../authoring/creationFlow";
+import {
+  createCreationFlowDraft, creationFlowIssues, creationFlowMatchesLibraryFilters,
+  type CreationFlowDraft, type CreationFlowLibraryLens,
+} from "../authoring/creationFlow";
 import {
   deleteCreationFlowDraft, listCreationFlowDrafts, loadCreationFlowDraft, saveCreationFlowDraft,
   type CreationFlowDraftSummary,
@@ -43,6 +46,7 @@ export default function CreationFlowWorkspacePage() {
   const [query, setQuery] = useState("");
   const [shapeFilter, setShapeFilter] = useState<"all" | CreationFlowDraft["shape"]>("all");
   const [issueFilter, setIssueFilter] = useState<"all" | "blocked" | "ready">("all");
+  const [lensFilter, setLensFilter] = useState<CreationFlowLibraryLens>("all");
   const refreshDrafts = () => setDrafts(listCreationFlowDrafts());
 
   useEffect(() => {
@@ -62,14 +66,9 @@ export default function CreationFlowWorkspacePage() {
   }, [active]);
 
   const allLocalDrafts = useMemo(() => drafts.map((summary) => ({ summary, draft: loadCreationFlowDraft(summary.id) })).filter((row): row is { summary: CreationFlowDraftSummary; draft: CreationFlowDraft } => Boolean(row.draft)), [drafts]);
-  const localDrafts = useMemo(() => allLocalDrafts.filter(({ draft }) => {
-    const haystack = [draft.title, originLabel(draft), ...draft.steps.map((step) => step.text)].join(" ").toLowerCase();
-    const blockers = creationFlowIssues(draft).some((issue) => issue.severity === "blocker");
-    return (!query.trim() || haystack.includes(query.trim().toLowerCase()))
-      && (shapeFilter === "all" || draft.shape === shapeFilter)
-      && (issueFilter === "all" || (issueFilter === "blocked" ? blockers : !blockers));
-  }), [allLocalDrafts, issueFilter, query, shapeFilter]);
-  const visibleCommitted = useMemo(() => committed.filter((flow) => !query.trim() || [flow.title, originLabel(flow.normalized_draft), ...flow.normalized_draft.steps.map((step) => step.text)].join(" ").toLowerCase().includes(query.trim().toLowerCase())), [committed, query]);
+  const filters = useMemo(() => ({ query, shape: shapeFilter, issue: issueFilter, lens: lensFilter }), [issueFilter, lensFilter, query, shapeFilter]);
+  const localDrafts = useMemo(() => allLocalDrafts.filter(({ draft }) => creationFlowMatchesLibraryFilters(draft, filters)), [allLocalDrafts, filters]);
+  const visibleCommitted = useMemo(() => committed.filter((flow) => creationFlowMatchesLibraryFilters(flow.normalized_draft, filters)), [committed, filters]);
   const start = (shape: CreationFlowDraft["shape"]) => {
     const anchor = generateUlid();
     const draft = createCreationFlowDraft({
@@ -97,8 +96,8 @@ export default function CreationFlowWorkspacePage() {
     </AuthoringPanel>
 
     <div className="grid gap-4 xl:grid-cols-2">
-      <AuthoringPanel title="Find and compare flows" subtitle="Search story, state, reward, runtime, and issue intent without opening each draft." help="Shape and issue filters apply to browser-local work; text search also filters committed manifests.">
-        <div className="grid gap-2 sm:grid-cols-3"><input className="rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search titles and steps" /><select className="rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" value={shapeFilter} onChange={(event) => setShapeFilter(event.target.value as typeof shapeFilter)}><option value="all">All shapes</option><option value="sequence">Sequences</option><option value="constellation">Constellations</option><option value="hybrid">Hybrids</option></select><select className="rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" value={issueFilter} onChange={(event) => setIssueFilter(event.target.value as typeof issueFilter)}><option value="all">All issue states</option><option value="blocked">Needs resolution</option><option value="ready">No blockers</option></select></div>
+      <AuthoringPanel title="Find and compare flows" subtitle="Search story, state, reward, runtime, and issue intent without opening each draft." help="Text, shape, issue, and content-lens filters apply equally to browser-local drafts and committed manifests.">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4"><input className="rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search titles, ideas, and notes" /><select aria-label="Composition shape filter" className="rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" value={shapeFilter} onChange={(event) => setShapeFilter(event.target.value as typeof shapeFilter)}><option value="all">All shapes</option><option value="sequence">Sequences</option><option value="constellation">Constellations</option><option value="hybrid">Hybrids</option></select><select aria-label="Issue state filter" className="rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" value={issueFilter} onChange={(event) => setIssueFilter(event.target.value as typeof issueFilter)}><option value="all">All issue states</option><option value="blocked">Needs resolution</option><option value="ready">No blockers</option></select><select aria-label="Content lens" className="rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" value={lensFilter} onChange={(event) => setLensFilter(event.target.value as CreationFlowLibraryLens)}><option value="all">All content</option><option value="story">Story and lore</option><option value="state">State and unlocks</option><option value="reward">Rewards and progress</option><option value="runtime">Executable runtime intent</option><option value="issues">Needs author attention</option></select></div>
       </AuthoringPanel>
       <div className="hidden xl:block" />
       <AuthoringPanel title="Browser-local drafts" subtitle={`${localDrafts.length} recoverable flow${localDrafts.length === 1 ? "" : "s"}`} help="Open a draft in the same composer used by Dialogue Flow, World Builder, Encounter Stage, and Quest Journey.">
@@ -119,7 +118,7 @@ export default function CreationFlowWorkspacePage() {
       <AuthoringPanel title="Committed manifests" subtitle="Project-local provenance and recoverable working revisions" help="Opening a manifest creates or refreshes its browser-local working revision; committing again remains stale-checked and atomic.">
         <div className="space-y-2">
           {visibleCommitted.map((flow) => <article key={flow.id} className="rounded-lg border border-emerald-200 p-3 dark:border-emerald-900"><div className="font-semibold">{flow.title}</div><div className="text-xs text-slate-500">Revision {flow.revision} · {flow.compiler_version} · committed {new Date(flow.updated_at * 1000).toLocaleString()}</div><button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs} mt-3`} onClick={() => openCommitted(flow)}>Open working revision</button><FlowTopology draft={flow.normalized_draft} /></article>)}
-          {!loadingCommitted && committed.length === 0 && <EmptyState title="No committed flows">A successful atomic Creation Flow commit will appear here with its normalized draft and artifact provenance.</EmptyState>}
+          {!loadingCommitted && visibleCommitted.length === 0 && <EmptyState title={committed.length === 0 ? "No committed flows" : "No committed flows match these filters"}>{committed.length === 0 ? "A successful atomic Creation Flow commit will appear here with its normalized draft and artifact provenance." : "Adjust the search, shape, issue state, or content lens to compare other committed work."}</EmptyState>}
           {loadingCommitted && <p className="text-sm text-slate-500">Loading committed manifests…</p>}
         </div>
       </AuthoringPanel>

@@ -141,6 +141,16 @@ export interface CreationFlowIssue {
   placeholderId?: string;
 }
 
+export type CreationFlowLibraryLens = "all" | "story" | "state" | "reward" | "runtime" | "issues";
+export type CreationFlowLibraryIssueFilter = "all" | "blocked" | "ready";
+
+export interface CreationFlowLibraryFilters {
+  query?: string;
+  shape?: "all" | CreationFlowShape;
+  issue?: CreationFlowLibraryIssueFilter;
+  lens?: CreationFlowLibraryLens;
+}
+
 const TARGET_KINDS = new Set<CreationFlowStepKind>([
   "dialogue", "encounter", "item_reward", "lore_reveal", "teleport", "open_shop",
   "make_available", "quest_assignment", "quest_turn_in", "inventory_objective",
@@ -160,6 +170,20 @@ const STEP_KINDS: CreationFlowStepKind[] = [
   "activate_character_variant", "activate_item_variant", "world_state", "gameplay_effect",
   "story_placement", "note", "custom",
 ];
+
+const STORY_LENS_KINDS = new Set<CreationFlowStepKind>([
+  "dialogue", "lore_reveal", "scripted_moment", "quest_assignment", "quest_turn_in",
+  "join_companion", "story_placement", "note",
+]);
+
+const STATE_LENS_KINDS = new Set<CreationFlowStepKind>([
+  "make_available", "persistent_fact", "world_state", "activate_location_variant",
+  "activate_character_variant", "activate_item_variant",
+]);
+
+const REWARD_LENS_KINDS = new Set<CreationFlowStepKind>([
+  "item_reward", "numeric_reward", "quest_turn_in",
+]);
 
 export const CREATION_FLOW_STEP_KINDS = STEP_KINDS;
 
@@ -445,6 +469,7 @@ export function creationFlowIssues(draft: CreationFlowDraft): CreationFlowIssue[
   if (draft.steps.length === 0 && draft.placeholders.length === 0) issues.push({ severity: "info", message: "Capture the first next step or idea card." });
   draft.steps.forEach((step) => {
     if (!step.text.trim()) issues.push({ severity: "warning", stepId: step.id, message: "This step has no author-facing description." });
+    if (step.support === "unshaped") issues.push({ severity: "warning", stepId: step.id, message: "Choose what this step means before canonical commit." });
     if (step.support === "unresolved") issues.push({ severity: "warning", stepId: step.id, message: "This step still needs an existing target or a resolved placeholder." });
     if (step.support === "unsupported") issues.push({ severity: "warning", stepId: step.id, message: "This custom intention is preserved, but no canonical compiler contract exists yet." });
     if (step.support === "runtime_unverified") issues.push({ severity: "info", stepId: step.id, message: "The web/export contract is implemented; consuming runtime execution is not yet verified." });
@@ -482,4 +507,46 @@ export function originKey(origin?: CreationFlowDraft["origin"]): string {
   if (!origin) return "unscoped";
   const ref = origin.subRef ?? origin.ref;
   return `${ref.kind}:${ref.canonicalId || ref.draftId || ref.label || "unknown"}`;
+}
+
+function creationFlowSearchText(draft: CreationFlowDraft): string {
+  return [
+    draft.title,
+    draft.origin?.ref.label,
+    draft.origin?.subRef?.label,
+    ...draft.steps.flatMap((step) => [step.text, step.kind, step.target?.label]),
+    ...draft.placeholders.flatMap((placeholder) => [placeholder.label, placeholder.direction]),
+    ...draft.localNotes.map((note) => note.text),
+    ...draft.transitions.flatMap((transition) => [transition.label, transition.trigger]),
+    ...draft.relations.map((relation) => relation.relation),
+  ].filter((value): value is string => Boolean(value)).join(" ").toLowerCase();
+}
+
+export function creationFlowMatchesLibraryLens(draft: CreationFlowDraft, lens: CreationFlowLibraryLens): boolean {
+  if (lens === "all") return true;
+  const issues = creationFlowIssues(draft);
+  if (lens === "issues") return issues.some((issue) => issue.severity !== "info");
+  if (lens === "story") {
+    return draft.steps.some((step) => STORY_LENS_KINDS.has(step.kind) || step.support === "story_only")
+      || draft.placeholders.length > 0 || draft.relations.length > 0 || draft.localNotes.length > 0;
+  }
+  if (lens === "state") {
+    return draft.steps.some((step) => STATE_LENS_KINDS.has(step.kind) || (step.persistence && step.persistence !== "none"));
+  }
+  if (lens === "reward") {
+    return draft.steps.some((step) => REWARD_LENS_KINDS.has(step.kind)
+      || (step.kind === "gameplay_effect" && step.gameplayAction?.actionType === "grant_currency"));
+  }
+  return draft.steps.some((step) => step.timing !== "story_only"
+    && (step.support === "compilable" || step.support === "runtime_unverified"));
+}
+
+export function creationFlowMatchesLibraryFilters(draft: CreationFlowDraft, filters: CreationFlowLibraryFilters): boolean {
+  const query = filters.query?.trim().toLowerCase() ?? "";
+  const issues = creationFlowIssues(draft);
+  const hasBlocker = issues.some((issue) => issue.severity === "blocker");
+  return (!query || creationFlowSearchText(draft).includes(query))
+    && (!filters.shape || filters.shape === "all" || draft.shape === filters.shape)
+    && (!filters.issue || filters.issue === "all" || (filters.issue === "blocked" ? hasBlocker : !hasBlocker))
+    && creationFlowMatchesLibraryLens(draft, filters.lens ?? "all");
 }
