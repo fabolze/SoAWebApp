@@ -8,6 +8,10 @@ from backend.app.db.init_db import get_db_session
 from flask import jsonify, abort, request
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
+from backend.app.services.dialogue_choice_actions import (
+    normalize_dialogue_choices,
+    validate_dialogue_choice_actions,
+)
 
 class DialogueNodeRoute(BaseRoute):
     def __init__(self):
@@ -61,9 +65,15 @@ class DialogueNodeRoute(BaseRoute):
         choices = data.get("choices", [])
         if not isinstance(choices, list):
             raise ValueError("choices must be an array")
-        for choice in choices:
+        choices = normalize_dialogue_choices(data.get("id") or node.id, choices)
+        choice_ids = []
+        action_ids = []
+        for choice_index, choice in enumerate(choices):
             if not isinstance(choice, dict):
                 raise ValueError("Choice entries must be objects")
+            validate_dialogue_choice_actions(db_session, choice, f"choices[{choice_index}]")
+            choice_ids.append(choice["choice_id"])
+            action_ids.extend(action["action_id"] for action in choice.get("actions", []))
             if not isinstance(choice.get("next_node_id"), str) or not choice["next_node_id"]:
                 raise ValueError("Choice missing required field: next_node_id")
             if "choice_text" in choice and not isinstance(choice["choice_text"], str):
@@ -90,6 +100,29 @@ class DialogueNodeRoute(BaseRoute):
                         raise ValueError("Choice set_flags entries must be non-empty ids")
                     if not db_session.get(Flag, flag_id):
                         raise ValueError(f"Invalid flag_id in choice: {flag_id}")
+        if len(choice_ids) != len(set(choice_ids)):
+            raise ValueError("choices contains duplicate choice_id values")
+        if len(action_ids) != len(set(action_ids)):
+            raise ValueError("choices contains duplicate action_id values")
+
+        other_choice_ids = set()
+        other_action_ids = set()
+        if node.dialogue_id:
+            for sibling in db_session.query(DialogueNode).filter(DialogueNode.dialogue_id == node.dialogue_id).all():
+                if sibling.id == node.id:
+                    continue
+                for sibling_choice in normalize_dialogue_choices(sibling.id, sibling.choices or []):
+                    if isinstance(sibling_choice, dict):
+                        other_choice_ids.add(sibling_choice.get("choice_id"))
+                        other_action_ids.update(
+                            action.get("action_id") for action in sibling_choice.get("actions", []) if isinstance(action, dict)
+                        )
+        duplicate_choice_ids = set(choice_ids) & other_choice_ids
+        if duplicate_choice_ids:
+            raise ValueError(f"choice_id must be unique within a dialogue: {sorted(duplicate_choice_ids)[0]}")
+        duplicate_action_ids = set(action_ids) & other_action_ids
+        if duplicate_action_ids:
+            raise ValueError(f"action_id must be unique within a dialogue: {sorted(duplicate_action_ids)[0]}")
         
         tags = data.get("tags", [])
         if not isinstance(tags, list):
@@ -101,7 +134,9 @@ class DialogueNodeRoute(BaseRoute):
         node.tags = tags
 
     def serialize_item(self, node: DialogueNode) -> Dict[str, Any]:
-        return self.serialize_model(node)
+        payload = self.serialize_model(node)
+        payload["choices"] = normalize_dialogue_choices(node.id, payload.get("choices") or [])
+        return payload
     
     def get_dialogue_tree(self, dialogue_id: str):
         """Get all nodes for a specific dialogue."""

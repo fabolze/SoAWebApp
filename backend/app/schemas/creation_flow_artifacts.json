@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Creation Flow Artifact Provenance",
+  "type": "object",
+  "description": "Authoring-only link from one flow step to one canonical artifact.",
+  "properties": {
+    "id": { "type": "string", "ui": { "widget": "hidden" }, "description": "Stable provenance row identity." },
+    "slug": { "type": "string", "ui": { "widget": "text", "label": "ID/Slug" }, "description": "Readable provenance identifier." },
+    "manifest_id": { "type": "string", "ui": { "widget": "reference", "reference": "creation_flow_manifests", "label": "Manifest" }, "description": "Owning committed flow manifest." },
+    "step_id": { "type": "string", "description": "Stable local step identity in the normalized draft." },
+    "artifact_kind": { "type": "string", "description": "Canonical table/entity kind." },
+    "artifact_id": { "type": "string", "description": "Canonical artifact identity." },
+    "ownership": { "type": "string", "enum": ["generated", "reused", "shared", "detached"], "description": "How the flow relates to this artifact." },
+    "disposition": { "type": "string", "enum": ["still_owned", "modified", "detached_shared", "cleanup_candidate", "retained"], "description": "Current recompile/cleanup classification." },
+    "expected_snapshot": { "type": "object", "description": "Canonical snapshot used for stale/recompile review." },
+    "notes": { "type": "string", "ui": { "widget": "textarea" }, "description": "Optional provenance explanation." },
+    "tags": { "type": "array", "items": { "type": "string" }, "ui": { "widget": "tags" } }
+  },
+  "required": ["id", "slug", "manifest_id", "step_id", "artifact_kind", "artifact_id", "ownership", "disposition", "expected_snapshot", "tags"]
+}

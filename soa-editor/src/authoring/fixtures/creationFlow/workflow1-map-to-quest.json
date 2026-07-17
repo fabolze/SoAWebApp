@@ -1,0 +1,34 @@
+{
+  "format": "SOA-CREATION-FLOW/1",
+  "id": "fixture-w1",
+  "revision": 1,
+  "title": "Evening map-to-quest session",
+  "shape": "hybrid",
+  "origin": { "ref": { "kind": "location", "canonicalId": "starter-town", "label": "Starter Town" } },
+  "returnStack": [{ "workspace": "/author/world", "context": { "kind": "location", "canonicalId": "starter-town" }, "selectedId": "starter-town" }],
+  "entryStepId": "w1-quest",
+  "steps": [
+    { "id": "w1-quest", "kind": "quest_assignment", "text": "The local quest giver assigns a five-wood quest", "target": { "kind": "quest", "draftId": "w1-quest-placeholder", "label": "Five Wood" }, "timing": "immediate", "repeatPolicy": "one_shot", "targetResolution": "placeholder", "support": "unresolved" },
+    { "id": "w1-route", "kind": "note", "text": "Create the route toward the dark forest", "targetResolution": "none", "support": "story_only" },
+    { "id": "w1-encounter", "kind": "encounter", "text": "Fight monsters on the way", "target": { "kind": "encounter", "draftId": "w1-encounter-placeholder", "label": "Forest Threats" }, "timing": "immediate", "repeatPolicy": "repeatable", "targetResolution": "placeholder", "support": "unresolved" },
+    { "id": "w1-retreat", "kind": "dialogue", "text": "Before the cave boss, let the player enter or retreat", "targetResolution": "none", "support": "compilable" },
+    { "id": "w1-boss", "kind": "encounter", "text": "On entering, start the cave boss encounter", "timing": "immediate", "repeatPolicy": "one_shot", "targetResolution": "none", "support": "compilable" },
+    { "id": "w1-item", "kind": "item_reward", "text": "After victory, discover the spontaneous important item", "target": { "kind": "item", "draftId": "w1-item-placeholder", "label": "Unknown Relic" }, "timing": "after_completion", "repeatPolicy": "one_shot", "targetResolution": "placeholder", "support": "unresolved" },
+    { "id": "w1-turnin", "kind": "quest_turn_in", "text": "Return, turn in the quest, and gain faction reputation", "timing": "after_completion", "repeatPolicy": "one_shot", "targetResolution": "none", "support": "runtime_unverified" }
+  ],
+  "transitions": [
+    { "id": "w1-t1", "fromStepId": "w1-quest", "toStepId": "w1-route", "trigger": "complete", "sortOrder": 0 },
+    { "id": "w1-t2", "fromStepId": "w1-route", "toStepId": "w1-encounter", "trigger": "complete", "sortOrder": 1 },
+    { "id": "w1-t3", "fromStepId": "w1-encounter", "toStepId": "w1-retreat", "trigger": "victory", "sortOrder": 2 },
+    { "id": "w1-t4", "fromStepId": "w1-retreat", "toStepId": "w1-boss", "trigger": "dialogue_choice", "sortOrder": 3 },
+    { "id": "w1-t5", "fromStepId": "w1-boss", "toStepId": "w1-item", "trigger": "victory", "sortOrder": 4 },
+    { "id": "w1-t6", "fromStepId": "w1-item", "toStepId": "w1-turnin", "trigger": "complete", "sortOrder": 5 }
+  ],
+  "relations": [],
+  "placeholders": [
+    { "id": "w1-quest-placeholder", "kind": "quest", "label": "Five Wood" },
+    { "id": "w1-encounter-placeholder", "kind": "encounter", "label": "Forest Threats" },
+    { "id": "w1-item-placeholder", "kind": "item", "label": "Unknown Relic" }
+  ],
+  "mentions": [], "localNotes": [], "artifactIds": {}, "createdAt": 1, "updatedAt": 1
+}

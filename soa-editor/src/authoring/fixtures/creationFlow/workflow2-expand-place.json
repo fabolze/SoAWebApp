@@ -1,0 +1,22 @@
+{
+  "format": "SOA-CREATION-FLOW/1", "id": "fixture-w2", "revision": 1, "title": "Give the place a story", "shape": "constellation",
+  "origin": { "ref": { "kind": "location", "canonicalId": "thin-place", "label": "Thin Place" } },
+  "returnStack": [{ "workspace": "/author/world", "selectedId": "thin-place" }],
+  "steps": [
+    { "id": "w2-war", "kind": "note", "text": "An old war shaped the place", "targetResolution": "none", "support": "story_only" },
+    { "id": "w2-hero", "kind": "note", "text": "The dead hero left evidence", "target": { "kind": "character", "draftId": "w2-hero-card", "label": "Dead Hero" }, "targetResolution": "placeholder", "support": "unresolved" },
+    { "id": "w2-cult", "kind": "note", "text": "A cult seeks the hero's evolving relic", "target": { "kind": "faction", "draftId": "w2-cult-card", "label": "Relic Cult" }, "targetResolution": "placeholder", "support": "unresolved" },
+    { "id": "w2-dungeon", "kind": "note", "text": "The cult package points to a playable dungeon", "targetResolution": "none", "support": "story_only" },
+    { "id": "w2-companion", "kind": "join_companion", "text": "A capable character may later join through a real recruitment action", "targetResolution": "none", "support": "runtime_unverified" }
+  ],
+  "transitions": [],
+  "relations": [
+    { "id": "w2-r1", "fromStepId": "w2-war", "toStepId": "w2-hero", "relation": "created the legend of", "resolution": "local_intent" },
+    { "id": "w2-r2", "fromStepId": "w2-hero", "toStepId": "w2-cult", "relation": "left the relic sought by", "resolution": "local_intent" },
+    { "id": "w2-r3", "fromStepId": "w2-cult", "toStepId": "w2-dungeon", "relation": "occupies", "resolution": "local_intent" }
+  ],
+  "placeholders": [{ "id": "w2-hero-card", "kind": "character", "label": "Dead Hero" }, { "id": "w2-cult-card", "kind": "faction", "label": "Relic Cult" }],
+  "localNotes": [{ "id": "w2-prose", "text": "The Dead Hero vanished after the old war." }],
+  "mentions": [{ "id": "w2-mention", "ideaId": "w2-hero-card", "noteId": "w2-prose", "start": 4, "end": 13, "quotedText": "Dead Hero" }],
+  "artifactIds": {}, "createdAt": 1, "updatedAt": 1
+}

@@ -72,6 +72,7 @@ from backend.app.routes.r_ui_progression_flow import bp as ui_progression_flow_b
 from backend.app.routes.r_ui_scoped_gates import bp as ui_scoped_gates_bp
 from backend.app.routes.r_ui_consequences import bp as ui_consequences_bp
 from backend.app.routes.r_recovery import bp as recovery_bp
+from backend.app.routes.r_creation_flow_manifests import creation_flow_artifacts_bp, creation_flow_manifests_bp
 from backend.app.services.recovery import run_startup_recovery
 
 __all__ = ["create_app", "generate_ulid"]
@@ -162,7 +163,9 @@ def create_app(startup_recovery: bool = True) -> Flask:
         ui_progression_flow_bp,
         ui_scoped_gates_bp,
         ui_consequences_bp,
-        recovery_bp
+        recovery_bp,
+        creation_flow_manifests_bp,
+        creation_flow_artifacts_bp,
     ]
     
     for blueprint in blueprints:

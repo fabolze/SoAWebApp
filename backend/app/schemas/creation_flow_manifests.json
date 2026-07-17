@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Creation Flow Manifest",
+  "type": "object",
+  "description": "Durable authoring-only record of a committed Creation Flow and its compiler provenance. Never exported as a runtime DataTable.",
+  "properties": {
+    "id": { "type": "string", "description": "Stable manifest identity.", "ui": { "widget": "hidden" } },
+    "slug": { "type": "string", "description": "Readable project-local manifest identifier.", "ui": { "widget": "text", "label": "ID/Slug" } },
+    "title": { "type": "string", "description": "Author-facing flow title.", "ui": { "widget": "text", "label": "Title" } },
+    "format": { "type": "string", "enum": ["SOA-CREATION-FLOW/1"], "description": "Normalized draft format." },
+    "schema_version": { "type": "integer", "description": "Manifest storage schema version." },
+    "compiler_version": { "type": "string", "description": "Compiler/capability version used for the committed packet." },
+    "origin_kind": { "type": "string", "description": "Owning origin reference kind." },
+    "origin_id": { "type": "string", "description": "Canonical or draft origin identity." },
+    "origin_sub_kind": { "type": "string", "description": "Optional source line, choice, outcome, or objective kind." },
+    "origin_sub_id": { "type": "string", "description": "Optional stable source identity." },
+    "normalized_draft": { "type": "object", "description": "Normalized committed Creation Flow draft." },
+    "accepted_warning_ids": { "type": "array", "items": { "type": "string" }, "description": "Warnings accepted for this exact committed mutation." },
+    "source_snapshots": { "type": "object", "description": "Canonical snapshots used for stale and recompile review." },
+    "artifact_dispositions": { "type": "object", "description": "Current ownership/cleanup classification summary." },
+    "created_at": { "type": "integer", "description": "Creation timestamp in Unix milliseconds." },
+    "updated_at": { "type": "integer", "description": "Last committed/reviewed timestamp in Unix milliseconds." },
+    "tags": { "type": "array", "items": { "type": "string" }, "ui": { "widget": "tags" } }
+  },
+  "required": ["id", "slug", "title", "format", "schema_version", "compiler_version", "normalized_draft", "accepted_warning_ids", "source_snapshots", "artifact_dispositions", "created_at", "updated_at", "tags"]
+}

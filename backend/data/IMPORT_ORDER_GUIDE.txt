@@ -94,4 +94,6 @@ Quick dependency examples
 - encounters depends on: characters (+ combat_profiles for Combat context)
 - adventure_beats depends on: timelines/story_arcs and flags (optional)
 - adventure_beat_links depends on: adventure_beats and the target selected by target_type
+- creation_flow_manifests is authoring-only and must import after the canonical records captured in its snapshots
+- creation_flow_artifacts is authoring-only and depends on: creation_flow_manifests
 

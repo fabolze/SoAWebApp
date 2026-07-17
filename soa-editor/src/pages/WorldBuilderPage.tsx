@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
 import ScopedGateSection from "../components/authoring/ScopedGateSection";
+import ExpandPlaceComposer from "../components/authoring/ExpandPlaceComposer";
 import { AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import {
   packetStoryPlacementWarningRecords,
@@ -1131,9 +1132,15 @@ export default function WorldBuilderPage() {
                 onCreateEncounterEvent={() => createRouteEncounterEventDraft(selectedRoute)}
                 onRequirementCommitted={(requirements_id) => setPayload((current) => current ? { ...current, routes: current.routes.map((route) => entryId(route) === entryId(selectedRoute) ? { ...route, requirements_id } : route) } : current)}
               />
-            ) : selectedLocation ? (
-              <div className="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4">
-                {!selectedIsDraft && (
+             ) : selectedLocation ? (
+               <div className="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4">
+                 <ExpandPlaceComposer
+                   title={`Expand ${label(selectedLocation)}`}
+                   context={{ kind: "location", ...(selectedIsDraft ? { draftId: entryId(selectedLocation) } : { canonicalId: entryId(selectedLocation) }), label: label(selectedLocation) }}
+                   origin={{ ref: { kind: "location", ...(selectedIsDraft ? { draftId: entryId(selectedLocation) } : { canonicalId: entryId(selectedLocation) }), label: label(selectedLocation) } }}
+                   returnFrame={{ workspace: WORLD_RETURN, context: { kind: "location", ...(selectedIsDraft ? { draftId: entryId(selectedLocation) } : { canonicalId: entryId(selectedLocation) }), label: label(selectedLocation) }, selectedId: entryId(selectedLocation), localViewState: { layer, storyFilter } }}
+                 />
+                 {!selectedIsDraft && (
                   <StoryPlacementPanel
                     entityKind="location"
                     entityId={entryId(selectedLocation)}

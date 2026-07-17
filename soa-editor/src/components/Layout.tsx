@@ -23,6 +23,16 @@ export default function Layout({ collapsed, onToggleCollapse }: { collapsed: boo
   }, [location.pathname, location.search]);
 
   useEffect(() => {
+    const refresh = () => setDrafts(readDraftInventory());
+    window.addEventListener("soa:creation-flow-drafts-changed", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("soa:creation-flow-drafts-changed", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
       if (event.key.toLowerCase() !== "k") return;

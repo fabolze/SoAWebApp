@@ -1076,10 +1076,10 @@ test("world builder state layer filters canonical location lifecycle", async ({ 
 });
 
 const dialoguePacket = {
-  dialogue: { id: "dialogue-1", slug: "dialogue-1", title: "Gate Talk", description: "", tags: [] },
+  dialogue: { id: "dialogue-1", slug: "dialogue-1", title: "Gate Talk", description: "", tags: [], starting_node_id: "node-1" },
   nodes: [
-    { id: "node-1", slug: "node-1", dialogue_id: "dialogue-1", speaker: "Guide", text: "Choose.", choices: [{ choice_text: "Enter", next_node_id: "node-2", requirements_id: "req-1", set_flags: [] }], set_flags: [], tags: [] },
-    { id: "node-2", slug: "node-2", dialogue_id: "dialogue-1", speaker: "Guide", text: "Welcome.", choices: [], set_flags: [], tags: [] },
+    { id: "node-1", slug: "node-1", dialogue_id: "dialogue-1", speaker: "Guide", text: "Choose.", choices: [{ choice_text: "Enter", next_node_id: "node-2", requirements_id: "req-1", set_flags: [] }], set_flags: [], tags: [], is_terminal: false },
+    { id: "node-2", slug: "node-2", dialogue_id: "dialogue-1", speaker: "Guide", text: "Welcome.", choices: [], set_flags: [], tags: [], is_terminal: true },
   ],
   requirements: [{ id: "req-1", slug: "req-1", required_flags: ["flag-1"], forbidden_flags: [], min_faction_reputation: [] }],
   flags: [{ id: "flag-1", slug: "flag-1", name: "Allowed", description: "", default_value: false, tags: [] }],
@@ -1121,6 +1121,14 @@ async function mockDialogueApi(
     if (url.pathname === "/api/flags") return fulfillJson(route, dialoguePacket.flags);
     if (url.pathname === "/api/factions") return fulfillJson(route, []);
     if (url.pathname === "/api/characters") return fulfillJson(route, dialoguePacket.characters);
+    if (url.pathname === "/api/ui/scoped-gates") return fulfillJson(route, {
+      requirements: dialoguePacket.requirements,
+      requirement_usages_by_id: {},
+      flags: dialoguePacket.flags,
+      flag_usage_by_id: {},
+      requirement_targets: [],
+      dependency_index: { nodes: [], edges: [] },
+    });
     if (url.pathname === "/api/ui/adventure-timeline") return fulfillJson(route, storyTimelinePacket);
     if (url.pathname === "/api/ui/adventure-timeline/preview" && route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as Record<string, unknown>;
@@ -1542,11 +1550,11 @@ test("dialogue flow sketches, connects, and saves a complete bundle", async ({ p
   });
   await page.goto("/author/dialogues/dialogue-1");
 
-  await page.getByTestId("dialogue-node-node-2").getByRole("button", { name: "+ Choice" }).click();
-  await expect(page.getByText("3 lines /")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Save Flow" })).toBeDisabled();
+  await page.getByTestId("dialogue-node-node-2").getByRole("button", { name: "Add choice after Guide" }).click();
+  await expect(page.locator('[data-testid^="dialogue-node-"]')).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "Review Dialogue Bundle" })).toBeDisabled();
   await page.locator('[data-testid^="dialogue-node-"]').last().getByRole("textbox").fill("A newly drafted line.");
-  await page.getByRole("button", { name: "Save Flow" }).click();
+  await page.getByRole("button", { name: "Review Dialogue Bundle" }).click();
   await expect(page.getByRole("button", { name: "Commit Bundle" })).toBeDisabled();
   await page.getByText("Acknowledge this reassignment.").click();
   await expect(page.getByRole("button", { name: "Commit Bundle" })).toBeEnabled();
@@ -1690,6 +1698,50 @@ test("new dialogue draft survives a full reload", async ({ page }) => {
   await page.reload();
   await expect(page.getByText("Restored unsaved dialogue flow draft.")).toBeVisible();
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue("Reloadable New Dialogue");
+});
+
+test("creation flow captures and restores a continuation from a terminal dialogue node", async ({ page }) => {
+  await mockDialogueApi(page);
+  await page.goto("/author/dialogues/dialogue-1");
+  await page.getByTestId("dialogue-node-node-2").click();
+  await page.getByRole("button", { name: "Then…", exact: true }).click();
+
+  await expect(page.getByText("Local only", { exact: true })).toBeVisible();
+  await page.getByLabel("What happens next?").fill("The guide opens the city archive.");
+  await page.getByRole("combobox", { name: "Behavior", exact: true }).selectOption({ label: "Open shop now" });
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.locator('input[value="The guide opens the city archive."]')).toBeVisible();
+  await expect(page.getByText("runtime unverified", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("soa.creation-flow.draft.")))).toBe(true);
+
+  await page.reload();
+  await page.getByTestId("dialogue-node-node-2").click();
+  await page.getByRole("button", { name: "Then…", exact: true }).click();
+  await expect(page.locator('input[value="The guide opens the city archive."]')).toBeVisible();
+});
+
+test("creation flow expands a place with independent lore cards and steps", async ({ page }) => {
+  const world = {
+    ...emptyWorld,
+    locations: [{
+      id: "zone-1", slug: "zone-1", name: "Test Zone", location_type: "Zone", place_kind: "Wilderness",
+      coordinates: { x: 50, y: 50 }, level_range: { min: 1, max: 3 }, tags: [], environment_tags: [],
+    }],
+  };
+  await mockApi(page, world);
+  await page.goto("/author/world?selected=zone-1");
+  await page.getByRole("button", { name: "Expand this place", exact: true }).click();
+
+  await page.getByLabel("Lore / brainstorming prose").fill("The Ash Regent vanished beneath the old road.");
+  await page.getByPlaceholder("Ash Regent").fill("Ash Regent");
+  await page.getByRole("button", { name: "Add idea", exact: true }).click();
+  await expect(page.getByText("Ash Regent", { exact: true })).toBeVisible();
+  await expect(page.getByText(/unresolved/).first()).toBeVisible();
+
+  await page.getByLabel("What happens next?").fill("Displaced bandits establish a hidden camp.");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.locator('input[value="Displaced bandits establish a hidden camp."]')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((key) => key.startsWith("soa.creation-flow.draft.")))).toBe(true);
 });
 
 test("dialogue scene starter recipes are interactive", async ({ page }) => {

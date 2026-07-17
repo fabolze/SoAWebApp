@@ -1,0 +1,24 @@
+{
+  "format": "SOA-CREATION-FLOW/1", "id": "fixture-w3", "revision": 1, "title": "Resume the starter-city faction plot", "shape": "hybrid",
+  "origin": { "ref": { "kind": "location", "canonicalId": "first-city", "label": "First City" } },
+  "returnStack": [{ "workspace": "/author/world", "selectedId": "first-city", "localViewState": { "nextQuestion": "What keeps the city in motion?" } }],
+  "entryStepId": "w3-city",
+  "steps": [
+    { "id": "w3-city", "kind": "note", "text": "The city harmed the shadow creatures", "targetResolution": "none", "support": "story_only" },
+    { "id": "w3-shadows", "kind": "note", "text": "Shadow creatures occupy the bandit home", "targetResolution": "none", "support": "story_only" },
+    { "id": "w3-bandits", "kind": "note", "text": "Displaced bandits pressure weaker people", "target": { "kind": "faction", "draftId": "w3-bandit-card", "label": "Displaced Bandits" }, "targetResolution": "placeholder", "support": "unresolved" },
+    { "id": "w3-quest", "kind": "quest_assignment", "text": "Assign a mostly linear shadow-creature quest", "targetResolution": "none", "support": "runtime_unverified" },
+    { "id": "w3-reputation", "kind": "numeric_reward", "text": "On turn-in, grant bandit reputation and cross a named rank", "timing": "after_completion", "repeatPolicy": "one_shot", "targetResolution": "none", "support": "compilable" },
+    { "id": "w3-equipment", "kind": "make_available", "text": "Make rank-gated equipment purchasable", "target": { "kind": "item", "draftId": "w3-item-card", "label": "Bandit Rank Equipment" }, "timing": "available_later", "targetResolution": "placeholder", "support": "unresolved" }
+  ],
+  "transitions": [
+    { "id": "w3-t1", "fromStepId": "w3-quest", "toStepId": "w3-reputation", "trigger": "complete", "sortOrder": 0 },
+    { "id": "w3-t2", "fromStepId": "w3-reputation", "toStepId": "w3-equipment", "trigger": "complete", "sortOrder": 1 }
+  ],
+  "relations": [
+    { "id": "w3-r1", "fromStepId": "w3-city", "toStepId": "w3-shadows", "relation": "angered", "resolution": "local_intent" },
+    { "id": "w3-r2", "fromStepId": "w3-shadows", "toStepId": "w3-bandits", "relation": "displaced", "resolution": "local_intent" }
+  ],
+  "placeholders": [{ "id": "w3-bandit-card", "kind": "faction", "label": "Displaced Bandits" }, { "id": "w3-item-card", "kind": "item", "label": "Bandit Rank Equipment" }],
+  "mentions": [], "localNotes": [{ "id": "w3-next", "text": "Next question: who still needs help?" }], "artifactIds": {}, "createdAt": 1, "updatedAt": 1
+}

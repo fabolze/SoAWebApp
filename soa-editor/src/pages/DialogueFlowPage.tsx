@@ -18,6 +18,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { EditableTagList, ReferenceChipPicker, displayText, isRecord } from "../authoringViews/controls";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import ConsequenceComposer from "../components/authoring/ConsequenceComposer";
+import ThenComposer from "../components/authoring/ThenComposer";
 import ScopedGateSection from "../components/authoring/ScopedGateSection";
 import { AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice } from "../components/authoringUi";
 import StoryPlacementPanel from "../components/storyPlacement/StoryPlacementPanel";
@@ -36,6 +37,15 @@ type Lens = "choices" | "consequences" | "locks" | "speakers" | "reachability" |
 type InspectorTab = "edit" | "beat" | "health" | "context";
 type Point = { x: number; y: number };
 type ChoiceSelection = { nodeId: string; index: number } | null;
+
+const CHOICE_ACTION_OPTIONS = [
+  { value: "open_shop", label: "Open shop now", targetType: "shop", continuation: "resume_source_dialogue" },
+  { value: "start_encounter", label: "Start encounter", targetType: "encounter", continuation: "end_source_dialogue" },
+  { value: "join_companion", label: "Companion joins", targetType: "character", continuation: "advance_to_next_node" },
+  { value: "discover_quest", label: "Discover quest", targetType: "quest", continuation: "advance_to_next_node" },
+  { value: "assign_quest", label: "Assign quest", targetType: "quest", continuation: "advance_to_next_node" },
+  { value: "reveal_map_marker", label: "Reveal map marker", targetType: "location_poi", continuation: "advance_to_next_node" },
+] as const;
 
 interface CoverageGroup { matched: EntryRecord[]; missing: string[] }
 interface BeatCoverage {
@@ -139,6 +149,28 @@ function emptyNode(dialogueId: string, index: number, speaker = "NPC"): EntryRec
   };
 }
 
+function normalizedChoice(choice: EntryRecord, nodeId: string, index: number): EntryRecord {
+  return {
+    ...choice,
+    choice_id: text(choice.choice_id, `legacy-choice-${nodeId}-${index + 1}`),
+    actions: rows(choice.actions),
+    set_flags: strings(choice.set_flags),
+  };
+}
+
+function newChoice(choiceText: string, nextNodeId: string): EntryRecord {
+  return { choice_id: generateUlid(), choice_text: choiceText, next_node_id: nextNodeId, actions: [], set_flags: [] };
+}
+
+function newChoiceAction(actionType: string, sortOrder: number): EntryRecord {
+  const option = CHOICE_ACTION_OPTIONS.find((entry) => entry.value === actionType) || CHOICE_ACTION_OPTIONS[0];
+  return {
+    action_id: generateUlid(), action_type: option.value, target_ref_type: option.targetType, target_ref_id: "",
+    timing: "immediate", repeat_policy: "inherit_owner", continuation_policy: option.continuation,
+    sort_order: sortOrder, runtime_support: "runtime_unverified",
+  };
+}
+
 function normalizePacket(value: EntryRecord, fallback: DialoguePacket): DialoguePacket {
   const context = isRecord(value.context) ? value.context : {};
   const echo = isRecord(value.world_echo) ? value.world_echo : {};
@@ -146,7 +178,10 @@ function normalizePacket(value: EntryRecord, fallback: DialoguePacket): Dialogue
     ...fallback,
     ...value,
     dialogue: isRecord(value.dialogue) ? value.dialogue : fallback.dialogue,
-    nodes: rows(value.nodes),
+    nodes: rows(value.nodes).map((node) => ({
+      ...node,
+      choices: rows(node.choices).map((choice, index) => normalizedChoice(choice, text(node.id), index)),
+    })),
     story_beats: rows(value.story_beats),
     beat_coverage: isRecord(value.beat_coverage) ? value.beat_coverage as Record<string, BeatCoverage> : {},
     requirements: rows(value.requirements),
@@ -497,7 +532,7 @@ export default function DialogueFlowPage() {
     node.speaker_character_id = recentDistinct?.speaker_character_id || source?.speaker_character_id || null;
     mutatePacket((current) => ({
       ...current,
-      nodes: [...current.nodes.map((entry) => text(entry.id) === sourceId ? { ...entry, is_terminal: false, choices: [...rows(entry.choices), { choice_text: automatic ? "" : "New response", next_node_id: node.id, set_flags: [] }] } : entry), node],
+      nodes: [...current.nodes.map((entry) => text(entry.id) === sourceId ? { ...entry, is_terminal: false, choices: [...rows(entry.choices), newChoice(automatic ? "" : "New response", text(node.id))] } : entry), node],
     }), `add:${sourceId}`);
     const sourcePosition = positions[sourceId] || { x: 50, y: 50 };
     setPositions((current) => ({ ...current, [text(node.id)]: { x: sourcePosition.x + 330, y: sourcePosition.y + rows(source?.choices).length * 190 } }));
@@ -507,7 +542,7 @@ export default function DialogueFlowPage() {
   const addChoiceNode = useCallback((sourceId: string, choiceLabel: string) => {
     const source = packet.nodes.find((node) => text(node.id) === sourceId);
     const node = emptyNode(currentId, packet.nodes.length + 1, text(packet.nodes.slice().reverse().find((entry) => text(entry.speaker) !== text(source?.speaker))?.speaker, text(source?.speaker, "NPC")));
-    mutatePacket((current) => ({ ...current, nodes: [...current.nodes.map((entry) => text(entry.id) === sourceId ? { ...entry, is_terminal: false, choices: [...rows(entry.choices), { choice_text: choiceLabel, next_node_id: node.id, set_flags: [] }] } : entry), node] }), `choice:${sourceId}`);
+    mutatePacket((current) => ({ ...current, nodes: [...current.nodes.map((entry) => text(entry.id) === sourceId ? { ...entry, is_terminal: false, choices: [...rows(entry.choices), newChoice(choiceLabel, text(node.id))] } : entry), node] }), `choice:${sourceId}`);
     setSelectedNodeId(text(node.id)); setSelectedChoice(null);
     window.setTimeout(() => document.getElementById(`script-line-${text(node.id)}`)?.querySelector("textarea")?.focus(), 0);
   }, [currentId, mutatePacket, packet.nodes]);
@@ -528,13 +563,13 @@ export default function DialogueFlowPage() {
     const byId = new Map(current.nodes.map((node) => [text(node.id), node])); const branch = new Set<string>(); const queue = [targetId];
     while (queue.length && branch.size < 100) { const id = queue.shift()!; if (branch.has(id) || !byId.has(id)) continue; branch.add(id); rows(byId.get(id)?.choices).forEach((edge) => queue.push(text(edge.next_node_id))); }
     const mapped = Object.fromEntries([...branch].map((id) => [id, generateUlid()]));
-    const copies = [...branch].map((id, index) => { const node = byId.get(id)!; return { ...node, id: mapped[id], slug: generateSlug(`${text(node.slug, "line")}-copy-${index + 1}-${mapped[id].slice(-4)}`), choices: rows(node.choices).map((edge) => ({ ...edge, next_node_id: mapped[text(edge.next_node_id)] || edge.next_node_id })), __new: true }; });
-    return { ...current, nodes: [...current.nodes.map((node) => text(node.id) === sourceId ? { ...node, choices: [...rows(node.choices), { ...choice, choice_text: `Copy: ${text(choice.choice_text, "Continue")}`, next_node_id: mapped[targetId] }] } : node), ...copies] };
+    const copies = [...branch].map((id, index) => { const node = byId.get(id)!; return { ...node, id: mapped[id], slug: generateSlug(`${text(node.slug, "line")}-copy-${index + 1}-${mapped[id].slice(-4)}`), choices: rows(node.choices).map((edge) => ({ ...edge, choice_id: generateUlid(), actions: rows(edge.actions).map((action, actionIndex) => ({ ...action, action_id: generateUlid(), sort_order: actionIndex })), next_node_id: mapped[text(edge.next_node_id)] || edge.next_node_id })), __new: true }; });
+    return { ...current, nodes: [...current.nodes.map((node) => text(node.id) === sourceId ? { ...node, choices: [...rows(node.choices), { ...choice, choice_id: generateUlid(), actions: rows(choice.actions).map((action, index) => ({ ...action, action_id: generateUlid(), sort_order: index })), choice_text: `Copy: ${text(choice.choice_text, "Continue")}`, next_node_id: mapped[targetId] }] } : node), ...copies] };
   }, `duplicate:${sourceId}:${choiceIndex}`), [mutatePacket]);
   const connect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target || connection.source === connection.target) return;
     const source = packet.nodes.find((node) => text(node.id) === connection.source);
-    updateNode(connection.source, { is_terminal: false, choices: [...rows(source?.choices), { choice_text: "New response", next_node_id: connection.target, set_flags: [] }] });
+    updateNode(connection.source, { is_terminal: false, choices: [...rows(source?.choices), newChoice("New response", connection.target)] });
   }, [packet.nodes, updateNode]);
 
   const flowNodes = useMemo<Node<CardData>[]>(() => activeNodes.map((node) => ({
@@ -626,16 +661,16 @@ export default function DialogueFlowPage() {
     let created: EntryRecord[] = [];
     if (recipe === "Greeting") {
       const a = make("Welcome. What can I do for you?"); const b = make("Tell me about this place."); const c = make("Safe travels.");
-      a.choices = [{ choice_text: "Ask about the area", next_node_id: b.id, set_flags: [] }, { choice_text: "Leave", next_node_id: c.id, set_flags: [] }]; b.choices = [{ choice_text: "Thanks", next_node_id: c.id, set_flags: [] }]; created = [a, b, c];
+      a.choices = [newChoice("Ask about the area", text(b.id)), newChoice("Leave", text(c.id))]; b.choices = [newChoice("Thanks", text(c.id))]; created = [a, b, c];
     } else if (recipe === "Quest Briefing") {
       const a = make("I need your help."); const b = make("Will you take the task?"); const c = make("Then we have an agreement."); const d = make("I understand.");
-      a.choices = [{ choice_text: "What happened?", next_node_id: b.id, set_flags: [] }]; b.choices = [{ choice_text: "Accept", next_node_id: c.id, set_flags: [] }, { choice_text: "Refuse", next_node_id: d.id, set_flags: [] }]; created = [a, b, c, d];
+      a.choices = [newChoice("What happened?", text(b.id))]; b.choices = [newChoice("Accept", text(c.id)), newChoice("Refuse", text(d.id))]; created = [a, b, c, d];
     } else if (recipe === "Negotiation") {
       const a = make("Give me one reason to agree."); const b = make("That is convincing."); const c = make("That changes nothing."); const d = make("We are done.");
-      a.choices = [{ choice_text: "Appeal", next_node_id: b.id, set_flags: [] }, { choice_text: "Offer proof", next_node_id: b.id, set_flags: [] }, { choice_text: "Threaten", next_node_id: c.id, set_flags: [] }]; c.choices = [{ choice_text: "Leave", next_node_id: d.id, set_flags: [] }]; created = [a, b, c, d];
+      a.choices = [newChoice("Appeal", text(b.id)), newChoice("Offer proof", text(b.id)), newChoice("Threaten", text(c.id))]; c.choices = [newChoice("Leave", text(d.id))]; created = [a, b, c, d];
     } else {
       const a = make("It is over. Are you hurt?"); const b = make("Then let us decide what comes next."); const c = make("We should move.");
-      a.choices = [{ choice_text: "Discuss what happened", next_node_id: b.id, set_flags: [] }, { choice_text: "Move on", next_node_id: c.id, set_flags: [] }]; b.choices = [{ choice_text: "Continue", next_node_id: c.id, set_flags: [] }]; created = [a, b, c];
+      a.choices = [newChoice("Discuss what happened", text(b.id)), newChoice("Move on", text(c.id))]; b.choices = [newChoice("Continue", text(c.id))]; created = [a, b, c];
     }
     created = created.map((node) => ({ ...node, is_terminal: rows(node.choices).length === 0 }));
     mutatePacket((current) => ({ ...current, dialogue: { ...current.dialogue, starting_node_id: created[0]?.id || null }, nodes: created }), "recipe");
@@ -736,7 +771,7 @@ export default function DialogueFlowPage() {
           help="The dock changes with the selected tab. Edit works on the selected node or choice, Beat edits story milestones, Health explains blockers and warnings, and Context shows linked world records."
         >
           <div className="mb-3 flex flex-wrap gap-1">{(["edit", "beat", "health", "context"] as InspectorTab[]).map((item) => <button key={item} className={tab === item ? active : inactive} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}<button className={inactive} onClick={() => setInspectorOpen(false)} aria-label="Close context dock">Hide</button></div>
-          {tab === "edit" && selectedChoice && selectedChoiceRow ? <ChoiceEditor choice={selectedChoiceRow} nodes={packet.nodes} deletions={deletions} onChange={(patch) => updateChoice(selectedChoice.nodeId, selectedChoice.index, patch)} onRemove={() => { const node = packet.nodes.find((entry) => text(entry.id) === selectedChoice.nodeId); updateNode(selectedChoice.nodeId, { choices: rows(node?.choices).filter((_, index) => index !== selectedChoice.index) }); setSelectedChoice(null); }} />
+          {tab === "edit" && selectedChoice && selectedChoiceRow ? <ChoiceEditor choice={selectedChoiceRow} nodes={packet.nodes} flags={packet.flags} deletions={deletions} onChange={(patch) => updateChoice(selectedChoice.nodeId, selectedChoice.index, patch)} onRemove={() => { const node = packet.nodes.find((entry) => text(entry.id) === selectedChoice.nodeId); updateNode(selectedChoice.nodeId, { choices: rows(node?.choices).filter((_, index) => index !== selectedChoice.index) }); setSelectedChoice(null); }} />
             : tab === "edit" && selectedNode ? <NodeEditor node={selectedNode} packet={packet} groupedBeatId={groups[text(selectedNode.id)] || ""} selectedBeatId={selectedBeatId} onChange={(patch) => updateNode(text(selectedNode.id), patch)} onGroup={(beatId) => { const next = { ...groups, [text(selectedNode.id)]: beatId }; if (!beatId) delete next[text(selectedNode.id)]; setGroups(next); localStorage.setItem(groupKey(currentId), JSON.stringify(next)); }} onDelete={() => selectedNode.__new ? setPacket((current) => ({ ...current, nodes: current.nodes.filter((entry) => text(entry.id) !== text(selectedNode.id)) })) : setDeletions((current) => [...new Set([...current, text(selectedNode.id)])])} />
               : tab === "edit" ? <DialogueEditor dialogue={packet.dialogue} onChange={updateDialogue} /> : null}
           {tab === "edit" && selectedConsequenceNode && !selectedConsequenceNode.__new && <div className="mt-3">
@@ -766,6 +801,26 @@ export default function DialogueFlowPage() {
                 setPacket((current) => ({ ...current, nodes: current.nodes.map((node) => text(node.id) === text(selectedNode.id) ? { ...node, requirements_id } : node) }));
                 setOriginal((current) => current ? { ...current, nodes: current.nodes.map((node) => text(node.id) === text(selectedNode.id) ? { ...node, requirements_id } : node) } : current);
               }}
+            />
+          </div>}
+          {tab === "edit" && selectedChoice && selectedChoiceRow && <div className="mt-3">
+            <ThenComposer
+              title={`After '${text(selectedChoiceRow.choice_text, "Continue")}'`}
+              origin={{
+                ref: { kind: "dialogue", ...(isNew ? { draftId: currentId } : { canonicalId: currentId }), label: label(packet.dialogue) },
+                subRef: { kind: "dialogue_choice", canonicalId: text(selectedChoiceRow.choice_id), label: text(selectedChoiceRow.choice_text, "Continue") },
+              }}
+              returnFrame={{ workspace: `/author/dialogues/${encodeURIComponent(currentId)}`, context: { kind: "dialogue", ...(isNew ? { draftId: currentId } : { canonicalId: currentId }), label: label(packet.dialogue) }, selectedId: selectedChoice.nodeId, localViewState: { tab: "edit", choiceIndex: selectedChoice.index } }}
+            />
+          </div>}
+          {tab === "edit" && selectedNode && Boolean(selectedNode.is_terminal) && <div className="mt-3">
+            <ThenComposer
+              title={`After ${label(selectedNode, "dialogue ending")}`}
+              origin={{
+                ref: { kind: "dialogue", ...(isNew ? { draftId: currentId } : { canonicalId: currentId }), label: label(packet.dialogue) },
+                subRef: { kind: "dialogue_node", ...(selectedNode.__new ? { draftId: text(selectedNode.id) } : { canonicalId: text(selectedNode.id) }), label: text(selectedNode.text, label(selectedNode)) },
+              }}
+              returnFrame={{ workspace: `/author/dialogues/${encodeURIComponent(currentId)}`, context: { kind: "dialogue", ...(isNew ? { draftId: currentId } : { canonicalId: currentId }), label: label(packet.dialogue) }, selectedId: text(selectedNode.id), localViewState: { tab: "edit" } }}
             />
           </div>}
           {tab === "beat" && selectedBeat ? <BeatEditor beat={selectedBeat} packet={packet} coverage={packet.beat_coverage[text(selectedBeat.id)]} onChange={(patch) => updateBeat(text(selectedBeat.id), patch)} onUnlink={() => unlinkBeat(selectedBeat)} /> : tab === "beat" ? <Empty title="No story beat selected.">Select an existing beat or add one from the Story Beat Track to edit its milestone details.</Empty> : null}
@@ -824,8 +879,38 @@ function NodeEditor({ node, packet, groupedBeatId, selectedBeatId, onChange, onG
   return <div className="space-y-3"><label className="block text-xs font-semibold uppercase text-slate-500">Linked Speaker<select className={`${inputClass} mt-1 normal-case`} value={text(node.speaker_character_id)} onChange={(event) => { const character = packet.characters.find((entry) => text(entry.id) === event.target.value); onChange({ speaker_character_id: event.target.value || null, speaker: character ? label(character) : node.speaker }); }}><option value="">Fallback speaker only</option>{packet.characters.map((character) => <option key={text(character.id)} value={text(character.id)}>{label(character)}</option>)}</select></label><Field label="Fallback Speaker" value={node.speaker} onChange={(speaker) => onChange({ speaker })} /><Field label="Slug" value={node.slug} onChange={(slug) => onChange({ slug })} /><Field label="Dialogue Text" value={node.text} textarea onChange={(value) => onChange({ text: value })} /><ReferenceChipPicker label="Requirement" value={node.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} /><FlagPicker label="Flags Produced By Line" value={node.set_flags} options={packet.flags} onChange={(set_flags) => onChange({ set_flags })} /><label className="block text-xs font-semibold uppercase text-slate-500">Local Story Beat Group<select aria-label="Local Story Beat Group" className={`${inputClass} mt-1 normal-case`} value={groupedBeatId} onChange={(event) => onGroup(event.target.value)}><option value="">No local grouping</option>{packet.story_beats.map((beat) => <option key={text(beat.id)} value={text(beat.id)}>{label(beat)}</option>)}</select></label>{selectedBeatId && groupedBeatId !== selectedBeatId && <button className={inactive} onClick={() => onGroup(selectedBeatId)}>Group With Selected Beat</button>}<button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={onDelete}>{node.__new ? "Discard Line" : "Delete Line On Save"}</button></div>;
 }
 
-function ChoiceEditor({ choice, nodes, deletions, onChange, onRemove }: { choice: EntryRecord; nodes: EntryRecord[]; deletions: string[]; onChange: (patch: EntryRecord) => void; onRemove: () => void }) {
-  return <div className="space-y-3"><Field label="Player Choice (blank = continue)" value={choice.choice_text} onChange={(choice_text) => onChange({ choice_text })} /><label className="block text-xs font-semibold uppercase text-slate-500">Target<select className={`${inputClass} mt-1 normal-case`} value={text(choice.next_node_id)} onChange={(event) => onChange({ next_node_id: event.target.value })}>{nodes.map((node) => <option key={text(node.id)} value={text(node.id)} disabled={deletions.includes(text(node.id))}>{label(node, text(node.text, "Empty line"))}</option>)}</select></label><ReferenceChipPicker label="Requirement" value={choice.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} /><FlagPicker label="Flags Produced By Choice" value={choice.set_flags} options={[]} onChange={(set_flags) => onChange({ set_flags })} /><button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={onRemove}>Remove Choice</button></div>;
+function ChoiceEditor({ choice, nodes, flags, deletions, onChange, onRemove }: { choice: EntryRecord; nodes: EntryRecord[]; flags: EntryRecord[]; deletions: string[]; onChange: (patch: EntryRecord) => void; onRemove: () => void }) {
+  const [actionType, setActionType] = useState("open_shop");
+  const actions = rows(choice.actions);
+  const setActions = (next: EntryRecord[]) => onChange({ actions: next.map((action, index) => ({ ...action, sort_order: index })) });
+  const updateAction = (index: number, patch: EntryRecord) => setActions(actions.map((action, actionIndex) => actionIndex === index ? { ...action, ...patch } : action));
+  const referenceFor = (targetType: string) => ({ shop: "shops", encounter: "encounters", character: "characters", quest: "quests", location_poi: "location-pois" }[targetType] || "");
+  return <div className="space-y-3">
+    <div className="rounded border border-slate-200 bg-slate-50 p-2 text-xs dark:border-slate-800 dark:bg-slate-950"><span className="font-semibold">Stable choice</span><code className="ml-2 break-all text-slate-500">{text(choice.choice_id)}</code></div>
+    <Field label="Player Choice (blank = continue)" value={choice.choice_text} onChange={(choice_text) => onChange({ choice_text })} />
+    <label className="block text-xs font-semibold uppercase text-slate-500">Target<select className={`${inputClass} mt-1 normal-case`} value={text(choice.next_node_id)} onChange={(event) => onChange({ next_node_id: event.target.value })}>{nodes.map((node) => <option key={text(node.id)} value={text(node.id)} disabled={deletions.includes(text(node.id))}>{label(node, text(node.text, "Empty line"))}</option>)}</select></label>
+    <ReferenceChipPicker label="Requirement" value={choice.requirements_id} reference="requirements" onChange={(requirements_id) => onChange({ requirements_id })} />
+    <FlagPicker label="Flags Produced By Choice" value={choice.set_flags} options={flags} onChange={(set_flags) => onChange({ set_flags })} />
+    <div className="rounded-md border border-violet-200 p-3 dark:border-violet-800">
+      <div className="text-xs font-semibold uppercase text-violet-700 dark:text-violet-300">Immediate typed actions</div>
+      <p className="mt-1 text-xs text-slate-500">Actions are ordered and export as runtime unverified until the game consumer is verified.</p>
+      <div className="mt-2 flex gap-2"><select aria-label="New choice action" className={inputClass} value={actionType} onChange={(event) => setActionType(event.target.value)}>{CHOICE_ACTION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><button type="button" className={active} onClick={() => setActions([...actions, newChoiceAction(actionType, actions.length)])}>Add action</button></div>
+      <div className="mt-3 space-y-2">{actions.map((action, index) => {
+        const selected = CHOICE_ACTION_OPTIONS.find((option) => option.value === text(action.action_type)) || CHOICE_ACTION_OPTIONS[0];
+        return <div key={text(action.action_id, String(index))} className="rounded border border-slate-200 p-2 dark:border-slate-800">
+          <div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold">{index + 1}. {selected.label}</span><span className="text-[10px] uppercase text-amber-700">{text(action.runtime_support).replace(/_/g, " ")}</span></div>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <label className="text-xs font-semibold uppercase text-slate-500">Action type<select className={`${inputClass} mt-1 normal-case`} value={selected.value} onChange={(event) => { const option = CHOICE_ACTION_OPTIONS.find((entry) => entry.value === event.target.value) || CHOICE_ACTION_OPTIONS[0]; updateAction(index, { action_type: option.value, target_ref_type: option.targetType, target_ref_id: "", continuation_policy: option.continuation }); }}>{CHOICE_ACTION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+            <ReferenceChipPicker label="Canonical target" value={action.target_ref_id} reference={referenceFor(selected.targetType)} allowEmpty={false} onChange={(target_ref_id) => updateAction(index, { target_ref_id })} />
+            <label className="text-xs font-semibold uppercase text-slate-500">Timing<select className={`${inputClass} mt-1 normal-case`} value={text(action.timing)} onChange={(event) => updateAction(index, { timing: event.target.value })}><option value="immediate">Immediate</option><option value="after_completion">After completion</option><option value="on_turn_in">On turn-in</option></select></label>
+            <label className="text-xs font-semibold uppercase text-slate-500">Repeat policy<select className={`${inputClass} mt-1 normal-case`} value={text(action.repeat_policy)} onChange={(event) => updateAction(index, { repeat_policy: event.target.value })}><option value="inherit_owner">Inherit choice owner</option><option value="one_shot">One shot</option><option value="repeatable">Repeatable</option></select></label>
+          </div>
+          <div className="mt-2 flex gap-1"><button type="button" aria-label={`Move action ${index + 1} up`} disabled={index === 0} className={inactive} onClick={() => { const next = [...actions]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; setActions(next); }}>↑</button><button type="button" aria-label={`Move action ${index + 1} down`} disabled={index === actions.length - 1} className={inactive} onClick={() => { const next = [...actions]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; setActions(next); }}>↓</button><button type="button" className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={() => setActions(actions.filter((_, actionIndex) => actionIndex !== index))}>Remove action</button></div>
+        </div>;
+      })}{actions.length === 0 && <div className="text-xs text-slate-500">No typed action. This choice only navigates and applies its existing flags.</div>}</div>
+    </div>
+    <button className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={onRemove}>Remove Choice</button>
+  </div>;
 }
 
 function BeatEditor({ beat, packet, coverage, onChange, onUnlink }: { beat: EntryRecord; packet: DialoguePacket; coverage?: BeatCoverage; onChange: (patch: EntryRecord) => void; onUnlink: () => void }) {

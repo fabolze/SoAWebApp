@@ -21,6 +21,10 @@ from backend.app.routes.r_dialogue_nodes import route as node_route
 from backend.app.routes.r_dialogues import route as dialogue_route
 from backend.app.routes.r_requirements import route as requirement_route
 from backend.app.services.dependency_index import build_dependency_index
+from backend.app.services.dialogue_choice_actions import (
+    normalize_dialogue_choices,
+    validate_dialogue_choice_actions,
+)
 
 
 bp = Blueprint("ui_dialogues", __name__)
@@ -48,6 +52,12 @@ def _compact(model):
         )
         if key in payload
     }
+
+
+def _node_columns(node):
+    payload = _columns(node)
+    payload["choices"] = normalize_dialogue_choices(node.id, payload.get("choices") or [])
+    return payload
 
 
 def _participant_ids(dialogue, nodes):
@@ -188,7 +198,7 @@ def _dialogue_packet(db_session, dialogue):
     factions = db_session.query(Faction).all()
     return {
         "dialogue": _columns(dialogue),
-        "nodes": [_columns(node) for node in node_models],
+        "nodes": [_node_columns(node) for node in node_models],
         "story_beats": beats,
         "beat_coverage": _beat_coverage(dialogue, node_models, beats),
         "requirements": [requirement_route.serialize_item(item) for item in requirements],
@@ -250,6 +260,8 @@ def _validate_node_graph(db_session, dialogue_id, dialogue_data, rows, deletion_
     if omitted_ids:
         abort(400, description=f"nodes must include or explicitly delete every saved node: {', '.join(sorted(omitted_ids))}")
     inbound = {node_id: 0 for node_id in final_ids}
+    choice_ids = []
+    action_ids = []
     for index, row in enumerate(rows):
         existing = db_session.get(DialogueNode, row["id"])
         if existing and existing.dialogue_id != dialogue_id:
@@ -259,10 +271,18 @@ def _validate_node_graph(db_session, dialogue_id, dialogue_data, rows, deletion_
         choices = row.get("choices", [])
         if not isinstance(choices, list):
             abort(400, description=f"nodes[{index}].choices must be an array")
+        choices = normalize_dialogue_choices(row["id"], choices)
+        row["choices"] = choices
         for choice_index, choice in enumerate(choices):
             path = f"nodes[{index}].choices[{choice_index}]"
             if not isinstance(choice, dict):
                 abort(400, description=f"{path} must be an object")
+            try:
+                validate_dialogue_choice_actions(db_session, choice, path)
+            except ValueError as error:
+                abort(400, description=str(error))
+            choice_ids.append(choice["choice_id"])
+            action_ids.extend(action["action_id"] for action in choice.get("actions", []))
             target_id = choice.get("next_node_id")
             if not target_id:
                 abort(400, description=f"{path}.next_node_id is required")
@@ -276,6 +296,10 @@ def _validate_node_graph(db_session, dialogue_id, dialogue_data, rows, deletion_
             abort(400, description=f"nodes[{index}].is_terminal must be true when the node has no outgoing choices")
         # Compatibility for pre-migration clients: canonicalize leaf nodes on write.
         row["is_terminal"] = not choices
+    if len(choice_ids) != len(set(choice_ids)):
+        abort(400, description="choice_id values must be unique within a dialogue")
+    if len(action_ids) != len(set(action_ids)):
+        abort(400, description="action_id values must be unique within a dialogue")
     start_id = dialogue_data.get("starting_node_id")
     if rows and not start_id:
         roots = [node_id for node_id, count in inbound.items() if count == 0]

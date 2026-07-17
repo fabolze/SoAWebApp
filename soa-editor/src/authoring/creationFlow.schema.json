@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://soa.local/schemas/creation-flow-1.json",
+  "title": "SOA Creation Flow Draft",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "SOA-CREATION-FLOW/1" },
+    "id": { "type": "string", "minLength": 1 },
+    "revision": { "type": "integer", "minimum": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "shape": { "enum": ["sequence", "constellation", "hybrid"] },
+    "origin": { "$ref": "#/$defs/origin" },
+    "returnStack": { "type": "array", "items": { "$ref": "#/$defs/returnFrame" } },
+    "entryStepId": { "type": "string" },
+    "steps": { "type": "array", "items": { "$ref": "#/$defs/step" } },
+    "transitions": { "type": "array", "items": { "$ref": "#/$defs/transition" } },
+    "relations": { "type": "array", "items": { "$ref": "#/$defs/relation" } },
+    "placeholders": { "type": "array", "items": { "$ref": "#/$defs/placeholder" } },
+    "mentions": { "type": "array", "items": { "$ref": "#/$defs/mention" } },
+    "localNotes": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "text"], "properties": { "id": { "type": "string" }, "text": { "type": "string" } } },
+    "artifactIds": { "type": "object", "additionalProperties": { "type": "string" } },
+    "createdAt": { "type": "number", "minimum": 0 },
+    "updatedAt": { "type": "number", "minimum": 0 }
+  },
+  "required": ["format", "id", "revision", "title", "shape", "returnStack", "steps", "transitions", "relations", "placeholders", "mentions", "localNotes", "artifactIds", "createdAt", "updatedAt"],
+  "$defs": {
+    "ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": { "kind": { "type": "string" }, "canonicalId": { "type": "string" }, "draftId": { "type": "string" }, "label": { "type": "string" } }
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref"],
+      "properties": { "ref": { "$ref": "#/$defs/ref" }, "subRef": { "$ref": "#/$defs/ref" } }
+    },
+    "returnFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace"],
+      "properties": { "workspace": { "type": "string" }, "context": { "$ref": "#/$defs/ref" }, "selectedId": { "type": "string" }, "localViewState": { "type": "object" } }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "text", "targetResolution", "support"],
+      "properties": {
+        "id": { "type": "string" }, "kind": { "type": "string" }, "text": { "type": "string" }, "target": { "$ref": "#/$defs/ref" },
+        "timing": { "enum": ["immediate", "after_completion", "available_later", "story_only"] },
+        "persistence": { "enum": ["none", "session", "permanent"] },
+        "repeatPolicy": { "enum": ["unspecified", "inherit_owner", "repeatable", "one_shot"] },
+        "payload": { "type": "object" },
+        "targetResolution": { "enum": ["none", "unresolved", "placeholder", "canonical"] },
+        "support": { "enum": ["unshaped", "unresolved", "compilable", "story_only", "unsupported", "runtime_unverified"] },
+        "supportReason": { "type": "string" }
+      }
+    },
+    "transition": {
+      "type": "object", "additionalProperties": false, "required": ["id", "fromStepId", "toStepId", "trigger", "sortOrder"],
+      "properties": { "id": { "type": "string" }, "fromStepId": { "type": "string" }, "toStepId": { "type": "string" }, "trigger": { "enum": ["complete", "dialogue_choice", "victory", "interaction_closed", "condition", "fallback"] }, "sourceRefId": { "type": "string" }, "requirementId": { "type": "string" }, "sortOrder": { "type": "integer" } }
+    },
+    "relation": {
+      "type": "object", "additionalProperties": false, "required": ["id", "fromStepId", "toStepId", "relation", "resolution"],
+      "properties": { "id": { "type": "string" }, "fromStepId": { "type": "string" }, "toStepId": { "type": "string" }, "relation": { "type": "string" }, "resolution": { "enum": ["local_intent", "canonical", "unsupported"] } }
+    },
+    "placeholder": {
+      "type": "object", "additionalProperties": false, "required": ["id", "kind", "label"],
+      "properties": { "id": { "type": "string" }, "kind": { "type": "string" }, "label": { "type": "string" }, "direction": { "type": "string" }, "owningWorkspace": { "type": "string" }, "promotedCanonicalId": { "type": "string" } }
+    },
+    "mention": {
+      "type": "object", "additionalProperties": false, "required": ["id", "ideaId", "noteId", "start", "end", "quotedText"],
+      "properties": { "id": { "type": "string" }, "ideaId": { "type": "string" }, "noteId": { "type": "string" }, "start": { "type": "integer", "minimum": 0 }, "end": { "type": "integer", "minimum": 1 }, "quotedText": { "type": "string" } }
+    }
+  }
+}

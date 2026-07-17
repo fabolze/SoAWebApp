@@ -67,6 +67,10 @@
       "items": {
         "type": "object",
         "properties": {
+          "choice_id": {
+            "type": "string",
+            "description": "Immutable choice identity used by actions, transitions, and replay protection. Legacy choices receive a deterministic id when loaded or saved."
+          },
           "choice_text": {
             "type": "string",
             "description": "Text shown for this choice (optional for auto-continue)"
@@ -100,9 +104,42 @@
               "label": "Flags Set (Choice)"
             },
             "description": "Flags set when the player chooses this response."
+          },
+          "actions": {
+            "type": "array",
+            "description": "Ordered typed actions owned by this stable choice. Web export is runtime_unverified until an external consumer is verified.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "action_id": { "type": "string", "description": "Stable replay-protection identity." },
+                "action_type": {
+                  "type": "string",
+                  "enum": ["open_shop", "start_encounter", "join_companion", "discover_quest", "assign_quest", "reveal_map_marker"]
+                },
+                "target_ref_type": {
+                  "type": "string",
+                  "enum": ["shop", "encounter", "character", "quest", "location_poi"]
+                },
+                "target_ref_id": { "type": "string" },
+                "timing": { "type": "string", "enum": ["immediate", "after_completion", "on_turn_in"] },
+                "repeat_policy": { "type": "string", "enum": ["inherit_owner", "one_shot", "repeatable"] },
+                "continuation_policy": {
+                  "type": "string",
+                  "enum": ["advance_to_next_node", "resume_source_dialogue", "end_source_dialogue", "return_to_origin"]
+                },
+                "sort_order": { "type": "integer", "minimum": 0 },
+                "runtime_support": { "type": "string", "enum": ["runtime_unverified", "runtime_verified"] }
+              },
+              "required": [
+                "action_id", "action_type", "target_ref_type", "target_ref_id", "timing",
+                "repeat_policy", "continuation_policy", "sort_order", "runtime_support"
+              ]
+            }
           }
         },
         "required": [
+          "choice_id",
           "next_node_id"
         ]
       }

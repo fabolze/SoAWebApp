@@ -96,6 +96,21 @@ function storyTimelinePlan(key: string): DraftInventoryItem | null {
   };
 }
 
+function creationFlowDraft(key: string): DraftInventoryItem | null {
+  const parsed = parseStored(key);
+  const returnStack = Array.isArray(parsed?.returnStack) ? parsed.returnStack : [];
+  const firstFrame = returnStack.find(isRecord);
+  const steps = Array.isArray(parsed?.steps) ? parsed.steps.length : 0;
+  const placeholders = Array.isArray(parsed?.placeholders) ? parsed.placeholders.length : 0;
+  return {
+    key,
+    title: text(parsed?.title, "Creation Flow draft"),
+    subtitle: `creation flow · ${steps} steps · ${placeholders} placeholders · local only`,
+    route: text(firstFrame?.workspace, "/author/world"),
+    ts: Number(parsed?.updatedAt) || Number(parsed?.createdAt) || 0,
+  };
+}
+
 export function readDraftInventory(): DraftInventoryItem[] {
   if (typeof localStorage === "undefined") return [];
   const items: DraftInventoryItem[] = [];
@@ -104,7 +119,9 @@ export function readDraftInventory(): DraftInventoryItem[] {
     let item: DraftInventoryItem | null = null;
 
     const schemaMatch = key.match(/^soa\.draft\.([^.]+)\.(.+)$/);
-    if (key.startsWith("soa.draft.dialogue_flow.") && key !== "soa.draft.dialogue_flow.new") {
+    if (key.startsWith("soa.creation-flow.draft.")) {
+      item = creationFlowDraft(key);
+    } else if (key.startsWith("soa.draft.dialogue_flow.") && key !== "soa.draft.dialogue_flow.new") {
       item = dialogueFlowDraft(key);
     } else if (schemaMatch && schemaMatch[2] !== "last") {
       item = schemaDraft(key, schemaMatch[1], schemaMatch[2]);
@@ -127,6 +144,10 @@ export function readDraftInventory(): DraftInventoryItem[] {
 
 export function removeDraftInventoryItem(item: DraftInventoryItem) {
   localStorage.removeItem(item.key);
+  if (item.key.startsWith("soa.creation-flow.draft.")) {
+    const id = item.key.slice("soa.creation-flow.draft.".length);
+    localStorage.removeItem(`soa.creation-flow.snapshots.${id}`);
+  }
   const schemaMatch = item.key.match(/^soa\.draft\.([^.]+)\.(.+)$/);
   if (schemaMatch) {
     const lastKey = `soa.draft.last.${schemaMatch[1]}`;

@@ -1,8 +1,43 @@
 # Narrative Creation Flow Workflow Corpus
 
-Status: V1 corpus gate satisfied with three exemplary workflows and six author reviews; remaining work is technical web-schema/DataTable transcription plus explicitly deferred runtime concerns
+Status: V1 corpus and author decisions are approved. Golden intent fixtures and the first local-capture interactions are automated; canonical compilation and runtime execution are not yet automated or verified.
+
+Last implementation audit: 2026-07-17
 
 This document preserves exemplary workflows in the author's own language and derives product, compiler, schema, and acceptance-test implications from them. The original narrative is the source of truth. The structured interpretation exists to make the workflow testable; it must not overwrite the creative intent.
+
+## Implementation Traceability
+
+The implementation source of truth is the audited delivery plan and open-point register in `NARRATIVE_CREATION_FLOW_PLAN.md`. Acceptance scenarios in this corpus use three statuses:
+
+- **Specified:** author intent and expected behavior are approved here.
+- **Automated:** a golden, contract, or interaction test proves the behavior in the web app.
+- **Runtime verified:** an external consumer proves exported execution semantics. This status is required only for behavior the web app does not execute.
+
+As of 2026-07-17, all W1–W3 scenarios are **Specified**. Their draft normalization/restore corpus is automated through golden intent fixtures. W2 has an **Expand this place** interaction test and the dialogue continuation/reload behavior used by W1/W3 has interaction coverage. No workflow is yet automated through canonical compile/commit, and no external runtime behavior is verified.
+
+| Workflow | Approved design outcome | Reusable implementation foundation | Main remaining evidence |
+|---|---|---|---|
+| W1: map to quest | Preserve a spontaneous, mostly linear map/quest/encounter/item flow with placeholders and honest inventory semantics | Golden draft fixture, local sequence capture, dialogue continuation/reload, World Builder, return links, Quest Journey, Encounter Stage, rewards, gates, consequences, and story placement | Canonical compile/export fixture plus complete map-to-quest Playwright flow; plan IDs CF-03, CF-10–11, CF-15–19 |
+| W2: expand a place | Grow prose and idea cards into one scoped reference graph while separating history, discovery, runtime recruitment, farming, and artifact evolution | Golden draft fixture, selected-place expansion Playwright, shared mention/card lifecycle test, World Builder, Timeline, Character Studio, and item/encounter workspaces | Chronology/variant contracts, constellation compiler, and complete W2 interaction suite; plan IDs CF-13–15, CF-19 |
+| W3: resume a city plot | Resume local/project context and promote a bounded causal faction plot with ordered reputation consequences and gated equipment | Golden draft fixture, local draft/manifest resume foundation, World Builder context, faction thresholds, shop gates, and dependency analysis | Related-edit/next-question resume, ordered rank model/trace, placeholder blocker, and canonical W3 suite; plan IDs CF-05, CF-12, CF-15–19 |
+
+### Automated evidence — 2026-07-17
+
+- `soa-editor/src/authoring/fixtures/workflow1-map-to-quest.json`, `workflow2-expand-place.json`, and `workflow3-resume-faction.json` are loaded by `creationFlow.test.ts` and prove versioned normalization plus honest support classification.
+- `creationFlow.test.ts` proves migration, stable draft lifecycle, local storage/recovery, malformed-entry rejection, and mention/card independence.
+- `soa-editor/tests/authoring-workflows.spec.ts` proves terminal-dialogue **Then…** capture/restoration and selected-location **Expand this place** prose/card/step capture in Chromium.
+- `backend/tests/test_creation_flow_manifest_contracts.py` proves project-local manifest/provenance CRUD, recovery ordering, cascade behavior, and UE-export exclusion.
+- `backend/tests/test_dialogue_flow_contracts.py` proves deterministic legacy `choice_id` migration and typed ordered `open_shop` action validation, including canonical target and `resume_source_dialogue` policy.
+
+These tests automate capture and contract slices only. They do not count as W1–W3 canonical compile, Unreal execution, or writer-evaluation evidence.
+
+### Corpus change-control rule
+
+- Do not rewrite the original author narratives to match implementation shortcuts.
+- When a scenario becomes automated, append the test/fixture path and date to that scenario; do not replace its creative-language acceptance statement.
+- When external runtime behavior is verified, record the consumer/fixture and status separately from web implementation.
+- Any changed author decision must be reflected both in the relevant workflow/review section and in the plan's confirmed decisions, open-point register, schemas, and golden fixtures.
 
 ## Workflow 1: An Evening Map-To-Quest Creation Session
 
@@ -1135,3 +1170,20 @@ Source: author feedback supplied on 2026-07-15.
 ### Acceptance consequence
 
 The **Expand this place** surface is not merely a text editor beside a card board. Text spans and cards are two views and creation gestures over the same local idea/reference graph. Editing prose must not destroy cards; moving or editing a card must not corrupt prose; deleting a mention must not silently delete the underlying idea when another relation or card still uses it. Canonical commit remains blocked until every required placeholder is resolved or promoted.
+
+## Documentation Change Log
+
+### 2026-07-17 — capture, provenance, and choice-action implementation evidence
+
+- Marked W1–W3 golden draft normalization as automated without claiming canonical compilation.
+- Linked the dialogue continuation/reload and selected-location expansion interaction tests.
+- Recorded local mention/card identity, manifest recovery/UE exclusion, and stable choice/typed action contract evidence.
+- Kept compiler, runtime verification, full workflow interactions, and writer evaluation explicitly open.
+
+### 2026-07-17 — implementation traceability audit
+
+- Clarified that W1–W3 and Author Reviews 1–6 are approved requirements, not claims of implemented Creation Flow behavior.
+- Added the **Specified**, **Automated**, and **Runtime verified** status model.
+- Mapped each workflow to reusable repository foundations, remaining evidence, and CF open-point IDs in `NARRATIVE_CREATION_FLOW_PLAN.md`.
+- Added change-control rules so future implementation updates add test/runtime evidence without rewriting the original author narratives.
+- Made no changes to the original narratives, confirmed author decisions, provisional semantic fixtures, or acceptance intent.
