@@ -30,6 +30,7 @@ from backend.app.utils.csv_tools import AUTHORING_ONLY_TABLES
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "creation_flow"
+FRONTEND_DRAFT_SCHEMA = Path(__file__).parents[2] / "soa-editor" / "src" / "authoring" / "creationFlow.schema.json"
 
 
 @pytest.fixture()
@@ -74,6 +75,15 @@ def load_fixture(name):
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
+def test_frontend_draft_schema_matches_live_mentions_actions_and_transitions():
+    schema = json.loads(FRONTEND_DRAFT_SCHEMA.read_text(encoding="utf-8"))
+    assert "mentions" not in schema["required"]
+    assert schema["properties"]["localNotes"]["items"]["properties"]["mentions"]["items"]["$ref"] == "#/$defs/mention"
+    assert schema["$defs"]["mention"]["required"] == ["id", "placeholderId", "start", "end", "text"]
+    assert schema["$defs"]["step"]["properties"]["gameplayAction"]["$ref"] == "#/$defs/gameplayAction"
+    assert "label" in schema["$defs"]["transition"]["properties"]
+
+
 @pytest.mark.parametrize("name", [
     "workflow_1_sequence.json",
     "workflow_2_constellation.json",
@@ -98,7 +108,11 @@ def test_golden_workflows_compile_deterministically(creation_flow_context, name)
 
 
 def test_catalog_reports_references_and_authoritative_capabilities(creation_flow_context):
-    client, _ = creation_flow_context
+    client, Session = creation_flow_context
+    session = Session()
+    session.add(Requirement(id="requirement-1", slug="payment-accepted", tags=[]))
+    session.commit()
+    session.close()
     response = client.get("/api/ui/creation-flow/catalog")
     assert response.status_code == 200
     body = response.get_json()
@@ -107,6 +121,9 @@ def test_catalog_reports_references_and_authoritative_capabilities(creation_flow
     assert "make_available" in body["capabilities"]["compilable_step_kinds"]
     assert "open_shop" in body["capabilities"]["compilable_step_kinds"]
     assert body["references"]["dialogue_choice"]["entries"][0]["id"] == "choice-trade"
+    assert body["references"]["requirement"]["entries"][0]["id"] == "requirement-1"
+    assert body["capabilities"]["transition_triggers"]["blocked"] == []
+    assert "condition" in body["capabilities"]["transition_triggers"]["compilable"]
 
 
 def test_preview_rolls_back_all_compiled_artifacts(creation_flow_context):
@@ -236,7 +253,11 @@ def test_quest_assignment_compiles_to_runtime_unverified_typed_action(creation_f
 
 
 def test_typed_gameplay_action_and_branch_transitions_compile_without_losing_intent(creation_flow_context):
-    client, _ = creation_flow_context
+    client, Session = creation_flow_context
+    session = Session()
+    session.add(Requirement(id="requirement-1", slug="payment-accepted", tags=[]))
+    session.commit()
+    session.close()
     draft = {
         "format": "SOA-CREATION-FLOW/1", "id": "flow-actions", "revision": 1,
         "title": "Pay or remember", "shape": "sequence", "returnStack": [], "entryStepId": "pay",
@@ -246,7 +267,7 @@ def test_typed_gameplay_action_and_branch_transitions_compile_without_losing_int
             {"id": "fallback", "kind": "scripted_moment", "text": "Continue without it"},
         ],
         "transitions": [
-            {"id": "paid", "fromStepId": "pay", "toStepId": "remember", "trigger": "condition", "sortOrder": 0, "label": "Payment accepted"},
+            {"id": "paid", "fromStepId": "pay", "toStepId": "remember", "trigger": "condition", "requirementId": "requirement-1", "sortOrder": 0, "label": "Payment accepted"},
             {"id": "not-paid", "fromStepId": "pay", "toStepId": "fallback", "trigger": "fallback", "sortOrder": 1},
         ],
         "relations": [], "placeholders": [], "localNotes": [], "artifactIds": {}, "createdAt": 1, "updatedAt": 1,
@@ -260,6 +281,27 @@ def test_typed_gameplay_action_and_branch_transitions_compile_without_losing_int
     assert first["actions"][0]["action_type"] == "grant_currency"
     assert [row["trigger"] for row in first["outcome_transitions"]] == ["condition", "fallback"]
     assert all(row["runtime_support"] == "runtime_unverified" for row in first["outcome_transitions"])
+
+
+@pytest.mark.parametrize(("transition", "code"), [
+    ({"id": "conditional", "fromStepId": "first", "toStepId": "second", "trigger": "condition", "sortOrder": 0}, "transition_requirement_required"),
+    ({"id": "choice", "fromStepId": "first", "toStepId": "second", "trigger": "dialogue_choice", "sortOrder": 0}, "transition_choice_required"),
+])
+def test_non_linear_transition_requires_typed_trigger_owner(creation_flow_context, transition, code):
+    client, _ = creation_flow_context
+    draft = {
+        "format": "SOA-CREATION-FLOW/1", "id": f"flow-{code}", "revision": 1,
+        "title": "Typed branch", "shape": "sequence", "returnStack": [], "entryStepId": "first",
+        "steps": [
+            {"id": "first", "kind": "scripted_moment", "text": "First"},
+            {"id": "second", "kind": "scripted_moment", "text": "Second"},
+        ],
+        "transitions": [transition], "relations": [], "placeholders": [], "localNotes": [],
+        "artifactIds": {}, "createdAt": 1, "updatedAt": 1,
+    }
+    body = client.post("/api/ui/creation-flow/preview", json={"draft": draft}).get_json()
+    assert body["can_commit"] is False
+    assert code in {issue["code"] for issue in body["blockers"]}
 
 
 def test_dialogue_origin_state_compiles_directly_to_choice_output_flag(creation_flow_context):

@@ -17,13 +17,12 @@
     "transitions": { "type": "array", "items": { "$ref": "#/$defs/transition" } },
     "relations": { "type": "array", "items": { "$ref": "#/$defs/relation" } },
     "placeholders": { "type": "array", "items": { "$ref": "#/$defs/placeholder" } },
-    "mentions": { "type": "array", "items": { "$ref": "#/$defs/mention" } },
-    "localNotes": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "text"], "properties": { "id": { "type": "string" }, "text": { "type": "string" } } },
+    "localNotes": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "text"], "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "mentions": { "type": "array", "items": { "$ref": "#/$defs/mention" } } } } },
     "artifactIds": { "type": "object", "additionalProperties": { "type": "string" } },
     "createdAt": { "type": "number", "minimum": 0 },
     "updatedAt": { "type": "number", "minimum": 0 }
   },
-  "required": ["format", "id", "revision", "title", "shape", "returnStack", "steps", "transitions", "relations", "placeholders", "mentions", "localNotes", "artifactIds", "createdAt", "updatedAt"],
+  "required": ["format", "id", "revision", "title", "shape", "returnStack", "steps", "transitions", "relations", "placeholders", "localNotes", "artifactIds", "createdAt", "updatedAt"],
   "$defs": {
     "ref": {
       "type": "object",
@@ -52,7 +51,7 @@
         "timing": { "enum": ["immediate", "after_completion", "available_later", "story_only"] },
         "persistence": { "enum": ["none", "session", "permanent"] },
         "repeatPolicy": { "enum": ["unspecified", "inherit_owner", "repeatable", "one_shot"] },
-        "gameplayAction": { "type": "object" },
+        "gameplayAction": { "$ref": "#/$defs/gameplayAction" },
         "payload": { "type": "object" },
         "targetResolution": { "enum": ["none", "unresolved", "placeholder", "canonical"] },
         "support": { "enum": ["unshaped", "unresolved", "compilable", "story_only", "unsupported", "runtime_unverified"] },
@@ -61,7 +60,7 @@
     },
     "transition": {
       "type": "object", "additionalProperties": false, "required": ["id", "fromStepId", "toStepId", "trigger", "sortOrder"],
-      "properties": { "id": { "type": "string" }, "fromStepId": { "type": "string" }, "toStepId": { "type": "string" }, "trigger": { "enum": ["complete", "dialogue_choice", "victory", "interaction_closed", "condition", "fallback"] }, "sourceRefId": { "type": "string" }, "requirementId": { "type": "string" }, "sortOrder": { "type": "integer" } }
+      "properties": { "id": { "type": "string" }, "fromStepId": { "type": "string" }, "toStepId": { "type": "string" }, "trigger": { "enum": ["complete", "dialogue_choice", "victory", "interaction_closed", "condition", "fallback"] }, "sourceRefId": { "type": "string" }, "requirementId": { "type": "string" }, "sortOrder": { "type": "integer", "minimum": 0 }, "label": { "type": "string" } }
     },
     "relation": {
       "type": "object", "additionalProperties": false, "required": ["id", "fromStepId", "toStepId", "relation", "resolution"],
@@ -71,9 +70,28 @@
       "type": "object", "additionalProperties": false, "required": ["id", "kind", "label"],
       "properties": { "id": { "type": "string" }, "kind": { "type": "string" }, "label": { "type": "string" }, "direction": { "type": "string" }, "owningWorkspace": { "type": "string" }, "promotedCanonicalId": { "type": "string" } }
     },
+    "gameplayTarget": {
+      "type": "object", "additionalProperties": false, "required": ["scope"],
+      "properties": { "scope": { "enum": ["player", "party", "source_character", "target_character", "encounter_side", "location", "explicit_entity"] }, "ref": { "$ref": "#/$defs/ref" } }
+    },
+    "statusFilter": {
+      "type": "object", "additionalProperties": false,
+      "properties": { "statusCategory": { "enum": ["Buff", "Debuff", "Control", "DoT", "Other"] }, "polarity": { "enum": ["Beneficial", "Harmful", "Neutral"] }, "statusTag": { "type": "string" } }
+    },
+    "gameplayAction": {
+      "type": "object", "additionalProperties": false, "required": ["actionType", "target"],
+      "properties": {
+        "actionType": { "enum": ["apply_effect", "restore_resource", "apply_status", "remove_status", "remove_matching_statuses", "grant_currency", "take_currency"] },
+        "target": { "$ref": "#/$defs/gameplayTarget" },
+        "effect": { "$ref": "#/$defs/ref" }, "status": { "$ref": "#/$defs/ref" }, "currency": { "$ref": "#/$defs/ref" },
+        "stacks": { "type": "integer", "minimum": 1 }, "duration": { "type": "number", "minimum": 0 }, "amount": { "type": "number", "exclusiveMinimum": 0 },
+        "removalMode": { "enum": ["cleanse", "dispel", "system"] }, "insufficientPolicy": { "enum": ["block", "clamp_to_zero", "fail_action"] },
+        "filter": { "$ref": "#/$defs/statusFilter" }
+      }
+    },
     "mention": {
-      "type": "object", "additionalProperties": false, "required": ["id", "ideaId", "noteId", "start", "end", "quotedText"],
-      "properties": { "id": { "type": "string" }, "ideaId": { "type": "string" }, "noteId": { "type": "string" }, "start": { "type": "integer", "minimum": 0 }, "end": { "type": "integer", "minimum": 1 }, "quotedText": { "type": "string" } }
+      "type": "object", "additionalProperties": false, "required": ["id", "placeholderId", "start", "end", "text"],
+      "properties": { "id": { "type": "string" }, "placeholderId": { "type": "string" }, "start": { "type": "integer", "minimum": 0 }, "end": { "type": "integer", "minimum": 1 }, "text": { "type": "string" } }
     }
   }
 }

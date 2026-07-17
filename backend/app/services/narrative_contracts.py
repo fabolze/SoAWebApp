@@ -12,6 +12,7 @@ from typing import Any
 from backend.app.models.m_characters import Character
 from backend.app.models.m_currencies import Currency
 from backend.app.models.m_effects import Effect
+from backend.app.models.m_events import Event
 from backend.app.models.m_factions import Faction
 from backend.app.models.m_items import Item
 from backend.app.models.m_locations import Location
@@ -35,6 +36,7 @@ TIMINGS = {"immediate", "after_completion", "on_turn_in"}
 REPEAT_POLICIES = {"inherit_owner", "one_shot", "repeatable"}
 RUNTIME_SUPPORT = {"runtime_unverified", "runtime_verified"}
 REMOVAL_MODES = {"cleanse", "dispel", "system"}
+TRANSITION_TRIGGERS = {"complete", "dialogue_choice", "victory", "interaction_closed", "condition", "fallback"}
 
 
 def _require_ref(db_session, model, value: Any, path: str) -> str:
@@ -157,6 +159,71 @@ def validate_repeat_policy(value: Any, path: str, *, allow_unspecified: bool = F
     normalized = str(value or "inherit_owner")
     if normalized not in allowed:
         raise ValueError(f"{path} is invalid")
+    return normalized
+
+
+def validate_outcome_transitions(
+    db_session,
+    value: Any,
+    path: str = "outcome_transitions",
+    *,
+    allowed_triggers: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"{path} must be an array")
+    allowed = allowed_triggers or TRANSITION_TRIGGERS
+    normalized: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    fallback_count = 0
+    for index, raw in enumerate(value):
+        row_path = f"{path}[{index}]"
+        if not isinstance(raw, dict):
+            raise ValueError(f"{row_path} must be an object")
+        row = dict(raw)
+        transition_id = str(row.get("id") or "").strip()
+        if not transition_id or transition_id in seen_ids:
+            raise ValueError(f"{row_path}.id must be non-empty and unique")
+        seen_ids.add(transition_id)
+        trigger = row.get("trigger")
+        if trigger not in allowed:
+            raise ValueError(f"{row_path}.trigger is invalid")
+        target_event_id = _require_ref(db_session, Event, row.get("target_event_id"), f"{row_path}.target_event_id")
+        requirement_id = str(row.get("requirement_id") or "").strip()
+        source_ref_id = str(row.get("source_ref_id") or "").strip()
+        if trigger == "condition" and not requirement_id:
+            raise ValueError(f"{row_path}.requirement_id is required for a condition")
+        if requirement_id:
+            from backend.app.models.m_requirements import Requirement
+            _require_ref(db_session, Requirement, requirement_id, f"{row_path}.requirement_id")
+        if trigger == "dialogue_choice" and not source_ref_id:
+            raise ValueError(f"{row_path}.source_ref_id is required for a dialogue choice")
+        if trigger == "fallback":
+            fallback_count += 1
+            if requirement_id or source_ref_id:
+                raise ValueError(f"{row_path} fallback must be unconditional")
+        sort_order = row.get("sort_order", index)
+        if isinstance(sort_order, bool) or not isinstance(sort_order, int) or sort_order < 0:
+            raise ValueError(f"{row_path}.sort_order must be a non-negative integer")
+        runtime_support = row.get("runtime_support", "runtime_unverified")
+        if runtime_support not in RUNTIME_SUPPORT:
+            raise ValueError(f"{row_path}.runtime_support must declare runtime verification")
+        normalized.append({
+            **row,
+            "id": transition_id,
+            "trigger": trigger,
+            "target_event_id": target_event_id,
+            "requirement_id": requirement_id or None,
+            "source_ref_id": source_ref_id or None,
+            "sort_order": sort_order,
+            "runtime_support": runtime_support,
+        })
+    normalized.sort(key=lambda row: (row["sort_order"], row["id"]))
+    if fallback_count > 1:
+        raise ValueError(f"{path} may contain only one fallback")
+    if normalized and any(row["trigger"] == "fallback" for row in normalized[:-1]):
+        raise ValueError(f"{path} fallback must be ordered last")
     return normalized
 
 

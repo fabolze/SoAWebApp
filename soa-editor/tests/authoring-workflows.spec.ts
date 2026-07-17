@@ -1191,6 +1191,8 @@ async function mockDialogueApi(
       references: {
         dialogue: { schema_name: "dialogues", entries: [{ id: "dialogue-1", label: "Gate Talk" }] },
         dialogue_choice: { schema_name: "dialogue_nodes.choices", entries: [{ id: "choice-enter", node_id: "node-1", dialogue_id: "dialogue-1", label: "Enter" }] },
+        requirement: { schema_name: "requirements", entries: [{ id: "req-1", label: "Allowed through the gate" }] },
+        location: { schema_name: "locations", entries: [{ id: "location-1", label: "First City", variants: [{ id: "damaged", label: "Damaged" }] }] },
         shop: { schema_name: "shops", entries: [{ id: "shop-1", label: "Mara's Shop" }] },
       },
       capabilities: {
@@ -1651,6 +1653,38 @@ test("dialogue ending captures and restores a browser-local Then flow", async ({
   await page.getByRole("button", { name: "Then…" }).click();
   await expect(page.getByRole("dialog", { name: "Then composer" }).getByLabel("Step 1 text")).toHaveValue("Open Mara's shop now");
   await expect(page.getByText("Continued the most recent browser-local draft for this context.")).toBeVisible();
+});
+
+test("Creation Flow preserves a typed condition and canonical variant selection", async ({ page }) => {
+  await mockDialogueApi(page);
+  await page.goto("/author/dialogues/dialogue-1");
+  await page.getByRole("button", { name: "Script" }).click();
+  await page.locator("#script-line-node-2 textarea").focus();
+  await page.getByRole("button", { name: /Then/ }).click();
+
+  let composer = page.getByRole("dialog", { name: "Then composer" });
+  await composer.getByLabel("Capture next idea").fill("Show the damaged city");
+  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByLabel("Meaning").selectOption("activate_location_variant");
+  await composer.getByLabel("Step 1 canonical target").selectOption("location:location-1");
+  await composer.getByLabel("Step 1 variant identity").selectOption("damaged");
+  await composer.getByLabel("Capture next idea").fill("Continue through the gate");
+  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByLabel("Branch from").selectOption({ label: "Show the damaged city" });
+  await composer.getByLabel("Branch to").selectOption({ label: "Continue through the gate" });
+  await composer.getByLabel("Branch requirement").selectOption("req-1");
+  await composer.getByLabel("Branch label").fill("Only when allowed");
+  await composer.getByRole("button", { name: "Add outcome transition" }).click();
+  await expect(composer.getByText(/Only when allowed/)).toBeVisible();
+  await composer.getByRole("button", { name: "Close" }).click();
+
+  await page.reload();
+  await page.getByRole("button", { name: "Script" }).click();
+  await page.locator("#script-line-node-2 textarea").focus();
+  await page.getByRole("button", { name: /Then/ }).click();
+  composer = page.getByRole("dialog", { name: "Then composer" });
+  await expect(composer.getByLabel("Step 1 variant identity")).toHaveValue("damaged");
+  await expect(composer.getByText(/Only when allowed/)).toBeVisible();
 });
 
 test("dialogue Then flow resolves a canonical target, previews, and commits with provenance", async ({ page }) => {

@@ -8,7 +8,7 @@ export type CreationFlowRefKind =
   | "quest" | "quest_objective" | "event" | "shop" | "location"
   | "location_poi" | "location_route" | "story_beat" | "item"
   | "character" | "faction" | "lore_entry" | "creature" | "effect"
-  | "status" | "currency" | "stat" | "flow_step" | "custom";
+  | "status" | "currency" | "stat" | "requirement" | "flow_step" | "custom";
 
 export type CreationFlowStepKind =
   | "unshaped" | "dialogue" | "encounter" | "item_reward" | "numeric_reward"
@@ -72,6 +72,10 @@ export interface CreationFlowTransition {
   sortOrder: number;
   label?: string;
 }
+
+const TRANSITION_TRIGGERS: CreationFlowTransition["trigger"][] = [
+  "complete", "dialogue_choice", "victory", "interaction_closed", "condition", "fallback",
+];
 
 export interface CreationFlowRelation {
   id: string;
@@ -252,7 +256,15 @@ export function normalizeCreationFlowDraft(value: unknown, now = Date.now()): Cr
     if (!isRecord(row)) return [];
     const fromStepId = stringValue(row.fromStepId); const toStepId = stringValue(row.toStepId);
     if (!stepIds.has(fromStepId) || !stepIds.has(toStepId)) return [];
-    return [{ id: stringValue(row.id) || generateUlid(), fromStepId, toStepId, trigger: stringValue(row.trigger, "complete") as CreationFlowTransition["trigger"], sortOrder: numberValue(row.sortOrder, index), ...(stringValue(row.label) ? { label: stringValue(row.label) } : {}) }];
+    const rawTrigger = stringValue(row.trigger, "complete") as CreationFlowTransition["trigger"];
+    const trigger = TRANSITION_TRIGGERS.includes(rawTrigger) ? rawTrigger : "complete";
+    return [{
+      id: stringValue(row.id) || generateUlid(), fromStepId, toStepId, trigger,
+      ...(stringValue(row.sourceRefId) ? { sourceRefId: stringValue(row.sourceRefId) } : {}),
+      ...(stringValue(row.requirementId) ? { requirementId: stringValue(row.requirementId) } : {}),
+      sortOrder: Math.max(0, Math.trunc(numberValue(row.sortOrder, index))),
+      ...(stringValue(row.label) ? { label: stringValue(row.label) } : {}),
+    }];
   });
   const relations = (Array.isArray(value.relations) ? value.relations : []).flatMap((row): CreationFlowRelation[] => {
     if (!isRecord(row)) return [];
@@ -307,7 +319,7 @@ export function moveCreationFlowStep(draft: CreationFlowDraft, stepId: string, o
   if (index < 0 || targetIndex < 0 || targetIndex >= draft.steps.length) return draft;
   const steps = [...draft.steps];
   [steps[index], steps[targetIndex]] = [steps[targetIndex], steps[index]];
-  const linearTransitionIds = new Set(draft.transitions.filter((transition) => transition.trigger === "complete" && !transition.requirementId && !transition.sourceRefId).map((transition) => transition.id));
+  const linearTransitionIds = new Set(draft.transitions.filter((transition) => transition.trigger === "complete" && !transition.requirementId && !transition.sourceRefId && !transition.label).map((transition) => transition.id));
   const transitions = draft.transitions.filter((transition) => !linearTransitionIds.has(transition.id));
   if (draft.shape !== "constellation") steps.slice(0, -1).forEach((step, order) => transitions.push({ id: generateUlid(), fromStepId: step.id, toStepId: steps[order + 1].id, trigger: "complete", sortOrder: order }));
   return touchCreationFlowDraft(draft, { steps, entryStepId: steps[0]?.id, transitions }, now);
@@ -335,9 +347,18 @@ export function creationFlowIssues(draft: CreationFlowDraft): CreationFlowIssue[
     if (!step.text.trim()) issues.push({ severity: "warning", stepId: step.id, message: "This step has no author-facing description." });
     if (step.support === "unresolved") issues.push({ severity: "warning", stepId: step.id, message: "This step still needs an existing target or a resolved placeholder." });
     if (step.support === "unsupported") issues.push({ severity: "warning", stepId: step.id, message: "This custom intention is preserved, but no canonical compiler contract exists yet." });
-    if (step.support === "runtime_unverified") issues.push({ severity: "info", stepId: step.id, message: "The web/export contract is planned, but runtime execution is not verified." });
+    if (step.support === "runtime_unverified") issues.push({ severity: "info", stepId: step.id, message: "The web/export contract is implemented; consuming runtime execution is not yet verified." });
     if (step.kind === "gameplay_effect" && !step.gameplayAction) issues.push({ severity: "blocker", stepId: step.id, message: "Choose the gameplay action and canonical payload before commit." });
     if (["activate_location_variant", "activate_character_variant", "activate_item_variant"].includes(step.kind) && !String(step.payload?.variantId ?? "").trim()) issues.push({ severity: "blocker", stepId: step.id, message: "Choose the stable variant identity to activate." });
+  });
+  const fallbackSources = new Set<string>();
+  draft.transitions.forEach((transition) => {
+    if (transition.trigger === "condition" && !transition.requirementId) issues.push({ severity: "blocker", stepId: transition.fromStepId, message: "A conditional branch needs a canonical requirement." });
+    if (transition.trigger === "dialogue_choice" && !transition.sourceRefId) issues.push({ severity: "blocker", stepId: transition.fromStepId, message: "A dialogue-choice branch needs the exact saved choice." });
+    if (transition.trigger === "fallback") {
+      if (fallbackSources.has(transition.fromStepId)) issues.push({ severity: "blocker", stepId: transition.fromStepId, message: "A step can have only one fallback branch." });
+      fallbackSources.add(transition.fromStepId);
+    }
   });
   draft.placeholders.filter((placeholder) => !placeholder.promotedCanonicalId).forEach((placeholder) => issues.push({ severity: "blocker", placeholderId: placeholder.id, message: `${placeholder.label} must be linked or promoted before canonical commit.` }));
   return issues;

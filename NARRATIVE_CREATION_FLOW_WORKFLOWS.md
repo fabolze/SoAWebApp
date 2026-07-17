@@ -1267,3 +1267,28 @@ The only open acceptance activities require people or systems outside this repos
 - Representative writers complete all three workflows and report context-switch/technical-interruption results.
 - The consuming runtime proves action ordering, replay protection, transition completion, quest journal/turn-in persistence, defeat/save behavior, active variants, and save/load semantics.
 - After those consumer tests, only the rows actually executed successfully may change from `runtime_unverified` to `runtime_verified`.
+
+## Implementation Coverage — 2026-07-17 Post-Completion Hardening
+
+### What the audit confirmed was already done
+
+All three workflow shapes already had repository-owned coverage: Workflow 1's map/dialogue-to-quest sequence, Workflow 2's place-first story constellation, and Workflow 3's resume-and-expand hybrid. Authors could capture before resolving schemas, keep placeholders and prose-linked cards, return to the owning workspace, resolve canonical targets, rehearse the proposed Event topology, review one atomic bundle, commit provenance, and resume either a local draft or committed manifest. The advanced web contract already represented dialogue-choice actions, quest assignment/turn-in and current-inventory progress, gameplay actions, repeatability, defeat policy, ranks/eras, and stable location/character/item variants without claiming runtime execution.
+
+### Workflow gaps found and closed
+
+- **W1-E/W3 causal branches:** conditional and dialogue-choice transition ownership now survives browser save/import/normalization. A condition must select a canonical Requirement; a dialogue-choice outcome must select an exact stable choice. Fallbacks are unconditional, unique per source, and ordered after specific outcomes.
+- **W2-I stable identity:** changing the presentation of a location, character, or item now uses a variant selector populated from the chosen canonical record. Writers no longer need to know or retype a raw variant id, and changing the owner clears a stale selection.
+- **W3-A/W3-C resume and topology truth:** the compiler catalog and composer now agree that all approved trigger types are compilable. Saved branch labels, requirement ids, and source-choice ids survive close/reload and remain visible in topology comparison rather than degrading to an unlabeled local branch.
+- **Cross-workflow contract parity:** the checked-in draft JSON schema now describes the live note-local mention shape and typed action/transition fields. Event, Encounter, and compiled Creation Flow writes share canonical transition validation and explicit runtime-verification state.
+
+### Acceptance evidence
+
+- 224 backend tests pass, including catalog truth, schema parity, typed transition compilation, ownerless-transition blockers, preview rollback, atomic commit, and existing persistence/Encounter regressions.
+- 104 frontend unit tests pass, including typed transition round-trip, reorder preservation, capture-health blockers, gameplay-action preservation, and variant identity health.
+- Frontend ESLint and the TypeScript/Vite production build pass.
+- Six focused Chromium journeys pass: standalone create/resume, quest-objective entry/return, encounter-victory entry/return, dialogue capture/recovery, canonical preview/commit, and typed condition plus canonical variant close/reload.
+- The separately measured full Playwright baseline is 26/52 passing. Its 26 failures are pre-existing broad authoring-workspace mock/selector/time-out debt outside the Narrative Creation Flow slice; they remain visible and are not counted as successful regression coverage.
+
+### Remaining acceptance boundary
+
+The workflow corpus has no remaining repository-owned implementation blocker. Representative writers must still run the three scenarios with real project content, and the Unreal consumer must still prove ordering, replay protection, completion triggers, journal/turn-in persistence, defeat/save behavior, active variants, and save/load semantics before any row is marked `runtime_verified`.

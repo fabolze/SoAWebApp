@@ -15,7 +15,7 @@ from backend.app.models.m_locations import Location
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from backend.app.db.init_db import get_db_session
-from backend.app.services.narrative_contracts import validate_repeat_policy
+from backend.app.services.narrative_contracts import validate_outcome_transitions, validate_repeat_policy
 
 class EncounterRoute(BaseRoute):
     def __init__(self):
@@ -133,11 +133,12 @@ class EncounterRoute(BaseRoute):
         rewards["flags_set"] = flags_set
         
         encounter.rewards = rewards
-        transitions = _require_list(data.get("outcome_transitions", []), "outcome_transitions")
-        for index, transition in enumerate(transitions):
-            if not isinstance(transition, dict) or transition.get("trigger") not in {"victory", "complete", "condition", "fallback"}:
-                raise ValueError(f"outcome_transitions[{index}].trigger is invalid; defeat belongs in defeat_policy")
-        encounter.outcome_transitions = transitions
+        encounter.outcome_transitions = validate_outcome_transitions(
+            db_session,
+            data.get("outcome_transitions", []),
+            "outcome_transitions",
+            allowed_triggers={"victory", "complete", "condition", "fallback"},
+        )
         pre_fight = data.get("pre_fight_policy") or {}
         defeat = data.get("defeat_policy") or {}
         if not isinstance(pre_fight, dict) or not isinstance(defeat, dict):

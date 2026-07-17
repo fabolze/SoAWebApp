@@ -132,6 +132,31 @@ This implementation pass closes the repository-owned open points from the audit 
 
 External consumer handoff remains deliberately narrow: execute action rows in `sort_order`; honor `timing`, `target_scope`, `repeat_policy`, and stable action ids for replay protection; treat `outcome_transitions` as typed alternatives and encounter defeat through `defeat_policy`; persist quest journal/objective/turn-in state and active variants; and do not claim support for any row whose `runtime_support` is `runtime_unverified`.
 
+### Post-completion audit and contract hardening — 2026-07-17
+
+The senior design/code audit confirmed that the main V1 promise was already delivered before this pass: capture-first sequence/constellation authoring, embedded and standalone entry points, canonical resolution, rollback-only rehearsal, atomic commit, manifests/resume, typed actions, quest lifecycle fields, repeatability, state variants, and source/UE export preservation all existed and passed their focused contracts.
+
+The audit also found four repository-owned gaps behind the earlier **complete** status:
+
+1. Frontend draft normalization retained a transition's endpoints and trigger but silently dropped `requirementId` and `sourceRefId`. A saved conditional or dialogue-choice branch could therefore lose the canonical fact that made it executable.
+2. Compiler `4.0` emitted typed non-linear transitions, while the capability catalog still advertised every trigger except `complete` as blocked.
+3. `creationFlow.schema.json` still described the superseded top-level mention format, omitted transition labels, and treated typed gameplay actions as an unstructured object.
+4. Variant activation required a writer to type a raw variant id even though the selected canonical location, character, or item already supplied its valid variants.
+
+The implementation plan for those gaps is complete:
+
+| Hardening batch | Delivered change | Exit evidence |
+|---|---|---|
+| Transition identity | Normalization preserves labels, requirements, and source-choice ids. Reordering regenerates only anonymous linear links. Capture health and the authoritative compiler block ownerless conditions, ownerless dialogue-choice branches, duplicate/misordered fallbacks, invalid ordering, and missing references. | Frontend round-trip/reorder tests plus backend blocker tests pass. |
+| Catalog and authoring UX | Requirements are available in the Creation Flow catalog. The composer authors completion, victory, interaction-close, conditional, fallback, and exact-choice outcomes; conditional/choice inputs use canonical selectors. Catalog capability reporting now matches compiler `4.0`. | Catalog contract and focused Chromium recovery path pass. |
+| Shared canonical validation | Event, Encounter, and Creation Flow bundle writes share typed transition validation, deterministic ordering, target/requirement checks, fallback rules, and explicit `runtime_support`. | Full backend suite passes. |
+| Draft/schema parity | The JSON schema now models note-local prose mentions, labels, typed gameplay actions/targets/status filters, and the live required fields. A regression test checks this parity. | Schema parse/parity test and production build pass. |
+| Variant authoring | Variant activation now selects from variants owned by the chosen canonical target and clears stale variant selection when the target changes. | Focused Chromium close/reload test preserves the selected variant and condition. |
+
+Verification after hardening: all **224 backend tests**, **104 frontend unit tests**, frontend ESLint, the TypeScript/Vite production build, `git diff --check`, and **6 focused Chromium Creation Flow journeys** pass. The full browser baseline was also measured before this hardening pass: 26 of 52 broad authoring-workspace tests passed, with 26 failures concentrated in pre-existing non-Creation-Flow mock/selector/time-out debt. That repository-wide suite debt is not presented as a failure of the six passing Creation Flow journeys and is not silently relabeled as complete.
+
+No repository-owned Narrative Creation Flow implementation point remains open after this batch. Representative-writer evaluation, performance observation with real content, and Unreal/runtime execution remain external acceptance gates because they require people or systems outside this web repository.
+
 ## Executive Decision
 
 The product should add a narrative-first authoring layer where the author records **what happens next** before defining how the database represents it.

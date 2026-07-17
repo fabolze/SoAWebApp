@@ -83,6 +83,32 @@ describe("Creation Flow draft", () => {
     expect(creationFlowIssues(normalized).some((issue) => issue.stepId === variantStep.id && issue.severity === "blocker")).toBe(true);
   });
 
+  it("preserves typed transition ownership through normalization and reordering", () => {
+    const first = createCreationFlowStep("Offer terms", "scripted_moment");
+    const second = createCreationFlowStep("Accept terms", "scripted_moment");
+    let draft = addCreationFlowStep(addCreationFlowStep(createCreationFlowDraft({ title: "Terms" }), first), second);
+    draft = normalizeCreationFlowDraft({
+      ...draft,
+      transitions: [{
+        id: "conditional", fromStepId: first.id, toStepId: second.id, trigger: "condition",
+        requirementId: "requirement-1", sourceRefId: "choice-1", label: "Accept", sortOrder: 4,
+      }],
+    });
+    expect(draft.transitions[0]).toMatchObject({ requirementId: "requirement-1", sourceRefId: "choice-1", label: "Accept", sortOrder: 4 });
+    draft = moveCreationFlowStep(draft, second.id, -1);
+    expect(draft.transitions.some((transition) => transition.id === "conditional")).toBe(true);
+  });
+
+  it("reports missing typed transition owners before canonical preview", () => {
+    const first = createCreationFlowStep("Choose", "scripted_moment");
+    const second = createCreationFlowStep("Continue", "scripted_moment");
+    const base = addCreationFlowStep(addCreationFlowStep(createCreationFlowDraft({ title: "Branch" }), first), second);
+    const conditionDraft = normalizeCreationFlowDraft({ ...base, transitions: [{ id: "condition", fromStepId: first.id, toStepId: second.id, trigger: "condition", sortOrder: 0 }] });
+    expect(creationFlowIssues(conditionDraft)).toContainEqual(expect.objectContaining({ severity: "blocker", stepId: first.id, message: expect.stringContaining("canonical requirement") }));
+    const choiceDraft = normalizeCreationFlowDraft({ ...base, transitions: [{ id: "choice", fromStepId: first.id, toStepId: second.id, trigger: "dialogue_choice", sortOrder: 0 }] });
+    expect(creationFlowIssues(choiceDraft)).toContainEqual(expect.objectContaining({ severity: "blocker", stepId: first.id, message: expect.stringContaining("exact saved choice") }));
+  });
+
   it("keeps prose mentions linked when unambiguous edits move them", () => {
     const mention = { id: "mention", placeholderId: "idea", start: 4, end: 14, text: "Ash Regent" };
     expect(reconcileCreationFlowMentions("The Ash Regent rose", "Long ago, the Ash Regent rose", [mention]))

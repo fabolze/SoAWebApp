@@ -20,6 +20,7 @@ export interface CreationFlowCatalog {
     compilable_step_kinds: string[];
     story_only_step_kinds: string[];
     blocked_step_kinds: string[];
+    transition_triggers?: { compilable: string[]; blocked: string[] };
     guarantees: string[];
   };
 }

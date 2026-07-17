@@ -710,14 +710,36 @@ class CreationFlowCompiler:
                 self.blocker("transition_trigger_invalid", "Transition trigger is invalid.", step_id=source, path=f"{path}.trigger")
                 continue
             requirement_id = str(transition.get("requirementId") or "").strip()
+            source_ref_id = str(transition.get("sourceRefId") or "").strip()
+            sort_order = transition.get("sortOrder", index)
+            if isinstance(sort_order, bool) or not isinstance(sort_order, int) or sort_order < 0:
+                self.blocker("transition_sort_order_invalid", "Transition order must be a non-negative integer.", step_id=source, path=f"{path}.sortOrder")
+                continue
+            if trigger == "condition" and not requirement_id:
+                self.blocker("transition_requirement_required", "A conditional transition needs a canonical requirement.", step_id=source, path=f"{path}.requirementId")
+                continue
+            if trigger == "dialogue_choice" and not source_ref_id:
+                self.blocker("transition_choice_required", "A dialogue-choice transition needs the exact saved choice identity.", step_id=source, path=f"{path}.sourceRefId")
+                continue
+            if trigger == "dialogue_choice" and not find_dialogue_choice(self.db_session, source_ref_id):
+                self.blocker("transition_choice_missing", "The dialogue choice used by this transition no longer exists.", step_id=source, path=f"{path}.sourceRefId")
+                continue
+            if trigger == "fallback" and (requirement_id or source_ref_id):
+                self.blocker("transition_fallback_not_unconditional", "A fallback transition cannot also declare a requirement or source choice.", step_id=source, path=path)
+                continue
             if requirement_id:
                 requirement = self.db_session.get(Requirement, requirement_id)
                 self.snapshot("requirement", requirement_id, requirement)
                 if requirement is None:
                     self.blocker("transition_requirement_missing", "Transition requirement no longer exists.", step_id=source, path=f"{path}.requirementId")
                     continue
-            outgoing.setdefault(source, []).append({"target": target, "transition": transition, "index": index})
+            outgoing.setdefault(source, []).append({"target": target, "transition": transition, "index": index, "sort_order": sort_order})
         for source, rows in outgoing.items():
+            rows.sort(key=lambda row: (row["sort_order"], str(row["transition"].get("id") or "")))
+            if sum(1 for row in rows if row["transition"].get("trigger") == "fallback") > 1:
+                self.blocker("transition_fallback_duplicate", "A step can have only one fallback transition.", step_id=source, path="draft.transitions")
+            if any(row["transition"].get("trigger") == "fallback" for row in rows[:-1]):
+                self.blocker("transition_fallback_order", "The fallback transition must be ordered after specific outcomes.", step_id=source, path="draft.transitions")
             source_event = self.event_by_step.get(source)
             executable_rows = [(row, self.event_by_step.get(row["target"])) for row in rows]
             if source_event and len(rows) == 1 and rows[0]["transition"].get("trigger", "complete") == "complete" and not rows[0]["transition"].get("requirementId") and not rows[0]["transition"].get("sourceRefId") and executable_rows[0][1]:
@@ -735,7 +757,7 @@ class CreationFlowCompiler:
                         "target_event_id": target_event["id"],
                         "requirement_id": transition.get("requirementId") or None,
                         "source_ref_id": transition.get("sourceRefId") or None,
-                        "sort_order": transition.get("sortOrder", row["index"]),
+                        "sort_order": row["sort_order"],
                         "label": transition.get("label") or None,
                         "runtime_support": "runtime_unverified",
                     })

@@ -24,7 +24,7 @@ from backend.app.routes.r_flags import route as flag_route
 from backend.app.routes.r_requirements import route as requirement_route
 from backend.app.routes.r_adventure_narrative import adventure_beat_link_route
 from backend.app.services.dialogue_choice_actions import validate_choice_contracts
-from backend.app.services.narrative_contracts import validate_narrative_actions, validate_repeat_policy
+from backend.app.services.narrative_contracts import validate_narrative_actions, validate_outcome_transitions, validate_repeat_policy
 
 
 REQUIREMENT_TARGETS = {
@@ -137,7 +137,10 @@ def upsert_event(db_session, data, path, *, defer_next=False):
         event.currency_rewards = data.get("currency_rewards") or []
         event.reputation_rewards = data.get("reputation_rewards") or []
         event.actions = validate_narrative_actions(db_session, data.get("actions") or [], f"{path}.actions")
-        event.outcome_transitions = data.get("outcome_transitions") or []
+        if not defer_next:
+            event.outcome_transitions = validate_outcome_transitions(
+                db_session, data.get("outcome_transitions") or [], f"{path}.outcome_transitions",
+            )
         event.repeat_policy = validate_repeat_policy(data.get("repeat_policy"), f"{path}.repeat_policy")
         runtime_support = data.get("runtime_support", "runtime_unverified")
         if runtime_support not in {"runtime_unverified", "runtime_verified"}:

@@ -13,7 +13,7 @@ from backend.app.models.m_items import Item
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from backend.app.db.init_db import get_db_session
-from backend.app.services.narrative_contracts import validate_narrative_actions, validate_repeat_policy
+from backend.app.services.narrative_contracts import validate_narrative_actions, validate_outcome_transitions, validate_repeat_policy
 
 class EventRoute(BaseRoute):
     def __init__(self):
@@ -100,14 +100,7 @@ class EventRoute(BaseRoute):
         event.reputation_rewards = reputation_rewards
 
         event.actions = validate_narrative_actions(db_session, data.get("actions", []), "actions")
-        transitions = data.get("outcome_transitions") or []
-        if not isinstance(transitions, list):
-            raise ValueError("outcome_transitions must be an array")
-        allowed_triggers = {"complete", "dialogue_choice", "victory", "interaction_closed", "condition", "fallback"}
-        for index, transition in enumerate(transitions):
-            if not isinstance(transition, dict) or transition.get("trigger") not in allowed_triggers:
-                raise ValueError(f"outcome_transitions[{index}].trigger is invalid")
-        event.outcome_transitions = transitions
+        event.outcome_transitions = validate_outcome_transitions(db_session, data.get("outcome_transitions", []))
         event.repeat_policy = validate_repeat_policy(data.get("repeat_policy"), "repeat_policy")
         runtime_support = data.get("runtime_support", "runtime_unverified")
         if runtime_support not in {"runtime_unverified", "runtime_verified"}:

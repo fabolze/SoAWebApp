@@ -13,6 +13,7 @@ from backend.app.models.m_location_routes import LocationRoute
 from backend.app.models.m_locations import Location
 from backend.app.models.m_lore_entries import LoreEntry
 from backend.app.models.m_quests import Quest
+from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_shops import Shop
 from backend.app.models.m_stats import Stat
 from backend.app.models.m_statuses import Status
@@ -27,6 +28,7 @@ REFERENCE_MODELS = {
     "dialogue_node": ("dialogue_nodes", DialogueNode),
     "encounter": ("encounters", Encounter),
     "quest": ("quests", Quest),
+    "requirement": ("requirements", Requirement),
     "event": ("events", Event),
     "shop": ("shops", Shop),
     "location": ("locations", Location),
@@ -99,8 +101,8 @@ def creation_flow_catalog(db_session):
             "story_only_step_kinds": STORY_ONLY_STEP_KINDS,
             "blocked_step_kinds": BLOCKED_STEP_KINDS,
             "transition_triggers": {
-                "compilable": ["complete"],
-                "blocked": ["dialogue_choice", "victory", "interaction_closed", "condition", "fallback"],
+                "compilable": ["complete", "dialogue_choice", "victory", "interaction_closed", "condition", "fallback"],
+                "blocked": [],
             },
             "runtime_unverified_step_kinds": [
                 "open_shop", "join_companion", "quest_assignment", "quest_turn_in",
