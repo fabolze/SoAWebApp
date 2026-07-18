@@ -30,10 +30,10 @@ describe("browser playtest campaign runtime", () => {
     const duplicate = applyEncounterVictory(state, "forest");
     expect(duplicate.gold).toBe(58);
     state = applyEncounterVictory({ ...state, location: "swamp" }, "swamp");
-    expect(state.inventory.mireBloom).toBe(1);
+    expect(state.inventory.missingScarf).toBe(1);
     state = applyEncounterVictory({ ...state, location: "ruins" }, "ruins");
-    expect(state.inventory.bellClapper).toBe(1);
-    expect(state.inventory.emberCharm).toBe(1);
+    expect(state.inventory.portalFragment).toBe(1);
+    expect(state.inventory.resonanceCharm).toBe(1);
     expect(state.questStage).toBe("return");
   });
 

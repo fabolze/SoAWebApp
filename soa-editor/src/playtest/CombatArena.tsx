@@ -30,20 +30,20 @@ const ARENA_H = 500;
 
 function enemiesFor(location: LocationId): Enemy[] {
   if (location === "forest") return [
-    { id: "boar-a", name: "Bristleback Matron", kind: "boar", x: 690, y: 185, hp: 96, maxHp: 96, speed: 38, damage: 10, range: 46, attackCd: .8 },
-    { id: "boar-b", name: "Lost Young Boar", kind: "boar", x: 750, y: 340, hp: 68, maxHp: 68, speed: 44, damage: 8, range: 42, attackCd: 1.5 },
+    { id: "boar-a", name: "Panicked Forest Boar", kind: "boar", x: 690, y: 185, hp: 96, maxHp: 96, speed: 38, damage: 10, range: 46, attackCd: .8 },
+    { id: "boar-b", name: "Frightened Young Boar", kind: "boar", x: 750, y: 340, hp: 68, maxHp: 68, speed: 44, damage: 8, range: 42, attackCd: 1.5 },
   ];
   if (location === "swamp") return [
-    { id: "mire-a", name: "Fen Channeler", kind: "mireling", x: 700, y: 145, hp: 110, maxHp: 110, speed: 28, damage: 12, range: 58, attackCd: .7 },
-    { id: "mire-b", name: "Mire Lurker", kind: "mireling", x: 745, y: 350, hp: 135, maxHp: 135, speed: 31, damage: 14, range: 52, attackCd: 1.4 },
+    { id: "mire-a", name: "Shadow-Touched Channeler", kind: "mireling", x: 700, y: 145, hp: 110, maxHp: 110, speed: 28, damage: 12, range: 58, attackCd: .7 },
+    { id: "mire-b", name: "Marsh Shadow", kind: "mireling", x: 745, y: 350, hp: 135, maxHp: 135, speed: 31, damage: 14, range: 52, attackCd: 1.4 },
   ];
-  return [{ id: "warden", name: "Gatebound Warden", kind: "warden", x: 710, y: 250, hp: 410, maxHp: 410, speed: 23, damage: 17, range: 64, attackCd: 1.1 }];
+  return [{ id: "warden", name: "Shadow Creature at the Portal", kind: "warden", x: 710, y: 250, hp: 410, maxHp: 410, speed: 23, damage: 17, range: 64, attackCd: 1.1 }];
 }
 
 function initialEngine(location: LocationId, playerName: string, maxHp: number, currentHp: number): Engine {
   return {
     player: { id: "player", name: playerName, role: "Wayfarer · You", x: 190, y: 300, hp: Math.min(maxHp, currentHp), maxHp, shield: 0, alive: true, mana: 100, maxMana: 100 },
-    companion: { id: "companion", name: "Tarin Vale", role: "Vanguard · Companion", x: 255, y: 235, hp: 126, maxHp: 126, shield: 0, alive: true },
+    companion: { id: "companion", name: "First Companion", role: "Vanguard · Identity open", x: 255, y: 235, hp: 126, maxHp: 126, shield: 0, alive: true },
     enemies: enemiesFor(location), cooldowns: { strike: 0, bolt: 0, mend: 0, aegis: 0, dodge: 0 }, time: 0, ended: false, paused: false,
     companionAttackCd: .6, nextMechanic: 3.2, mechanicIndex: 0, mechanic: null, floaters: [], serial: 1,
   };
@@ -52,7 +52,7 @@ function initialEngine(location: LocationId, playerName: string, maxHp: number, 
 function distance(a: { x: number; y: number }, b: { x: number; y: number }) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
 function encounterTitle(location: LocationId) {
-  return location === "ruins" ? "The Gate Remembers" : location === "swamp" ? "Still Water, Sharp Teeth" : "Bristles on the Old Road";
+  return location === "ruins" ? "The Forbidden Portal" : location === "swamp" ? "Whispers in the Marsh" : "Unrest in the Forest";
 }
 
 export default function CombatArena({ location, playerName, maxHp, currentHp, damage, armor, speedBonus, tonics, onUseTonic, onVictory, onDefeat, onFlee }: {
@@ -63,7 +63,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
   const keysRef = useRef(new Set<string>());
   const enemyTargetRef = useRef<string | null>(engineRef.current.enemies[0]?.id ?? null);
   const allyTargetRef = useRef<AllyId>("companion");
-  const messageRef = useRef("Tarin will hold their attention. Keep moving and keep your party alive.");
+  const messageRef = useRef("Your provisional companion will hold their attention. Keep moving and keep your party alive.");
   const [snapshot, setSnapshot] = useState<Snapshot>({ ...engineRef.current, message: messageRef.current, enemyTargetId: enemyTargetRef.current, allyTargetId: allyTargetRef.current });
   const [showHelp, setShowHelp] = useState(true);
 
@@ -93,7 +93,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
     if (amount > 0) { ally.hp = Math.max(0, ally.hp - amount); addFloater(ally, `-${amount}`, "damage"); }
     if (ally.hp <= 0) {
       ally.alive = false;
-      messageRef.current = ally.id === "player" ? "You fall. The bell fades into silence." : "Tarin is down. The enemy turns toward you.";
+      messageRef.current = ally.id === "player" ? "You fall before the missing villager can be rescued." : "Your companion is down. The enemy turns toward you.";
       if (ally.id === "player") { e.ended = true; window.setTimeout(onDefeat, 650); }
     } else messageRef.current = `${source} hits ${ally.name}.`;
   }, [addFloater, armor, onDefeat]);
@@ -154,7 +154,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
     const dealt = ability === "strike" ? damage : Math.round(damage * 1.18 + 6);
     target.hp = Math.max(0, target.hp - dealt); addFloater(target, `-${dealt}`, "damage");
     e.cooldowns[ability] = ability === "strike" ? .72 : 1.45;
-    messageRef.current = `${ability === "strike" ? "Wayfarer Strike" : "Ember Bolt"} hits ${target.name}.`;
+    messageRef.current = `${ability === "strike" ? "Wayfarer Strike" : "Focused Bolt"} hits ${target.name}.`;
     const living = livingEnemies();
     if (!living.length) { e.ended = true; messageRef.current = "Victory. Your party survives."; window.setTimeout(() => onVictory(e.player.hp), 750); }
     else if (target.hp <= 0) enemyTargetRef.current = living[0].id;
@@ -247,7 +247,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
 
   const consumeTonic = () => {
     const e = engineRef.current; if (!tonics || e.player.hp >= e.player.maxHp || !onUseTonic()) return;
-    healAlly(e.player, 35); messageRef.current = "Rowan tonic restores your vigor."; sync();
+    healAlly(e.player, 35); messageRef.current = "The village tonic restores your vigor."; sync();
   };
 
   const primaryEnemy = useMemo(() => snapshot.enemies.find((enemy) => enemy.hp > 0), [snapshot.enemies]);
@@ -279,7 +279,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
         </div>
       </div>
     </div>
-    <div className="pt-combat-footer revised"><div className="pt-combat-message"><span className="pt-pulse-dot"/>{snapshot.message}</div><div className="pt-hotbar"><AbilityButton hotkey="1" name="Wayfarer Strike" detail={`${damage} damage · enemy`} cooldown={snapshot.cooldowns.strike} maxCooldown={.72} onClick={() => castAbility("strike")} tone="attack"/><AbilityButton hotkey="2" name="Ember Bolt" detail="12 focus · enemy" cooldown={snapshot.cooldowns.bolt} maxCooldown={1.45} onClick={() => castAbility("bolt")} tone="attack"/><AbilityButton hotkey="3" name="Mend" detail="18 focus · ally" cooldown={snapshot.cooldowns.mend} maxCooldown={.9} onClick={() => castAbility("mend")} tone="heal"/><AbilityButton hotkey="4" name="Aegis" detail="24 focus · ally" cooldown={snapshot.cooldowns.aegis} maxCooldown={5.5} onClick={() => castAbility("aegis")} tone="heal"/><AbilityButton hotkey="Space" name="Quickstep" detail="Dodge mechanic" cooldown={snapshot.cooldowns.dodge} maxCooldown={3.1} onClick={dodge}/><button className="pt-ability pt-tonic" disabled={!tonics} onClick={consumeTonic}><kbd>Q</kbd><strong>Rowan Tonic</strong><span>{tonics} left · self</span></button></div><div className="pt-dual-target"><div><span>Enemy target · Tab</span><strong>{selectedEnemy?.name ?? "None"}</strong></div><div><span>Support target · F1/F2</span><strong>{selectedAlly.name}</strong></div></div></div>
+    <div className="pt-combat-footer revised"><div className="pt-combat-message"><span className="pt-pulse-dot"/>{snapshot.message}</div><div className="pt-hotbar"><AbilityButton hotkey="1" name="Wayfarer Strike" detail={`${damage} damage · enemy`} cooldown={snapshot.cooldowns.strike} maxCooldown={.72} onClick={() => castAbility("strike")} tone="attack"/><AbilityButton hotkey="2" name="Focused Bolt" detail="12 focus · enemy" cooldown={snapshot.cooldowns.bolt} maxCooldown={1.45} onClick={() => castAbility("bolt")} tone="attack"/><AbilityButton hotkey="3" name="Mend" detail="18 focus · ally" cooldown={snapshot.cooldowns.mend} maxCooldown={.9} onClick={() => castAbility("mend")} tone="heal"/><AbilityButton hotkey="4" name="Aegis" detail="24 focus · ally" cooldown={snapshot.cooldowns.aegis} maxCooldown={5.5} onClick={() => castAbility("aegis")} tone="heal"/><AbilityButton hotkey="Space" name="Quickstep" detail="Dodge mechanic" cooldown={snapshot.cooldowns.dodge} maxCooldown={3.1} onClick={dodge}/><button className="pt-ability pt-tonic" disabled={!tonics} onClick={consumeTonic}><kbd>Q</kbd><strong>Village Tonic</strong><span>{tonics} left · self</span></button></div><div className="pt-dual-target"><div><span>Enemy target · Tab</span><strong>{selectedEnemy?.name ?? "None"}</strong></div><div><span>Support target · F1/F2</span><strong>{selectedAlly.name}</strong></div></div></div>
   </section>;
 }
 
@@ -292,7 +292,7 @@ function EnemyToken({ enemy, selected, onClick }: { enemy: Enemy; selected: bool
 }
 
 function AllyToken({ ally, selected, companion, onClick }: { ally: Ally; selected: boolean; companion?: boolean; onClick: () => void }) {
-  return <g className={`pt-ally-token ${companion ? "companion" : "player"} ${selected ? "support-target" : ""}`} transform={`translate(${ally.x} ${ally.y})`} onClick={onClick} role="button" tabIndex={0}>{selected && <circle className="pt-support-ring" r="33"/>}{ally.shield > 0 && <circle className="pt-shield-ring" r="28"/>}{!companion && <circle r="43" fill="url(#healerGlow)"/>}<circle className="body" r={companion ? 23 : 21}/>{companion ? <path d="M0-16l13 8-4 19-9 7-9-7-4-19zM-7-3h14"/> : <path d="M0-16l8 14-8 17-8-17zM0-9v18"/>}<text x="0" y="43" textAnchor="middle">{companion ? "TARIN" : "YOU"}</text></g>;
+  return <g className={`pt-ally-token ${companion ? "companion" : "player"} ${selected ? "support-target" : ""}`} transform={`translate(${ally.x} ${ally.y})`} onClick={onClick} role="button" tabIndex={0}>{selected && <circle className="pt-support-ring" r="33"/>}{ally.shield > 0 && <circle className="pt-shield-ring" r="28"/>}{!companion && <circle r="43" fill="url(#healerGlow)"/>}<circle className="body" r={companion ? 23 : 21}/>{companion ? <path d="M0-16l13 8-4 19-9 7-9-7-4-19zM-7-3h14"/> : <path d="M0-16l8 14-8 17-8-17zM0-9v18"/>}<text x="0" y="43" textAnchor="middle">{companion ? "ALLY" : "YOU"}</text></g>;
 }
 
 function Telegraph({ mechanic, caster }: { mechanic: Mechanic; caster?: Enemy }) {

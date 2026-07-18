@@ -198,7 +198,7 @@ const DEFAULT_GROUPS: SidebarGroup[] = [
     label: "System",
     items: [
       { to: "/", label: "Home", icon: HomeIcon },
-      { to: "/playtest", label: "Playtest: Ashen Bell", icon: PlayIcon },
+      { to: "/playtest", label: "Playtest: Shadows of Shanoir", icon: PlayIcon },
       { to: "/simulation", label: "Simulation Sandbox", icon: CpuChipIcon },
       { to: "/settings", label: "Settings", icon: Cog6ToothIcon },
     ],

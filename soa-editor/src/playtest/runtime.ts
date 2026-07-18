@@ -3,7 +3,7 @@ import { ITEMS, type EquipmentSlot, type LocationId } from "./content";
 export type QuestStage = "not-started" | "reach-forest" | "cross-fen" | "reach-gate" | "return" | "complete";
 
 export type PlayState = {
-  version: 1;
+  version: 2;
   playerName: string;
   location: LocationId;
   dayMinutes: number;
@@ -22,11 +22,11 @@ export type PlayState = {
   playSeconds: number;
 };
 
-export const SAVE_KEY = "soa.playtest.campaign.v1";
+export const SAVE_KEY = "soa.playtest.campaign.v2";
 
 export function createNewGame(playerName = "Wayfarer"): PlayState {
   return {
-    version: 1,
+    version: 2,
     playerName: playerName.trim() || "Wayfarer",
     location: "village",
     dayMinutes: 7 * 60 + 20,
@@ -38,7 +38,7 @@ export function createNewGame(playerName = "Wayfarer"): PlayState {
     inventory: { wornBlade: 1, tonic: 1 },
     equipment: { weapon: "wornBlade" },
     talents: [],
-    lore: ["bell"],
+    lore: ["portalTaboo"],
     questStage: "not-started",
     clearedEncounters: [],
     choices: [],
@@ -51,7 +51,7 @@ export function loadGame(): PlayState | null {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<PlayState>;
-    if (parsed.version !== 1 || !parsed.playerName || !parsed.inventory) return null;
+    if (parsed.version !== 2 || !parsed.playerName || !parsed.inventory) return null;
     return { ...createNewGame(parsed.playerName), ...parsed } as PlayState;
   } catch {
     return null;
@@ -112,11 +112,11 @@ export function formatTime(minutes: number): string {
 
 export function objectiveText(stage: QuestStage): string {
   switch (stage) {
-    case "not-started": return "Speak with Mara Vey at the bell tower.";
-    case "reach-forest": return "Follow the old road into Elderwood Verge.";
-    case "cross-fen": return "Collect mirebloom and cross Blackwater Fen.";
-    case "reach-gate": return "Reach Shanoir Gate and recover the bell clapper.";
-    case "return": return "Return the Ashen Bell Clapper to Mara.";
+    case "not-started": return "Speak with the village elder about the missing villager.";
+    case "reach-forest": return "Follow the missing villager's tracks into the forest.";
+    case "cross-fen": return "Keep following the trail through the southern marsh.";
+    case "reach-gate": return "Find the missing villager at the forbidden portal.";
+    case "return": return "Bring the villager home and report what awoke at the portal.";
     case "complete": return "The first chapter is complete.";
   }
 }
@@ -124,7 +124,7 @@ export function objectiveText(stage: QuestStage): string {
 export function canTravelTo(state: PlayState, target: LocationId): { allowed: boolean; reason?: string } {
   if (target === state.location) return { allowed: false, reason: "You are already here." };
   if (target === "village") return { allowed: true };
-  if (state.questStage === "not-started") return { allowed: false, reason: "The old road is still sealed." };
+  if (state.questStage === "not-started") return { allowed: false, reason: "The forbidden path is closed until the search begins." };
   if (target === "forest") return { allowed: true };
   if (target === "swamp" && state.clearedEncounters.includes("forest")) return { allowed: true };
   if (target === "ruins" && state.clearedEncounters.includes("swamp")) return { allowed: true };
@@ -135,11 +135,11 @@ export function applyEncounterVictory(state: PlayState, location: LocationId): P
   if (state.clearedEncounters.includes(location)) return state;
   let next: PlayState = { ...state, clearedEncounters: [...state.clearedEncounters, location] };
   if (location === "forest") {
-    next = gainXp({ ...next, gold: next.gold + 16, questStage: "cross-fen", lore: [...new Set([...next.lore, "oldRoad"])] }, 55);
+    next = gainXp({ ...next, gold: next.gold + 16, questStage: "cross-fen", lore: [...new Set([...next.lore, "wrongShadows"])] }, 55);
   } else if (location === "swamp") {
-    next = addItem(gainXp({ ...next, gold: next.gold + 24, questStage: "reach-gate", lore: [...new Set([...next.lore, "mire"])] }, 75), "mireBloom");
+    next = addItem(gainXp({ ...next, gold: next.gold + 24, questStage: "reach-gate", lore: [...new Set([...next.lore, "missingTrail"])] }, 75), "missingScarf");
   } else if (location === "ruins") {
-    next = addItem(addItem(gainXp({ ...next, gold: next.gold + 40, questStage: "return", lore: [...new Set([...next.lore, "gate"])] }, 120), "bellClapper"), "emberCharm");
+    next = addItem(addItem(gainXp({ ...next, gold: next.gold + 40, questStage: "return", lore: [...new Set([...next.lore, "shanoirRift"])] }, 120), "portalFragment"), "resonanceCharm");
   }
   return { ...next, health: Math.min(maxHealth(next), next.health + 25) };
 }
