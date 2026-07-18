@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mechanicSequence, pointToSegmentDistance } from "./combatMath";
+import { mechanicSequence, pointInSector, pointToSegmentDistance, rayToArenaEdge } from "./combatMath";
 
 describe("party combat mechanics", () => {
   it("resolves line telegraphs against the finite attack lane", () => {
@@ -16,9 +16,24 @@ describe("party combat mechanics", () => {
     expect(mechanicSequence("ruins").map((entry) => entry.kind)).toEqual(["line", "circle", "raidwide", "cleave"]);
     for (const location of ["forest", "swamp", "ruins"] as const) {
       for (const mechanic of mechanicSequence(location)) {
-        expect(mechanic.duration).toBeGreaterThanOrEqual(1.8);
+        expect(mechanic.duration).toBeGreaterThanOrEqual(2.1);
         expect(mechanic.damage).toBeGreaterThan(0);
+        expect(mechanic.instruction.length).toBeGreaterThan(10);
       }
     }
+  });
+
+  it("extends line telegraphs to the same arena edge used for collision", () => {
+    expect(rayToArenaEdge({ x: 700, y: 250 }, { x: 300, y: 250 }, 900, 500, 8)).toEqual({ x: 8, y: 250 });
+    const diagonal = rayToArenaEdge({ x: 450, y: 250 }, { x: 900, y: 500 }, 900, 500);
+    expect(diagonal.x).toBe(900);
+    expect(diagonal.y).toBe(500);
+  });
+
+  it("resolves a cleave as a directional sector rather than a full circle", () => {
+    const origin = { x: 400, y: 250 };
+    expect(pointInSector({ x: 500, y: 250 }, origin, 0, 140, Math.PI / 3)).toBe(true);
+    expect(pointInSector({ x: 300, y: 250 }, origin, 0, 140, Math.PI / 3)).toBe(false);
+    expect(pointInSector({ x: 560, y: 250 }, origin, 0, 140, Math.PI / 3)).toBe(false);
   });
 });

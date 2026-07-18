@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyEncounterVictory, canTravelTo, createNewGame, gainXp, maxHealth, playerDamage, type PlayState } from "./runtime";
+import { applyEncounterVictory, canTravelTo, canUnlockTalent, createNewGame, equipItem, gainXp, maxHealth, playerArmor, playerDamage, purchaseItem, sellItem, tonicHealing, unequipItem, unlockTalent, type PlayState } from "./runtime";
 
 describe("browser playtest campaign runtime", () => {
   it("starts with a coherent playable build", () => {
@@ -42,5 +42,49 @@ describe("browser playtest campaign runtime", () => {
     expect(state.level).toBe(2);
     expect(state.xp).toBe(120);
     expect(state.talentPoints).toBe(2);
+  });
+
+  it("keeps the forge economy finite and supports safe resale", () => {
+    let state = createNewGame();
+    const bought = purchaseItem(state, "travelCoat");
+    expect(bought.reason).toBeUndefined();
+    state = bought.state;
+    expect(state.gold).toBe(18);
+    expect(state.shopStock.travelCoat).toBe(0);
+    expect(state.inventory.travelCoat).toBe(1);
+    expect(purchaseItem(state, "travelCoat").reason).toMatch(/sold out/i);
+
+    state = equipItem(state, "travelCoat");
+    expect(sellItem(state, "travelCoat").reason).toMatch(/unequip/i);
+    state = unequipItem(state, "armor");
+    const sold = sellItem(state, "travelCoat");
+    expect(sold.value).toBe(12);
+    expect(sold.state.gold).toBe(30);
+    expect(sold.state.shopStock.travelCoat).toBe(1);
+  });
+
+  it("applies equipment and talent branch bonuses", () => {
+    let state: PlayState = { ...createNewGame(), inventory: { ...createNewGame().inventory, travelCoat: 1, marshWard: 1 } };
+    state = equipItem(state, "travelCoat");
+    state = equipItem(state, "marshWard");
+    expect(maxHealth(state)).toBe(118);
+    expect(playerArmor(state)).toBe(5);
+
+    expect(canUnlockTalent(state, "bastion").reason).toMatch(/resolve/i);
+    state = unlockTalent(state, "resolve");
+    state = { ...state, talentPoints: 1 };
+    state = unlockTalent(state, "bastion");
+    expect(maxHealth(state)).toBe(144);
+    expect(playerArmor(state)).toBe(8);
+  });
+
+  it("improves tonic healing through fieldcraft only after its prerequisite", () => {
+    let state = createNewGame();
+    expect(tonicHealing(state)).toBe(35);
+    expect(canUnlockTalent(state, "fieldcraft").allowed).toBe(false);
+    state = unlockTalent(state, "quickstep");
+    state = { ...state, talentPoints: 1 };
+    state = unlockTalent(state, "fieldcraft");
+    expect(tonicHealing(state)).toBe(50);
   });
 });
