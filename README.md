@@ -18,6 +18,7 @@ UE5-specific documentation remains under `UE5_Integration` and is maintained sep
 
 Working:
 
+- `/playtest` provides **The Ashen Bell**, a self-contained browser vertical slice with a prologue, branching dialogue, quest progression, inventory and equipment, a shop, gated world travel, real-time top-down party combat, talents, lore discovery, procedural music, local save/continue, and an original painted Altrail environment plate. Combat uses WASD/arrow movement, dual ally/enemy targeting, party frames, boss cast bars, avoidable line/circle/cleave telegraphs, raid-wide damage, `1`–`4` damage and support abilities, and `Space` to dodge. Playtest progress remains browser-local and never mutates authoring records.
 - Generic schema-driven CRUD editors and Advanced Form fallback for all registered datasets.
 - Specialized Item Ecosystem, Quest Journey Board, Adventure Dependency Map, shop, Character Studio, location, atlas, world-builder, Dialogue Flow, and Encounter Stage authoring.
 - Atomic bundle APIs for cross-record authoring workspaces.

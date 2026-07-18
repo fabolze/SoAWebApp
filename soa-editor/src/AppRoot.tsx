@@ -64,6 +64,7 @@ const CreatureWorkshopPage = lazy(() => import("./pages/CreatureWorkshopPage"));
 const StoryTimelinePage = lazy(() => import("./pages/StoryTimelinePage"));
 const ProgressionFlowPage = lazy(() => import("./pages/ProgressionFlowPage"));
 const CreationFlowWorkspacePage = lazy(() => import("./pages/CreationFlowWorkspacePage"));
+const PlaytestPage = lazy(() => import("./playtest/PlaytestPage"));
 
 const SIDEBAR_COLLAPSED_KEY = "soa.sidebar.collapsed";
 
@@ -89,6 +90,7 @@ export default function AppRoot() {
         <BrowserRouter>
           <Suspense fallback={<div className="p-6 text-sm text-slate-600 dark:text-slate-300">Loading workspace...</div>}>
           <Routes>
+            <Route path="/playtest" element={<PlaytestPage />} />
             <Route
               path="/"
               element={<Layout collapsed={collapsed} onToggleCollapse={handleToggleCollapse} />}
