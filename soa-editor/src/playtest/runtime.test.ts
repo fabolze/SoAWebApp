@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyEncounterVictory, canTravelTo, canUnlockTalent, createNewGame, equipItem, gainXp, maxHealth, playerArmor, playerDamage, purchaseItem, sellItem, tonicHealing, unequipItem, unlockTalent, type PlayState } from "./runtime";
+import { applyEncounterVictory, canTravelTo, canUnlockTalent, chooseCombatPath, createNewGame, equipItem, gainXp, maxHealth, playerArmor, playerAutoAttack, playerDamage, playerHealingMultiplier, playerStartingWard, purchaseItem, sellItem, tonicHealing, unequipItem, unlockTalent, type PlayState } from "./runtime";
 
 describe("browser playtest campaign runtime", () => {
   it("starts with a coherent playable build", () => {
@@ -7,7 +7,8 @@ describe("browser playtest campaign runtime", () => {
     expect(state.playerName).toBe("Ari");
     expect(state.inventory.wornBlade).toBe(1);
     expect(state.equipment.weapon).toBe("wornBlade");
-    expect(playerDamage(state)).toBe(16);
+    expect(playerDamage(state)).toBe(18);
+    expect(playerAutoAttack(state)).toMatchObject({ damage: 13, range: 105, style: "melee" });
     expect(maxHealth(state)).toBe(100);
   });
 
@@ -63,28 +64,52 @@ describe("browser playtest campaign runtime", () => {
     expect(sold.state.shopStock.travelCoat).toBe(1);
   });
 
-  it("applies equipment and talent branch bonuses", () => {
+  it("applies equipment and a vanguard talent path", () => {
     let state: PlayState = { ...createNewGame(), inventory: { ...createNewGame().inventory, travelCoat: 1, marshWard: 1 } };
     state = equipItem(state, "travelCoat");
     state = equipItem(state, "marshWard");
     expect(maxHealth(state)).toBe(118);
     expect(playerArmor(state)).toBe(5);
 
-    expect(canUnlockTalent(state, "bastion").reason).toMatch(/resolve/i);
-    state = unlockTalent(state, "resolve");
+    state = chooseCombatPath(state, "tank", "vanguard");
+    expect(maxHealth(state)).toBe(133);
+    expect(playerArmor(state)).toBe(7);
+    expect(canUnlockTalent(state, "holdTheLine").reason).toMatch(/iron constitution/i);
+    state = unlockTalent(state, "ironConstitution");
     state = { ...state, talentPoints: 1 };
-    state = unlockTalent(state, "bastion");
-    expect(maxHealth(state)).toBe(144);
-    expect(playerArmor(state)).toBe(8);
+    state = unlockTalent(state, "holdTheLine");
+    expect(maxHealth(state)).toBe(173);
+    expect(playerArmor(state)).toBe(11);
   });
 
-  it("improves tonic healing through fieldcraft only after its prerequisite", () => {
+  it("makes healer paths improve healing and warding", () => {
     let state = createNewGame();
     expect(tonicHealing(state)).toBe(35);
-    expect(canUnlockTalent(state, "fieldcraft").allowed).toBe(false);
-    state = unlockTalent(state, "quickstep");
+    state = chooseCombatPath(state, "healer", "wardweaver");
+    expect(tonicHealing(state)).toBe(40);
+    expect(canUnlockTalent(state, "sharedShelter").allowed).toBe(false);
+    state = unlockTalent(state, "resonantWard");
     state = { ...state, talentPoints: 1 };
-    state = unlockTalent(state, "fieldcraft");
-    expect(tonicHealing(state)).toBe(50);
+    state = unlockTalent(state, "sharedShelter");
+    expect(playerStartingWard(state)).toBe(18);
+    expect(playerHealingMultiplier(state)).toBeCloseTo(1.15);
+  });
+
+  it("refunds spent points when switching combat paths", () => {
+    let state = unlockTalent(createNewGame(), "relentlessEdge");
+    expect(state.talentPoints).toBe(0);
+    state = chooseCombatPath(state, "tank", "spellguard");
+    expect(state.talents).toEqual([]);
+    expect(state.talentPoints).toBe(1);
+    expect(canUnlockTalent(state, "relentlessEdge").reason).toMatch(/choose/i);
+  });
+
+  it("uses equipped weapon type for continuous auto-attacks", () => {
+    let state: PlayState = { ...createNewGame(), inventory: { ...createNewGame().inventory, hunterBow: 1 } };
+    state = equipItem(state, "hunterBow");
+    state = chooseCombatPath(state, "damage", "ranger");
+    expect(playerAutoAttack(state)).toMatchObject({ style: "ranged", range: 430, interval: 1.95, damage: 15 });
+    state = unlockTalent(state, "steadyAim");
+    expect(playerAutoAttack(state)).toMatchObject({ style: "ranged", range: 475, damage: 19 });
   });
 });

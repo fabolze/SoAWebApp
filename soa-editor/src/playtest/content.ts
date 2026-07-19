@@ -1,6 +1,8 @@
 export type LocationId = "village" | "forest" | "swamp" | "ruins";
 export type EquipmentSlot = "weapon" | "armor" | "charm";
-export type TalentBranch = "survival" | "combat" | "exploration";
+export type CombatRole = "healer" | "damage" | "tank";
+export type CombatSpec = "lifebinder" | "wardweaver" | "blademaster" | "ranger" | "vanguard" | "spellguard";
+export type AttackStyle = "melee" | "ranged";
 
 export type ItemDefinition = {
   id: string;
@@ -14,6 +16,10 @@ export type ItemDefinition = {
   armor?: number;
   health?: number;
   heal?: number;
+  attackStyle?: AttackStyle;
+  autoRange?: number;
+  autoInterval?: number;
+  healingPower?: number;
 };
 
 export type LocationDefinition = {
@@ -34,14 +40,41 @@ export type TalentDefinition = {
   description: string;
   cost: number;
   icon: string;
-  branch: TalentBranch;
+  role: CombatRole;
+  spec: CombatSpec;
   tier: number;
   requires?: string;
 };
 
+export type CombatPathDefinition = {
+  id: CombatSpec;
+  role: CombatRole;
+  name: string;
+  icon: string;
+  fantasy: string;
+  companionPlan: string;
+};
+
+export const COMBAT_ROLES: Record<CombatRole, { name: string; icon: string; summary: string }> = {
+  healer: { name: "Healer", icon: "+", summary: "Restore vigor, prevent damage, and direct the party from the back line." },
+  damage: { name: "Damage", icon: "✦", summary: "Pressure enemies with stronger weapon attacks and decisive active abilities." },
+  tank: { name: "Tank", icon: "⬟", summary: "Stand in front, absorb pressure, and create room for the party." },
+};
+
+export const COMBAT_PATHS: CombatPathDefinition[] = [
+  { id: "lifebinder", role: "healer", name: "Lifebinder", icon: "✚", fantasy: "Powerful direct healing with a steady restorative pulse.", companionPlan: "Nessa becomes your armored vanguard." },
+  { id: "wardweaver", role: "healer", name: "Wardweaver", icon: "◇", fantasy: "Prevent incoming damage with durable wards and shared protection.", companionPlan: "Nessa becomes your armored vanguard." },
+  { id: "blademaster", role: "damage", name: "Blademaster", icon: "⚔", fantasy: "Close-range pressure, fast weapon swings, and forceful finishing blows.", companionPlan: "Nessa holds the front while you deal damage." },
+  { id: "ranger", role: "damage", name: "Ranger", icon: "➶", fantasy: "Reliable ranged pressure with deliberate, heavy weapon shots.", companionPlan: "Nessa holds the front while you attack from range." },
+  { id: "vanguard", role: "tank", name: "Vanguard", icon: "⬟", fantasy: "High vigor and armor built to endure sustained enemy attention.", companionPlan: "Nessa switches to ranged support and healing." },
+  { id: "spellguard", role: "tank", name: "Spellguard", icon: "◈", fantasy: "Protective wards soften dangerous enemy mechanics before they land.", companionPlan: "Nessa switches to ranged support and healing." },
+];
+
 export const ITEMS: Record<string, ItemDefinition> = {
-  wornBlade: { id: "wornBlade", name: "Grandfather's Old Sword", description: "The blade your adoptive grandfather carried as an adventurer. Worn, balanced, and carefully kept.", type: "weapon", slot: "weapon", price: 0, icon: "⚔", damage: 7 },
-  forgeBlade: { id: "forgeBlade", name: "Vale Hunting Blade", description: "A practical Hearthmere blade, weighted by Torren for the roads beyond the fields.", type: "weapon", slot: "weapon", price: 34, icon: "†", damage: 13 },
+  wornBlade: { id: "wornBlade", name: "Grandfather's Old Sword", description: "The blade your adoptive grandfather carried as an adventurer. Worn, balanced, and carefully kept.", type: "weapon", slot: "weapon", price: 0, icon: "⚔", damage: 7, attackStyle: "melee", autoRange: 105, autoInterval: 1.85 },
+  forgeBlade: { id: "forgeBlade", name: "Vale Hunting Blade", description: "A practical Hearthmere blade, weighted by Torren for the roads beyond the fields.", type: "weapon", slot: "weapon", price: 34, icon: "†", damage: 13, attackStyle: "melee", autoRange: 110, autoInterval: 1.65 },
+  hunterBow: { id: "hunterBow", name: "Gloamwood Recurve", description: "A compact ash bow made for firing across dense trails without surrendering mobility.", type: "weapon", slot: "weapon", price: 32, icon: "➶", damage: 10, attackStyle: "ranged", autoRange: 430, autoInterval: 1.95 },
+  focusStaff: { id: "focusStaff", name: "Reedbound Focus", description: "An ashwood focus that turns portal resonance into precise bolts and steadier restorative magic.", type: "weapon", slot: "weapon", price: 30, icon: "✣", damage: 7, attackStyle: "ranged", autoRange: 380, autoInterval: 2.1, healingPower: .16 },
   travelCoat: { id: "travelCoat", name: "Waxed Trail Coat", description: "Layered linen that turns thorns, marsh water, and light blows.", type: "armor", slot: "armor", price: 24, icon: "♦", armor: 4, health: 12 },
   marshWard: { id: "marshWard", name: "Reed-Knot Ward", description: "A small knot of ashwood and river reed. Nessa swears it keeps bad roads from following you home.", type: "charm", slot: "charm", price: 28, icon: "⌘", armor: 1, health: 6 },
   resonanceCharm: { id: "resonanceCharm", name: "Resonant Portal Shard", description: "A fragment from the forbidden portal. It answers faintly to the memory of your childhood encounter.", type: "charm", slot: "charm", price: 0, icon: "◈", damage: 3, health: 8 },
@@ -68,16 +101,34 @@ export const LORE = [
 ] as const;
 
 export const TALENTS: TalentDefinition[] = [
-  { id: "resolve", name: "Wayfarer's Resolve", description: "+18 maximum vigor", cost: 1, icon: "♥", branch: "survival", tier: 1 },
-  { id: "bastion", name: "Hold the Line", description: "+3 armor and +8 maximum vigor", cost: 1, icon: "⬟", branch: "survival", tier: 2, requires: "resolve" },
-  { id: "ember", name: "Stand Against Fear", description: "+5 damage to every attack", cost: 1, icon: "✦", branch: "combat", tier: 1 },
-  { id: "resonance", name: "Resonant Edge", description: "+6 additional weapon damage", cost: 1, icon: "◈", branch: "combat", tier: 2, requires: "ember" },
-  { id: "quickstep", name: "Quickstep", description: "+18% movement speed in combat", cost: 1, icon: "»", branch: "exploration", tier: 1 },
-  { id: "fieldcraft", name: "Fieldcraft", description: "Tonics restore 15 additional vigor", cost: 1, icon: "✣", branch: "exploration", tier: 2, requires: "quickstep" },
+  { id: "renewingTouch", name: "Renewing Touch", description: "Mend restores 30% more vigor.", cost: 1, icon: "+", role: "healer", spec: "lifebinder", tier: 1 },
+  { id: "livingCurrent", name: "Living Current", description: "Your party receives a small restorative pulse during battle.", cost: 1, icon: "≈", role: "healer", spec: "lifebinder", tier: 2, requires: "renewingTouch" },
+  { id: "verdantPulse", name: "Verdant Pulse", description: "Direct healing leaves a short restorative echo.", cost: 1, icon: "✣", role: "healer", spec: "lifebinder", tier: 3, requires: "renewingTouch" },
+  { id: "mercifulHands", name: "Merciful Hands", description: "Healing is 25% stronger on allies below 40% vigor.", cost: 1, icon: "♥", role: "healer", spec: "lifebinder", tier: 4, requires: "livingCurrent" },
+  { id: "resonantWard", name: "Resonant Ward", description: "Aegis creates 35% more ward.", cost: 1, icon: "◇", role: "healer", spec: "wardweaver", tier: 1 },
+  { id: "sharedShelter", name: "Shared Shelter", description: "Both party members begin combat with 18 ward.", cost: 1, icon: "◈", role: "healer", spec: "wardweaver", tier: 2, requires: "resonantWard" },
+  { id: "echoingAegis", name: "Echoing Aegis", description: "Aegis also grants a smaller ward to the rest of the party.", cost: 1, icon: "⬡", role: "healer", spec: "wardweaver", tier: 3, requires: "resonantWard" },
+  { id: "unbrokenCircle", name: "Unbroken Circle", description: "Ward capacity and ward strength increase by 20%.", cost: 1, icon: "○", role: "healer", spec: "wardweaver", tier: 4, requires: "sharedShelter" },
+  { id: "relentlessEdge", name: "Relentless Edge", description: "Melee auto-attacks deal 25% more damage.", cost: 1, icon: "⚔", role: "damage", spec: "blademaster", tier: 1 },
+  { id: "finishingRhythm", name: "Finishing Rhythm", description: "Weapon abilities and auto-attacks deal 15% more damage.", cost: 1, icon: "✦", role: "damage", spec: "blademaster", tier: 2, requires: "relentlessEdge" },
+  { id: "battleTempo", name: "Battle Tempo", description: "Melee auto-attacks occur 15% faster.", cost: 1, icon: "»", role: "damage", spec: "blademaster", tier: 3, requires: "relentlessEdge" },
+  { id: "sweepingSteel", name: "Sweeping Steel", description: "Weapon abilities strike all nearby enemies.", cost: 1, icon: "∿", role: "damage", spec: "blademaster", tier: 4, requires: "finishingRhythm" },
+  { id: "steadyAim", name: "Steady Aim", description: "Ranged auto-attacks deal 25% more damage and reach farther.", cost: 1, icon: "➶", role: "damage", spec: "ranger", tier: 1 },
+  { id: "rapidNocking", name: "Rapid Nocking", description: "Ranged auto-attacks fire 20% faster.", cost: 1, icon: "»", role: "damage", spec: "ranger", tier: 2, requires: "steadyAim" },
+  { id: "huntersMark", name: "Hunter's Mark", description: "Weapon damage against the selected target increases by 15%.", cost: 1, icon: "◎", role: "damage", spec: "ranger", tier: 3, requires: "steadyAim" },
+  { id: "twinShot", name: "Twin Shot", description: "Every fifth ranged auto-attack fires a second shot.", cost: 1, icon: "↠", role: "damage", spec: "ranger", tier: 4, requires: "rapidNocking" },
+  { id: "ironConstitution", name: "Iron Constitution", description: "+28 maximum vigor.", cost: 1, icon: "♥", role: "tank", spec: "vanguard", tier: 1 },
+  { id: "holdTheLine", name: "Hold the Line", description: "+4 armor and +12 maximum vigor.", cost: 1, icon: "⬟", role: "tank", spec: "vanguard", tier: 2, requires: "ironConstitution" },
+  { id: "unyielding", name: "Unyielding", description: "Recover a small amount of vigor while under sustained pressure.", cost: 1, icon: "▲", role: "tank", spec: "vanguard", tier: 3, requires: "ironConstitution" },
+  { id: "commandingGuard", name: "Commanding Guard", description: "Your presence reduces damage taken by the whole party.", cost: 1, icon: "♜", role: "tank", spec: "vanguard", tier: 4, requires: "holdTheLine" },
+  { id: "riftBulwark", name: "Rift Bulwark", description: "Begin combat with 28 ward.", cost: 1, icon: "◈", role: "tank", spec: "spellguard", tier: 1 },
+  { id: "dampenRift", name: "Dampen the Rift", description: "Dangerous enemy mechanics deal 20% less damage to you.", cost: 1, icon: "◇", role: "tank", spec: "spellguard", tier: 2, requires: "riftBulwark" },
+  { id: "arcaneReturn", name: "Arcane Return", description: "Consumed wards restore focus and accelerate your next ability.", cost: 1, icon: "↻", role: "tank", spec: "spellguard", tier: 3, requires: "riftBulwark" },
+  { id: "nullField", name: "Null Field", description: "Nearby allies take 15% less damage from major mechanics.", cost: 1, icon: "⊘", role: "tank", spec: "spellguard", tier: 4, requires: "dampenRift" },
 ];
 
-export const SHOP_STOCK = ["forgeBlade", "travelCoat", "marshWard", "tonic"];
-export const INITIAL_SHOP_STOCK: Record<string, number> = { forgeBlade: 1, travelCoat: 1, marshWard: 1, tonic: 4 };
+export const SHOP_STOCK = ["forgeBlade", "hunterBow", "focusStaff", "travelCoat", "marshWard", "tonic"];
+export const INITIAL_SHOP_STOCK: Record<string, number> = { forgeBlade: 1, hunterBow: 1, focusStaff: 1, travelCoat: 1, marshWard: 1, tonic: 4 };
 
 export const DIALOGUES = {
   questIntro: {

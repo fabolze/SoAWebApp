@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CombatArena from "./CombatArena";
-import { DIALOGUES, INTRO_SLIDES, ITEMS, LOCATIONS, LORE, SHOP_STOCK, TALENTS, type ItemDefinition, type LocationId, type TalentBranch } from "./content";
+import BossLab from "./BossLab";
+import { COMBAT_PATHS, COMBAT_ROLES, DIALOGUES, INTRO_SLIDES, ITEMS, LOCATIONS, LORE, SHOP_STOCK, TALENTS, type CombatRole, type CombatSpec, type ItemDefinition, type LocationId } from "./content";
 import { playSfx, setMusicScene, setMusicVolume, startMusic, stopMusic } from "./audio";
 import {
   applyEncounterVictory,
   canTravelTo,
   canUnlockTalent,
+  chooseCombatPath as selectCombatPath,
   createNewGame,
   equipItem,
   formatTime,
@@ -16,7 +18,13 @@ import {
   maxHealth,
   objectiveText,
   playerArmor,
+  playerAutoAttack,
   playerDamage,
+  playerHealingMultiplier,
+  playerMechanicDamageMultiplier,
+  playerStartingWard,
+  playerWardMultiplier,
+  passivePartyHealing,
   purchaseItem,
   removeItem,
   saveGame,
@@ -29,7 +37,7 @@ import {
 } from "./runtime";
 import "./playtest.css";
 
-type Screen = "title" | "intro" | "game" | "combat" | "ending";
+type Screen = "title" | "intro" | "game" | "combat" | "boss-lab" | "ending";
 type Panel = "journal" | "inventory" | "talents" | "lore" | "map" | null;
 type DialogueKey = keyof typeof DIALOGUES;
 type DialogueChoice = { label: string; next: string | null; action?: string };
@@ -37,7 +45,7 @@ type DialogueChoice = { label: string; next: string | null; action?: string };
 function musicScene(screen: Screen, location: LocationId) {
   if (screen === "title") return "title" as const;
   if (screen === "intro") return "intro" as const;
-  if (screen === "combat") return "combat" as const;
+  if (screen === "combat" || screen === "boss-lab") return "combat" as const;
   if (screen === "ending") return "ending" as const;
   return location === "village" ? "village" as const : "wilderness" as const;
 }
@@ -263,6 +271,14 @@ export default function PlaytestPage() {
     toast(`${talent.name} learned`);
   };
 
+  const chooseCombatPath = (role: CombatRole, spec: CombatSpec) => {
+    const path = COMBAT_PATHS.find((entry) => entry.id === spec && entry.role === role);
+    if (!path) return;
+    setState((current) => selectCombatPath(current, role, spec));
+    playSfx("quest");
+    toast(`${path.name} selected · talent points refunded`);
+  };
+
   const chooseDialogue = (choice: DialogueChoice) => {
     playSfx(choice.action ? "confirm" : "select");
     setState((current) => {
@@ -296,9 +312,10 @@ export default function PlaytestPage() {
     setState(createNewGame());
   };
 
-  if (screen === "title") return <TitleScreen name={name} setName={setName} saveExists={saveExists} onNew={newGame} onContinue={continueGame} onExit={() => navigate("/")} musicOn={musicOn} onMusic={toggleMusic} />;
+  if (screen === "title") return <TitleScreen name={name} setName={setName} saveExists={saveExists} onNew={newGame} onContinue={continueGame} onBoss={() => { setScreen("boss-lab"); playSfx("confirm"); }} onExit={() => navigate("/")} musicOn={musicOn} onMusic={toggleMusic} />;
   if (screen === "intro") return <IntroScreen index={introIndex} onNext={finishIntro} onSkip={() => setScreen("game")} />;
-  if (screen === "combat") return <CombatArena location={state.location} playerName={state.playerName} maxHp={maxHealth(state)} currentHp={state.health} damage={playerDamage(state)} armor={playerArmor(state)} speedBonus={state.talents.includes("quickstep")} tonicHeal={tonicHealing(state)} tonics={state.inventory.tonic ?? 0} onUseTonic={useTonic} onVictory={winEncounter} onDefeat={loseEncounter} onFlee={fleeEncounter} />;
+  if (screen === "combat") return <CombatArena location={state.location} playerName={state.playerName} maxHp={maxHealth(state)} currentHp={state.health} damage={playerDamage(state)} armor={playerArmor(state)} speedBonus={state.combatSpec === "ranger"} autoAttack={playerAutoAttack(state)} combatRole={state.combatRole} combatSpec={state.combatSpec} healingMultiplier={playerHealingMultiplier(state)} wardMultiplier={playerWardMultiplier(state)} startingWard={playerStartingWard(state)} mechanicDamageMultiplier={playerMechanicDamageMultiplier(state)} passiveHealing={passivePartyHealing(state)} tonicHeal={tonicHealing(state)} tonics={state.inventory.tonic ?? 0} onUseTonic={useTonic} onVictory={winEncounter} onDefeat={loseEncounter} onFlee={fleeEncounter} />;
+  if (screen === "boss-lab") return <BossLab onExit={() => setScreen("title")}/>;
   if (screen === "ending") return <Ending state={state} onContinue={() => setScreen("game")} onNew={resetSave} onExit={() => navigate("/")} />;
 
   const location = LOCATIONS[state.location];
@@ -337,7 +354,7 @@ export default function PlaytestPage() {
         <DockButton icon="≡" label="Codex" hotkey="L" badge={`${state.lore.length}/${LORE.length}`} onClick={() => openPanel("lore")} />
       </nav>
 
-      {panel && <GamePanel panel={panel} state={state} onClose={() => setPanel(null)} onEquip={equip} onUnequip={unequip} onUseTonic={consumeOutsideCombat} onTalent={unlockTalent} onTravel={travel} />}
+      {panel && <GamePanel panel={panel} state={state} onClose={() => setPanel(null)} onEquip={equip} onUnequip={unequip} onUseTonic={consumeOutsideCombat} onTalent={unlockTalent} onPath={chooseCombatPath} onTravel={travel} />}
       {dialogue && <DialogueModal dialogue={dialogue} onChoice={chooseDialogue} />}
       {shopOpen && <ShopModal state={state} onClose={() => setShopOpen(false)} onBuy={buy} onSell={sell} />}
       {traveling && <TravelTransition target={traveling} />}
@@ -346,9 +363,9 @@ export default function PlaytestPage() {
   );
 }
 
-function TitleScreen({ name, setName, saveExists, onNew, onContinue, onExit, musicOn, onMusic }: { name: string; setName: (value: string) => void; saveExists: boolean; onNew: () => void; onContinue: () => void; onExit: () => void; musicOn: boolean; onMusic: () => void }) {
+function TitleScreen({ name, setName, saveExists, onNew, onContinue, onBoss, onExit, musicOn, onMusic }: { name: string; setName: (value: string) => void; saveExists: boolean; onNew: () => void; onContinue: () => void; onBoss: () => void; onExit: () => void; musicOn: boolean; onMusic: () => void }) {
   const [naming, setNaming] = useState(false);
-  return <main className="pt-title-screen"><div className="pt-title-art"/><div className="pt-title-shade"/><button className="pt-exit" onClick={onExit}>← Authoring studio</button><button className="pt-audio" onClick={onMusic}>{musicOn ? "♫ Music on" : "♪ Music off"}</button><section className="pt-title-copy"><span className="pt-overline">A browser playtest from the world of</span><div className="pt-title-mark"><small>STORIES OF</small><strong>ALTRAIL</strong></div><h1>Shadows of Shanoir</h1><p>Chapter I · The Forbidden Path</p><div className="pt-title-menu">{saveExists && <button className="primary" onClick={onContinue}><span>Continue journey</span><small>Resume local save</small></button>}{!naming ? <button onClick={() => setNaming(true)}><span>Begin new journey</span><small>20–30 minute vertical slice</small></button> : <div className="pt-name-entry"><label htmlFor="hero-name">What do they call you?</label><div><input id="hero-name" value={name} maxLength={18} autoFocus onChange={(event) => setName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") onNew(); }}/><button onClick={onNew}>Begin</button></div></div>}<button className="quiet" onClick={onExit}><span>Return to editor</span></button></div></section><footer>Keyboard & mouse recommended <i /> Progress saves automatically</footer></main>;
+  return <main className="pt-title-screen"><div className="pt-title-art"/><div className="pt-title-shade"/><button className="pt-exit" onClick={onExit}>← Authoring studio</button><button className="pt-audio" onClick={onMusic}>{musicOn ? "♫ Music on" : "♪ Music off"}</button><section className="pt-title-copy"><span className="pt-overline">A browser playtest from the world of</span><div className="pt-title-mark"><small>STORIES OF</small><strong>ALTRAIL</strong></div><h1>Shadows of Shanoir</h1><p>Chapter I · The Forbidden Path</p><div className="pt-title-menu">{saveExists && <button className="primary" onClick={onContinue}><span>Continue journey</span><small>Resume local save</small></button>}{!naming ? <button onClick={() => setNaming(true)}><span>Begin new journey</span><small>20–30 minute vertical slice</small></button> : <div className="pt-name-entry"><label htmlFor="hero-name">What do they call you?</label><div><input id="hero-name" value={name} maxLength={18} autoFocus onChange={(event) => setName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") onNew(); }}/><button onClick={onNew}>Begin</button></div></div>}<button className="pt-boss-lab-entry" onClick={onBoss}><span>Veteran Boss Lab</span><small>Level 20 · full party · 2–4 minute encounter</small></button><button className="quiet" onClick={onExit}><span>Return to editor</span></button></div></section><footer>Keyboard & mouse recommended <i /> Progress saves automatically</footer></main>;
 }
 
 function IntroScreen({ index, onNext, onSkip }: { index: number; onNext: () => void; onSkip: () => void }) {
@@ -381,8 +398,8 @@ function LocationActions({ state, onDialogue, onShop, onEncounter, onTravel, onL
 
 function DockButton({ icon, label, hotkey, badge, onClick }: { icon: string; label: string; hotkey: string; badge?: string; onClick: () => void }) { return <button onClick={onClick}><i>{icon}</i><span>{label}</span><kbd>{hotkey}</kbd>{badge && <b>{badge}</b>}</button>; }
 
-function GamePanel({ panel, state, onClose, onEquip, onUnequip, onUseTonic, onTalent, onTravel }: { panel: Exclude<Panel, null>; state: PlayState; onClose: () => void; onEquip: (id: string) => void; onUnequip: (slot: "weapon" | "armor" | "charm") => void; onUseTonic: () => void; onTalent: (id: string) => void; onTravel: (id: LocationId) => void }) {
-  return <div className="pt-panel-backdrop" onClick={onClose}><aside className={`pt-panel pt-panel-${panel}`} onClick={(event) => event.stopPropagation()}><header><div><span className="pt-kicker">Wayfarer's record</span><h2>{panel === "inventory" ? "Pack & Equipment" : panel === "journal" ? "Quest Journal" : panel === "talents" ? "Talents" : panel === "lore" ? "Altrail Codex" : "Travel Map"}</h2></div><button onClick={onClose} aria-label="Close">×</button></header>{panel === "journal" && <Journal state={state}/>} {panel === "inventory" && <Inventory state={state} onEquip={onEquip} onUnequip={onUnequip} onUseTonic={onUseTonic}/>} {panel === "talents" && <TalentPanel state={state} onTalent={onTalent}/>} {panel === "lore" && <LorePanel state={state}/>} {panel === "map" && <MapPanel state={state} onTravel={onTravel}/>}</aside></div>;
+function GamePanel({ panel, state, onClose, onEquip, onUnequip, onUseTonic, onTalent, onPath, onTravel }: { panel: Exclude<Panel, null>; state: PlayState; onClose: () => void; onEquip: (id: string) => void; onUnequip: (slot: "weapon" | "armor" | "charm") => void; onUseTonic: () => void; onTalent: (id: string) => void; onPath: (role: CombatRole, spec: CombatSpec) => void; onTravel: (id: LocationId) => void }) {
+  return <div className="pt-panel-backdrop" onClick={onClose}><aside className={`pt-panel pt-panel-${panel}`} onClick={(event) => event.stopPropagation()}><header><div><span className="pt-kicker">Wayfarer's record</span><h2>{panel === "inventory" ? "Pack & Equipment" : panel === "journal" ? "Quest Journal" : panel === "talents" ? "Combat Paths" : panel === "lore" ? "Altrail Codex" : "Travel Map"}</h2></div><button onClick={onClose} aria-label="Close">×</button></header>{panel === "journal" && <Journal state={state}/>} {panel === "inventory" && <Inventory state={state} onEquip={onEquip} onUnequip={onUnequip} onUseTonic={onUseTonic}/>} {panel === "talents" && <TalentPanel state={state} onTalent={onTalent} onPath={onPath}/>} {panel === "lore" && <LorePanel state={state}/>} {panel === "map" && <MapPanel state={state} onTravel={onTravel}/>}</aside></div>;
 }
 
 function Journal({ state }: { state: PlayState }) {
@@ -397,10 +414,18 @@ function Inventory({ state, onEquip, onUnequip, onUseTonic }: { state: PlayState
   return <div className="pt-inventory"><section className="pt-equipment"><h3>Equipped</h3>{(["weapon", "armor", "charm"] as const).map((slot) => { const id = state.equipment[slot]; const item = id ? ITEMS[id] : null; return <button key={slot} className={!item ? "empty" : ""} disabled={!item} onClick={() => onUnequip(slot)}><span>{slot}</span><i>{item?.icon ?? "+"}</i><strong>{item?.name ?? `Empty ${slot} slot`}</strong>{item && <em>Unequip</em>}</button>; })}<div className="pt-stats"><span><b>{playerDamage(state)}</b> Damage</span><span><b>{playerArmor(state)}</b> Armor</span><span><b>{maxHealth(state)}</b> Vigor</span></div></section><section className="pt-pack"><h3>Pack <small>{entries.reduce((sum, [, value]) => sum + value, 0)} items</small></h3><div>{entries.map(([id, amount]) => { const item = ITEMS[id]; if (!item) return null; const equipped = item.slot && state.equipment[item.slot] === id; return <article key={id}><i>{item.icon}</i><div><strong>{item.name}</strong><span>{item.description}</span><small>{itemEffect(item)}</small></div><em>×{amount}</em>{item.slot && <button disabled={equipped} onClick={() => onEquip(id)}>{equipped ? "Equipped" : "Equip"}</button>}{item.type === "consumable" && <button disabled={state.health >= maxHealth(state)} onClick={onUseTonic}>Use +{tonicHealing(state)}</button>}</article>; })}</div></section></div>;
 }
 
-const BRANCH_LABELS: Record<TalentBranch, string> = { survival: "Resolve", combat: "Resonance", exploration: "Wayfinding" };
-
-function TalentPanel({ state, onTalent }: { state: PlayState; onTalent: (id: string) => void }) {
-  return <div className="pt-talents"><div className="pt-talent-points"><b>{state.talentPoints}</b><span>talent {state.talentPoints === 1 ? "point" : "points"} available</span></div><div className="pt-talent-branches">{(["survival", "combat", "exploration"] as TalentBranch[]).map((branch) => <section key={branch}><h3>{BRANCH_LABELS[branch]}</h3>{TALENTS.filter((talent) => talent.branch === branch).map((talent) => { const learned = state.talents.includes(talent.id); const check = canUnlockTalent(state, talent.id); return <article key={talent.id} className={`${learned ? "learned" : ""} ${!check.allowed && !learned ? "locked" : ""}`}><button disabled={learned || !check.allowed} onClick={() => onTalent(talent.id)}><i>{learned ? "✓" : talent.icon}</i></button><div><span>Tier {talent.tier}</span><strong>{talent.name}</strong><p>{talent.description}</p><small>{learned ? "Learned" : talent.requires && !state.talents.includes(talent.requires) ? check.reason : `${talent.cost} talent point`}</small></div></article>; })}</section>)}</div></div>;
+function TalentPanel({ state, onTalent, onPath }: { state: PlayState; onTalent: (id: string) => void; onPath: (role: CombatRole, spec: CombatSpec) => void }) {
+  const [viewedRole, setViewedRole] = useState<CombatRole>(state.combatRole);
+  const activePath = COMBAT_PATHS.find((path) => path.id === state.combatSpec)!;
+  const attack = playerAutoAttack(state);
+  const talents = TALENTS.filter((talent) => talent.spec === state.combatSpec);
+  return <div className="pt-talents pt-combat-paths">
+    <div className="pt-talent-summary"><div className="pt-talent-points"><b>{state.talentPoints}</b><span>talent {state.talentPoints === 1 ? "point" : "points"} available</span></div><div><span>Active path</span><strong>{COMBAT_ROLES[state.combatRole].name} · {activePath.name}</strong><small>{activePath.companionPlan}</small></div></div>
+    <nav className="pt-role-tabs" aria-label="Combat roles">{(Object.keys(COMBAT_ROLES) as CombatRole[]).map((role) => <button key={role} className={`${viewedRole === role ? "viewed" : ""} ${state.combatRole === role ? "active" : ""}`} onClick={() => setViewedRole(role)}><i>{COMBAT_ROLES[role].icon}</i><strong>{COMBAT_ROLES[role].name}</strong><span>{COMBAT_ROLES[role].summary}</span></button>)}</nav>
+    <div className="pt-spec-picker">{COMBAT_PATHS.filter((path) => path.role === viewedRole).map((path) => { const active = path.id === state.combatSpec; return <button key={path.id} className={active ? "active" : ""} onClick={() => onPath(path.role, path.id)}><i>{path.icon}</i><span><strong>{path.name}</strong><small>{path.fantasy}</small><em>{active ? "Active path" : "Choose · free respec"}</em></span></button>; })}</div>
+    <div className="pt-path-loadout"><header><div><span>{COMBAT_ROLES[state.combatRole].name} specialization</span><h3>{activePath.name}</h3><p>{activePath.fantasy}</p></div><aside><span><b>{attack.damage}</b> {attack.label}</span><span><b>{attack.interval}s</b> cadence</span><span><b>{attack.range}</b> range</span></aside></header><div className="pt-path-nodes">{talents.map((talent) => { const learned = state.talents.includes(talent.id); const check = canUnlockTalent(state, talent.id); return <article key={talent.id} className={`${learned ? "learned" : ""} ${!check.allowed && !learned ? "locked" : ""}`}><button disabled={learned || !check.allowed} onClick={() => onTalent(talent.id)}><i>{learned ? "✓" : talent.icon}</i></button><div><span>Tier {talent.tier}</span><strong>{talent.name}</strong><p>{talent.description}</p><small>{learned ? "Learned" : check.allowed ? `${talent.cost} talent point` : check.reason}</small></div></article>; })}</div></div>
+    <footer className="pt-path-note">Changing path refunds every spent point. Nessa automatically fills the missing frontline or support role when combat begins.</footer>
+  </div>;
 }
 
 function LorePanel({ state }: { state: PlayState }) { return <div className="pt-lore"><nav>{LORE.map((entry) => <button key={entry.id} className={state.lore.includes(entry.id) ? "found" : ""}><i>{state.lore.includes(entry.id) ? "✦" : "?"}</i><span>{state.lore.includes(entry.id) ? entry.title : "Undiscovered"}</span></button>)}</nav><section>{LORE.map((entry) => state.lore.includes(entry.id) && <article key={entry.id}><span>{entry.category}</span><h3>{entry.title}</h3><p>{entry.text}</p></article>)}</section></div>; }
@@ -419,6 +444,8 @@ function itemEffect(item: ItemDefinition) {
   if (item.armor) effects.push(`+${item.armor} armor`);
   if (item.health) effects.push(`+${item.health} vigor`);
   if (item.heal) effects.push(`Restores ${item.heal} vigor`);
+  if (item.attackStyle) effects.push(`${item.attackStyle === "ranged" ? "Ranged" : "Melee"} auto · ${item.autoInterval}s`);
+  if (item.healingPower) effects.push(`+${Math.round(item.healingPower * 100)}% healing`);
   return effects.join(" · ") || (item.type === "quest" ? "Quest item" : item.type);
 }
 

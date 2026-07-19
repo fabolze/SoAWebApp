@@ -1,4 +1,4 @@
-import { INITIAL_SHOP_STOCK, ITEMS, TALENTS, type EquipmentSlot, type LocationId } from "./content";
+import { COMBAT_PATHS, INITIAL_SHOP_STOCK, ITEMS, TALENTS, type AttackStyle, type CombatRole, type CombatSpec, type EquipmentSlot, type LocationId } from "./content";
 
 export type QuestStage = "not-started" | "reach-forest" | "cross-fen" | "reach-gate" | "return" | "complete";
 
@@ -11,6 +11,8 @@ export type PlayState = {
   level: number;
   xp: number;
   talentPoints: number;
+  combatRole: CombatRole;
+  combatSpec: CombatSpec;
   health: number;
   inventory: Record<string, number>;
   equipment: Partial<Record<EquipmentSlot, string>>;
@@ -37,6 +39,8 @@ export function createNewGame(playerName = "Wayfarer"): PlayState {
     level: 1,
     xp: 0,
     talentPoints: 1,
+    combatRole: "damage",
+    combatSpec: "blademaster",
     health: 100,
     inventory: { wornBlade: 1, tonic: 1 },
     equipment: { weapon: "wornBlade" },
@@ -58,10 +62,17 @@ export function loadGame(): PlayState | null {
     const parsed = JSON.parse(raw) as Omit<Partial<PlayState>, "version"> & { version?: number };
     if ((parsed.version !== 2 && parsed.version !== 3) || !parsed.playerName || !parsed.inventory) return null;
     const fresh = createNewGame(parsed.playerName);
+    const savedTalents = parsed.talents ?? [];
+    const validTalents = savedTalents.filter((id) => TALENTS.some((talent) => talent.id === id));
+    const refundedLegacyPoints = savedTalents.length - validTalents.length;
     return {
       ...fresh,
       ...parsed,
       version: 3,
+      combatRole: parsed.combatRole ?? fresh.combatRole,
+      combatSpec: parsed.combatSpec ?? fresh.combatSpec,
+      talents: validTalents,
+      talentPoints: (parsed.talentPoints ?? fresh.talentPoints) + refundedLegacyPoints,
       inventory: { ...fresh.inventory, ...parsed.inventory },
       equipment: { ...fresh.equipment, ...parsed.equipment },
       shopStock: { ...fresh.shopStock, ...parsed.shopStock },
@@ -79,23 +90,78 @@ export function saveGame(state: PlayState): void {
 export function maxHealth(state: PlayState): number {
   const armor = state.equipment.armor ? ITEMS[state.equipment.armor]?.health ?? 0 : 0;
   const charm = state.equipment.charm ? ITEMS[state.equipment.charm]?.health ?? 0 : 0;
-  return 100 + (state.level - 1) * 12 + armor + charm + (state.talents.includes("resolve") ? 18 : 0) + (state.talents.includes("bastion") ? 8 : 0);
+  return 100 + (state.level - 1) * 12 + armor + charm + (state.combatRole === "tank" ? 15 : 0) + (state.talents.includes("ironConstitution") ? 28 : 0) + (state.talents.includes("holdTheLine") ? 12 : 0) + (state.talents.includes("riftBulwark") ? 10 : 0);
 }
 
 export function playerDamage(state: PlayState): number {
   const weapon = state.equipment.weapon ? ITEMS[state.equipment.weapon]?.damage ?? 0 : 0;
   const charm = state.equipment.charm ? ITEMS[state.equipment.charm]?.damage ?? 0 : 0;
-  return 9 + weapon + charm + (state.level - 1) * 2 + (state.talents.includes("ember") ? 5 : 0) + (state.talents.includes("resonance") ? 6 : 0);
+  const roleBonus = state.combatRole === "damage" ? 2 : 0;
+  const rhythmBonus = state.talents.includes("finishingRhythm") ? 3 : 0;
+  return 9 + weapon + charm + (state.level - 1) * 2 + roleBonus + rhythmBonus;
 }
 
 export function playerArmor(state: PlayState): number {
   const armorItem = state.equipment.armor ? ITEMS[state.equipment.armor] : undefined;
   const charmItem = state.equipment.charm ? ITEMS[state.equipment.charm] : undefined;
-  return (armorItem?.armor ?? 0) + (charmItem?.armor ?? 0) + (state.talents.includes("bastion") ? 3 : 0);
+  return (armorItem?.armor ?? 0) + (charmItem?.armor ?? 0) + (state.combatRole === "tank" ? 2 : 0) + (state.talents.includes("holdTheLine") ? 4 : 0);
 }
 
 export function tonicHealing(state: PlayState): number {
-  return (ITEMS.tonic.heal ?? 35) + (state.talents.includes("fieldcraft") ? 15 : 0);
+  return (ITEMS.tonic.heal ?? 35) + (state.combatRole === "healer" ? 5 : 0);
+}
+
+export type AutoAttackProfile = { damage: number; range: number; interval: number; style: AttackStyle; label: string };
+
+export function playerAutoAttack(state: PlayState): AutoAttackProfile {
+  const weapon = state.equipment.weapon ? ITEMS[state.equipment.weapon] : undefined;
+  const style = weapon?.attackStyle ?? "melee";
+  let autoDamage = playerDamage(state) * .62;
+  let range = weapon?.autoRange ?? (style === "ranged" ? 380 : 100);
+  let interval = weapon?.autoInterval ?? (style === "ranged" ? 2.1 : 1.9);
+  if (state.combatRole === "damage") autoDamage *= 1.15;
+  if (style === "melee" && state.talents.includes("relentlessEdge")) autoDamage *= 1.25;
+  if (style === "ranged" && state.talents.includes("steadyAim")) {
+    autoDamage *= 1.25;
+    range += 45;
+  }
+  if (state.talents.includes("finishingRhythm")) autoDamage *= 1.15;
+  if (state.talents.includes("huntersMark")) autoDamage *= 1.15;
+  if (state.talents.includes("twinShot")) autoDamage *= 1.2;
+  if (style === "ranged" && state.talents.includes("rapidNocking")) interval *= .8;
+  if (style === "melee" && state.talents.includes("battleTempo")) interval *= .85;
+  return { damage: Math.max(1, Math.round(autoDamage)), range, interval: Number(interval.toFixed(2)), style, label: style === "ranged" ? "Auto Shot" : "Auto Swing" };
+}
+
+export function playerHealingMultiplier(state: PlayState): number {
+  const weapon = state.equipment.weapon ? ITEMS[state.equipment.weapon] : undefined;
+  return 1 + (weapon?.healingPower ?? 0) + (state.combatRole === "healer" ? .15 : 0) + (state.talents.includes("renewingTouch") ? .3 : 0) + (state.talents.includes("verdantPulse") ? .15 : 0);
+}
+
+export function playerWardMultiplier(state: PlayState): number {
+  return 1 + (state.combatRole === "healer" ? .1 : 0) + (state.talents.includes("resonantWard") ? .35 : 0) + (state.talents.includes("unbrokenCircle") ? .2 : 0);
+}
+
+export function playerStartingWard(state: PlayState): number {
+  if (state.talents.includes("sharedShelter")) return 18;
+  if (state.talents.includes("riftBulwark")) return 28;
+  return 0;
+}
+
+export function playerMechanicDamageMultiplier(state: PlayState): number {
+  return (state.talents.includes("dampenRift") ? .8 : 1) * (state.talents.includes("nullField") ? .85 : 1);
+}
+
+export function passivePartyHealing(state: PlayState): number {
+  return (state.talents.includes("livingCurrent") ? 7 : 0) + (state.talents.includes("unyielding") ? 4 : 0);
+}
+
+export function chooseCombatPath(state: PlayState, role: CombatRole, spec: CombatSpec): PlayState {
+  const path = COMBAT_PATHS.find((entry) => entry.id === spec && entry.role === role);
+  if (!path || (state.combatRole === role && state.combatSpec === spec)) return state;
+  const refund = state.talents.reduce((sum, id) => sum + (TALENTS.find((talent) => talent.id === id)?.cost ?? 0), 0);
+  const next = { ...state, combatRole: role, combatSpec: spec, talents: [], talentPoints: state.talentPoints + refund };
+  return { ...next, health: Math.min(maxHealth(next), next.health) };
 }
 
 export function addItem(state: PlayState, itemId: string, amount = 1): PlayState {
@@ -153,6 +219,7 @@ export function canUnlockTalent(state: PlayState, talentId: string): { allowed: 
   const talent = TALENTS.find((entry) => entry.id === talentId);
   if (!talent) return { allowed: false, reason: "Unknown talent." };
   if (state.talents.includes(talentId)) return { allowed: false, reason: "Already learned." };
+  if (talent.role !== state.combatRole || talent.spec !== state.combatSpec) return { allowed: false, reason: "Choose this combat path first." };
   if (talent.requires && !state.talents.includes(talent.requires)) {
     const required = TALENTS.find((entry) => entry.id === talent.requires);
     return { allowed: false, reason: `Learn ${required?.name ?? "the previous talent"} first.` };
@@ -165,7 +232,8 @@ export function unlockTalent(state: PlayState, talentId: string): PlayState {
   if (!canUnlockTalent(state, talentId).allowed) return state;
   const talent = TALENTS.find((entry) => entry.id === talentId)!;
   const next = { ...state, talents: [...state.talents, talentId], talentPoints: state.talentPoints - talent.cost };
-  return { ...next, health: Math.min(maxHealth(next), state.health + (talentId === "resolve" ? 18 : talentId === "bastion" ? 8 : 0)) };
+  const addedHealth = talentId === "ironConstitution" ? 28 : talentId === "holdTheLine" ? 12 : 0;
+  return { ...next, health: Math.min(maxHealth(next), state.health + addedHealth) };
 }
 
 export function gainXp(state: PlayState, amount: number): PlayState {

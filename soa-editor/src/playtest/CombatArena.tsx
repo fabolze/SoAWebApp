@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { playSfx } from "./audio";
-import type { LocationId } from "./content";
+import { COMBAT_PATHS, type CombatRole, type CombatSpec, type LocationId } from "./content";
+import type { AutoAttackProfile } from "./runtime";
 import { mechanicSequence, pointInSector, pointToSegmentDistance, rayToArenaEdge, type MechanicKind } from "./combatMath";
 
 type AllyId = "player" | "companion";
@@ -17,6 +18,7 @@ type Ally = {
   hp: number;
   maxHp: number;
   shield: number;
+  armor: number;
   alive: boolean;
   hitFlash: number;
 };
@@ -70,14 +72,18 @@ type CombatFeedback = { id: number; tone: EventTone; title: string; detail: stri
 
 type Engine = {
   player: Ally & { mana: number; maxMana: number };
-  companion: Ally;
+  companion: Ally & { attackDamage: number; attackRange: number; attackInterval: number; support: boolean };
   enemies: Enemy[];
   cooldowns: Record<string, number>;
   time: number;
+  started: boolean;
   ended: boolean;
   paused: boolean;
   result: "victory" | "defeat" | null;
   companionAttackCd: number;
+  companionSupportCd: number;
+  playerAttackCd: number;
+  passiveHealCd: number;
   nextMechanic: number;
   mechanicIndex: number;
   mechanic: Mechanic | null;
@@ -93,37 +99,47 @@ type Snapshot = Engine & { message: string; enemyTargetId: string | null; allyTa
 const ARENA_W = 900;
 const ARENA_H = 500;
 const CLEAVE_HALF_ANGLE = Math.PI / 3;
+const ENCOUNTER_HEALTH_SCALE = 2.35;
+const ENEMY_DAMAGE_SCALE = .82;
 
 function enemiesFor(location: LocationId): Enemy[] {
-  if (location === "forest") return [
+  const enemies: Enemy[] = location === "forest" ? [
     { id: "boar-a", name: "Panicked Forest Boar", kind: "boar", x: 690, y: 175, hp: 96, maxHp: 96, speed: 38, damage: 10, range: 54, attackCd: 1.1, windup: 0, windupDuration: .62, attackTargetId: null, engageX: 40, engageY: -18, hitFlash: 0 },
     { id: "boar-b", name: "Frightened Young Boar", kind: "boar", x: 750, y: 335, hp: 68, maxHp: 68, speed: 44, damage: 8, range: 50, attackCd: 1.8, windup: 0, windupDuration: .55, attackTargetId: null, engageX: 38, engageY: 24, hitFlash: 0 },
-  ];
-  if (location === "swamp") return [
+  ] : location === "swamp" ? [
     { id: "mire-a", name: "Shadow-Touched Channeler", kind: "mireling", x: 700, y: 145, hp: 110, maxHp: 110, speed: 28, damage: 12, range: 62, attackCd: 1.0, windup: 0, windupDuration: .85, attackTargetId: null, engageX: 46, engageY: -24, hitFlash: 0 },
     { id: "mire-b", name: "Marsh Shadow", kind: "mireling", x: 745, y: 350, hp: 135, maxHp: 135, speed: 31, damage: 14, range: 58, attackCd: 1.7, windup: 0, windupDuration: .78, attackTargetId: null, engageX: 42, engageY: 27, hitFlash: 0 },
-  ];
-  return [{ id: "warden", name: "Riftwatch Warden", kind: "warden", x: 710, y: 250, hp: 410, maxHp: 410, speed: 23, damage: 17, range: 70, attackCd: 1.25, windup: 0, windupDuration: .95, attackTargetId: null, engageX: 58, engageY: 0, hitFlash: 0 }];
+  ] : [{ id: "warden", name: "Riftwatch Warden", kind: "warden", x: 710, y: 250, hp: 410, maxHp: 410, speed: 23, damage: 17, range: 70, attackCd: 1.25, windup: 0, windupDuration: .95, attackTargetId: null, engageX: 58, engageY: 0, hitFlash: 0 }];
+  return enemies.map((enemy) => {
+    const scaledHealth = Math.round(enemy.maxHp * ENCOUNTER_HEALTH_SCALE);
+    return { ...enemy, hp: scaledHealth, maxHp: scaledHealth };
+  });
 }
 
-function initialEngine(location: LocationId, playerName: string, maxHp: number, currentHp: number): Engine {
+function initialEngine(location: LocationId, playerName: string, maxHp: number, currentHp: number, armor: number, combatRole: CombatRole, combatSpec: CombatSpec, startingWard: number): Engine {
+  const supportCompanion = combatRole === "tank";
+  const path = COMBAT_PATHS.find((entry) => entry.id === combatSpec);
   return {
-    player: { id: "player", name: playerName, role: "Wayfarer · You", x: 190, y: 300, hp: Math.min(maxHp, currentHp), maxHp, shield: 0, alive: true, mana: 100, maxMana: 100, hitFlash: 0 },
-    companion: { id: "companion", name: "Nessa Reed", role: "Scout · Vanguard", x: 255, y: 235, hp: 126, maxHp: 126, shield: 0, alive: true, hitFlash: 0 },
+    player: { id: "player", name: playerName, role: `${path?.name ?? "Wayfarer"} · You`, x: 190, y: 300, hp: Math.min(maxHp, currentHp), maxHp, shield: startingWard, armor, alive: true, mana: 100, maxMana: 100, hitFlash: 0 },
+    companion: { id: "companion", name: "Nessa Reed", role: supportCompanion ? "Scout · Lifebinder" : "Scout · Vanguard", x: 255, y: 235, hp: supportCompanion ? 145 : 190, maxHp: supportCompanion ? 145 : 190, shield: combatRole === "healer" ? startingWard : 0, armor: supportCompanion ? 2 : 5, alive: true, hitFlash: 0, attackDamage: supportCompanion ? 7 : 10, attackRange: supportCompanion ? 420 : 95, attackInterval: supportCompanion ? 1.9 : 1.35, support: supportCompanion },
     enemies: enemiesFor(location),
     cooldowns: { strike: 0, bolt: 0, mend: 0, aegis: 0, dodge: 0 },
     time: 0,
+    started: false,
     ended: false,
-    paused: false,
+    paused: true,
     result: null,
     companionAttackCd: .8,
-    nextMechanic: 4.2,
+    companionSupportCd: 3.8,
+    playerAttackCd: .35,
+    passiveHealCd: 5,
+    nextMechanic: 6.2,
     mechanicIndex: 0,
     mechanic: null,
     floaters: [],
     effects: [],
-    events: [{ id: 0, time: 0, tone: "neutral", text: "Encounter started. Nessa takes the vanguard." }],
-    feedback: { id: 1, tone: "neutral", title: "FIGHT TOGETHER", detail: "Move with WASD · select enemies with Tab · support Nessa with F2", age: 0, duration: 4.5 },
+    events: [{ id: 0, time: 0, tone: "neutral", text: "Encounter ready. Review the plan before engaging." }],
+    feedback: null,
     serial: 2,
   };
 }
@@ -142,7 +158,15 @@ function targetInstruction(kind: MechanicKind) {
   return "MOVE";
 }
 
-export default function CombatArena({ location, playerName, maxHp, currentHp, damage, armor, speedBonus, tonicHeal, tonics, onUseTonic, onVictory, onDefeat, onFlee }: {
+function mechanicHits(mechanic: Mechanic, ally: Ally) {
+  if (!ally.alive) return false;
+  if (mechanic.kind === "raidwide") return true;
+  if (mechanic.kind === "circle") return distance(ally, { x: mechanic.targetX, y: mechanic.targetY }) <= mechanic.radius;
+  if (mechanic.kind === "cleave") return pointInSector(ally, { x: mechanic.originX, y: mechanic.originY }, mechanic.angle, mechanic.radius, CLEAVE_HALF_ANGLE);
+  return pointToSegmentDistance(ally, { x: mechanic.originX, y: mechanic.originY }, { x: mechanic.endX, y: mechanic.endY }) <= mechanic.width / 2;
+}
+
+export default function CombatArena({ location, playerName, maxHp, currentHp, damage, armor, speedBonus, autoAttack, combatRole, combatSpec, healingMultiplier, wardMultiplier, startingWard, mechanicDamageMultiplier, passiveHealing, tonicHeal, tonics, onUseTonic, onVictory, onDefeat, onFlee }: {
   location: LocationId;
   playerName: string;
   maxHp: number;
@@ -150,6 +174,14 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
   damage: number;
   armor: number;
   speedBonus: boolean;
+  autoAttack: AutoAttackProfile;
+  combatRole: CombatRole;
+  combatSpec: CombatSpec;
+  healingMultiplier: number;
+  wardMultiplier: number;
+  startingWard: number;
+  mechanicDamageMultiplier: number;
+  passiveHealing: number;
   tonicHeal: number;
   tonics: number;
   onUseTonic: () => boolean;
@@ -157,11 +189,11 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
   onDefeat: () => void;
   onFlee: (remainingHp: number) => void;
 }) {
-  const engineRef = useRef<Engine>(initialEngine(location, playerName, maxHp, currentHp));
+  const engineRef = useRef<Engine>(initialEngine(location, playerName, maxHp, currentHp, armor, combatRole, combatSpec, startingWard));
   const keysRef = useRef(new Set<string>());
   const enemyTargetRef = useRef<string | null>(engineRef.current.enemies[0]?.id ?? null);
   const allyTargetRef = useRef<AllyId>("companion");
-  const messageRef = useRef("Nessa has the vanguard. Select a target and make every action count.");
+  const messageRef = useRef(combatRole === "tank" ? "You have the vanguard. Nessa will attack and restore you from range." : `Nessa has the vanguard. Your ${autoAttack.label.toLowerCase()} begins as soon as its target is in range.`);
   const [snapshot, setSnapshot] = useState<Snapshot>({ ...engineRef.current, message: messageRef.current, enemyTargetId: enemyTargetRef.current, allyTargetId: allyTargetRef.current });
   const [showHelp, setShowHelp] = useState(false);
 
@@ -207,6 +239,19 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
 
   const livingEnemies = useCallback(() => engineRef.current.enemies.filter((enemy) => enemy.hp > 0), []);
 
+  const startBattle = useCallback(() => {
+    const e = engineRef.current;
+    if (e.started || e.ended) return;
+    e.started = true;
+    e.paused = false;
+    e.nextMechanic = e.time + 6.5;
+    messageRef.current = `Battle started. ${autoAttack.label} is active; manual abilities remain under your control.`;
+    pushEvent("neutral", `Battle started. ${autoAttack.label} will repeat every ${autoAttack.interval.toFixed(1)}s in range.`);
+    showFeedback("player", "ENGAGE", `${autoAttack.style === "ranged" ? "Keep your distance" : "Close to melee"} · use abilities between auto-attacks`, 2.1);
+    playSfx("confirm");
+    sync();
+  }, [autoAttack, pushEvent, showFeedback, sync]);
+
   const finishVictory = useCallback(() => {
     const e = engineRef.current;
     if (e.result || e.enemies.some((enemy) => enemy.hp > 0)) return;
@@ -218,10 +263,11 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
     window.setTimeout(() => onVictory(e.player.hp), 1500);
   }, [onVictory, pushEvent, showFeedback]);
 
-  const damageAlly = useCallback((ally: Ally, rawDamage: number, source: string) => {
+  const damageAlly = useCallback((ally: Ally, rawDamage: number, source: string, announce = true, isMechanic = false) => {
     if (!ally.alive) return 0;
     const e = engineRef.current;
-    let amount = ally.id === "player" ? Math.max(3, rawDamage - armor) : rawDamage;
+    const roleScale = isMechanic && ally.id === "player" ? mechanicDamageMultiplier : 1;
+    let amount = Math.max(2, Math.round(rawDamage * ENEMY_DAMAGE_SCALE * roleScale) - ally.armor);
     let absorbed = 0;
     if (ally.shield > 0) {
       absorbed = Math.min(ally.shield, amount);
@@ -238,7 +284,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
     }
     const result = absorbed ? `${amount} damage (${absorbed} warded)` : `${amount} damage`;
     pushEvent("danger", `${source} → ${ally.name}: ${result}.`);
-    showFeedback("danger", amount ? `−${amount} VIGOR` : "WARDED", `${source} hit ${ally.name}`);
+    if (announce) showFeedback("danger", amount ? `−${amount} VIGOR` : "WARDED", `${source} hit ${ally.name}`);
     if (ally.hp <= 0) {
       ally.alive = false;
       if (ally.id === "player") {
@@ -254,7 +300,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
       }
     }
     return amount;
-  }, [addEffect, addFloater, armor, onDefeat, pushEvent, showFeedback]);
+  }, [addEffect, addFloater, mechanicDamageMultiplier, onDefeat, pushEvent, showFeedback]);
 
   const healAlly = useCallback((ally: Ally, amount: number) => {
     if (!ally.alive) return 0;
@@ -336,7 +382,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
       }
       e.player.mana -= cost;
       if (ability === "mend") {
-        const amount = Math.round(30 + damage * .6);
+        const amount = Math.round((30 + damage * .6) * healingMultiplier);
         const restored = healAlly(ally, amount);
         if (!restored) {
           e.player.mana += cost;
@@ -347,7 +393,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
         pushEvent("player", `Mend → ${ally.name}: restored ${restored} vigor.`);
         showFeedback("success", `+${restored} VIGOR`, `Mend restored ${ally.name}`);
       } else {
-        const amount = 30 + Math.round(damage * .35);
+        const amount = Math.round((30 + damage * .35) * wardMultiplier);
         const applied = Math.min(60 - ally.shield, amount);
         if (applied <= 0) {
           e.player.mana += cost;
@@ -370,7 +416,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
     if (!target) target = livingEnemies()[0];
     if (!target) return;
     enemyTargetRef.current = target.id;
-    const range = ability === "strike" ? 100 : 470;
+    const range = ability === "strike" ? autoAttack.range : 470;
     const currentDistance = Math.round(distance(e.player, target));
     if (currentDistance > range) {
       rejectAction("OUT OF RANGE", `${target.name} is ${currentDistance} away · ${range} required`);
@@ -383,10 +429,10 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
     if (ability === "bolt") e.player.mana -= 12;
     const dealt = ability === "strike" ? damage : Math.round(damage * 1.18 + 6);
     e.cooldowns[ability] = ability === "strike" ? .72 : 1.45;
-    damageEnemy(target, dealt, ability === "strike" ? "Wayfarer Strike" : "Focused Bolt", ability === "strike" ? "slash" : "bolt");
+    damageEnemy(target, dealt, ability === "strike" ? (autoAttack.style === "ranged" ? "Weapon Shot" : "Wayfarer Strike") : "Focused Bolt", ability === "strike" && autoAttack.style === "melee" ? "slash" : "bolt");
     playSfx("attack");
     sync();
-  }, [addEffect, addFloater, damage, damageEnemy, healAlly, livingEnemies, pushEvent, rejectAction, showFeedback, sync]);
+  }, [addEffect, addFloater, autoAttack, damage, damageEnemy, healAlly, healingMultiplier, livingEnemies, pushEvent, rejectAction, showFeedback, sync, wardMultiplier]);
 
   const dodge = useCallback(() => {
     const e = engineRef.current;
@@ -430,7 +476,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
-      if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright", "1", "2", "3", "4", "q", " ", "tab", "f1", "f2"].includes(key)) event.preventDefault();
+      if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright", "1", "2", "3", "4", "q", " ", "tab", "f1", "f2", "enter"].includes(key)) event.preventDefault();
       keysRef.current.add(key);
       if (key === "1") castAbility("strike");
       if (key === "2") castAbility("bolt");
@@ -442,9 +488,12 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
       if (key === "f1") targetAlly("player");
       if (key === "f2") targetAlly("companion");
       if (key === "p") {
-        engineRef.current.paused = !engineRef.current.paused;
-        sync();
+        if (engineRef.current.started) {
+          engineRef.current.paused = !engineRef.current.paused;
+          sync();
+        }
       }
+      if (key === "enter") startBattle();
     };
     const up = (event: KeyboardEvent) => keysRef.current.delete(event.key.toLowerCase());
     window.addEventListener("keydown", down);
@@ -453,7 +502,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, [castAbility, consumeTonic, cycleEnemy, dodge, sync, targetAlly]);
+  }, [castAbility, consumeTonic, cycleEnemy, dodge, startBattle, sync, targetAlly]);
 
   const startMechanic = useCallback(() => {
     const e = engineRef.current;
@@ -472,8 +521,8 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
       targetId: target.id,
       targetName: target.name,
       instruction: spec.instruction,
-      duration: spec.duration,
-      remaining: spec.duration,
+      duration: spec.duration * 1.3,
+      remaining: spec.duration * 1.3,
       originX: caster.x,
       originY: caster.y,
       targetX: target.x,
@@ -491,22 +540,15 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
       enemy.attackCd = Math.max(enemy.attackCd, .8);
     }
     pushEvent("enemy", `${caster.name} casts ${spec.name} on ${target.name}.`);
-    showFeedback("enemy", "INCOMING", `${spec.name} · ${spec.instruction}`, spec.duration);
+    showFeedback("enemy", "INCOMING", `${spec.name} · ${spec.instruction}`, spec.duration * 1.3);
     playSfx("warning");
   }, [livingEnemies, location, pushEvent, showFeedback]);
 
   const resolveMechanic = useCallback((mechanic: Mechanic) => {
     const e = engineRef.current;
-    const hits = (ally: Ally) => {
-      if (!ally.alive) return false;
-      if (mechanic.kind === "raidwide") return true;
-      if (mechanic.kind === "circle") return distance(ally, { x: mechanic.targetX, y: mechanic.targetY }) <= mechanic.radius;
-      if (mechanic.kind === "cleave") return pointInSector(ally, { x: mechanic.originX, y: mechanic.originY }, mechanic.angle, mechanic.radius, CLEAVE_HALF_ANGLE);
-      return pointToSegmentDistance(ally, { x: mechanic.originX, y: mechanic.originY }, { x: mechanic.endX, y: mechanic.endY }) <= mechanic.width / 2;
-    };
-    const struck = [e.player, e.companion].filter(hits);
+    const struck = [e.player, e.companion].filter((ally) => mechanicHits(mechanic, ally));
     if (mechanic.kind === "circle") addEffect("danger-impact", { x: mechanic.targetX, y: mechanic.targetY }, { x: mechanic.targetX, y: mechanic.targetY }, .55);
-    for (const ally of struck) damageAlly(ally, mechanic.damage, mechanic.name);
+    const damageResults = struck.map((ally) => ({ ally, amount: damageAlly(ally, mechanic.damage, mechanic.name, false, true) }));
     if (!struck.length) {
       addFloater(e.player, "AVOIDED", "status");
       pushEvent("success", `${mechanic.name} avoided by the whole party.`);
@@ -514,9 +556,12 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
       playSfx("confirm");
     } else {
       pushEvent("enemy", `${mechanic.name} resolved on ${struck.map((ally) => ally.name).join(" and ")}.`);
+      const total = damageResults.reduce((sum, result) => sum + result.amount, 0);
+      const title = struck.length > 1 ? "PARTY HIT" : `${struck[0].id === "player" ? "YOU" : "NESSA"} HIT`;
+      showFeedback("danger", title, `${mechanic.name} dealt ${total} total vigor`, 2.15);
     }
     e.mechanic = null;
-    e.nextMechanic = e.time + (location === "ruins" ? 4.6 : 5.5);
+    e.nextMechanic = e.time + (location === "ruins" ? 6.2 : 7.2);
   }, [addEffect, addFloater, damageAlly, location, pushEvent, showFeedback]);
 
   useEffect(() => {
@@ -557,16 +602,43 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
         }
 
         const living = livingEnemies();
-        if (!e.mechanic && e.companion.alive && living.length) {
+        const autoTarget = e.enemies.find((enemy) => enemy.id === enemyTargetRef.current && enemy.hp > 0) ?? living[0];
+        if (autoTarget) {
+          e.playerAttackCd -= dt;
+          if (distance(e.player, autoTarget) <= autoAttack.range && e.playerAttackCd <= 0) {
+            damageEnemy(autoTarget, autoAttack.damage, `${playerName}'s ${autoAttack.label}`, autoAttack.style === "ranged" ? "bolt" : "slash", false);
+            e.playerAttackCd = autoAttack.interval;
+          }
+        }
+
+        if (e.companion.alive && living.length) {
           const target = living[0];
           const targetDistance = distance(e.companion, target);
           e.companionAttackCd -= dt;
-          if (targetDistance > 90) {
+          if (targetDistance > e.companion.attackRange) {
             e.companion.x += (target.x - e.companion.x) / targetDistance * 48 * dt;
             e.companion.y += (target.y - e.companion.y) / targetDistance * 48 * dt;
           } else if (e.companionAttackCd <= 0) {
-            damageEnemy(target, 10, "Nessa", "companion-shot", false);
-            e.companionAttackCd = 1.35;
+            damageEnemy(target, e.companion.attackDamage, "Nessa", "companion-shot", false);
+            e.companionAttackCd = e.companion.attackInterval;
+          }
+          if (e.companion.support) {
+            e.companionSupportCd -= dt;
+            const supportTarget = [e.player, e.companion].filter((ally) => ally.alive).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+            if (supportTarget && supportTarget.hp / supportTarget.maxHp < .8 && e.companionSupportCd <= 0) {
+              const restored = healAlly(supportTarget, 15);
+              pushEvent("ally", `Nessa's Field Mend restored ${restored} vigor to ${supportTarget.name}.`);
+              e.companionSupportCd = 5.6;
+            }
+          }
+        }
+
+        if (passiveHealing > 0) {
+          e.passiveHealCd -= dt;
+          if (e.passiveHealCd <= 0) {
+            const restored = [healAlly(e.player, passiveHealing), healAlly(e.companion, passiveHealing)].reduce((sum, value) => sum + value, 0);
+            if (restored) pushEvent("player", `Living Current restored ${restored} total party vigor.`);
+            e.passiveHealCd = 6;
           }
         }
 
@@ -589,7 +661,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
             }
             continue;
           }
-          const target: Ally = e.companion.alive ? e.companion : e.player;
+          const target: Ally = combatRole === "tank" ? e.player : e.companion.alive ? e.companion : e.player;
           const desired = { x: target.x + enemy.engageX, y: target.y + enemy.engageY };
           const desiredDistance = distance(enemy, desired);
           const targetDistance = distance(enemy, target);
@@ -618,20 +690,27 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [addFloater, damageAlly, damageEnemy, livingEnemies, pushEvent, resolveMechanic, speedBonus, startMechanic, sync]);
+  }, [addFloater, autoAttack, combatRole, damageAlly, damageEnemy, healAlly, livingEnemies, passiveHealing, playerName, pushEvent, resolveMechanic, speedBonus, startMechanic, sync]);
 
   const selectedEnemy = snapshot.enemies.find((enemy) => enemy.id === snapshot.enemyTargetId) ?? snapshot.enemies.find((enemy) => enemy.hp > 0);
   const selectedAlly = snapshot.allyTargetId === "player" ? snapshot.player : snapshot.companion;
   const locationClass = location === "ruins" ? "is-ruins" : location === "swamp" ? "is-swamp" : "is-forest";
   const castProgress = snapshot.mechanic ? (1 - snapshot.mechanic.remaining / snapshot.mechanic.duration) * 100 : 0;
   const targetDistance = selectedEnemy ? Math.round(distance(snapshot.player, selectedEnemy)) : 0;
-  const meleeReady = Boolean(selectedEnemy && targetDistance <= 100);
+  const weaponReady = Boolean(selectedEnemy && targetDistance <= autoAttack.range);
+  const playerInDanger = Boolean(snapshot.mechanic && mechanicHits(snapshot.mechanic, snapshot.player));
+  const companionInDanger = Boolean(snapshot.mechanic && mechanicHits(snapshot.mechanic, snapshot.companion));
+  const remainingEnemies = snapshot.enemies.filter((enemy) => enemy.hp > 0).length;
+  const strikeReason = !selectedEnemy ? "No enemy target" : weaponReady ? `${damage} damage · ${autoAttack.range} range` : `Move ${Math.max(0, targetDistance - autoAttack.range)} closer`;
+  const boltReason = !selectedEnemy ? "No enemy target" : targetDistance > 470 ? `Move ${targetDistance - 470} closer` : snapshot.player.mana < 12 ? "Need 12 focus" : "12 focus · 470 range";
+  const mendReason = !selectedAlly.alive ? "Target is down" : selectedAlly.hp >= selectedAlly.maxHp ? `${selectedAlly.name} is at full vigor` : snapshot.player.mana < 18 ? "Need 18 focus" : "18 focus · support";
+  const aegisReason = !selectedAlly.alive ? "Target is down" : selectedAlly.shield >= 60 ? "Ward is at capacity" : snapshot.player.mana < 24 ? "Need 24 focus" : "24 focus · support";
 
   return <section className={`pt-combat ${locationClass}`} aria-label="Party combat arena">
     <div className="pt-combat-topbar">
-      <div><span className="pt-kicker">Party encounter · Readable real-time combat</span><h2>{encounterTitle(location)}</h2></div>
-      <div className="pt-combat-build"><span><b>{damage}</b> damage</span><span><b>{armor}</b> armor</span><span><b>{Math.ceil(snapshot.time)}s</b> elapsed</span></div>
-      <div className="pt-combat-actions"><button onClick={() => setShowHelp((value) => !value)}>Guide</button><button onClick={() => { engineRef.current.paused = !engineRef.current.paused; sync(); }}>{snapshot.paused ? "Resume" : "Pause"}</button>{location !== "ruins" && <button onClick={() => onFlee(snapshot.player.hp)}>Flee</button>}</div>
+      <div><span className="pt-kicker">Party encounter · Real-time tactics</span><h2>{encounterTitle(location)}</h2></div>
+      <div className="pt-combat-build"><span><b>{COMBAT_PATHS.find((path) => path.id === combatSpec)?.name}</b> path</span><span><b>{autoAttack.damage} / {autoAttack.interval}s</b> auto</span><span><b>{armor}</b> armor</span><span><b>{Math.ceil(snapshot.time)}s</b> elapsed</span></div>
+      <div className="pt-combat-actions"><button onClick={() => setShowHelp((value) => !value)}>Guide</button><button disabled={!snapshot.started} onClick={() => { engineRef.current.paused = !engineRef.current.paused; sync(); }}>{snapshot.paused && snapshot.started ? "Resume" : "Pause"}</button>{location !== "ruins" && <button onClick={() => onFlee(snapshot.player.hp)}>Flee</button>}</div>
     </div>
 
     <div className="pt-raid-layout">
@@ -639,7 +718,8 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
         <span className="pt-kicker">Party · support target</span>
         <PartyFrame ally={snapshot.companion} selected={snapshot.allyTargetId === "companion"} hotkey="F2" onClick={() => targetAlly("companion")} />
         <PartyFrame ally={snapshot.player} selected={snapshot.allyTargetId === "player"} hotkey="F1" onClick={() => targetAlly("player")} mana={snapshot.player.mana} />
-        <div className="pt-combat-log"><header><span>Combat record</span><i>Newest first</i></header>{snapshot.events.map((event) => <div key={event.id} className={`tone-${event.tone}`}><time>{event.time.toFixed(1)}</time><p>{event.text}</p></div>)}</div>
+        <EnemyIntent enemies={snapshot.enemies} player={snapshot.player} companion={snapshot.companion} focusPlayer={combatRole === "tank"}/>
+        <div className="pt-combat-log"><header><span>What happened</span><i>Newest first</i></header>{snapshot.events.map((event) => <div key={event.id} className={`tone-${event.tone}`}><time>{event.time.toFixed(1)}</time><p>{event.text}</p></div>)}</div>
         <div className="pt-party-tip"><b>WASD</b> Move · <b>Space</b> Quickstep<br/><b>Tab</b> Enemy · <b>F1/F2</b> Support</div>
       </aside>
 
@@ -648,7 +728,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
           <div><span>{selectedEnemy?.kind === "warden" ? "Boss target" : "Enemy target · Tab"}</span><strong>{selectedEnemy?.name ?? "Enemies defeated"}</strong></div>
           <i><b style={{ width: `${selectedEnemy ? selectedEnemy.hp / selectedEnemy.maxHp * 100 : 0}%` }}/></i>
           <em>{selectedEnemy ? `${Math.ceil(selectedEnemy.hp)} / ${selectedEnemy.maxHp}` : "0"}</em>
-          <small className={meleeReady ? "ready" : "far"}>{selectedEnemy ? meleeReady ? `Melee ready · ${targetDistance}` : `Ranged only · ${targetDistance}` : "Clear"}</small>
+          <small className={weaponReady ? "ready" : "far"}>{selectedEnemy ? weaponReady ? `${autoAttack.label} active · ${targetDistance}` : `${autoAttack.label} waiting · move ${Math.max(0, targetDistance - autoAttack.range)} closer` : "Clear"}</small>
         </div>
         <div className={`pt-cast-frame ${snapshot.mechanic ? "active" : ""}`}>
           <span>{snapshot.mechanic ? `${snapshot.mechanic.name} → ${snapshot.mechanic.targetName}` : "No major enemy cast"}</span>
@@ -657,7 +737,9 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
           <em>{snapshot.mechanic ? `${snapshot.mechanic.remaining.toFixed(1)}s` : ""}</em>
         </div>
 
-        <div className="pt-arena-wrap">
+        <div className="pt-combat-objective"><span><b>{remainingEnemies}</b> {remainingEnemies === 1 ? "hostile" : "hostiles"} remaining</span><span className={`pt-auto-readout ${weaponReady ? "safe" : "danger"}`}>AUTO · {!selectedEnemy ? "NO TARGET" : weaponReady ? snapshot.playerAttackCd <= 0 ? "READY" : `${snapshot.playerAttackCd.toFixed(1)}s` : "OUT OF RANGE"}</span><i/><span className={playerInDanger ? "danger" : "safe"}>YOU · {snapshot.mechanic ? playerInDanger ? "IN DANGER" : "SAFE" : combatRole === "tank" ? "VANGUARD" : "READY"}</span><span className={!snapshot.companion.alive || companionInDanger ? "danger" : "safe"}>NESSA · {!snapshot.companion.alive ? "DOWN" : snapshot.mechanic ? companionInDanger ? "IN DANGER" : "SAFE" : snapshot.companion.support ? "SUPPORT" : "VANGUARD"}</span></div>
+
+        <div className={`pt-arena-wrap ${playerInDanger ? "player-in-danger" : ""} ${snapshot.player.hitFlash > 0 || snapshot.companion.hitFlash > 0 ? "is-impacting" : ""}`}>
           <svg className="pt-arena" viewBox={`0 0 ${ARENA_W} ${ARENA_H}`} role="img" aria-label="Top-down party battlefield">
             <defs>
               <pattern id="arenaGrid" width="60" height="60" patternUnits="userSpaceOnUse"><path d="M7 48l9-12m22-19 6-9m10 39 10-6" stroke="currentColor" opacity=".08" strokeWidth="2"/></pattern>
@@ -680,7 +762,8 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
 
           {snapshot.mechanic && <div className={`pt-danger-callout kind-${snapshot.mechanic.kind}`}><span>{targetInstruction(snapshot.mechanic.kind)}</span><div><strong>{snapshot.mechanic.name}</strong><small>{snapshot.mechanic.instruction}</small></div><b>{snapshot.mechanic.remaining.toFixed(1)}</b></div>}
           {snapshot.feedback && <div key={snapshot.feedback.id} className={`pt-action-feedback tone-${snapshot.feedback.tone}`} style={{ "--feedback-life": `${snapshot.feedback.duration}s` } as React.CSSProperties}><strong>{snapshot.feedback.title}</strong><span>{snapshot.feedback.detail}</span></div>}
-          {snapshot.paused && <div className="pt-pause-card"><span>Combat paused</span><button onClick={() => { engineRef.current.paused = false; sync(); }}>Return to battle</button></div>}
+          {!snapshot.started && <div className="pt-combat-briefing"><span className="pt-kicker">Encounter plan · {COMBAT_PATHS.find((path) => path.id === combatSpec)?.name}</span><h3>Auto-attacks set the rhythm. You make the decisions.</h3><div><b>1</b><p><strong>{combatRole === "tank" ? "You hold the vanguard; Nessa supports." : "Nessa holds the vanguard."}</strong> {combatRole === "tank" ? "Enemies focus you while she attacks and automatically heals the most wounded ally." : "Enemies focus her while your active abilities shape the fight."}</p></div><div><b>2</b><p><strong>{autoAttack.label}: {autoAttack.damage} damage every {autoAttack.interval.toFixed(1)}s.</strong> It fires automatically whenever the selected target is within {autoAttack.range} range.</p></div><div><b>3</b><p><strong>Major attacks now give longer answers.</strong> Read the red ground, move or protect the target, then use abilities between weapon hits.</p></div><button onClick={startBattle}>Begin encounter <kbd>Enter</kbd></button></div>}
+          {snapshot.paused && snapshot.started && <div className="pt-pause-card"><span>Combat paused</span><button onClick={() => { engineRef.current.paused = false; sync(); }}>Return to battle</button></div>}
           {snapshot.result && <div className={`pt-combat-result ${snapshot.result}`}><span>{snapshot.result === "victory" ? "Encounter cleared" : "Party defeated"}</span><strong>{snapshot.result === "victory" ? "VICTORY" : "DEFEAT"}</strong><p>{snapshot.result === "victory" ? "Rewards and progress are being recorded." : "Nessa calls the retreat to Hearthmere."}</p></div>}
           {showHelp && <div className="pt-combat-guide"><button aria-label="Close combat guide" onClick={() => setShowHelp(false)}>×</button><span className="pt-kicker">How to read the fight</span><h3>Every danger tells you its answer.</h3><div><b>Orange windup bar</b><p>A basic attack is about to hit its named target. Move away or protect them.</p></div><div><b>Red ground + MOVE</b><p>The exact highlighted geometry will deal damage when the timer reaches zero.</p></div><div><b>PREPARE</b><p>Party-wide damage cannot be dodged. Use Aegis before it lands and Mend afterward.</p></div><small>Actions and results are recorded in the combat log on the left.</small></div>}
         </div>
@@ -690,16 +773,35 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
     <div className="pt-combat-footer revised">
       <div className="pt-combat-message"><span className="pt-pulse-dot"/>{snapshot.message}</div>
       <div className="pt-hotbar">
-        <AbilityButton hotkey="1" name="Wayfarer Strike" detail={`${damage} damage · 100 range`} cooldown={snapshot.cooldowns.strike} maxCooldown={.72} onClick={() => castAbility("strike")} tone="attack" ready={meleeReady}/>
-        <AbilityButton hotkey="2" name="Focused Bolt" detail="12 focus · 470 range" cooldown={snapshot.cooldowns.bolt} maxCooldown={1.45} onClick={() => castAbility("bolt")} tone="attack" ready={Boolean(selectedEnemy && targetDistance <= 470 && snapshot.player.mana >= 12)}/>
-        <AbilityButton hotkey="3" name="Mend" detail="18 focus · support" cooldown={snapshot.cooldowns.mend} maxCooldown={.9} onClick={() => castAbility("mend")} tone="heal" ready={selectedAlly.alive && selectedAlly.hp < selectedAlly.maxHp && snapshot.player.mana >= 18}/>
-        <AbilityButton hotkey="4" name="Aegis" detail="24 focus · support" cooldown={snapshot.cooldowns.aegis} maxCooldown={5.5} onClick={() => castAbility("aegis")} tone="heal" ready={selectedAlly.alive && selectedAlly.shield < 60 && snapshot.player.mana >= 24}/>
+        <AbilityButton hotkey="1" name={autoAttack.style === "ranged" ? "Weapon Shot" : "Wayfarer Strike"} detail={strikeReason} cooldown={snapshot.cooldowns.strike} maxCooldown={.72} onClick={() => castAbility("strike")} tone="attack" ready={weaponReady}/>
+        <AbilityButton hotkey="2" name="Focused Bolt" detail={boltReason} cooldown={snapshot.cooldowns.bolt} maxCooldown={1.45} onClick={() => castAbility("bolt")} tone="attack" ready={Boolean(selectedEnemy && targetDistance <= 470 && snapshot.player.mana >= 12)}/>
+        <AbilityButton hotkey="3" name="Mend" detail={mendReason} cooldown={snapshot.cooldowns.mend} maxCooldown={.9} onClick={() => castAbility("mend")} tone="heal" ready={selectedAlly.alive && selectedAlly.hp < selectedAlly.maxHp && snapshot.player.mana >= 18}/>
+        <AbilityButton hotkey="4" name="Aegis" detail={aegisReason} cooldown={snapshot.cooldowns.aegis} maxCooldown={5.5} onClick={() => castAbility("aegis")} tone="heal" ready={selectedAlly.alive && selectedAlly.shield < 60 && snapshot.player.mana >= 24}/>
         <AbilityButton hotkey="Space" name="Quickstep" detail="118 unit reposition" cooldown={snapshot.cooldowns.dodge} maxCooldown={3.1} onClick={dodge} ready={snapshot.cooldowns.dodge <= 0}/>
         <button className="pt-ability pt-tonic" disabled={!tonics} onClick={consumeTonic}><kbd>Q</kbd><strong>Hearthmere Tonic</strong><span>{tonics} left · +{tonicHeal}</span></button>
       </div>
       <div className="pt-dual-target"><div><span>Enemy · Tab</span><strong>{selectedEnemy?.name ?? "None"}</strong><small>{selectedEnemy ? `${targetDistance} units away` : "Encounter clear"}</small></div><div><span>Support · F1/F2</span><strong>{selectedAlly.name}</strong><small>{Math.ceil(selectedAlly.hp)} vigor · {Math.ceil(selectedAlly.shield)} ward</small></div></div>
     </div>
   </section>;
+}
+
+function EnemyIntent({ enemies, player, companion, focusPlayer }: { enemies: Enemy[]; player: Ally; companion: Ally; focusPlayer: boolean }) {
+  const living = enemies.filter((enemy) => enemy.hp > 0);
+  return <section className="pt-enemy-intent" aria-label="Enemy intent">
+    <header><span>Enemy intent</span><i>{living.some((enemy) => enemy.windup > 0) ? "Incoming" : "Tracking"}</i></header>
+    {living.map((enemy) => {
+      const target = enemy.attackTargetId === "player" || (!enemy.attackTargetId && focusPlayer) || !companion.alive ? player : companion;
+      const winding = enemy.windup > 0;
+      const closing = !winding && distance(enemy, target) > enemy.range + 24;
+      return <div key={enemy.id} className={winding ? "is-casting" : ""}><b>{enemy.kind === "boar" ? "♞" : enemy.kind === "warden" ? "◆" : "◈"}</b><p><strong>{enemy.name}</strong><span>{winding ? `ATTACK → ${target.id === "player" ? "YOU" : "NESSA"}` : closing ? `Closing on ${target.id === "player" ? "you" : "Nessa"}` : "Recovering"}</span></p>{winding ? <em>{enemy.windup.toFixed(1)}s</em> : <em className="quiet">{Math.max(0, enemy.attackCd).toFixed(1)}</em>}</div>;
+    })}
+  </section>;
+}
+
+function ActorSprite({ kind }: { kind: "player" | "companion" | EnemyKind }) {
+  const source = kind === "player" ? "/playtest/combat-player.png" : kind === "companion" ? "/playtest/combat-nessa.png" : kind === "boar" ? "/playtest/combat-boar.png" : "/playtest/combat-warden.png";
+  const size = kind === "warden" ? 118 : kind === "boar" ? 96 : 104;
+  return <image className={`pt-actor-sprite sprite-${kind}`} href={source} x={-size / 2} y={-size * .68} width={size} height={size} preserveAspectRatio="xMidYMid meet" aria-hidden="true"/>;
 }
 
 function PartyFrame({ ally, selected, hotkey, onClick, mana }: { ally: Ally; selected: boolean; hotkey: string; onClick: () => void; mana?: number }) {
@@ -711,11 +813,7 @@ function EnemyToken({ enemy, selected, onClick }: { enemy: Enemy; selected: bool
   return <g className={`pt-enemy pt-enemy-${enemy.kind} ${selected ? "is-targeted" : ""} ${enemy.hitFlash > 0 ? "is-hit" : ""}`} transform={`translate(${enemy.x} ${enemy.y})`} onClick={onClick} role="button" tabIndex={0}>
     <ellipse className="pt-actor-shadow" cx="0" cy="22" rx={enemy.kind === "warden" ? 34 : 27} ry="9"/>
     {selected && <><ellipse className="pt-target-marker" cx="0" cy="24" rx={enemy.kind === "warden" ? 45 : 36} ry={enemy.kind === "warden" ? 18 : 14}/><path className="pt-target-arrows" d="M-48 6l10-6v12zm96 0-10-6v12z"/></>}
-    <g className="pt-enemy-silhouette">
-      {enemy.kind === "boar" && <><path className="mass" d="M-27 6Q-25-16-7-20Q10-25 25-10L31 3 20 15-15 17-28 10Z"/><path className="detail" d="M-20-12l-10-12 17 8m28-1 14-10-6 17M18 2l14 6-13 7M-16 14v15m28-15v15M22 2l8-5"/></>}
-      {enemy.kind === "mireling" && <><path className="mass" d="M0-31Q18-25 22-7L17 18 8 27-8 27-18 17-22-8Q-17-25 0-31Z"/><path className="detail" d="M-13-8Q0-25 13-8M-10 5l10 8 10-8M-15 22l-9 12m39-12 9 12M-7-3h3m8 0h3"/></>}
-      {enemy.kind === "warden" && <><path className="mass" d="M0-43 30-22 25 19 11 37H-11L-25 19-30-22Z"/><path className="detail" d="M0-35v62M-18-18 0-5l18-13M-25 12 0 27l25-15M-16-27-33-12M16-27l33-12"/></>}
-    </g>
+    <ActorSprite kind={enemy.kind}/>
     <g className="pt-enemy-nameplate" transform={`translate(${-barWidth / 2} ${enemy.kind === "warden" ? -72 : -60})`}><text x={barWidth / 2} y="0" textAnchor="middle">{enemy.name}</text><rect y="7" width={barWidth} height="8" rx="2"/><rect className="fill" y="7" width={barWidth * enemy.hp / enemy.maxHp} height="8" rx="2"/>{enemy.windup > 0 && <><rect className="windup-track" y="19" width={barWidth} height="5" rx="1"/><rect className="windup-fill" y="19" width={barWidth * (1 - enemy.windup / enemy.windupDuration)} height="5" rx="1"/><text className="windup-label" x={barWidth / 2} y="34" textAnchor="middle">ATTACK → {enemy.attackTargetId === "player" ? "YOU" : "NESSA"}</text></>}</g>
   </g>;
 }
@@ -726,7 +824,7 @@ function AllyToken({ ally, selected, companion, onClick }: { ally: Ally; selecte
     {selected && <ellipse className="pt-support-marker" cx="0" cy="23" rx="34" ry="14"/>}
     {ally.shield > 0 && <path className="pt-shield-marker" d="M0-35 28-21 24 18 0 37-24 18-28-21Z"/>}
     {!companion && <ellipse rx="48" ry="42" fill="url(#playerGlow)"/>}
-    <g className="pt-ally-silhouette">{companion ? <><circle className="head" cy="-19" r="8"/><path className="body" d="M0-10 18 0 13 25 0 34-13 25-18 0Z"/><path className="detail" d="M-11 2 0 10 11 2M16-2l12-18M21-17l9 4"/></> : <><circle className="head" cy="-18" r="8"/><path className="body" d="M0-9 15 2 10 27 0 34-10 27-15 2Z"/><path className="detail" d="M0-7v32M-9 4 0 11 9 4M13 0l13-15"/></>}</g>
+    <ActorSprite kind={companion ? "companion" : "player"}/>
     <g className="pt-ally-nameplate" transform="translate(-34 45)"><rect width="68" height="14" rx="3"/><text x="34" y="10" textAnchor="middle">{companion ? "NESSA" : "YOU"}</text></g>
   </g>;
 }
