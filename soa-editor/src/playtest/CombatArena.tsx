@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { playSfx } from "./audio";
 import { COMBAT_PATHS, type CombatRole, type CombatSpec, type LocationId } from "./content";
-import type { AutoAttackProfile } from "./runtime";
+import type { AutoAttackProfile, EquipmentEffects } from "./runtime";
 import { mechanicSequence, pointInSector, pointToSegmentDistance, rayToArenaEdge, type MechanicKind } from "./combatMath";
 
 type AllyId = "player" | "companion";
@@ -166,7 +166,7 @@ function mechanicHits(mechanic: Mechanic, ally: Ally) {
   return pointToSegmentDistance(ally, { x: mechanic.originX, y: mechanic.originY }, { x: mechanic.endX, y: mechanic.endY }) <= mechanic.width / 2;
 }
 
-export default function CombatArena({ location, playerName, maxHp, currentHp, damage, armor, speedBonus, autoAttack, combatRole, combatSpec, healingMultiplier, wardMultiplier, startingWard, mechanicDamageMultiplier, passiveHealing, tonicHeal, tonics, onUseTonic, onVictory, onDefeat, onFlee }: {
+export default function CombatArena({ location, playerName, maxHp, currentHp, damage, armor, speedBonus, autoAttack, combatRole, combatSpec, healingMultiplier, wardMultiplier, startingWard, mechanicDamageMultiplier, passiveHealing, itemEffects, tonicHeal, tonics, onUseTonic, onVictory, onDefeat, onFlee }: {
   location: LocationId;
   playerName: string;
   maxHp: number;
@@ -182,6 +182,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
   startingWard: number;
   mechanicDamageMultiplier: number;
   passiveHealing: number;
+  itemEffects: EquipmentEffects;
   tonicHeal: number;
   tonics: number;
   onUseTonic: () => boolean;
@@ -247,10 +248,11 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
     e.nextMechanic = e.time + 6.5;
     messageRef.current = `Battle started. ${autoAttack.label} is active; manual abilities remain under your control.`;
     pushEvent("neutral", `Battle started. ${autoAttack.label} will repeat every ${autoAttack.interval.toFixed(1)}s in range.`);
+    if (itemEffects.labels.length) pushEvent("player", `Equipment powers active: ${itemEffects.labels.join(" · ")}.`);
     showFeedback("player", "ENGAGE", `${autoAttack.style === "ranged" ? "Keep your distance" : "Close to melee"} · use abilities between auto-attacks`, 2.1);
     playSfx("confirm");
     sync();
-  }, [autoAttack, pushEvent, showFeedback, sync]);
+  }, [autoAttack, itemEffects.labels, pushEvent, showFeedback, sync]);
 
   const finishVictory = useCallback(() => {
     const e = engineRef.current;
@@ -390,6 +392,15 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
           return;
         }
         e.cooldowns.mend = .9;
+        if (itemEffects.mendWard > 0) {
+          const warded = Math.min(60 - ally.shield, itemEffects.mendWard);
+          ally.shield += warded;
+          if (warded > 0) addFloater(ally, `+${warded} ward`, "shield");
+        }
+        if (itemEffects.mendDamage > 0) {
+          const enemy = e.enemies.find((entry) => entry.id === enemyTargetRef.current && entry.hp > 0) ?? livingEnemies()[0];
+          if (enemy) damageEnemy(enemy, Math.max(1, Math.round(restored * itemEffects.mendDamage)), "Resonant Mend", "bolt", false);
+        }
         pushEvent("player", `Mend → ${ally.name}: restored ${restored} vigor.`);
         showFeedback("success", `+${restored} VIGOR`, `Mend restored ${ally.name}`);
       } else {
@@ -406,6 +417,14 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
         e.cooldowns.aegis = 5.5;
         pushEvent("player", `Aegis → ${ally.name}: ${applied} ward.`);
         showFeedback("success", `+${applied} WARD`, `Aegis protected ${ally.name}`);
+        if (itemEffects.aegisEcho > 0) {
+          const other = ally.id === "player" ? e.companion : e.player;
+          if (other.alive) {
+            const echoed = Math.min(60 - other.shield, Math.round(applied * itemEffects.aegisEcho));
+            other.shield += echoed;
+            if (echoed > 0) addFloater(other, `+${echoed} echo`, "shield");
+          }
+        }
       }
       playSfx("heal");
       sync();
@@ -430,9 +449,14 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
     const dealt = ability === "strike" ? damage : Math.round(damage * 1.18 + 6);
     e.cooldowns[ability] = ability === "strike" ? .72 : 1.45;
     damageEnemy(target, dealt, ability === "strike" ? (autoAttack.style === "ranged" ? "Weapon Shot" : "Wayfarer Strike") : "Focused Bolt", ability === "strike" && autoAttack.style === "melee" ? "slash" : "bolt");
+    if (ability === "strike" && itemEffects.strikeCleave > 0) {
+      for (const enemy of livingEnemies().filter((entry) => entry.id !== target.id)) {
+        damageEnemy(enemy, Math.max(1, Math.round(dealt * itemEffects.strikeCleave)), "Oathsplitter", "slash", false);
+      }
+    }
     playSfx("attack");
     sync();
-  }, [addEffect, addFloater, autoAttack, damage, damageEnemy, healAlly, healingMultiplier, livingEnemies, pushEvent, rejectAction, showFeedback, sync, wardMultiplier]);
+  }, [addEffect, addFloater, autoAttack, damage, damageEnemy, healAlly, healingMultiplier, itemEffects, livingEnemies, pushEvent, rejectAction, showFeedback, sync, wardMultiplier]);
 
   const dodge = useCallback(() => {
     const e = engineRef.current;
@@ -449,11 +473,16 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
     e.player.x = Math.max(28, Math.min(ARENA_W - 28, e.player.x + dx / length * 118));
     e.player.y = Math.max(28, Math.min(ARENA_H - 28, e.player.y + dy / length * 118));
     e.cooldowns.dodge = 3.1;
+    if (itemEffects.dodgeWard > 0) {
+      const warded = Math.min(60 - e.player.shield, itemEffects.dodgeWard);
+      e.player.shield += warded;
+      if (warded > 0) addFloater(e.player, `+${warded} roadward`, "shield");
+    }
     addEffect("dodge", start, e.player, .42);
     showFeedback("player", "QUICKSTEP", "Repositioned 118 units", .9);
     pushEvent("player", "Quickstep repositioned the Wayfarer.");
     sync();
-  }, [addEffect, pushEvent, showFeedback, sync]);
+  }, [addEffect, addFloater, itemEffects.dodgeWard, pushEvent, showFeedback, sync]);
 
   const consumeTonic = useCallback(() => {
     const e = engineRef.current;
@@ -709,7 +738,7 @@ export default function CombatArena({ location, playerName, maxHp, currentHp, da
   return <section className={`pt-combat ${locationClass}`} aria-label="Party combat arena">
     <div className="pt-combat-topbar">
       <div><span className="pt-kicker">Party encounter · Real-time tactics</span><h2>{encounterTitle(location)}</h2></div>
-      <div className="pt-combat-build"><span><b>{COMBAT_PATHS.find((path) => path.id === combatSpec)?.name}</b> path</span><span><b>{autoAttack.damage} / {autoAttack.interval}s</b> auto</span><span><b>{armor}</b> armor</span><span><b>{Math.ceil(snapshot.time)}s</b> elapsed</span></div>
+      <div className="pt-combat-build"><span><b>{COMBAT_PATHS.find((path) => path.id === combatSpec)?.name}</b> path</span><span><b>{autoAttack.damage} / {autoAttack.interval}s</b> auto</span><span><b>{armor}</b> armor</span><span title={itemEffects.labels.join(" · ")}><b>{itemEffects.labels.length}</b> gear powers</span><span><b>{Math.ceil(snapshot.time)}s</b> elapsed</span></div>
       <div className="pt-combat-actions"><button onClick={() => setShowHelp((value) => !value)}>Guide</button><button disabled={!snapshot.started} onClick={() => { engineRef.current.paused = !engineRef.current.paused; sync(); }}>{snapshot.paused && snapshot.started ? "Resume" : "Pause"}</button>{location !== "ruins" && <button onClick={() => onFlee(snapshot.player.hp)}>Flee</button>}</div>
     </div>
 

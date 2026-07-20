@@ -3,6 +3,8 @@ export type EquipmentSlot = "weapon" | "armor" | "charm";
 export type CombatRole = "healer" | "damage" | "tank";
 export type CombatSpec = "lifebinder" | "wardweaver" | "blademaster" | "ranger" | "vanguard" | "spellguard";
 export type AttackStyle = "melee" | "ranged";
+export type ItemRarity = "common" | "uncommon" | "set" | "unique";
+export type ItemPower = "cleaving-strike" | "mending-ward" | "mending-smite";
 
 export type ItemDefinition = {
   id: string;
@@ -20,6 +22,18 @@ export type ItemDefinition = {
   autoRange?: number;
   autoInterval?: number;
   healingPower?: number;
+  rarity?: ItemRarity;
+  setId?: string;
+  power?: ItemPower;
+  powerDescription?: string;
+};
+
+export type ItemSetDefinition = {
+  id: string;
+  name: string;
+  description: string;
+  pieces: string[];
+  bonuses: { count: number; name: string; description: string }[];
 };
 
 export type LocationDefinition = {
@@ -75,12 +89,30 @@ export const ITEMS: Record<string, ItemDefinition> = {
   forgeBlade: { id: "forgeBlade", name: "Vale Hunting Blade", description: "A practical Hearthmere blade, weighted by Torren for the roads beyond the fields.", type: "weapon", slot: "weapon", price: 34, icon: "†", damage: 13, attackStyle: "melee", autoRange: 110, autoInterval: 1.65 },
   hunterBow: { id: "hunterBow", name: "Gloamwood Recurve", description: "A compact ash bow made for firing across dense trails without surrendering mobility.", type: "weapon", slot: "weapon", price: 32, icon: "➶", damage: 10, attackStyle: "ranged", autoRange: 430, autoInterval: 1.95 },
   focusStaff: { id: "focusStaff", name: "Reedbound Focus", description: "An ashwood focus that turns portal resonance into precise bolts and steadier restorative magic.", type: "weapon", slot: "weapon", price: 30, icon: "✣", damage: 7, attackStyle: "ranged", autoRange: 380, autoInterval: 2.1, healingPower: .16 },
+  oathsplitter: { id: "oathsplitter", name: "Oathsplitter", description: "Torren reforged a headsman's iron into a weapon that refuses to choose only one foe.", type: "weapon", slot: "weapon", price: 40, icon: "⚒", damage: 10, attackStyle: "melee", autoRange: 118, autoInterval: 2.05, rarity: "unique", power: "cleaving-strike", powerDescription: "Wayfarer Strike also hits every other enemy for 55% damage." },
   travelCoat: { id: "travelCoat", name: "Waxed Trail Coat", description: "Layered linen that turns thorns, marsh water, and light blows.", type: "armor", slot: "armor", price: 24, icon: "♦", armor: 4, health: 12 },
+  vowkeepersWrap: { id: "vowkeepersWrap", name: "Vowkeeper's Wrap", description: "A field-mender's coat sewn with a promise: no restored life will be left unguarded.", type: "armor", slot: "armor", price: 38, icon: "✚", armor: 2, health: 8, rarity: "unique", power: "mending-ward", powerDescription: "Mend also grants its target 10 ward." },
   marshWard: { id: "marshWard", name: "Reed-Knot Ward", description: "A small knot of ashwood and river reed. Nessa swears it keeps bad roads from following you home.", type: "charm", slot: "charm", price: 28, icon: "⌘", armor: 1, health: 6 },
-  resonanceCharm: { id: "resonanceCharm", name: "Resonant Portal Shard", description: "A fragment from the forbidden portal. It answers faintly to the memory of your childhood encounter.", type: "charm", slot: "charm", price: 0, icon: "◈", damage: 3, health: 8 },
+  pathfinderSeal: { id: "pathfinderSeal", name: "Pathfinder's Seal", description: "A brass trail marker recovered where Gloamwood's panicked beasts made their stand.", type: "charm", slot: "charm", price: 0, icon: "✥", damage: 2, health: 4, rarity: "set", setId: "lost-path" },
+  fenwatchMantle: { id: "fenwatchMantle", name: "Fenwatch Mantle", description: "Shadow-dark water beads on this scout's mantle but never soaks through.", type: "armor", slot: "armor", price: 0, icon: "♜", armor: 4, health: 14, rarity: "set", setId: "lost-path" },
+  riftwatchSpear: { id: "riftwatchSpear", name: "Riftwatch Spear", description: "Its split point hums toward open roads—and toward the portal that ended them.", type: "weapon", slot: "weapon", price: 0, icon: "♠", damage: 11, attackStyle: "melee", autoRange: 128, autoInterval: 1.78, rarity: "set", setId: "lost-path" },
+  resonanceCharm: { id: "resonanceCharm", name: "Resonant Portal Shard", description: "A fragment from the forbidden portal. It turns restored life into an answering blow.", type: "charm", slot: "charm", price: 0, icon: "◈", damage: 3, health: 8, rarity: "unique", power: "mending-smite", powerDescription: "Mend deals 45% of the vigor actually restored to your selected enemy." },
   tonic: { id: "tonic", name: "Hearthmere Tonic", description: "Restores vigor. Bitter enough to work and bottled at Torren's forge.", type: "consumable", price: 12, icon: "+", heal: 35 },
   portalFragment: { id: "portalFragment", name: "Unstable Portal Fragment", description: "Stone and crystal marked by Shadow influence. Evidence that the old portal is active again.", type: "quest", price: 0, icon: "◉" },
   missingScarf: { id: "missingScarf", name: "Iven's Torn Scarf", description: "Found on a marsh thorn. Mud and dark residue show Iven's trail continues toward Riftwatch.", type: "quest", price: 0, icon: "≈" },
+};
+
+export const ITEM_SETS: Record<string, ItemSetDefinition> = {
+  "lost-path": {
+    id: "lost-path",
+    name: "Regalia of the Lost Path",
+    description: "Three relics carried by the scouts who sealed the road to Riftwatch.",
+    pieces: ["pathfinderSeal", "fenwatchMantle", "riftwatchSpear"],
+    bonuses: [
+      { count: 2, name: "Roadward", description: "Quickstep grants 12 ward." },
+      { count: 3, name: "No One Left Behind", description: "Aegis echoes 50% of its ward to your other party member." },
+    ],
+  },
 };
 
 export const LOCATIONS: Record<LocationId, LocationDefinition> = {
@@ -127,8 +159,8 @@ export const TALENTS: TalentDefinition[] = [
   { id: "nullField", name: "Null Field", description: "Nearby allies take 15% less damage from major mechanics.", cost: 1, icon: "⊘", role: "tank", spec: "spellguard", tier: 4, requires: "dampenRift" },
 ];
 
-export const SHOP_STOCK = ["forgeBlade", "hunterBow", "focusStaff", "travelCoat", "marshWard", "tonic"];
-export const INITIAL_SHOP_STOCK: Record<string, number> = { forgeBlade: 1, hunterBow: 1, focusStaff: 1, travelCoat: 1, marshWard: 1, tonic: 4 };
+export const SHOP_STOCK = ["forgeBlade", "hunterBow", "focusStaff", "oathsplitter", "travelCoat", "vowkeepersWrap", "marshWard", "tonic"];
+export const INITIAL_SHOP_STOCK: Record<string, number> = { forgeBlade: 1, hunterBow: 1, focusStaff: 1, oathsplitter: 1, travelCoat: 1, vowkeepersWrap: 1, marshWard: 1, tonic: 4 };
 
 export const DIALOGUES = {
   questIntro: {

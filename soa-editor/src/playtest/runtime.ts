@@ -1,9 +1,9 @@
-import { COMBAT_PATHS, INITIAL_SHOP_STOCK, ITEMS, TALENTS, type AttackStyle, type CombatRole, type CombatSpec, type EquipmentSlot, type LocationId } from "./content";
+import { COMBAT_PATHS, INITIAL_SHOP_STOCK, ITEMS, ITEM_SETS, TALENTS, type AttackStyle, type CombatRole, type CombatSpec, type EquipmentSlot, type LocationId } from "./content";
 
 export type QuestStage = "not-started" | "reach-forest" | "cross-fen" | "reach-gate" | "return" | "complete";
 
 export type PlayState = {
-  version: 3;
+  version: 4;
   playerName: string;
   location: LocationId;
   dayMinutes: number;
@@ -26,12 +26,13 @@ export type PlayState = {
   companionJoined: boolean;
 };
 
-export const SAVE_KEY = "soa.playtest.campaign.v3";
-export const LEGACY_SAVE_KEY = "soa.playtest.campaign.v2";
+export const SAVE_KEY = "soa.playtest.campaign.v4";
+export const LEGACY_SAVE_KEY = "soa.playtest.campaign.v3";
+export const OLDER_SAVE_KEY = "soa.playtest.campaign.v2";
 
 export function createNewGame(playerName = "Wayfarer"): PlayState {
   return {
-    version: 3,
+    version: 4,
     playerName: playerName.trim() || "Wayfarer",
     location: "village",
     dayMinutes: 7 * 60 + 20,
@@ -57,18 +58,18 @@ export function createNewGame(playerName = "Wayfarer"): PlayState {
 
 export function loadGame(): PlayState | null {
   try {
-    const raw = localStorage.getItem(SAVE_KEY) ?? localStorage.getItem(LEGACY_SAVE_KEY);
+    const raw = localStorage.getItem(SAVE_KEY) ?? localStorage.getItem(LEGACY_SAVE_KEY) ?? localStorage.getItem(OLDER_SAVE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Omit<Partial<PlayState>, "version"> & { version?: number };
-    if ((parsed.version !== 2 && parsed.version !== 3) || !parsed.playerName || !parsed.inventory) return null;
+    if ((parsed.version !== 2 && parsed.version !== 3 && parsed.version !== 4) || !parsed.playerName || !parsed.inventory) return null;
     const fresh = createNewGame(parsed.playerName);
     const savedTalents = parsed.talents ?? [];
     const validTalents = savedTalents.filter((id) => TALENTS.some((talent) => talent.id === id));
     const refundedLegacyPoints = savedTalents.length - validTalents.length;
-    return {
+    const migrated: PlayState = {
       ...fresh,
       ...parsed,
-      version: 3,
+      version: 4,
       combatRole: parsed.combatRole ?? fresh.combatRole,
       combatSpec: parsed.combatSpec ?? fresh.combatSpec,
       talents: validTalents,
@@ -78,6 +79,12 @@ export function loadGame(): PlayState | null {
       shopStock: { ...fresh.shopStock, ...parsed.shopStock },
       companionJoined: parsed.companionJoined ?? parsed.questStage !== "not-started",
     };
+    const progressionLoot: Partial<Record<LocationId, string>> = { forest: "pathfinderSeal", swamp: "fenwatchMantle", ruins: "riftwatchSpear" };
+    for (const location of migrated.clearedEncounters) {
+      const itemId = progressionLoot[location];
+      if (itemId && !(migrated.inventory[itemId] ?? 0)) migrated.inventory[itemId] = 1;
+    }
+    return migrated;
   } catch {
     return null;
   }
@@ -112,6 +119,42 @@ export function tonicHealing(state: PlayState): number {
 }
 
 export type AutoAttackProfile = { damage: number; range: number; interval: number; style: AttackStyle; label: string };
+
+export type EquipmentEffects = {
+  strikeCleave: number;
+  mendWard: number;
+  mendDamage: number;
+  dodgeWard: number;
+  aegisEcho: number;
+  labels: string[];
+};
+
+export function equippedSetCount(state: PlayState, setId: string): number {
+  return Object.values(state.equipment).filter((itemId) => itemId && ITEMS[itemId]?.setId === setId).length;
+}
+
+export function equippedItemEffects(state: PlayState): EquipmentEffects {
+  const equipped = Object.values(state.equipment).map((itemId) => itemId ? ITEMS[itemId] : undefined).filter(Boolean);
+  const powers = new Set(equipped.map((item) => item?.power).filter(Boolean));
+  const effects: EquipmentEffects = {
+    strikeCleave: powers.has("cleaving-strike") ? .55 : 0,
+    mendWard: powers.has("mending-ward") ? 10 : 0,
+    mendDamage: powers.has("mending-smite") ? .45 : 0,
+    dodgeWard: 0,
+    aegisEcho: 0,
+    labels: equipped.filter((item) => item?.powerDescription).map((item) => item!.name),
+  };
+  for (const set of Object.values(ITEM_SETS)) {
+    const count = equippedSetCount(state, set.id);
+    for (const bonus of set.bonuses) {
+      if (count < bonus.count) continue;
+      effects.labels.push(`${set.name} (${bonus.count})`);
+      if (set.id === "lost-path" && bonus.count === 2) effects.dodgeWard = 12;
+      if (set.id === "lost-path" && bonus.count === 3) effects.aegisEcho = .5;
+    }
+  }
+  return effects;
+}
 
 export function playerAutoAttack(state: PlayState): AutoAttackProfile {
   const weapon = state.equipment.weapon ? ITEMS[state.equipment.weapon] : undefined;
@@ -281,11 +324,11 @@ export function applyEncounterVictory(state: PlayState, location: LocationId): P
   if (state.clearedEncounters.includes(location)) return state;
   let next: PlayState = { ...state, clearedEncounters: [...state.clearedEncounters, location] };
   if (location === "forest") {
-    next = gainXp({ ...next, gold: next.gold + 16, questStage: "cross-fen", lore: [...new Set([...next.lore, "wrongShadows", "nessa"])] }, 55);
+    next = addItem(gainXp({ ...next, gold: next.gold + 16, questStage: "cross-fen", lore: [...new Set([...next.lore, "wrongShadows", "nessa"])] }, 55), "pathfinderSeal");
   } else if (location === "swamp") {
-    next = addItem(gainXp({ ...next, gold: next.gold + 24, questStage: "reach-gate", lore: [...new Set([...next.lore, "missingTrail"])] }, 75), "missingScarf");
+    next = addItem(addItem(gainXp({ ...next, gold: next.gold + 24, questStage: "reach-gate", lore: [...new Set([...next.lore, "missingTrail"])] }, 75), "missingScarf"), "fenwatchMantle");
   } else if (location === "ruins") {
-    next = addItem(addItem(gainXp({ ...next, gold: next.gold + 40, questStage: "return", lore: [...new Set([...next.lore, "shanoirRift", "raznah"])] }, 120), "portalFragment"), "resonanceCharm");
+    next = addItem(addItem(addItem(gainXp({ ...next, gold: next.gold + 40, questStage: "return", lore: [...new Set([...next.lore, "shanoirRift", "raznah"])] }, 120), "portalFragment"), "resonanceCharm"), "riftwatchSpear");
   }
   return { ...next, health: Math.min(maxHealth(next), next.health + 25) };
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CombatArena from "./CombatArena";
 import BossLab from "./BossLab";
-import { COMBAT_PATHS, COMBAT_ROLES, DIALOGUES, INTRO_SLIDES, ITEMS, LOCATIONS, LORE, SHOP_STOCK, TALENTS, type CombatRole, type CombatSpec, type ItemDefinition, type LocationId } from "./content";
+import { COMBAT_PATHS, COMBAT_ROLES, DIALOGUES, INTRO_SLIDES, ITEMS, ITEM_SETS, LOCATIONS, LORE, SHOP_STOCK, TALENTS, type CombatRole, type CombatSpec, type ItemDefinition, type ItemRarity, type LocationId } from "./content";
 import { playSfx, setMusicScene, setMusicVolume, startMusic, stopMusic } from "./audio";
 import {
   applyEncounterVictory,
@@ -11,12 +11,15 @@ import {
   chooseCombatPath as selectCombatPath,
   createNewGame,
   equipItem,
+  equippedItemEffects,
+  equippedSetCount,
   formatTime,
   gainXp,
   LEGACY_SAVE_KEY,
   loadGame,
   maxHealth,
   objectiveText,
+  OLDER_SAVE_KEY,
   playerArmor,
   playerAutoAttack,
   playerDamage,
@@ -187,10 +190,11 @@ export default function PlaytestPage() {
   };
 
   const winEncounter = (remainingHp: number) => {
+    const reward = state.location === "forest" ? ITEMS.pathfinderSeal : state.location === "swamp" ? ITEMS.fenwatchMantle : ITEMS.riftwatchSpear;
     playSfx("victory");
     setState((current) => applyEncounterVictory({ ...current, health: remainingHp }, current.location));
     setScreen("game");
-    toast(state.location === "ruins" ? "Iven found · portal fragment recovered" : "Encounter cleared · the trail continues");
+    toast(`${reward.name} found · set piece added to your pack`);
   };
 
   const loseEncounter = () => {
@@ -307,6 +311,7 @@ export default function PlaytestPage() {
   const resetSave = () => {
     localStorage.removeItem(SAVE_KEY);
     localStorage.removeItem(LEGACY_SAVE_KEY);
+    localStorage.removeItem(OLDER_SAVE_KEY);
     setSaveExists(false);
     setScreen("title");
     setState(createNewGame());
@@ -314,7 +319,7 @@ export default function PlaytestPage() {
 
   if (screen === "title") return <TitleScreen name={name} setName={setName} saveExists={saveExists} onNew={newGame} onContinue={continueGame} onBoss={() => { setScreen("boss-lab"); playSfx("confirm"); }} onExit={() => navigate("/")} musicOn={musicOn} onMusic={toggleMusic} />;
   if (screen === "intro") return <IntroScreen index={introIndex} onNext={finishIntro} onSkip={() => setScreen("game")} />;
-  if (screen === "combat") return <CombatArena location={state.location} playerName={state.playerName} maxHp={maxHealth(state)} currentHp={state.health} damage={playerDamage(state)} armor={playerArmor(state)} speedBonus={state.combatSpec === "ranger"} autoAttack={playerAutoAttack(state)} combatRole={state.combatRole} combatSpec={state.combatSpec} healingMultiplier={playerHealingMultiplier(state)} wardMultiplier={playerWardMultiplier(state)} startingWard={playerStartingWard(state)} mechanicDamageMultiplier={playerMechanicDamageMultiplier(state)} passiveHealing={passivePartyHealing(state)} tonicHeal={tonicHealing(state)} tonics={state.inventory.tonic ?? 0} onUseTonic={useTonic} onVictory={winEncounter} onDefeat={loseEncounter} onFlee={fleeEncounter} />;
+  if (screen === "combat") return <CombatArena location={state.location} playerName={state.playerName} maxHp={maxHealth(state)} currentHp={state.health} damage={playerDamage(state)} armor={playerArmor(state)} speedBonus={state.combatSpec === "ranger"} autoAttack={playerAutoAttack(state)} combatRole={state.combatRole} combatSpec={state.combatSpec} healingMultiplier={playerHealingMultiplier(state)} wardMultiplier={playerWardMultiplier(state)} startingWard={playerStartingWard(state)} mechanicDamageMultiplier={playerMechanicDamageMultiplier(state)} passiveHealing={passivePartyHealing(state)} itemEffects={equippedItemEffects(state)} tonicHeal={tonicHealing(state)} tonics={state.inventory.tonic ?? 0} onUseTonic={useTonic} onVictory={winEncounter} onDefeat={loseEncounter} onFlee={fleeEncounter} />;
   if (screen === "boss-lab") return <BossLab onExit={() => setScreen("title")}/>;
   if (screen === "ending") return <Ending state={state} onContinue={() => setScreen("game")} onNew={resetSave} onExit={() => navigate("/")} />;
 
@@ -344,7 +349,7 @@ export default function PlaytestPage() {
 
       <aside className="pt-player-card">
         <div className="pt-avatar">{state.playerName.slice(0, 1).toUpperCase()}<em>{state.level}</em></div>
-        <div><span>Level {state.level} Wayfarer</span><strong>{state.playerName}</strong><div className="pt-mini-bar"><i style={{ width: `${state.health / maxHealth(state) * 100}%` }} /></div><small>{Math.ceil(state.health)} / {maxHealth(state)} vigor · {state.xp}/{state.level * 100} XP</small></div>
+        <div><span>Level {state.level} Wayfarer</span><strong>{state.playerName}</strong><div className="pt-mini-bar"><i style={{ width: `${state.health / maxHealth(state) * 100}%` }} /></div><small>{Math.ceil(state.health)} / {maxHealth(state)} vigor · {state.xp}/{state.level * 100} XP</small><div className="pt-visible-loadout">{(["weapon", "armor", "charm"] as const).map((slot) => { const item = state.equipment[slot] ? ITEMS[state.equipment[slot]!] : undefined; return <i key={slot} className={`rarity-${itemRarity(item)}`} title={item ? `${slot}: ${item.name}` : `Empty ${slot}`}><b>{item?.icon ?? "+"}</b></i>; })}</div></div>
       </aside>
 
       <nav className="pt-dock" aria-label="Game menus">
@@ -410,8 +415,27 @@ function Journal({ state }: { state: PlayState }) {
 }
 
 function Inventory({ state, onEquip, onUnequip, onUseTonic }: { state: PlayState; onEquip: (id: string) => void; onUnequip: (slot: "weapon" | "armor" | "charm") => void; onUseTonic: () => void }) {
-  const entries = Object.entries(state.inventory).filter(([, amount]) => amount > 0);
-  return <div className="pt-inventory"><section className="pt-equipment"><h3>Equipped</h3>{(["weapon", "armor", "charm"] as const).map((slot) => { const id = state.equipment[slot]; const item = id ? ITEMS[id] : null; return <button key={slot} className={!item ? "empty" : ""} disabled={!item} onClick={() => onUnequip(slot)}><span>{slot}</span><i>{item?.icon ?? "+"}</i><strong>{item?.name ?? `Empty ${slot} slot`}</strong>{item && <em>Unequip</em>}</button>; })}<div className="pt-stats"><span><b>{playerDamage(state)}</b> Damage</span><span><b>{playerArmor(state)}</b> Armor</span><span><b>{maxHealth(state)}</b> Vigor</span></div></section><section className="pt-pack"><h3>Pack <small>{entries.reduce((sum, [, value]) => sum + value, 0)} items</small></h3><div>{entries.map(([id, amount]) => { const item = ITEMS[id]; if (!item) return null; const equipped = item.slot && state.equipment[item.slot] === id; return <article key={id}><i>{item.icon}</i><div><strong>{item.name}</strong><span>{item.description}</span><small>{itemEffect(item)}</small></div><em>×{amount}</em>{item.slot && <button disabled={equipped} onClick={() => onEquip(id)}>{equipped ? "Equipped" : "Equip"}</button>}{item.type === "consumable" && <button disabled={state.health >= maxHealth(state)} onClick={onUseTonic}>Use +{tonicHealing(state)}</button>}</article>; })}</div></section></div>;
+  const [filter, setFilter] = useState<"all" | "equipment" | "consumable" | "quest">("all");
+  const rarityOrder: Record<ItemRarity, number> = { unique: 0, set: 1, uncommon: 2, common: 3 };
+  const entries = Object.entries(state.inventory)
+    .filter(([id, amount]) => amount > 0 && ITEMS[id])
+    .filter(([id]) => filter === "all" || filter === "equipment" ? filter === "all" || Boolean(ITEMS[id].slot) : ITEMS[id].type === filter)
+    .sort(([a], [b]) => rarityOrder[itemRarity(ITEMS[a])] - rarityOrder[itemRarity(ITEMS[b])] || ITEMS[a].name.localeCompare(ITEMS[b].name));
+  const allCount = Object.values(state.inventory).reduce((sum, amount) => sum + amount, 0);
+  const activeEffects = equippedItemEffects(state);
+  return <div className="pt-inventory">
+    <section className="pt-equipment">
+      <h3>Equipped</h3>
+      {(["weapon", "armor", "charm"] as const).map((slot) => { const id = state.equipment[slot]; const item = id ? ITEMS[id] : null; return <button key={slot} className={`${!item ? "empty" : ""} rarity-${itemRarity(item ?? undefined)}`} disabled={!item} onClick={() => onUnequip(slot)}><span>{slot}</span><i>{item?.icon ?? "+"}</i><strong>{item?.name ?? `Empty ${slot} slot`}</strong>{item && <em>Unequip</em>}</button>; })}
+      <div className="pt-stats"><span><b>{playerDamage(state)}</b> Damage</span><span><b>{playerArmor(state)}</b> Armor</span><span><b>{maxHealth(state)}</b> Vigor</span></div>
+      <div className="pt-build-powers"><span>Active gear powers</span>{activeEffects.labels.length ? activeEffects.labels.map((label) => <b key={label}>✦ {label}</b>) : <p>Equip a unique or enough matching set pieces to add a combat-changing power.</p>}</div>
+      {Object.values(ITEM_SETS).map((set) => { const equipped = equippedSetCount(state, set.id); return <div className="pt-set-collection" key={set.id}><header><span>Set collection</span><strong>{set.name}</strong><small>{set.pieces.filter((id) => (state.inventory[id] ?? 0) > 0).length}/{set.pieces.length} found · {equipped} equipped</small></header><div>{set.pieces.map((id) => { const item = ITEMS[id]; const owned = (state.inventory[id] ?? 0) > 0; const active = item.slot && state.equipment[item.slot] === id; return <i key={id} className={`${owned ? "found" : ""} ${active ? "active" : ""}`} title={owned ? item.name : "Undiscovered set piece"}>{owned ? item.icon : "?"}</i>; })}</div>{set.bonuses.map((bonus) => <p key={bonus.count} className={equipped >= bonus.count ? "active" : ""}><b>{bonus.count}-piece · {bonus.name}</b><span>{bonus.description}</span></p>)}</div>; })}
+    </section>
+    <section className="pt-pack">
+      <header><div><h3>Wayfarer's Pack <small>{allCount} items</small></h3><p>Equip freely. New gear replaces the item in that slot; nothing is destroyed.</p></div><nav aria-label="Inventory filters">{(["all", "equipment", "consumable", "quest"] as const).map((value) => <button key={value} className={filter === value ? "active" : ""} onClick={() => setFilter(value)}>{value}</button>)}</nav></header>
+      <div>{entries.map(([id, amount]) => { const item = ITEMS[id]; const equipped = item.slot && state.equipment[item.slot] === id; const comparison = item.slot && !equipped ? itemComparison(state, item) : null; return <article key={id} className={`rarity-${itemRarity(item)} ${equipped ? "equipped" : ""}`}><i>{item.icon}</i><div><span className="pt-item-eyebrow">{itemRarity(item)} {item.type}{item.setId ? ` · ${ITEM_SETS[item.setId].name}` : ""}</span><strong>{item.name}</strong><span>{item.description}</span><small>{itemEffect(item)}</small>{item.powerDescription && <b className="pt-item-power">✦ {item.powerDescription}</b>}{comparison && <em className="pt-item-compare">Compared with equipped: {comparison}</em>}</div><em>×{amount}</em>{item.slot && <button disabled={equipped} onClick={() => onEquip(id)}>{equipped ? "Equipped" : "Equip"}</button>}{item.type === "consumable" && <button disabled={state.health >= maxHealth(state)} onClick={onUseTonic}>Use +{tonicHealing(state)}</button>}</article>; })}{!entries.length && <p className="pt-inventory-empty">No items match this filter.</p>}</div>
+    </section>
+  </div>;
 }
 
 function TalentPanel({ state, onTalent, onPath }: { state: PlayState; onTalent: (id: string) => void; onPath: (role: CombatRole, spec: CombatSpec) => void }) {
@@ -438,6 +462,27 @@ function DialogueModal({ dialogue, onChoice }: { dialogue: { key: DialogueKey; n
   return <div className="pt-dialogue-backdrop"><section className="pt-dialogue"><div className="pt-dialogue-portrait"><span className={`portrait-${script.portrait}`}/><i/></div><div className="pt-dialogue-content"><header><span>{script.role}</span><h2>{script.speaker}</h2></header><p>“{node.text}”</p><div>{node.choices.map((choice, index) => <button key={choice.label} onClick={() => onChoice(choice)}><kbd>{index + 1}</kbd><span>{choice.label}</span><b>›</b></button>)}</div></div></section></div>;
 }
 
+function itemRarity(item?: ItemDefinition): ItemRarity {
+  if (item?.rarity) return item.rarity;
+  if (item?.type === "quest" || item?.type === "consumable") return "uncommon";
+  return "common";
+}
+
+function itemComparison(state: PlayState, item: ItemDefinition): string {
+  if (!item.slot) return "";
+  const preview = equipItem(state, item.id);
+  const values = [
+    [playerDamage(preview) - playerDamage(state), "damage"],
+    [playerArmor(preview) - playerArmor(state), "armor"],
+    [maxHealth(preview) - maxHealth(state), "vigor"],
+  ] as const;
+  const deltas = values.filter(([value]) => value !== 0).map(([value, label]) => `${value > 0 ? "+" : ""}${value} ${label}`);
+  const before = new Set(equippedItemEffects(state).labels);
+  const gained = equippedItemEffects(preview).labels.filter((label) => !before.has(label));
+  if (gained.length) deltas.push(`activates ${gained.join(", ")}`);
+  return deltas.join(" · ") || "different power, same core stats";
+}
+
 function itemEffect(item: ItemDefinition) {
   const effects = [];
   if (item.damage) effects.push(`+${item.damage} damage`);
@@ -451,7 +496,7 @@ function itemEffect(item: ItemDefinition) {
 
 function ShopModal({ state, onClose, onBuy, onSell }: { state: PlayState; onClose: () => void; onBuy: (id: string) => void; onSell: (id: string) => void }) {
   const sellable = Object.keys(state.inventory).filter((id) => { const item = ITEMS[id]; return item && item.price > 0 && item.type !== "quest"; });
-  return <div className="pt-panel-backdrop" onClick={onClose}><aside className="pt-shop" onClick={(event) => event.stopPropagation()}><header><span className="pt-shopkeeper portrait-torren"/><div><span className="pt-kicker">Vale Forge · Hearthmere</span><h2>Torren Vale</h2><p>“Take what keeps you alive. We can settle the rest when Iven is home.”</p></div><button onClick={onClose}>×</button></header><div className="pt-shop-gold">Your purse <b>◆ {state.gold}</b></div><h3>Forge stock</h3><section>{SHOP_STOCK.map((id) => { const item = ITEMS[id]; const stock = state.shopStock[id] ?? 0; return <article key={id} className={!stock ? "sold-out" : ""}><i>{item.icon}</i><div><span>{item.type} · {stock ? `${stock} in stock` : "sold out"}</span><strong>{item.name}</strong><p>{item.description}</p><small>{itemEffect(item)}</small></div><button disabled={!stock || state.gold < item.price} onClick={() => onBuy(id)}>◆ {item.price}</button></article>; })}</section><h3>Sell from pack</h3><section className="pt-sell-list">{sellable.length ? sellable.map((id) => { const item = ITEMS[id]; const equipped = item.slot && state.equipment[item.slot] === id; return <article key={id}><i>{item.icon}</i><div><strong>{item.name}</strong><small>Owned ×{state.inventory[id]}{equipped ? " · currently equipped" : ""}</small></div><button disabled={Boolean(equipped)} onClick={() => onSell(id)}>Sell ◆ {Math.max(1, Math.floor(item.price * .5))}</button></article>; }) : <p className="pt-shop-empty">Nothing in your pack can be sold.</p>}</section></aside></div>;
+  return <div className="pt-panel-backdrop" onClick={onClose}><aside className="pt-shop" onClick={(event) => event.stopPropagation()}><header><span className="pt-shopkeeper portrait-torren"/><div><span className="pt-kicker">Vale Forge · Hearthmere</span><h2>Torren Vale</h2><p>“A rare piece asks you to fight differently. Read the engraving before you buy.”</p></div><button onClick={onClose}>×</button></header><div className="pt-shop-gold">Your purse <b>◆ {state.gold}</b></div><h3>Forge stock</h3><section>{SHOP_STOCK.map((id) => { const item = ITEMS[id]; const stock = state.shopStock[id] ?? 0; return <article key={id} className={`${!stock ? "sold-out" : ""} rarity-${itemRarity(item)}`}><i>{item.icon}</i><div><span>{itemRarity(item)} {item.type} · {stock ? `${stock} in stock` : "sold out"}</span><strong>{item.name}</strong><p>{item.description}</p><small>{itemEffect(item)}</small>{item.powerDescription && <b className="pt-item-power">✦ {item.powerDescription}</b>}</div><button disabled={!stock || state.gold < item.price} onClick={() => onBuy(id)}>◆ {item.price}</button></article>; })}</section><h3>Sell from pack</h3><section className="pt-sell-list">{sellable.length ? sellable.map((id) => { const item = ITEMS[id]; const equipped = item.slot && state.equipment[item.slot] === id; return <article key={id} className={`rarity-${itemRarity(item)}`}><i>{item.icon}</i><div><strong>{item.name}</strong><small>Owned ×{state.inventory[id]}{equipped ? " · currently equipped" : ""}</small></div><button disabled={Boolean(equipped)} onClick={() => onSell(id)}>Sell ◆ {Math.max(1, Math.floor(item.price * .5))}</button></article>; }) : <p className="pt-shop-empty">Nothing in your pack can be sold.</p>}</section></aside></div>;
 }
 
 function TravelTransition({ target }: { target: LocationId }) { return <div className="pt-travel"><div className="pt-travel-line"><i/><b>♢</b><i/></div><span>Following Iven's trail with Nessa</span><h2>{LOCATIONS[target].name}</h2><p>{LOCATIONS[target].travelMinutes} minutes travel</p></div>; }

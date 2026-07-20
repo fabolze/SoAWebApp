@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyEncounterVictory, canTravelTo, canUnlockTalent, chooseCombatPath, createNewGame, equipItem, gainXp, maxHealth, playerArmor, playerAutoAttack, playerDamage, playerHealingMultiplier, playerStartingWard, purchaseItem, sellItem, tonicHealing, unequipItem, unlockTalent, type PlayState } from "./runtime";
+import { applyEncounterVictory, canTravelTo, canUnlockTalent, chooseCombatPath, createNewGame, equipItem, equippedItemEffects, equippedSetCount, gainXp, maxHealth, playerArmor, playerAutoAttack, playerDamage, playerHealingMultiplier, playerStartingWard, purchaseItem, sellItem, tonicHealing, unequipItem, unlockTalent, type PlayState } from "./runtime";
 
 describe("browser playtest campaign runtime", () => {
   it("starts with a coherent playable build", () => {
@@ -20,6 +20,7 @@ describe("browser playtest campaign runtime", () => {
     expect(canTravelTo(accepted, "swamp").allowed).toBe(false);
     const forestWon = applyEncounterVictory({ ...accepted, location: "forest" }, "forest");
     expect(forestWon.questStage).toBe("cross-fen");
+    expect(forestWon.inventory.pathfinderSeal).toBe(1);
     expect(canTravelTo(forestWon, "swamp").allowed).toBe(true);
   });
 
@@ -32,9 +33,11 @@ describe("browser playtest campaign runtime", () => {
     expect(duplicate.gold).toBe(58);
     state = applyEncounterVictory({ ...state, location: "swamp" }, "swamp");
     expect(state.inventory.missingScarf).toBe(1);
+    expect(state.inventory.fenwatchMantle).toBe(1);
     state = applyEncounterVictory({ ...state, location: "ruins" }, "ruins");
     expect(state.inventory.portalFragment).toBe(1);
     expect(state.inventory.resonanceCharm).toBe(1);
+    expect(state.inventory.riftwatchSpear).toBe(1);
     expect(state.questStage).toBe("return");
   });
 
@@ -111,5 +114,24 @@ describe("browser playtest campaign runtime", () => {
     expect(playerAutoAttack(state)).toMatchObject({ style: "ranged", range: 430, interval: 1.95, damage: 15 });
     state = unlockTalent(state, "steadyAim");
     expect(playerAutoAttack(state)).toMatchObject({ style: "ranged", range: 475, damage: 19 });
+  });
+
+  it("activates unique powers and set thresholds from the equipped loadout", () => {
+    let state: PlayState = { ...createNewGame(), inventory: { ...createNewGame().inventory, oathsplitter: 1, vowkeepersWrap: 1, pathfinderSeal: 1, fenwatchMantle: 1, riftwatchSpear: 1, resonanceCharm: 1 } };
+    state = equipItem(state, "oathsplitter");
+    state = equipItem(state, "vowkeepersWrap");
+    expect(equippedItemEffects(state)).toMatchObject({ strikeCleave: .55, mendWard: 10, dodgeWard: 0 });
+
+    state = equipItem(state, "pathfinderSeal");
+    state = equipItem(state, "fenwatchMantle");
+    expect(equippedSetCount(state, "lost-path")).toBe(2);
+    expect(equippedItemEffects(state)).toMatchObject({ dodgeWard: 12, aegisEcho: 0 });
+
+    state = equipItem(state, "riftwatchSpear");
+    expect(equippedSetCount(state, "lost-path")).toBe(3);
+    expect(equippedItemEffects(state).aegisEcho).toBe(.5);
+
+    state = equipItem(state, "resonanceCharm");
+    expect(equippedItemEffects(state)).toMatchObject({ mendDamage: .45, dodgeWard: 12, aegisEcho: 0 });
   });
 });
