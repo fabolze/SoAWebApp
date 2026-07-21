@@ -34,7 +34,7 @@ type CircleZone = { type: "circle"; x: number; y: number; radius: number };
 type LineZone = { type: "line"; x: number; y: number; width: number; height: number };
 type ConeZone = { type: "cone"; x: number; y: number; angle: number; radius: number; halfAngle: number };
 type Zone = CircleZone | LineZone | ConeZone;
-type MechanicKind = "cleave" | "brands" | "raidwide" | "cross" | "chain" | "soak" | "collapse" | "cataclysm";
+type MechanicKind = "cleave" | "brands" | "raidwide" | "cross" | "chain" | "soak" | "collapse" | "cataclysm" | "tankbuster" | "annihilation" | "overload";
 type BossMechanic = {
   id: number;
   kind: MechanicKind;
@@ -45,6 +45,8 @@ type BossMechanic = {
   damage: number;
   targetIds: PartyId[];
   zones: Zone[];
+  requiredDamage?: number;
+  progress?: number;
 };
 
 type LabEvent = { id: number; time: number; tone: EventTone; text: string };
@@ -74,6 +76,13 @@ type BossEngine = {
   echoes: RiftEcho[];
   selectedTarget: string;
   focus: number;
+  globalCooldown: number;
+  guardWindow: number;
+  riposteReady: number;
+  comboWindow: number;
+  damageExposed: number;
+  healerGrace: number;
+  recoveryWindow: number;
   cooldowns: Record<string, number>;
   damageBuff: number;
   hasteBuff: number;
@@ -191,7 +200,14 @@ function createEngine(loadout: BossLoadout, profile: VeteranProfile): BossEngine
     party,
     echoes: [],
     selectedTarget: "boss",
-    focus: 100,
+    focus: loadout.role === "healer" ? 100 : 0,
+    globalCooldown: 0,
+    guardWindow: 0,
+    riposteReady: 0,
+    comboWindow: 0,
+    damageExposed: 0,
+    healerGrace: 0,
+    recoveryWindow: 0,
     cooldowns: { one: 0, two: 0, three: 0, four: 0, five: 0, six: 0, dodge: 0 },
     damageBuff: 0,
     hasteBuff: 0,
@@ -234,22 +250,22 @@ function phaseName(phase: number) {
 
 function baseAbilitySet(role: CombatRole) {
   if (role === "healer") return [
-    { key: "one", hotkey: "1", name: "Resonant Smite", detail: "55 damage · 1.3s", cooldown: 1.3 },
-    { key: "two", hotkey: "2", name: "Greater Mend", detail: "Lowest ally · 18 focus", cooldown: 3 },
-    { key: "three", hotkey: "3", name: "Party Aegis", detail: "Ward all · 30 focus", cooldown: 12 },
-    { key: "four", hotkey: "4", name: "Verdant Refrain", detail: "Heal all · 20s", cooldown: 20 },
+    { key: "one", hotkey: "1", name: "Searing Grace", detail: "Damage + smart heal · +12 mana", cooldown: 1.8 },
+    { key: "two", hotkey: "2", name: "Grace Mend", detail: "24 mana · empowered after 1", cooldown: 2.2 },
+    { key: "three", hotkey: "3", name: "Sanctified Nova", detail: "AoE damage + party heal · 38 mana", cooldown: 8 },
+    { key: "four", hotkey: "4", name: "Reprieve", detail: "Large party recovery · 30 mana", cooldown: 18 },
   ] as const;
   if (role === "tank") return [
-    { key: "one", hotkey: "1", name: "Shield Strike", detail: "60 damage · 1.25s", cooldown: 1.25 },
-    { key: "two", hotkey: "2", name: "Guard", detail: "80 self ward · 10s", cooldown: 10 },
-    { key: "three", hotkey: "3", name: "Commanding Ward", detail: "Ward party · 14s", cooldown: 14 },
-    { key: "four", hotkey: "4", name: "Last Stand", detail: "Emergency restore · 22s", cooldown: 22 },
+    { key: "one", hotkey: "1", name: "Shield Rend", detail: "Build Resolve · consumes Riposte", cooldown: 1.8 },
+    { key: "two", hotkey: "2", name: "Reactive Guard", detail: "4s block window · answer tankbusters", cooldown: 8 },
+    { key: "three", hotkey: "3", name: "Rallying Bulwark", detail: "30 Resolve · stronger vs raidwide", cooldown: 10 },
+    { key: "four", hotkey: "4", name: "Aegis Breaker", detail: "40 Resolve · ward-powered finisher", cooldown: 9 },
   ] as const;
   return [
-    { key: "one", hotkey: "1", name: "Weapon Art", detail: "72 damage · 1.15s", cooldown: 1.15 },
-    { key: "two", hotkey: "2", name: "Rift Burst", detail: "165 damage · 24 focus", cooldown: 7 },
-    { key: "three", hotkey: "3", name: "Battle Focus", detail: "+30% damage · 8s", cooldown: 20 },
-    { key: "four", hotkey: "4", name: "Execution", detail: "240 damage · 18s", cooldown: 18 },
+    { key: "one", hotkey: "1", name: "Rift Opener", detail: "Start combo · +18 Momentum", cooldown: 1.7 },
+    { key: "two", hotkey: "2", name: "Rupture", detail: "After Opener · expose target", cooldown: 4.5 },
+    { key: "three", hotkey: "3", name: "Predator Focus", detail: "Only on exposed target · +30%", cooldown: 16 },
+    { key: "four", hotkey: "4", name: "Execution", detail: "Exposed finisher · 25 Momentum", cooldown: 10 },
   ] as const;
 }
 
@@ -330,7 +346,7 @@ export default function BossLab({ onExit }: { onExit: () => void }) {
       <aside className="pt-lab-preview"><div className="pt-lab-boss-card"><span>Veteran encounter</span><h2>Vaelith, Echo of the Rift</h2><p>A three-phase fight testing movement, mitigation, healing recovery, target swaps, and sustained damage before a hard enrage.</p><div><span><b>{VETERAN_BOSS_HP.toLocaleString()}</b> Boss vigor</span><span><b>3</b> Phases</span><span><b>3:00</b> Enrage</span></div></div>
         <section className="pt-lab-profile"><header><span>Your build</span><strong>{COMBAT_PATHS.find((path) => path.id === spec)?.name}</strong></header><div><span><b>{profile.maxHp}</b> vigor</span><span><b>{profile.armor}</b> armor</span><span><b>{profile.autoDamage}</b> auto</span><span><b>{profile.autoInterval}s</b> cadence</span><span><b>{profile.autoRange}</b> range</span><span><b>{Math.round(profile.healingPower * 100)}%</b> healing</span></div>{itemEffects.labels.length > 0 && <footer><span>Active item powers</span>{itemEffects.labels.map((label) => <b key={label}>✦ {label}</b>)}</footer>}</section>
         <section className="pt-lab-party"><header><span>Adaptive party</span><small>Three companions join</small></header>{companions.map((companion) => <article key={companion.id}><i className={`portrait-${companion.id}`}>{companion.name[0]}</i><div><span>{companion.role}</span><strong>{companion.name}</strong><small>{companion.specialization} · {companion.note}</small></div></article>)}</section>
-        <section className="pt-lab-mechanics"><span>Mechanics tested</span><div><b>Tank cleaves</b><b>Spread brands</b><b>Raidwide pulses</b><b>Crossing lanes</b><b>Break chains</b><b>Shared soaks</b><b>Rift Echo adds</b><b>Overlapping finale</b></div></section>
+        <section className="pt-lab-mechanics"><span>Mechanics tested</span><div><b>Reactive tankbusters</b><b>Personal one-shots</b><b>DPS break checks</b><b>Heavy raidwide recovery</b><b>Spread brands</b><b>Crossing lanes</b><b>Break chains</b><b>Shared soaks</b><b>Rift Echo adds</b><b>Overlapping finale</b></div></section>
         <button className="pt-lab-launch" disabled={talents.length !== VETERAN_TALENT_POINTS} onClick={() => { setResult(null); setMode("combat"); playSfx("confirm"); }}>Challenge Vaelith <span>Expected {Math.floor(projected / 60)}:{String(projected % 60).padStart(2, "0")}</span></button>
       </aside>
     </div>
@@ -460,6 +476,7 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
       targetEcho.hitFlash = .25;
       e.metrics.damage += dealt;
       e.metrics.actors[sourceId].damage += dealt;
+      if (sourceId === "player") e.mechanics.filter((mechanic) => mechanic.kind === "overload").forEach((mechanic) => { mechanic.progress = (mechanic.progress ?? 0) + dealt; });
       floater(targetEcho, `−${dealt}`, "damage");
       pushEvent(sourceId === "player" ? "player" : "ally", `${source} → ${targetEcho.name}: ${dealt} damage.`);
       if (targetEcho.hp <= 0) {
@@ -474,6 +491,7 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
       e.bossHp = Math.max(0, e.bossHp - dealt);
       e.metrics.damage += dealt;
       e.metrics.actors[sourceId].damage += dealt;
+      if (sourceId === "player") e.mechanics.filter((mechanic) => mechanic.kind === "overload").forEach((mechanic) => { mechanic.progress = (mechanic.progress ?? 0) + dealt; });
       floater({ x: BOSS_X, y: BOSS_Y }, `−${dealt}`, "damage");
       pushEvent(sourceId === "player" ? "player" : "ally", `${source} → Vaelith: ${dealt} damage.`);
       if (prominent) feedback("player", `−${dealt} DAMAGE`, `${source} struck Vaelith`, 1.1);
@@ -517,7 +535,7 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
 
   const cast = useCallback((key: AbilityKey) => {
     const e = engineRef.current;
-    if (!e.started || e.paused || e.ended || e.cooldowns[key] > 0) return;
+    if (!e.started || e.paused || e.ended || e.cooldowns[key] > 0 || e.globalCooldown > 0) return;
     const unit = player();
     const target = activeTargetPosition();
     const data = abilities.find((ability) => ability.key === key);
@@ -557,43 +575,109 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
         case "nullField": e.partyMitigation = 12; feedback("success", "NULL FIELD", "Party damage taken reduced by 30% for 12 seconds", 1.8); break;
       }
     } else if (loadout.role === "damage") {
-      if (key === "two" && e.focus < 24) { feedback("neutral", "NOT ENOUGH FOCUS", "Rift Burst requires 24 focus"); return; }
-      if (key === "two") e.focus -= 24;
-      if (key === "one") { if (itemEffects.strikeCleave) cleaveEchoes(72 * itemEffects.strikeCleave, "Oathsplitter"); dealDamage(72 * itemEffects.primaryDamageMultiplier, data.name, true); }
-      if (key === "two") dealDamage(165, data.name, true);
-      if (key === "three") { e.damageBuff = 8; feedback("player", "BATTLE FOCUS", "+30% damage for 8 seconds", 1.6); }
-      if (key === "four") dealDamage(e.bossHp / VETERAN_BOSS_HP <= .35 ? 340 : 240, data.name, true);
-    } else if (loadout.role === "healer") {
-      if ((key === "two" && e.focus < 18) || (key === "three" && e.focus < 30)) { feedback("neutral", "NOT ENOUGH FOCUS", "Wait for focus to recover"); return; }
-      if (key === "one") { if (itemEffects.strikeCleave) cleaveEchoes(55 * itemEffects.strikeCleave, "Oathsplitter"); dealDamage(55 * itemEffects.primaryDamageMultiplier, data.name, true); }
+      const executeRange = e.bossHp / VETERAN_BOSS_HP <= .25;
+      if (key === "one") {
+        if (itemEffects.strikeCleave) cleaveEchoes(58 * itemEffects.strikeCleave, "Oathsplitter");
+        dealDamage(58 * itemEffects.primaryDamageMultiplier, data.name, true);
+        e.focus = Math.min(100, e.focus + 18);
+        e.comboWindow = 5;
+        feedback("player", "COMBO OPEN", "Rupture (2) is primed for 5 seconds", 1.3);
+      }
       if (key === "two") {
-        e.focus -= 18;
+        if (e.comboWindow <= 0) { feedback("neutral", "COMBO NOT STARTED", "Use Rift Opener (1), then Rupture (2)"); return; }
+        if (e.focus < 20) { feedback("neutral", "NOT ENOUGH MOMENTUM", "Rupture requires 20 Momentum"); return; }
+        e.focus -= 20;
+        e.comboWindow = 0;
+        e.damageExposed = 7;
+        dealDamage(145, data.name, true);
+        feedback("player", "RIFT EXPOSED", "Predator Focus (3) and Execution (4) are enabled", 1.6);
+      }
+      if (key === "three") {
+        if (e.damageExposed <= 0) { feedback("neutral", "NO EXPOSED TARGET", "Complete Opener (1) → Rupture (2) first"); return; }
+        e.damageBuff = 8;
+        feedback("player", "PREDATOR FOCUS", "+30% damage while the combo window holds", 1.6);
+      }
+      if (key === "four") {
+        const cost = executeRange ? 15 : 25;
+        if (!executeRange && e.damageExposed <= 0) { feedback("neutral", "FINISHER NOT PRIMED", "Expose the target with Rift Opener (1) → Rupture (2)"); return; }
+        if (e.focus < cost) { feedback("neutral", "NOT ENOUGH MOMENTUM", `Execution requires ${cost} Momentum`); return; }
+        e.focus -= cost;
+        dealDamage(executeRange ? 390 : 310, data.name, true);
+        e.damageExposed = 0;
+      }
+    } else if (loadout.role === "healer") {
+      if ((key === "two" && e.focus < 24) || (key === "three" && e.focus < 38) || (key === "four" && e.focus < 30)) { feedback("neutral", "NOT ENOUGH MANA", "Deal damage with Searing Grace (1) while mana recovers"); return; }
+      if (key === "one") {
+        if (itemEffects.strikeCleave) cleaveEchoes(52 * itemEffects.strikeCleave, "Oathsplitter");
+        dealDamage(52 * itemEffects.primaryDamageMultiplier, data.name, true);
+        const targetAlly = livingParty().sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+        healUnit(targetAlly, 28 * profile.healingPower, data.name);
+        e.focus = Math.min(100, e.focus + 12);
+        e.healerGrace = 6;
+        feedback("success", "SEARING GRACE", "Smart heal landed · Grace Mend (2) empowered", 1.3);
+      }
+      if (key === "two") {
+        e.focus -= 24;
         const targetAlly = livingParty().sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
         const lowBonus = loadout.talents.includes("mercifulHands") && targetAlly.hp / targetAlly.maxHp < .4 ? 1.25 : 1;
-        const restored = healUnit(targetAlly, 72 * profile.healingPower * lowBonus, data.name);
+        const graceBonus = e.healerGrace > 0 ? 1.55 : 1;
+        const restored = healUnit(targetAlly, 78 * profile.healingPower * lowBonus * graceBonus, data.name);
+        e.healerGrace = 0;
         if (loadout.talents.includes("verdantPulse")) healUnit(targetAlly, 18 * profile.healingPower, "Verdant Pulse");
         if (itemEffects.mendWard) { targetAlly.shield = Math.min(160, targetAlly.shield + itemEffects.mendWard); floater(targetAlly, `+${itemEffects.mendWard} item ward`, "ward"); }
         if (itemEffects.mendDamage && restored > 0) dealDamage(restored * itemEffects.mendDamage, "Resonant Portal Shard");
-        feedback("success", "GREATER MEND", `${targetAlly.name} restored`, 1.2);
+        feedback("success", "GRACE MEND", `${targetAlly.name} restored${graceBonus > 1 ? " · combo bonus" : ""}`, 1.2);
+      }
+      if (key === "three") {
+        e.focus -= 38;
+        dealDamage(110, data.name, true);
+        cleaveEchoes(80, data.name);
+        const recoveryBonus = e.recoveryWindow > 0 ? 2 : 1;
+        const restored = livingParty().reduce((sum, ally) => sum + healUnit(ally, 28 * profile.healingPower * recoveryBonus, data.name), 0);
+        e.recoveryWindow = 0;
+        feedback("success", "SANCTIFIED NOVA", `${restored} party healing · rift enemies scorched${recoveryBonus > 1 ? " · recovery doubled" : ""}`, 1.8);
+      }
+      if (key === "four") {
+        e.focus -= 30;
+        const restored = livingParty().reduce((sum, ally) => sum + healUnit(ally, 68 * profile.healingPower, data.name), 0);
+        feedback("success", "REPRIEVE", `${restored} total vigor restored`, 1.8);
+      }
+    } else {
+      if ((key === "three" && e.focus < 30) || (key === "four" && e.focus < 40)) { feedback("neutral", "NOT ENOUGH RESOLVE", "Strike or perfect-guard attacks to build Resolve"); return; }
+      if (key === "one") {
+        const riposte = e.riposteReady > 0;
+        if (itemEffects.strikeCleave) cleaveEchoes((riposte ? 155 : 60) * itemEffects.strikeCleave, "Oathsplitter");
+        dealDamage((riposte ? 155 : 60) * itemEffects.primaryDamageMultiplier, riposte ? "Perfect Riposte" : data.name, true);
+        e.focus = Math.min(100, e.focus + (riposte ? 28 : 14));
+        if (riposte) { e.riposteReady = 0; feedback("player", "PERFECT RIPOSTE", "Tankbuster countered · 28 Resolve gained", 1.5); }
+      }
+      if (key === "two") {
+        const reacting = e.mechanics.some((mechanic) => mechanic.kind === "tankbuster");
+        e.guardWindow = 4;
+        const amount = Math.round((reacting ? 95 : 45) * profile.wardPower);
+        unit.shield = Math.min(220, unit.shield + amount);
+        floater(unit, `+${amount} guard`, "ward");
+        feedback("success", reacting ? "GUARD TIMED" : "GUARD RAISED", reacting ? "Hold through Riftbreaker to earn Riposte" : "4-second block window active");
       }
       if (key === "three") {
         e.focus -= 30;
-        const amount = Math.round(42 * profile.wardPower * itemEffects.partyWardMultiplier);
-        livingParty().forEach((ally) => { ally.shield = Math.min(120, ally.shield + amount); floater(ally, `+${amount} ward`, "ward"); });
-        feedback("success", "PARTY AEGIS", `${amount} ward granted to every ally`, 1.6);
+        const reacting = e.mechanics.some((mechanic) => mechanic.kind === "raidwide");
+        const amount = Math.round((reacting ? 58 : 28) * itemEffects.partyWardMultiplier);
+        livingParty().forEach((ally) => { ally.shield = Math.min(180, ally.shield + amount); floater(ally, `+${amount} ward`, "ward"); });
+        if (reacting) e.partyMitigation = Math.max(e.partyMitigation, 5);
+        feedback("success", "RALLYING BULWARK", reacting ? "Raidwide anticipated · ward and mitigation empowered" : "The party is protected", 1.6);
       }
       if (key === "four") {
-        const restored = livingParty().reduce((sum, ally) => sum + healUnit(ally, 45 * profile.healingPower, data.name), 0);
-        feedback("success", "VERDANT REFRAIN", `${restored} total vigor restored`, 1.8);
+        e.focus -= 40;
+        const consumed = Math.min(70, unit.shield);
+        unit.shield -= consumed;
+        dealDamage(145 + consumed * 1.2, data.name, true);
+        feedback("player", "AEGIS BREAKER", `${Math.round(consumed)} ward converted into the finisher`, 1.5);
       }
-    } else {
-      if (key === "one") { if (itemEffects.strikeCleave) cleaveEchoes(60 * itemEffects.strikeCleave, "Oathsplitter"); dealDamage(60 * itemEffects.primaryDamageMultiplier, data.name, true); }
-      if (key === "two") { unit.shield = Math.min(160, unit.shield + Math.round(80 * profile.wardPower)); floater(unit, "+80 ward", "ward"); feedback("success", "GUARD", "Next attacks will consume your ward"); }
-      if (key === "three") { const amount = Math.round(32 * itemEffects.partyWardMultiplier); livingParty().forEach((ally) => { ally.shield = Math.min(160, ally.shield + amount); floater(ally, `+${amount} ward`, "ward"); }); feedback("success", "COMMANDING WARD", "The party is protected", 1.5); }
-      if (key === "four") { const restored = healUnit(unit, 115, data.name); feedback("success", "LAST STAND", `${restored} vigor restored`, 1.6); }
     }
     if (itemEffects.riftBoltDamage && !e.ended) dealDamage(itemEffects.riftBoltDamage, "Resonant Portal Shard");
     e.cooldowns[key] = data.cooldown;
+    e.globalCooldown = .65;
     e.metrics.abilities += 1;
     playSfx(key === "two" && loadout.role === "healer" ? "heal" : "attack");
     sync();
@@ -644,7 +728,12 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
     const unit = (id: PartyId) => e.party.find((ally) => ally.id === id)!;
     const tank = living.find((ally) => ally.combatRole === "tank") ?? unit("player");
     const playerUnit = unit("player");
-    const phaseSequences: Record<number, MechanicKind[]> = { 1: ["cleave", "brands", "raidwide"], 2: ["cross", "chain", "soak", "raidwide"], 3: ["collapse", "cataclysm", "raidwide"] };
+    const roleCheck: Record<CombatRole, MechanicKind> = { tank: "tankbuster", healer: "annihilation", damage: "overload" };
+    const phaseSequences: Record<number, MechanicKind[]> = {
+      1: ["cleave", roleCheck[loadout.role], "brands", "raidwide"],
+      2: ["cross", roleCheck[loadout.role], "chain", "soak", "raidwide"],
+      3: ["collapse", roleCheck[loadout.role], "cataclysm", "raidwide"],
+    };
     const sequence = phaseSequences[e.phase];
     const kind = sequence[e.mechanicIndex++ % sequence.length];
     let mechanic: BossMechanic;
@@ -656,7 +745,7 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
       const other = living.find((ally) => ally.id !== "player" && ally.combatRole === "damage") ?? living[0];
       mechanic = { ...base, name: "Echo Brands", instruction: "Spread · leave both marked circles", duration: 4.5, remaining: 4.5, damage: 48, targetIds: ["player", other.id], zones: [{ type: "circle", x: playerUnit.x, y: playerUnit.y, radius: 82 }, { type: "circle", x: other.x, y: other.y, radius: 82 }] };
     } else if (kind === "raidwide") {
-      mechanic = { ...base, name: e.phase === 3 ? "Final Refrain" : "Resonant Pulse", instruction: "Unavoidable party damage · ward before, heal after", duration: e.phase === 3 ? 5 : 4.5, remaining: e.phase === 3 ? 5 : 4.5, damage: e.phase === 3 ? 58 : 36 + e.phase * 4, targetIds: living.map((ally) => ally.id), zones: [] };
+      mechanic = { ...base, name: e.phase === 3 ? "Final Refrain" : "Resonant Pulse", instruction: loadout.role === "healer" ? "Heavy party damage · recover with Nova (3) or Reprieve (4)" : "Heavy party damage · mitigate before it lands", duration: e.phase === 3 ? 5 : 4.5, remaining: e.phase === 3 ? 5 : 4.5, damage: e.phase === 3 ? 92 : 48 + e.phase * 12, targetIds: living.map((ally) => ally.id), zones: [] };
     } else if (kind === "cross") {
       mechanic = { ...base, name: "Crossing Realities", instruction: "Leave both glowing lanes", duration: 4.2, remaining: 4.2, damage: 52, zones: [{ type: "line", x: playerUnit.x - 52, y: 0, width: 104, height: ARENA_H }, { type: "line", x: 0, y: playerUnit.y - 45, width: ARENA_W, height: 90 }] };
     } else if (kind === "chain") {
@@ -667,29 +756,61 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
       mechanic = { ...base, name: "Shared Fate", instruction: `Stand with ${soakTarget.name} to split the impact`, duration: 5.3, remaining: 5.3, damage: 78, targetIds: [soakTarget.id], zones: [{ type: "circle", x: soakTarget.x, y: soakTarget.y, radius: 62 }] };
     } else if (kind === "collapse") {
       mechanic = { ...base, name: "Dimensional Collapse", instruction: "Move diagonally · circle and lane resolve together", duration: 4.3, remaining: 4.3, damage: 58, targetIds: ["player"], zones: [{ type: "circle", x: playerUnit.x, y: playerUnit.y, radius: 92 }, { type: "line", x: 0, y: playerUnit.y - 48, width: ARENA_W, height: 96 }] };
+    } else if (kind === "tankbuster") {
+      mechanic = { ...base, name: "Riftbreaker", instruction: "Tankbuster · press Reactive Guard (2) before impact", duration: 4.2, remaining: 4.2, damage: 270, targetIds: [tank.id], zones: [] };
+    } else if (kind === "annihilation") {
+      mechanic = { ...base, name: "Soul Extinction", instruction: "Lethal mark on YOU · leave the circle alone; companions ignore it", duration: 5.2, remaining: 5.2, damage: 9999, targetIds: ["player"], zones: [{ type: "circle", x: playerUnit.x, y: playerUnit.y, radius: 112 }] };
+    } else if (kind === "overload") {
+      const requiredDamage = 430 + e.phase * 70;
+      mechanic = { ...base, name: "Rift Overload", instruction: `Break ${requiredDamage} damage · complete Opener (1) → Rupture (2) → Execution (4)`, duration: 7, remaining: 7, damage: 125, targetIds: living.map((ally) => ally.id), zones: [], requiredDamage, progress: 0 };
     } else {
       const angle = Math.atan2(tank.y - BOSS_Y, tank.x - BOSS_X);
       mechanic = { ...base, name: "Unbound Cataclysm", instruction: "Tank cleave + spread brand · solve both", duration: 4.6, remaining: 4.6, damage: 64, targetIds: [tank.id, "player"], zones: [{ type: "cone", x: BOSS_X, y: BOSS_Y, angle, radius: 250, halfAngle: Math.PI / 3 }, { type: "circle", x: playerUnit.x, y: playerUnit.y, radius: 88 }] };
     }
     e.mechanics.push(mechanic);
-    if (mechanic.kind === "raidwide") {
-      const companionHealer = e.party.find((ally) => ally.alive && ally.id !== "player" && ally.combatRole === "healer");
-      if (companionHealer) {
-        e.party.filter((ally) => ally.alive).forEach((ally) => { ally.shield = Math.min(110, ally.shield + 24); });
-        pushEvent("ally", `${companionHealer.name} prepares Party Aegis: 24 ward to every ally.`);
-      }
-    }
     pushEvent("enemy", `Vaelith casts ${mechanic.name}: ${mechanic.instruction}.`);
     feedback("enemy", mechanic.name.toUpperCase(), mechanic.instruction, mechanic.duration);
     playSfx("warning");
-  }, [feedback, livingParty, pushEvent]);
+  }, [feedback, livingParty, loadout.role, pushEvent]);
 
   const resolveMechanic = useCallback((mechanic: BossMechanic) => {
     const e = engineRef.current;
     const living = livingParty();
     const playerUnit = player();
     let playerFailed = false;
-    if (mechanic.kind === "chain") {
+    if (mechanic.kind === "tankbuster") {
+      const tank = e.party.find((unit) => unit.id === mechanic.targetIds[0])!;
+      const perfectGuard = tank.id === "player" && e.guardWindow > 0;
+      damageUnit(tank, perfectGuard ? 74 : mechanic.damage, mechanic.name, true);
+      if (perfectGuard) {
+        e.riposteReady = 7;
+        e.focus = Math.min(100, e.focus + 22);
+        floater(tank, "PERFECT GUARD", "status");
+        pushEvent("success", "Riftbreaker blocked. Perfect Riposte (1) is ready.");
+      } else {
+        playerFailed = tank.id === "player";
+        pushEvent("danger", "Riftbreaker landed without Reactive Guard.");
+      }
+      e.guardWindow = 0;
+    } else if (mechanic.kind === "annihilation") {
+      const zone = mechanic.zones[0] as CircleZone;
+      if (zoneHits(zone, playerUnit)) {
+        damageUnit(playerUnit, mechanic.damage, mechanic.name, true);
+        playerFailed = true;
+      } else {
+        pushEvent("success", "Soul Extinction was isolated. No companion was asked to solve it.");
+        floater(playerUnit, "EXTINCTION EVADED", "status");
+      }
+    } else if (mechanic.kind === "overload") {
+      if ((mechanic.progress ?? 0) >= (mechanic.requiredDamage ?? 0)) {
+        pushEvent("success", `Rift Overload broken with ${Math.round(mechanic.progress ?? 0)} damage.`);
+        floater(playerUnit, "OVERLOAD BROKEN", "status");
+      } else {
+        living.forEach((unit) => damageUnit(unit, mechanic.damage, "Rift Overload", true));
+        playerFailed = true;
+        pushEvent("danger", `Rift Overload detonated at ${Math.round(mechanic.progress ?? 0)} / ${mechanic.requiredDamage} damage.`);
+      }
+    } else if (mechanic.kind === "chain") {
       const partner = e.party.find((unit) => unit.id === mechanic.targetIds[1])!;
       if (distance(playerUnit, partner) < 190) {
         damageUnit(playerUnit, mechanic.damage, mechanic.name, true);
@@ -715,6 +836,10 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
       }
     } else if (mechanic.kind === "raidwide") {
       living.forEach((unit) => damageUnit(unit, mechanic.damage, mechanic.name, true));
+      if (loadout.role === "healer") {
+        e.recoveryWindow = 7;
+        feedback("danger", "PARTY WOUNDED", "Recovery window: Sanctified Nova (3) heals twice as much for 7 seconds", 2.4);
+      }
     } else {
       for (const unit of living) {
         if (mechanic.zones.some((zone) => zoneHits(zone, unit))) {
@@ -732,7 +857,7 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
       } else { e.metrics.mechanicsAvoided += 1; floater(playerUnit, "SOLVED", "status"); }
     }
     if (!playerFailed && mechanic.kind !== "raidwide") feedback("success", "MECHANIC SOLVED", `${mechanic.name} resolved`, 1.5);
-  }, [damageUnit, feedback, floater, livingParty, player, pushEvent]);
+  }, [damageUnit, feedback, floater, livingParty, loadout.role, player, pushEvent]);
 
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
@@ -770,7 +895,15 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
           livingParty().forEach((unit) => damageUnit(unit, 9999, "Unmaking", true));
         }
         Object.keys(e.cooldowns).forEach((key) => { e.cooldowns[key] = Math.max(0, e.cooldowns[key] - dt); });
-        e.focus = Math.min(100, e.focus + dt * 6.5);
+        const resourceRegen = loadout.role === "healer" ? 2.2 : loadout.role === "tank" ? 1.4 : 1.8;
+        e.focus = Math.min(100, e.focus + dt * resourceRegen);
+        e.globalCooldown = Math.max(0, e.globalCooldown - dt);
+        e.guardWindow = Math.max(0, e.guardWindow - dt);
+        e.riposteReady = Math.max(0, e.riposteReady - dt);
+        e.comboWindow = Math.max(0, e.comboWindow - dt);
+        e.damageExposed = Math.max(0, e.damageExposed - dt);
+        e.healerGrace = Math.max(0, e.healerGrace - dt);
+        e.recoveryWindow = Math.max(0, e.recoveryWindow - dt);
         e.damageBuff = Math.max(0, e.damageBuff - dt);
         e.hasteBuff = Math.max(0, e.hasteBuff - dt);
         e.targetVulnerability = Math.max(0, e.targetVulnerability - dt);
@@ -822,7 +955,7 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
         for (const echo of e.echoes.filter((entry) => entry.hp > 0)) {
           echo.pulseCd -= dt;
           if (echo.pulseCd <= 0) {
-            livingParty().forEach((unit) => damageUnit(unit, e.phase === 3 ? 18 : 12, `${echo.name}'s Pulse`));
+            livingParty().forEach((unit) => damageUnit(unit, e.phase === 3 ? 28 : 20, `${echo.name}'s Pulse`));
             echo.pulseCd = e.phase === 3 ? 5 : 7;
           }
         }
@@ -832,8 +965,8 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
           e.healerCd -= dt;
           if (e.healerCd <= 0) {
             const lowest = livingParty().sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
-            if (lowest.hp < lowest.maxHp) healUnit(lowest, 38, healer.name);
-            e.healerCd = 3.8;
+            if (lowest.hp < lowest.maxHp) healUnit(lowest, 34, healer.name);
+            e.healerCd = 4.2;
           }
         }
         e.defensiveCd -= dt;
@@ -851,7 +984,7 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
           e.bossAttackCd -= dt;
           if (e.bossAttackCd <= 0) {
             const tank = livingParty().find((unit) => unit.combatRole === "tank") ?? playerUnit;
-            damageUnit(tank, 29 + e.phase * 5, "Vaelith's Rift Claw");
+            damageUnit(tank, 34 + e.phase * 6, "Vaelith's Rift Claw");
             e.bossAttackCd = Math.max(1.65, 2.45 - e.phase * .18);
           }
           if (e.time >= e.nextMechanic) {
@@ -869,7 +1002,7 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [activeTargetPosition, createMechanic, damageUnit, dealDamage, feedback, floater, healUnit, livingParty, loadout.talents, player, profile, resolveMechanic, sync]);
+  }, [activeTargetPosition, createMechanic, damageUnit, dealDamage, feedback, floater, healUnit, livingParty, loadout.role, loadout.talents, player, profile, resolveMechanic, sync]);
 
   const selectedEcho = snapshot.echoes.find((echo) => echo.id === snapshot.selectedTarget && echo.hp > 0);
   const targetName = selectedEcho?.name ?? "Vaelith, Echo of the Rift";
@@ -884,6 +1017,15 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
   const partyHps = combatRate(snapshot.metrics.healing, snapshot.time);
   const meterRows = snapshot.party.map((unit) => ({ unit, metrics: snapshot.metrics.actors[unit.id], dps: combatRate(snapshot.metrics.actors[unit.id].damage, snapshot.time), hps: combatRate(snapshot.metrics.actors[unit.id].healing, snapshot.time) }));
   const maxActorDps = Math.max(1, ...meterRows.map((row) => row.dps));
+  const resourceName = loadout.role === "healer" ? "Mana" : loadout.role === "tank" ? "Resolve" : "Momentum";
+  const rolePrompt = loadout.role === "tank"
+    ? mechanic?.kind === "tankbuster" ? "REACT: Guard (2) before impact" : snapshot.riposteReady > 0 ? "COMBO: Perfect Riposte (1) ready" : mechanic?.kind === "raidwide" ? "REACT: Rallying Bulwark (3)" : "Build Resolve with Shield Rend (1)"
+    : loadout.role === "healer"
+      ? mechanic?.kind === "annihilation" ? "REACT: run out alone — lethal circle" : snapshot.recoveryWindow > 0 ? "RECOVER: Nova (3) is doubled" : snapshot.healerGrace > 0 ? "COMBO: empowered Grace Mend (2)" : "Searing Grace (1) deals damage and smart-heals"
+      : mechanic?.kind === "overload" ? `BURST: ${Math.round(mechanic.progress ?? 0)} / ${mechanic.requiredDamage}` : snapshot.damageExposed > 0 ? "COMBO: target exposed — Focus (3) / Execution (4)" : snapshot.comboWindow > 0 ? "COMBO: Rupture (2) now" : "Start with Rift Opener (1)";
+  const abilityPrimed = (key: AbilityKey) => (loadout.role === "tank" && ((key === "two" && mechanic?.kind === "tankbuster") || (key === "one" && snapshot.riposteReady > 0) || (key === "three" && mechanic?.kind === "raidwide")))
+    || (loadout.role === "healer" && ((key === "two" && snapshot.healerGrace > 0) || (key === "three" && snapshot.recoveryWindow > 0)))
+    || (loadout.role === "damage" && ((key === "two" && snapshot.comboWindow > 0) || ((key === "three" || key === "four") && snapshot.damageExposed > 0)));
   return <main className={`pt-veteran-combat phase-${snapshot.phase}`}>
     <header className="pt-veteran-top"><div><span>Veteran boss · Phase {snapshot.phase} of 3</span><h1>Vaelith, Echo of the Rift</h1><small>{phaseName(snapshot.phase)}</small></div><section><span><b>{Math.floor(snapshot.time / 60)}:{String(Math.floor(snapshot.time % 60)).padStart(2, "0")}</b> elapsed</span><span className={remaining < 45 ? "danger" : ""}><b>{Math.floor(remaining / 60)}:{String(Math.floor(remaining % 60)).padStart(2, "0")}</b> enrage</span><span><b>{partyDps}</b> party DPS</span><span><b>{partyHps}</b> party HPS</span><span className={snapshot.failureStacks > 0 ? "danger" : ""}><b>×{snapshot.failureStacks}</b> fracture</span></section><nav><button onClick={() => { engineRef.current.paused = !engineRef.current.paused; sync(); }}>{snapshot.paused && snapshot.started ? "Resume" : "Pause"}</button><button onClick={onExit}>Leave lab</button></nav></header>
     <div className="pt-veteran-grid">
@@ -893,12 +1035,12 @@ function VeteranEncounter({ loadout, onExit, onComplete }: { loadout: BossLoadou
       </aside>
       <section className="pt-veteran-stage">
         <div className="pt-veteran-bossbar"><div><span>{snapshot.echoes.some((echo) => echo.hp > 0) ? "Rift barrier active · Tab" : `Phase ${snapshot.phase} · ${phaseName(snapshot.phase)}`}</span><strong>{targetName}</strong></div><i><b style={{ width: `${targetHp / targetMaxHp * 100}%` }}/></i><em>{Math.ceil(targetHp).toLocaleString()} / {targetMaxHp.toLocaleString()}</em><small>{targetDistance} range</small></div>
-        <div className={`pt-veteran-cast ${mechanic ? "active" : ""}`}><span>{mechanic?.name ?? "Vaelith is tracking the party"}</span><i><b style={{ width: `${mechanic ? (1 - mechanic.remaining / mechanic.duration) * 100 : 0}%` }}/></i><strong>{mechanic?.instruction ?? "Prepare for the next mechanic"}</strong><em>{mechanic ? mechanic.remaining.toFixed(1) : ""}</em></div>
+        <div className={`pt-veteran-cast ${mechanic ? "active" : ""}`}><span>{mechanic?.name ?? "Vaelith is tracking the party"}</span><i><b style={{ width: `${mechanic ? (1 - mechanic.remaining / mechanic.duration) * 100 : 0}%` }}/></i><strong>{mechanic?.kind === "overload" ? `${mechanic.instruction} · ${Math.round(mechanic.progress ?? 0)} / ${mechanic.requiredDamage}` : mechanic?.instruction ?? "Prepare for the next mechanic"}</strong><em>{mechanic ? mechanic.remaining.toFixed(1) : ""}</em></div>
         <div className="pt-veteran-arena-wrap"><svg className="pt-veteran-arena" viewBox={`0 0 ${ARENA_W} ${ARENA_H}`} role="img" aria-label="Veteran boss battlefield"><defs><radialGradient id="veteranGround"><stop stopColor="#26362e"/><stop offset="1" stopColor="#070c0a"/></radialGradient><filter id="riftGlow"><feGaussianBlur stdDeviation="5"/></filter></defs><rect width={ARENA_W} height={ARENA_H} rx="18" fill="url(#veteranGround)"/><g className="pt-veteran-runes"><circle cx={BOSS_X} cy={BOSS_Y} r="205"/><circle cx={BOSS_X} cy={BOSS_Y} r="150"/><path d="M770 55v90m0 270v90M545 280h90m270 0h70M610 120l65 65m190 190 65 65m0-320-65 65m-190 190-65 65"/></g>{snapshot.mechanics.flatMap((entry) => entry.zones.map((zone, index) => <VeteranZone key={`${entry.id}-${index}`} zone={zone} remaining={entry.remaining} duration={entry.duration}/>))}{snapshot.mechanics.filter((entry) => entry.kind === "chain").map((entry) => { const a = snapshot.party.find((unit) => unit.id === entry.targetIds[0])!; const b = snapshot.party.find((unit) => unit.id === entry.targetIds[1])!; return <line key={entry.id} className="pt-chain-line" x1={a.x} y1={a.y} x2={b.x} y2={b.y}/>; })}<g className={`pt-veteran-boss ${snapshot.phaseTransition > 0 ? "transition" : ""}`} transform={`translate(${BOSS_X} ${BOSS_Y})`} onClick={() => selectTarget("boss")}><circle r="61"/><circle className="core" r="36"/><path d="M-30-42L0-78l30 36 42 12-20 42 8 48-60-12-60 12 8-48-20-42z"/><text y="92" textAnchor="middle">VAELITH</text></g>{snapshot.echoes.filter((echo) => echo.hp > 0).map((echo) => <g key={echo.id} className={`pt-rift-echo ${snapshot.selectedTarget === echo.id ? "selected" : ""} ${echo.hitFlash > 0 ? "hit" : ""}`} transform={`translate(${echo.x} ${echo.y})`} onClick={() => selectTarget(echo.id)}><circle r="32"/><path d="M0-25l22 25L0 25-22 0z"/><text y="49" textAnchor="middle">{echo.name}</text><rect x="-38" y="56" width="76" height="5"/><rect className="hp" x="-38" y="56" width={76 * echo.hp / echo.maxHp} height="5"/></g>)}{snapshot.party.filter((unit) => unit.alive).map((unit) => <g key={unit.id} className={`pt-veteran-unit role-${unit.combatRole} ${unit.id === "player" ? "player" : ""} ${unit.hitFlash > 0 ? "hit" : ""}`} transform={`translate(${unit.x} ${unit.y})`}><circle className="range" r="28"/><circle r="18"/><text y="4" textAnchor="middle">{unit.name[0]}</text><text className="label" y="42" textAnchor="middle">{unit.id === "player" ? "YOU" : unit.name.split(" ")[0].toUpperCase()}</text>{unit.shield > 0 && <circle className="shield" r="24"/>}</g>)}{snapshot.floaters.map((entry) => <text key={entry.id} x={entry.x} y={entry.y} textAnchor="middle" className={`pt-veteran-floater ${entry.tone}`} opacity={Math.max(0,1-entry.age/1.4)}>{entry.text}</text>)}</svg>
-          {mechanic && <div className={`pt-veteran-warning kind-${mechanic.kind}`}><span>{mechanic.kind === "raidwide" ? "PREPARE" : mechanic.kind === "soak" ? "STACK" : mechanic.kind === "chain" ? "BREAK" : "MOVE"}</span><div><strong>{mechanic.name}</strong><small>{mechanic.instruction}</small></div><b>{mechanic.remaining.toFixed(1)}</b></div>}{snapshot.feedback && <div key={snapshot.feedback.id} className={`pt-veteran-feedback tone-${snapshot.feedback.tone}`}><strong>{snapshot.feedback.title}</strong><span>{snapshot.feedback.detail}</span></div>}{!snapshot.started && <div className="pt-veteran-brief"><span>Veteran encounter plan</span><h2>A tighter rotation and execution check.</h2><div><b>1</b><p><strong>Use the six-skill loadout you built.</strong> Talent actives and item procs are required for a fast clear.</p></div><div><b>2</b><p><strong>Phase transitions summon Rift Echoes.</strong> Vaelith is immune until every Echo is destroyed. Tab changes targets.</p></div><div><b>3</b><p><strong>Failed mechanics apply permanent Rift Fracture.</strong> Each stack increases damage taken and reduces healing received.</p></div><button onClick={start}>Begin veteran encounter <kbd>Enter</kbd></button></div>}{snapshot.paused && snapshot.started && !snapshot.ended && <div className="pt-veteran-paused"><span>Simulation paused</span><button onClick={() => { engineRef.current.paused = false; sync(); }}>Resume</button></div>}</div>
+          {mechanic && <div className={`pt-veteran-warning kind-${mechanic.kind}`}><span>{mechanic.kind === "raidwide" ? "PREPARE" : mechanic.kind === "soak" ? "STACK" : mechanic.kind === "chain" || mechanic.kind === "overload" ? "BREAK" : mechanic.kind === "tankbuster" ? "BLOCK" : mechanic.kind === "annihilation" ? "RUN" : "MOVE"}</span><div><strong>{mechanic.name}</strong><small>{mechanic.kind === "overload" ? `${mechanic.instruction} · ${Math.round(mechanic.progress ?? 0)} / ${mechanic.requiredDamage}` : mechanic.instruction}</small></div><b>{mechanic.remaining.toFixed(1)}</b></div>}{snapshot.feedback && <div key={snapshot.feedback.id} className={`pt-veteran-feedback tone-${snapshot.feedback.tone}`}><strong>{snapshot.feedback.title}</strong><span>{snapshot.feedback.detail}</span></div>}{!snapshot.started && <div className="pt-veteran-brief"><span>Veteran encounter plan · {COMBAT_ROLES[loadout.role].name}</span><h2>Read the boss, then complete your role loop.</h2><div><b>1</b><p><strong>{loadout.role === "tank" ? "Guard Riftbreaker, then Riposte." : loadout.role === "healer" ? "Damage to heal and conserve mana." : "Opener → Rupture → Execution."}</strong> {loadout.role === "tank" ? "Reactive Guard (2) has a short window; a perfect block primes Shield Rend (1)." : loadout.role === "healer" ? "Searing Grace (1) smart-heals and empowers Grace Mend (2). Raidwide damage doubles Nova (3) during recovery." : "Random button order no longer works. Build Momentum and expose the target before spending your finisher."}</p></div><div><b>2</b><p><strong>Role checks demand a direct response.</strong> {loadout.role === "tank" ? "Riftbreaker tests active mitigation." : loadout.role === "healer" ? "Soul Extinction is lethal: move out alone; companions deliberately ignore your circle." : "Rift Overload must be broken with your burst combo before the cast completes."}</p></div><div><b>3</b><p><strong>Failed mechanics apply permanent Rift Fracture.</strong> Each stack increases damage taken and reduces healing received.</p></div><button onClick={start}>Begin veteran encounter <kbd>Enter</kbd></button></div>}{snapshot.paused && snapshot.started && !snapshot.ended && <div className="pt-veteran-paused"><span>Simulation paused</span><button onClick={() => { engineRef.current.paused = false; sync(); }}>Resume</button></div>}</div>
       </section>
     </div>
-    <footer className="pt-veteran-footer"><div><span><b>WASD</b> Move</span><span><b>Space</b> Quickstep</span><span><b>Tab</b> Target Echo</span><span className={snapshot.damageBuff > 0 ? "active" : ""}>Battle focus {snapshot.damageBuff > 0 ? `${snapshot.damageBuff.toFixed(1)}s` : "inactive"}</span></div><section>{abilities.map((ability) => <button key={ability.key} disabled={!snapshot.started || snapshot.cooldowns[ability.key] > 0} onClick={() => cast(ability.key)}><kbd>{ability.hotkey}</kbd><strong>{ability.name}</strong><small>{ability.detail}</small>{snapshot.cooldowns[ability.key] > 0 && <i style={{ height: `${snapshot.cooldowns[ability.key] / ability.cooldown * 100}%` }}/>}<em>{snapshot.cooldowns[ability.key] > 0 ? snapshot.cooldowns[ability.key].toFixed(1) : "READY"}</em></button>)}<button disabled={!snapshot.started || snapshot.cooldowns.dodge > 0} onClick={dodge}><kbd>Space</kbd><strong>Quickstep</strong><small>Personal movement</small><em>{snapshot.cooldowns.dodge > 0 ? snapshot.cooldowns.dodge.toFixed(1) : "READY"}</em></button></section><aside><span>Focus</span><b><i style={{ width: `${snapshot.focus}%` }}/></b><strong>{Math.floor(snapshot.focus)}</strong></aside></footer>
+    <footer className="pt-veteran-footer"><div><span><b>WASD</b> Move</span><span><b>Space</b> Quickstep</span><span><b>Tab</b> Target Echo</span><span className="active role-prompt">{rolePrompt}</span></div><section>{abilities.map((ability) => <button key={ability.key} className={abilityPrimed(ability.key) ? "primed" : ""} disabled={!snapshot.started || snapshot.cooldowns[ability.key] > 0 || snapshot.globalCooldown > 0} onClick={() => cast(ability.key)}><kbd>{ability.hotkey}</kbd><strong>{ability.name}</strong><small>{ability.detail}</small>{snapshot.cooldowns[ability.key] > 0 && <i style={{ height: `${snapshot.cooldowns[ability.key] / ability.cooldown * 100}%` }}/>}<em>{snapshot.cooldowns[ability.key] > 0 ? snapshot.cooldowns[ability.key].toFixed(1) : abilityPrimed(ability.key) ? "PRIMED" : "READY"}</em></button>)}<button disabled={!snapshot.started || snapshot.cooldowns.dodge > 0} onClick={dodge}><kbd>Space</kbd><strong>Quickstep</strong><small>Personal movement</small><em>{snapshot.cooldowns.dodge > 0 ? snapshot.cooldowns.dodge.toFixed(1) : "READY"}</em></button></section><aside><span>{resourceName}</span><b><i style={{ width: `${snapshot.focus}%` }}/></b><strong>{Math.floor(snapshot.focus)}</strong></aside></footer>
   </main>;
 }
 
