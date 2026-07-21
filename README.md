@@ -42,22 +42,116 @@ Known limitations:
 - Specialized authoring does not cover every field or dataset; Advanced Form remains necessary.
 - Simulation is a client-side heuristic tool, not runtime game simulation.
 
-## Backend setup
+## Fresh-PC development setup
 
+The commands below use Windows PowerShell. The tested baseline is:
+
+- Git
+- Python 3.12 (64-bit)
+- Node.js 22 LTS, including npm (recommended; Node.js 20 is also supported by the current frontend toolchain)
+
+Check the installed tools before continuing:
+
+```powershell
+git --version
+py -3.12 --version
+node --version
+npm --version
 ```
-python -m venv .venv
-# On Windows
+
+Clone the repository and enter its root directory:
+
+```powershell
+git clone https://github.com/fabolze/SoAWebApp.git
+cd SoAWebApp
+```
+
+### 1. Install the backend dependencies
+
+Create a project-local virtual environment and install the pinned Python packages from `requirements.txt`:
+
+```powershell
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-To run the backend locally:
+If PowerShell blocks the activation script, allow scripts only for the current terminal session and try again:
 
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
 ```
+
+On macOS or Linux, create the environment with `python3 -m venv .venv` and activate it with `source .venv/bin/activate`.
+
+### 2. Install the frontend dependencies
+
+Install from the committed lockfile in the actual frontend directory:
+
+```powershell
+cd soa-editor
+npm ci
+npx playwright install chromium
+cd ..
+```
+
+Use `npm ci`, not `npm install`, for a clean checkout: it installs the exact dependency tree recorded in `soa-editor/package-lock.json`. The root-level `package.json` is not the frontend package, so do not run the frontend install from the repository root.
+
+The Playwright command installs the Chromium binary needed by the end-to-end tests. It only needs to be repeated after a Playwright upgrade or when its browser cache is missing.
+
+### 3. Start the app
+
+Run the backend from the repository root in the first PowerShell terminal:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
 python app.py
 ```
 
-The app will start with debug mode enabled and will initialize the SQLite database if it doesn't exist.
+The Flask API starts at `http://localhost:5000`. On the first start it creates `backend/data/db.sqlite` and loads the tracked `backend/data/*_seed.csv` source data when the database is empty.
+
+Open a second PowerShell terminal and start the frontend:
+
+```powershell
+cd path\to\SoAWebApp\soa-editor
+npm run dev
+```
+
+Open the URL printed by Vite (normally `http://localhost:5173`). Keep both terminals running while using the authoring app. The frontend uses `http://localhost:5000` by default; to use another backend, set `VITE_API_BASE_URL` before running `npm run dev`.
+
+### 4. Run the checks
+
+Backend tests, from the repository root with the virtual environment active:
+
+```powershell
+python -m pytest
+```
+
+Frontend checks, from `soa-editor`:
+
+```powershell
+npm run lint
+npm run test:unit
+npm run build
+npm run test:e2e
+```
+
+The Playwright suite starts its own frontend test server and mocks its API calls, so the Flask backend does not need to be running for `npm run test:e2e`.
+
+### Updating an existing checkout
+
+After pulling changes, resynchronize both dependency sets so changed lockfiles are applied:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+cd soa-editor
+npm ci
+```
+
+Do not copy `.venv` or `soa-editor/node_modules` from the old PC. Recreate them locally with the commands above. The SQLite database is also local and ignored by Git; use the tracked source CSVs or the recovery export/import flow when content created on the old PC must move with you.
 
 ### CSV Import/Export
 
@@ -90,15 +184,7 @@ The app will start with debug mode enabled and will initialize the SQLite databa
 
 ## Frontend setup
 
-The React frontend lives in the `soa-editor` directory.
-
-```
-cd soa-editor
-npm install
-npm run dev
-```
-
-This starts the Vite dev server with hot reload enabled.
+The React frontend lives in the `soa-editor` directory. Follow the fresh-PC setup above to install its locked dependencies, Playwright browser, and to start the Vite development server with hot reload.
 
 ### Authoring Views
 
@@ -144,18 +230,5 @@ Use these Author Views when creating normal content. They are input surfaces tha
 
 ## Validation
 
-Backend:
-
-```
-pytest
-```
-
-Frontend:
-
-```
-cd soa-editor
-npm run lint
-npm run build
-npm run test:e2e
-```
+The complete backend and frontend validation commands, including unit and browser tests, are listed under **Fresh-PC development setup → Run the checks** above.
 

@@ -7,11 +7,11 @@ For authoring UX standards, cleanup backlog, full-width layout rules, collapsibl
 ## Run
 
 ```powershell
-npm install
+npm ci
 npm run dev
 ```
 
-The frontend expects the Flask backend at `http://localhost:5000` by default. Override it with `VITE_API_BASE_URL` when needed.
+Run these commands from `soa-editor`, using Node.js 22 LTS (recommended; Node.js 20 is also supported). The frontend expects the Flask backend at `http://localhost:5000` by default. Override it with `VITE_API_BASE_URL` when needed. See `../README.md` for the complete fresh-PC setup, including Python, the backend, Playwright, and local data.
 
 ## Main Systems
 
@@ -82,6 +82,8 @@ Use the generic schema editor routes for full schema coverage, rare fields, debu
 
 ```powershell
 npm run lint
+npm run test:unit
 npm run build
+npx playwright install chromium
 npm run test:e2e
 ```

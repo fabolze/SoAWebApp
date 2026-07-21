@@ -218,9 +218,9 @@ Creative and preset helpers are also client-side.
 Backend:
 
 ```powershell
-python -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 python app.py
 ```
 
@@ -228,19 +228,23 @@ Frontend:
 
 ```powershell
 cd soa-editor
-npm install
+npm ci
+npx playwright install chromium
 npm run dev
 ```
 
 Validation:
 
 ```powershell
-pytest
+python -m pytest
 cd soa-editor
-npm run build
 npm run lint
+npm run test:unit
+npm run build
 npm run test:e2e
 ```
+
+The tested baseline is Python 3.12 and Node.js 22 LTS. See `README.md` for the complete fresh-PC setup and local-data transfer notes.
 
 ## Current Observations / Hotspots
 
