@@ -22,6 +22,10 @@ import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
 const inputClass = "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950";
 const panelClass = "rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900";
 
+function isRecord(value: unknown): value is EntryRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function rows(value: unknown): EntryRecord[] {
   return Array.isArray(value) ? value.filter((row): row is EntryRecord => typeof row === "object" && row !== null && !Array.isArray(row)) : [];
 }
@@ -34,6 +38,19 @@ function text(value: unknown, fallback = ""): string {
 
 function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.map((entry) => text(entry)).filter(Boolean) : [];
+}
+
+function hasMeaningfulQuestDraft(value: EntryRecord): boolean {
+  const quest = record(value.quest);
+  return (text(quest.title) !== "" && text(quest.title) !== "New Quest")
+    || Boolean(text(quest.description))
+    || rows(quest.objectives).length > 0
+    || strings(quest.flags_set_on_completion).length > 0
+    || rows(quest.item_rewards).length > 0
+    || rows(quest.currency_rewards).length > 0
+    || rows(quest.reputation_rewards).length > 0
+    || strings(value.quest_giver_profile_ids).length > 0
+    || rows(record(value.arc).branches).length > 0;
 }
 
 function numberValue(value: unknown): number {
@@ -56,24 +73,15 @@ function JsonEditor({ label, value, onChange }: { label: string; value: unknown;
   }} /></label>;
 }
 
-function useDraft<T>(key: string, initial: T) {
-  const [value, setValue] = useState<T>(() => {
-    try { return JSON.parse(localStorage.getItem(key) || "") as T; } catch { return initial; }
-  });
-  useEffect(() => { localStorage.setItem(key, JSON.stringify(value)); }, [key, value]);
-  return [value, setValue] as const;
-}
-
-function Shell({ title, subtitle, dirty, blockers = 0, warnings = 0, onSave, onReset, children }: { title: string; subtitle: string; dirty: boolean; blockers?: number; warnings?: number; onSave: () => void; onReset: () => void; children: React.ReactNode }) {
+function Shell({ title, subtitle, dirty, isNew = false, blockers = 0, warnings = 0, onSave, onReset, children }: { title: string; subtitle: string; dirty: boolean; isNew?: boolean; blockers?: number; warnings?: number; onSave: () => void; onReset: () => void; children: React.ReactNode }) {
   return <AuthoringPageShell>
     <AuthoringPanel
       title={title}
-      subtitle={dirty ? "Unsaved journey draft" : "Draft matches last saved bundle"}
-      help={`${subtitle} Save Quest Bundle writes the current quest record immediately. Reset Draft discards browser-local changes.`}
-      status={<AuthoringHealthSummary blockers={blockers} warnings={warnings} dirty={dirty} />}
-      actions={<><button type="button" className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} onClick={onReset}>Reset Draft</button><button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={!dirty} onClick={onSave}>Save Quest Bundle</button></>}
+      subtitle={subtitle}
+      help={`${subtitle} Review and save writes the current quest to the project. Reset Draft discards browser-local changes.`}
+      status={<AuthoringHealthSummary blockers={blockers} warnings={warnings} dirty={dirty} isNew={isNew} />}
+      actions={<><button type="button" className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty} onClick={onReset}>Reset Draft</button><button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={!dirty} onClick={onSave}>Save Quest Bundle</button></>}
     >
-      <p className="text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
     </AuthoringPanel>
     <div className="min-w-0">{children}</div>
   </AuthoringPageShell>;
@@ -340,7 +348,8 @@ export function QuestJourneyPage() {
   const isNew = !id || location.pathname.endsWith("/new");
   const generatedId = useMemo(() => generateUlid(), []);
   const empty = useMemo(() => ({ quest: { id: generatedId, slug: generateSlug(`new-quest-${generatedId.slice(-6)}`), title: "New Quest", description: "", objectives: [], flags_set_on_completion: [], item_rewards: [], currency_rewards: [], reputation_rewards: [], tags: [] }, requirements: [], arc: { story_arc_id: "", related_quests: [generatedId], branches: [] }, quest_giver_profile_ids: [] }) as EntryRecord, [generatedId]);
-  const [packet, setPacket] = useDraft<EntryRecord>(`soa.quest-journey.${isNew ? "new" : id}`, empty);
+  const draftStorageKey = `soa.quest-journey.${isNew ? "new" : id}`;
+  const [packet, setPacket] = useState<EntryRecord>(empty);
   const [original, setOriginal] = useState(JSON.stringify(empty));
   const [selectedObjectiveConsequenceId, setSelectedObjectiveConsequenceId] = useState("");
   const [selectedBranchIndex, setSelectedBranchIndex] = useState<number | null>(null);
@@ -352,7 +361,32 @@ export function QuestJourneyPage() {
   const dirty = JSON.stringify(packet) !== original;
   const { setDirty } = useDirtyState();
   useEffect(() => { setDirty("quest-journey", dirty); return () => setDirty("quest-journey", false); }, [dirty, setDirty]);
-  useEffect(() => { if (!isNew) apiFetch(`/api/ui/quests/${encodeURIComponent(id)}`).then((response) => response.json()).then((data) => { setPacket(data); setOriginal(JSON.stringify(data)); }); }, [id, isNew, setPacket]);
+  useEffect(() => {
+    let cancelled = false;
+    const readStored = () => {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(draftStorageKey) || "null") as unknown;
+        return isRecord(parsed) && isRecord(parsed.quest) ? parsed : null;
+      } catch { return null; }
+    };
+    if (isNew) {
+      setOriginal(JSON.stringify(empty));
+      const stored = readStored();
+      if (stored && !hasMeaningfulQuestDraft(stored)) localStorage.removeItem(draftStorageKey);
+      setPacket(stored && hasMeaningfulQuestDraft(stored) ? stored : empty);
+      return () => { cancelled = true; };
+    }
+    void apiFetch(`/api/ui/quests/${encodeURIComponent(id)}`)
+      .then((response) => response.json())
+      .then((data) => {
+        if (cancelled || !isRecord(data)) return;
+        setOriginal(JSON.stringify(data));
+        const stored = readStored();
+        if (stored && JSON.stringify(stored) === JSON.stringify(data)) localStorage.removeItem(draftStorageKey);
+        setPacket(stored && JSON.stringify(stored) !== JSON.stringify(data) ? stored : data);
+      });
+    return () => { cancelled = true; };
+  }, [draftStorageKey, empty, id, isNew]);
   const quest = packet.quest as EntryRecord;
   const update = (key: string, value: unknown) => setPacket({ ...packet, quest: { ...quest, [key]: value } });
   const syncCommittedGate = (requirements_id: string) => {
@@ -370,6 +404,10 @@ export function QuestJourneyPage() {
   const interactionProfiles = rows(packet.interaction_profiles).length ? rows(packet.interaction_profiles) : allInteractionProfiles;
   const hasRewards = numberValue(quest.xp_reward) !== 0 || rows(quest.item_rewards).length > 0 || rows(quest.currency_rewards).length > 0 || rows(quest.reputation_rewards).length > 0;
   const objectiveIssues = rows(quest.objectives).filter((objective) => !text(objective.objective_id) || !text(objective.description)).length;
+  const reviewQuestionCount = (rows(quest.objectives).length === 0 ? 1 : objectiveIssues)
+    + (strings(quest.flags_set_on_completion).length === 0 ? 1 : 0)
+    + (hasRewards ? 0 : 1)
+    + (strings(packet.quest_giver_profile_ids).length ? 0 : 1);
   const savedQuest = record(originalPacket.quest);
   const savedObjectives = rows(savedQuest.objectives);
   const savedObjectiveIds = new Set(savedObjectives.map((objective) => text(objective.objective_id)).filter(Boolean));
@@ -386,10 +424,16 @@ export function QuestJourneyPage() {
   } : null;
   const storyPlacement = useEntityStoryPlacement({ entityKind: "quest", entityId: text(quest.id), entity: quest });
   const questAnalysis = useMemo(() => buildQuestJourneyAnalysis({ packet, storyPacket: storyPlacement.packet, questId: text(quest.id), occurrences: storyPlacement.context.occurrences }), [packet, quest, storyPlacement.context.occurrences, storyPlacement.packet]);
-  const save = async () => { const response = await apiFetch("/api/ui/quests/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(packet) }); const data = await response.json(); if (response.ok) { setPacket(data); setOriginal(JSON.stringify(data)); if (isNew) navigate(`/author/quests/${encodeURIComponent(text(data.quest.id))}`, { replace: true }); } };
-  return <Shell title="Quest Journey Board" subtitle="Compose invitation, ordered objectives, completion, payoff, and aftermath." dirty={dirty} blockers={objectiveIssues} warnings={(hasRewards ? 0 : 1) + (strings(packet.quest_giver_profile_ids).length ? 0 : 1)} onSave={save} onReset={() => setPacket(JSON.parse(original))}><div className="grid gap-4 xl:grid-cols-2">
-    <AuthoringPanel title="Invitation" help="Define how the quest appears to the player, which unlock requirement controls availability, and which interaction profiles can offer it."><div className="space-y-3"><label className="block text-sm">Title<input className={`${inputClass} mt-1`} value={text(quest.title)} onChange={(event) => update("title", event.target.value)} /></label><label className="block text-sm">Slug<input className={`${inputClass} mt-1`} value={text(quest.slug)} onChange={(event) => update("slug", event.target.value)} /></label><label className="block text-sm">Description<textarea className={`${inputClass} mt-1 min-h-24`} value={text(quest.description)} onChange={(event) => update("description", event.target.value)} /></label><ReferenceChipPicker label="Quest Unlock Requirement" value={quest.requirements_id} reference="requirements" onChange={(requirements_id) => update("requirements_id", requirements_id)} /><MultiReferencePicker label="Quest Givers" values={packet.quest_giver_profile_ids} options={interactionProfiles} onChange={(quest_giver_profile_ids) => setPacket({ ...packet, quest_giver_profile_ids })} /><EditableTagList tags={quest.tags} onChange={(tags) => update("tags", tags)} /></div></AuthoringPanel>
-    <AuthoringPanel title="Journey Health" help="Use this checklist before review. It flags missing objectives, missing player-facing text, missing payoff, and missing state links." status={<span className={`rounded-full px-2 py-1 text-xs font-semibold ${rows(quest.objectives).length && !objectiveIssues ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{rows(quest.objectives).length && !objectiveIssues ? "Ready to review" : "Needs attention"}</span>}><div className="space-y-2 text-sm">{rows(quest.objectives).length === 0 && <StatusNotice tone="warning">Add at least one objective.</StatusNotice>}{objectiveIssues > 0 && <StatusNotice tone="warning">{objectiveIssues} objective(s) need both an ID and player-facing description.</StatusNotice>}{strings(quest.flags_set_on_completion).length === 0 && <EmptyState variant="compact" title="No completion flag">Add a completion flag when this quest should directly unlock flag-gated content.</EmptyState>}{!hasRewards && <StatusNotice tone="warning">Quest has no authored payoff.</StatusNotice>}{strings(packet.quest_giver_profile_ids).length === 0 && <EmptyState variant="compact" title="No quest giver">Add a quest giver when this quest should be offered by a character or interaction profile.</EmptyState>}</div></AuthoringPanel>
+  useEffect(() => {
+    if (!dirty) return;
+    const timer = window.setTimeout(() => localStorage.setItem(draftStorageKey, JSON.stringify(packet)), 300);
+    return () => window.clearTimeout(timer);
+  }, [dirty, draftStorageKey, packet]);
+  const save = async () => { const response = await apiFetch("/api/ui/quests/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(packet) }); const data = await response.json(); if (response.ok) { localStorage.removeItem(draftStorageKey); setPacket(data); setOriginal(JSON.stringify(data)); if (isNew) navigate(`/author/quests/${encodeURIComponent(text(data.quest.id))}`, { replace: true }); } };
+  const resetQuestDraft = () => { localStorage.removeItem(draftStorageKey); setPacket(JSON.parse(original)); };
+  return <Shell title="Quest Journey Board" subtitle="Compose the player promise first, then objectives, payoff, and aftermath." dirty={dirty} isNew={isNew} blockers={0} warnings={isNew && rows(quest.objectives).length === 0 ? 0 : reviewQuestionCount} onSave={save} onReset={resetQuestDraft}><div className="grid gap-4 xl:grid-cols-2">
+    <AuthoringPanel className="xl:col-span-2" title="Quest Promise" subtitle="What experience are you promising the player?" help="Start with the dramatic promise and player motivation. Availability, identifiers, and project links can wait until the premise feels worth pursuing."><div className="space-y-3"><label className="block text-sm font-semibold">What will the player call this journey?<input className={`${inputClass} mt-1 font-normal`} value={text(quest.title)} onChange={(event) => update("title", event.target.value)} /></label><label className="block text-sm font-semibold">Why will the player care?<textarea className={`${inputClass} mt-1 min-h-28 font-normal`} value={text(quest.description)} onChange={(event) => update("description", event.target.value)} placeholder="Describe the invitation, tension, and emotional or practical promise…" /></label><details className="rounded-lg border border-slate-200 p-3 dark:border-slate-800"><summary className="cursor-pointer text-sm font-semibold">Availability & project details</summary><div className="mt-3 space-y-3"><label className="block text-sm">Internal slug<input className={`${inputClass} mt-1`} value={text(quest.slug)} onChange={(event) => update("slug", event.target.value)} /></label><ReferenceChipPicker label="Quest Unlock Requirement" value={quest.requirements_id} reference="requirements" onChange={(requirements_id) => update("requirements_id", requirements_id)} /><MultiReferencePicker label="Quest Givers" values={packet.quest_giver_profile_ids} options={interactionProfiles} onChange={(quest_giver_profile_ids) => setPacket({ ...packet, quest_giver_profile_ids })} /><EditableTagList tags={quest.tags} onChange={(tags) => update("tags", tags)} /></div></details></div></AuthoringPanel>
+    <AuthoringPanel className="xl:col-span-2" title="Questions For Review" help="These are prompts for the review pass, not interruptions to early drafting." collapsible defaultCollapsed collapsedSummary={reviewQuestionCount ? `${reviewQuestionCount} question${reviewQuestionCount === 1 ? "" : "s"} can be resolved later` : "Ready for review"} status={<span className={`rounded-full px-2 py-1 text-xs font-semibold ${reviewQuestionCount === 0 ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}>{reviewQuestionCount === 0 ? "Ready to review" : `${reviewQuestionCount} later`}</span>}><div className="space-y-2 text-sm">{rows(quest.objectives).length === 0 && <StatusNotice>Add a player action when the journey has a clear first move.</StatusNotice>}{objectiveIssues > 0 && <StatusNotice>{objectiveIssues} objective(s) still need a durable ID and player-facing description.</StatusNotice>}{strings(quest.flags_set_on_completion).length === 0 && <EmptyState variant="compact" title="No completion flag yet">Add one when this quest should unlock flag-gated content.</EmptyState>}{!hasRewards && <StatusNotice>The payoff is still open.</StatusNotice>}{strings(packet.quest_giver_profile_ids).length === 0 && <EmptyState variant="compact" title="No quest giver yet">Add one if the journey is offered by a character or interaction profile.</EmptyState>}</div></AuthoringPanel>
     {!isNew && text(quest.id) && <section className="xl:col-span-2"><ScopedGateSection targetSchema="quests" targetId={text(quest.id)} targetLabel={text(quest.title, text(quest.id))} requirementId={text(quest.requirements_id)} title="Quest Access Gate" subtitle="Create or reuse the player-state requirement that unlocks this quest." tag="quest-gate" onRequirementCommitted={syncCommittedGate} /></section>}
     <AuthoringPanel className="xl:col-span-2" title="Ordered Objectives" help="Author the player-facing steps in order. Saved objectives can review their completion flags or continue into a scoped Creation Flow without losing the quest draft."><ObjectiveBoard objectives={quest.objectives} flags={questFlags} selectedObjectiveId={selectedObjectiveConsequenceId} canReviewConsequences={!isNew && text(quest.id) !== ""} onReviewConsequence={setSelectedObjectiveConsequenceId} onComposeNext={(objective) => setCreationFlowContext({ kind: "objective", objectiveId: text(objective.objective_id), label: text(objective.description, text(objective.objective_id)) })} onChange={(objectives) => update("objectives", objectives)} />
       {!isNew && selectedObjectiveConsequenceId && !objectiveConsequenceSource && <p className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">Save this objective before reviewing its consequence packet.</p>}
@@ -421,7 +465,7 @@ export function QuestJourneyPage() {
       </div>}
     </AuthoringPanel>
     {!isNew && text(quest.id) && <QuestStoryPathPanel analysis={questAnalysis} flags={questFlags} />}
-    <AuthoringPanel className="xl:col-span-2" title="Branch Outcomes" help="Edit the current quest's canonical story-arc branch rows, verify where each condition comes from, and review supported quest or story consequences in context. Acknowledgement is local review state; saved data remains the existing condition flag and next quest fields.">
+    <AuthoringPanel className="xl:col-span-2" title="Branch Outcomes" help="Edit the current quest's canonical story-arc branch rows, verify where each condition comes from, and review supported quest or story consequences in context. Acknowledgement is local review state; saved data remains the existing condition flag and next quest fields." collapsible defaultCollapsed={branches.length === 0} collapsedSummary={branches.length ? `${branches.length} authored outcome${branches.length === 1 ? "" : "s"}` : "No branching needed yet"}>
       <div className="space-y-3">
         {branches.map((branch, index) => {
           const conditionFlag = text(branch.condition_flag);
@@ -465,7 +509,7 @@ export function QuestJourneyPage() {
         </div>}
       </div>
     </AuthoringPanel>
-    <AuthoringPanel title="Completion & Payoff" help="Set the state and rewards granted when the full quest completes. Use the consequence review below for saved quests when you need an atomic commit."><div className="space-y-4"><MultiReferencePicker label="Completion Flags" values={quest.flags_set_on_completion} options={questFlags} onChange={(flags) => update("flags_set_on_completion", flags)} /><label className="block text-xs font-semibold uppercase text-slate-500">Experience Reward<input className={`${inputClass} mt-1`} type="number" value={text(quest.xp_reward)} onChange={(event) => update("xp_reward", Number(event.target.value))} /></label><RewardRows label="Item Reward" rowsValue={quest.item_rewards} reference="items" idKey="item_id" amountKey="quantity" onChange={(value) => update("item_rewards", value)} /><RewardRows label="Currency Reward" rowsValue={quest.currency_rewards} reference="currencies" idKey="currency_id" amountKey="amount" onChange={(value) => update("currency_rewards", value)} /><RewardRows label="Reputation Reward" rowsValue={quest.reputation_rewards} reference="factions" idKey="faction_id" amountKey="amount" onChange={(value) => update("reputation_rewards", value)} /></div></AuthoringPanel>
+    <AuthoringPanel title="Completion & Payoff" help="Set the state and rewards granted when the full quest completes. Use the consequence review below for saved quests when you need an atomic commit." collapsible defaultCollapsed={!hasRewards && strings(quest.flags_set_on_completion).length === 0} collapsedSummary={hasRewards ? "Payoff authored" : "Decide the payoff after the journey has shape"}><div className="space-y-4"><MultiReferencePicker label="Completion Flags" values={quest.flags_set_on_completion} options={questFlags} onChange={(flags) => update("flags_set_on_completion", flags)} /><label className="block text-xs font-semibold uppercase text-slate-500">Experience Reward<input className={`${inputClass} mt-1`} type="number" value={text(quest.xp_reward)} onChange={(event) => update("xp_reward", Number(event.target.value))} /></label><RewardRows label="Item Reward" rowsValue={quest.item_rewards} reference="items" idKey="item_id" amountKey="quantity" onChange={(value) => update("item_rewards", value)} /><RewardRows label="Currency Reward" rowsValue={quest.currency_rewards} reference="currencies" idKey="currency_id" amountKey="amount" onChange={(value) => update("currency_rewards", value)} /><RewardRows label="Reputation Reward" rowsValue={quest.reputation_rewards} reference="factions" idKey="faction_id" amountKey="amount" onChange={(value) => update("reputation_rewards", value)} /></div></AuthoringPanel>
     {!isNew && text(quest.id) && <AuthoringPanel title="After quest completion" subtitle="Narrative Creation Flow" help="Capture follow-up dialogue, encounters, rewards, unlocks, world changes, and story placement as one reviewed continuation."><p className="text-sm text-slate-600 dark:text-slate-300">The quest remains the owning context while the composer is open, including any browser-local quest edits.</p><button type="button" className={`${BUTTON_CLASSES.violet} ${BUTTON_SIZES.sm} mt-3`} onClick={() => setCreationFlowContext({ kind: "completion", label: `${text(quest.title, text(quest.id))} completion` })}>On completion, then…</button></AuthoringPanel>}
     {!isNew && text(quest.id) && <AuthoringPanel title="Quest Consequence Review" help="Review and commit completion flags, payoff rewards, reputation, and follow-up story consequences through one shared packet."><ConsequenceComposer
       sourceKind="quest"
@@ -479,9 +523,9 @@ export function QuestJourneyPage() {
         setOriginal(JSON.stringify({ ...originalPacket, quest: savedQuest }));
       }}
     /></AuthoringPanel>}
-    <AuthoringPanel title="Walkthrough & Aftermath" help="Test the quest flow with temporary player state and inspect prerequisite or downstream dependency context."><QuestWalkthroughPanel packet={packet} /><Link className="mt-4 inline-block text-sm font-semibold text-primary" to="/author/dependencies">Inspect Dependency Map</Link></AuthoringPanel>
+    <AuthoringPanel title="Walkthrough & Aftermath" help="Test the quest flow with temporary player state and inspect prerequisite or downstream dependency context." collapsible defaultCollapsed collapsedSummary="Rehearse after the objective path is written"><QuestWalkthroughPanel packet={packet} /><Link className="mt-4 inline-block text-sm font-semibold text-primary" to="/author/dependencies">Inspect Dependency Map</Link></AuthoringPanel>
     {!isNew && text(quest.id) && <section className="xl:col-span-2"><StoryPlacementPanel entityKind="quest" entityId={text(quest.id)} entityLabel={text(quest.title) || text(quest.id)} entity={quest} storyPacket={storyPlacement.packet} onStoryPacketChange={storyPlacement.setPacket} /></section>}
-    <AuthoringPanel className="xl:col-span-2" title="Advanced Arc & Branch Data" help="Use this advanced JSON editor only when the structured story path and branch controls do not expose the needed arc data."><JsonEditor label="Arc selection and branches" value={packet.arc} onChange={(value) => setPacket({ ...packet, arc: value })} /></AuthoringPanel>
+    <AuthoringPanel className="xl:col-span-2" title="Advanced Arc & Branch Data" help="Use this advanced JSON editor only when the structured story path and branch controls do not expose the needed arc data." collapsible defaultCollapsed collapsedSummary="Technical escape hatch"><JsonEditor label="Arc selection and branches" value={packet.arc} onChange={(value) => setPacket({ ...packet, arc: value })} /></AuthoringPanel>
     {creationFlowContext && !isNew && text(quest.id) && <ThenComposer
       open
       mode="then"

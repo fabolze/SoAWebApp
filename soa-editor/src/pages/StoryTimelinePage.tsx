@@ -12,6 +12,19 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
+  creationFlowProvisionalItems,
+  reorderCreationFlowProvisionalItems,
+  setCreationFlowProvisionalPlacement,
+  type CreationFlowDraft,
+  type CreationFlowProvisionalItem,
+  type CreationFlowProvisionalPlacement,
+} from "../authoring/creationFlow";
+import {
+  listCreationFlowDrafts,
+  loadCreationFlowDraft,
+  saveCreationFlowDraft,
+} from "../authoring/creationFlowDraftStorage";
+import {
   deriveEntityOccurrences,
   filterBackgroundOccurrences,
   isTrackKind,
@@ -29,6 +42,7 @@ import {
 } from "../authoring/storyPlacement";
 import BundleReview, { type BundleReviewResult } from "../components/authoring/BundleReview";
 import { AuthoringFilterBar, AuthoringHealthSummary, AuthoringPageShell, AuthoringPanel, EmptyState, StatusNotice, type AuthoringFilterMode } from "../components/authoringUi";
+import BeatTypeField from "../components/storyPlacement/BeatTypeField";
 import LifecycleFields from "../components/storyPlacement/LifecycleFields";
 import { apiFetch } from "../lib/api";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
@@ -39,14 +53,20 @@ const inputClass = "w-full rounded-md border border-slate-300 bg-white px-3 py-2
 const PLAN_STORAGE_KEY = "soa.story-timeline.local-plan.v1";
 const preferBeatCollision: CollisionDetection = (args) => {
   return pointerWithin(args).sort((left, right) => {
-    const leftIsBeat = String(left.id).startsWith("beat:");
-    const rightIsBeat = String(right.id).startsWith("beat:");
-    return leftIsBeat === rightIsBeat ? 0 : leftIsBeat ? -1 : 1;
+    const leftIsCard = String(left.id).startsWith("beat:") || String(left.id).startsWith("provisional:");
+    const rightIsCard = String(right.id).startsWith("beat:") || String(right.id).startsWith("provisional:");
+    return leftIsCard === rightIsCard ? 0 : leftIsCard ? -1 : 1;
   });
 };
 
 type Lens = "story" | "cast" | "locations" | "quests" | "runtime" | "state" | "issues";
-type Selection = { kind: "placement" | "local-beat" | "event" | "library"; id: string; libraryKind?: string } | null;
+type Selection = { kind: "placement" | "local-beat" | "provisional-idea" | "event" | "library"; id: string; libraryKind?: string } | null;
+
+interface ProvisionalTimelineNode extends CreationFlowProvisionalItem {
+  id: string;
+  flowTitle: string;
+  target: CreationFlowProvisionalPlacement["target"];
+}
 
 interface LocalAttachment {
   kind: string;
@@ -73,6 +93,13 @@ interface LocalPlan {
 interface CanonicalLinkEdit {
   draft: StoryPlacementDraft;
   original: EntryRecord;
+}
+
+function loadProvisionalDrafts(): CreationFlowDraft[] {
+  return listCreationFlowDrafts().flatMap((summary): CreationFlowDraft[] => {
+    const draft = loadCreationFlowDraft(summary.id);
+    return draft?.provisionalPlacement ? [draft] : [];
+  });
 }
 
 function loadPlan(): LocalPlan {
@@ -156,6 +183,15 @@ function localBeatMatchesLens(beat: LocalBeat, lens: Lens): boolean {
   return beat.attachments.some((attachment) => roleMatchesLens(attachment.role, lens));
 }
 
+function provisionalIdeaMatchesLens(idea: ProvisionalTimelineNode, lens: Lens): boolean {
+  if (lens === "story" || lens === "issues") return true;
+  if (lens === "cast") return idea.kind === "character";
+  if (lens === "locations") return idea.kind === "location" || idea.kind === "location_poi";
+  if (lens === "quests") return idea.kind === "quest" || idea.kind === "quest_assignment" || idea.kind === "quest_turn_in";
+  if (lens === "runtime") return ["dialogue", "encounter", "event", "open_shop", "gameplay_effect"].includes(idea.kind);
+  return ["faction", "item", "world_state", "persistent_fact", "numeric_reward", "item_reward"].includes(idea.kind);
+}
+
 function toneForKind(kind: string): string {
   const values: Record<string, string> = {
     quest: "border-blue-300 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40",
@@ -183,6 +219,7 @@ export default function StoryTimelinePage() {
   const [libraryKind, setLibraryKind] = useState("locations");
   const [selection, setSelection] = useState<Selection>(null);
   const [plan, setPlan] = useState<LocalPlan>(loadPlan);
+  const [provisionalDrafts, setProvisionalDrafts] = useState<CreationFlowDraft[]>(loadProvisionalDrafts);
   const [review, setReview] = useState<BundleReviewResult | null>(null);
   const [previewBundle, setPreviewBundle] = useState<EntryRecord | null>(null);
   const [mutationError, setMutationError] = useState("");
@@ -209,6 +246,16 @@ export default function StoryTimelinePage() {
     setPreviewBundle(null);
     setMutationError("");
   }, [plan]);
+
+  useEffect(() => {
+    const refresh = () => setProvisionalDrafts(loadProvisionalDrafts());
+    window.addEventListener("soa:creation-flow-drafts-changed", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("soa:creation-flow-drafts-changed", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
 
   useEffect(() => {
     setReview(null);
@@ -238,6 +285,28 @@ export default function StoryTimelinePage() {
   const query = search.trim().toLowerCase();
 
   const arcById = useMemo(() => new Map(arcs.map((arc) => [text(arc.id), arc])), [arcs]);
+  const timelineById = useMemo(() => new Map(timelines.map((timeline) => [text(timeline.id), timeline])), [timelines]);
+  const provisionalNodes = useMemo(() => provisionalDrafts.flatMap((draft) => {
+    const target = draft.provisionalPlacement?.target;
+    if (!target) return [];
+    return creationFlowProvisionalItems(draft).map((item): ProvisionalTimelineNode => ({
+      ...item,
+      id: `${draft.id}:${item.key}`,
+      flowTitle: draft.title,
+      target,
+    }));
+  }), [provisionalDrafts]);
+  const provisionalNodeByDropId = useMemo(() => new Map(provisionalNodes.map((node) => [
+    `provisional:${node.draftId}:${node.sourceKind}:${node.sourceId}`,
+    node,
+  ])), [provisionalNodes]);
+  const orphanedProvisionalDrafts = useMemo(() => provisionalDrafts.filter((draft) => {
+    const target = draft.provisionalPlacement?.target;
+    if (!target) return false;
+    return target.kind === "timeline"
+      ? !timelineById.has(target.canonicalId)
+      : !arcById.has(target.canonicalId);
+  }), [arcById, provisionalDrafts, timelineById]);
   const catalogsByKind = useMemo(() => {
     const result = new Map<string, Map<string, EntryRecord>>();
     Object.entries(catalogs).forEach(([kind, value]) => result.set(kind, new Map(rows(value).map((entry) => [text(entry.id), entry]))));
@@ -300,6 +369,24 @@ export default function StoryTimelinePage() {
     });
   };
 
+  const moveProvisionalIdea = (
+    draftId: string,
+    itemKey: string,
+    target: CreationFlowProvisionalPlacement["target"],
+    beforeKey?: string,
+  ) => {
+    const stored = loadCreationFlowDraft(draftId);
+    if (!stored) return;
+    const placed = stored.provisionalPlacement?.target.kind === target.kind
+      && stored.provisionalPlacement.target.canonicalId === target.canonicalId
+      ? stored
+      : setCreationFlowProvisionalPlacement(stored, target);
+    const reordered = reorderCreationFlowProvisionalItems(placed, itemKey, beforeKey);
+    saveCreationFlowDraft(reordered);
+    setProvisionalDrafts(loadProvisionalDrafts());
+    setSelection({ kind: "provisional-idea", id: `${draftId}:${itemKey}` });
+  };
+
   const onDragEnd = (event: DragEndEvent) => {
     if (!event.over) return;
     const data = event.active.data.current || {};
@@ -319,6 +406,22 @@ export default function StoryTimelinePage() {
       if (target) moveBeat(text(data.beatId), target.story_arc_id, target.id);
     } else if (data.dragType === "local-beat" && overId.startsWith("lane:")) {
       moveBeat(text(data.beatId), overId.slice(5) === "unassigned" ? "" : overId.slice(5));
+    }
+    if (data.dragType === "provisional-idea") {
+      const draftId = text(data.draftId);
+      const itemKey = text(data.itemKey);
+      const overNode = provisionalNodeByDropId.get(overId);
+      if (overNode) {
+        moveProvisionalIdea(draftId, itemKey, overNode.target, overNode.draftId === draftId ? overNode.key : undefined);
+      } else if (overId.startsWith("lane:")) {
+        const storyArcId = overId.slice(5);
+        const arc = arcById.get(storyArcId);
+        if (arc) moveProvisionalIdea(draftId, itemKey, { kind: "story_arc", canonicalId: storyArcId, label: label(arc) });
+      } else if (overId.startsWith("timeline-lane:")) {
+        const timelineId = overId.slice("timeline-lane:".length);
+        const timeline = timelineById.get(timelineId);
+        if (timeline) moveProvisionalIdea(draftId, itemKey, { kind: "timeline", canonicalId: timelineId, label: label(timeline) });
+      }
     }
   };
 
@@ -399,6 +502,7 @@ export default function StoryTimelinePage() {
   const unassignedArcs = arcs.filter((arc) => !text(arc.timeline_id));
   const showUnassigned = !timelineFocus || timelineFocus === "__unassigned";
   const selectedLocalBeat = selection?.kind === "local-beat" ? plan.beats.find((beat) => beat.id === selection.id) : undefined;
+  const selectedProvisionalIdea = selection?.kind === "provisional-idea" ? provisionalNodes.find((node) => node.id === selection.id) : undefined;
   const selectedPlacement = selection?.kind === "placement" ? placements.find((placement) => text(placement.id) === selection.id) : undefined;
   const selectedEvent = selection?.kind === "event" ? eventChains.find((event) => text(event.event_id) === selection.id) : undefined;
   const selectedLibrary = selection?.kind === "library"
@@ -420,21 +524,21 @@ export default function StoryTimelinePage() {
       <AuthoringPageShell>
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-fuchsia-700 dark:text-fuchsia-300">Canonical Story Data + Deliberate Local Planning</div>
-            <h1 className="text-2xl font-semibold">Story Timeline & Adventure Board</h1>
-            <p className="text-sm text-slate-500">Arrange a playable story shape without pretending scoped quest, character, and event order is one canonical sequence.</p>
+            <div className="text-xs font-semibold uppercase tracking-wide text-fuchsia-700 dark:text-fuchsia-300">Story room</div>
+            <h1 className="text-2xl font-semibold">Shape the Story</h1>
+            <p className="text-sm text-slate-500">Arrange moments into arcs, see where characters and quests reappear, and keep alternate paths honest.</p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
             <Metric value={placements.length} label="canonical placements" />
             <Metric value={plan.beats.length} label="local planning beats" />
-            <Metric value={warnings.length} label="coherence warnings" warning={warnings.length > 0} />
+            <Metric value={provisionalNodes.length} label="provisional ideas" />
             <AuthoringHealthSummary blockers={0} warnings={warnings.length} dirty={plan.beats.length > 0 || Boolean(canonicalLinkEdit)} saving={saving} />
-            <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={(!plan.beats.length && !canonicalLinkEdit) || saving} onClick={() => submitPlan(false)}>Review Changes</button>
-            <button type="button" className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} disabled={!plan.beats.length} onClick={() => { setPlan({ beats: [] }); setSelection(null); }}>Clear Local Plan</button>
+            <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={(!plan.beats.length && !canonicalLinkEdit) || saving} onClick={() => submitPlan(false)}>Review & save</button>
+            {plan.beats.length > 0 && <button type="button" className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.sm}`} onClick={() => { if (window.confirm("Delete every local planning beat? This cannot be undone.")) { setPlan({ beats: [] }); setSelection(null); } }}>Delete local plan</button>}
           </div>
         </header>
 
-        {(review || mutationError) && <BundleReview result={review} title="Canonical Commit Review" description="Preview validates the complete beat and typed-link bundle without writing it." variant="inline" commitLabel="Commit Plan" cancelLabel="Close Review" saving={saving} error={mutationError} testId="story-timeline-plan-review" onCommit={() => void submitPlan(true)} onCancel={() => { setReview(null); setPreviewBundle(null); setMutationError(""); }} />}
+        {(review || mutationError) && <BundleReview result={review} title="Save story plan to project" description="Review the beats and story links that will be added or changed." variant="inline" commitLabel="Save plan" cancelLabel="Keep editing" saving={saving} error={mutationError} testId="story-timeline-plan-review" onCommit={() => void submitPlan(true)} onCancel={() => { setReview(null); setPreviewBundle(null); setMutationError(""); }} />}
 
         <div className="space-y-4">
         <AuthoringPanel
@@ -443,6 +547,10 @@ export default function StoryTimelinePage() {
           subtitle="Narrow the board without changing saved story order."
           help="Use these controls to focus the canvas by text, timeline, arc, or lens. Filters only change what is visible on this page; they do not save anything."
           helpExample="Search for a character name, then switch to Issues to inspect only warnings and broken dependency context."
+          collapsible
+          defaultCollapsed
+          storageKey="soa.story-timeline.filters.collapsed"
+          collapsedSummary={search || timelineFocus || arcFocus ? "Filters are active" : "Showing the full story"}
         >
           <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px]">
             <label className="block text-xs font-semibold uppercase text-slate-500">Find Content<input className={`${inputClass} mt-1`} value={search} placeholder="Search the board and library..." onChange={(event) => setSearch(event.target.value)} /></label>
@@ -452,9 +560,80 @@ export default function StoryTimelinePage() {
           <div className="mt-3 flex flex-wrap gap-2">
             {(["story", "cast", "locations", "quests", "runtime", "state", "issues"] as Lens[]).map((value) => <button key={value} type="button" className={`rounded-full border px-3 py-1 text-xs font-semibold ${lens === value ? "border-fuchsia-600 bg-fuchsia-600 text-white" : "border-slate-300 dark:border-slate-700"}`} onClick={() => setLens(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}
           </div>
-          <AuthoringFilterBar value={filterMode} onChange={setFilterMode} issueCount={warnings.length} changedCount={plan.beats.length} className="mt-3" />
+          <AuthoringFilterBar value={filterMode} onChange={setFilterMode} issueCount={warnings.length} changedCount={plan.beats.length + provisionalNodes.length} className="mt-3" />
         </AuthoringPanel>
 
+        <div className="space-y-4">
+          {filterMode === "issues" ? <aside className="space-y-4"><IssueSection warnings={warnings} dependencyHealth={record(record(packet.health).dependency)} /></aside> : <aside className="space-y-4">
+            <AuthoringPanel
+              id="timeline-library"
+              title="Content Library"
+              subtitle="Drag content onto an arc lane to sketch a local beat, or onto an existing local beat to attach it."
+              help="Library cards reference saved records. Dragging them creates or updates browser-local planning beats until you review and commit the plan."
+              collapsible
+              defaultCollapsed
+              storageKey="soa.story-timeline.content-library.collapsed"
+              collapsedSummary={`${libraryRows.length} visible ${libraryKind.replace(/_/g, " ")}`}
+            >
+              <select className={`${inputClass} mt-3`} value={libraryKind} onChange={(event) => setLibraryKind(event.target.value)}>
+                {["locations", "characters", "quests", "events", "dialogues", "encounters", "lore_entries", "items", "factions"].map((kind) => <option key={kind} value={kind}>{kind.replace(/_/g, " ")}</option>)}
+              </select>
+              <div className="mt-3 grid max-h-[30rem] gap-2 overflow-auto md:grid-cols-2 xl:grid-cols-4">
+                {libraryRows.map((entry) => {
+                  const kind = singular(libraryKind);
+                  const attachment = { kind, entry_id: text(entry.id), label: label(entry), role: attachmentRole(kind) };
+                  return <LibraryCard key={text(entry.id)} kind={kind} entry={entry} onSelect={() => setSelection({ kind: "library", id: text(entry.id), libraryKind })} onAttach={selectedLocalBeat ? () => attachToBeat(selectedLocalBeat.id, attachment) : undefined} />;
+                })}
+                {!libraryRows.length && <EmptyState variant="compact" title={`No matching ${libraryKind.replace(/_/g, " ")}.`}>Adjust the search text or switch library type to find content to place on the board.</EmptyState>}
+              </div>
+            </AuthoringPanel>
+            <UnplacedSummary unplaced={record(packet.unplaced)} />
+          </aside>}
+
+          <main className="min-w-0 space-y-4" data-testid="story-timeline-canvas">
+            {filterMode === "issues" && <EmptyState variant="compact" title="Issue-only view">The board is filtered to warnings and dependency issues. Switch to Show All to continue arranging content.</EmptyState>}
+            {filterMode === "changed" && <TimelineBand timeline={{ id: "", name: "Changed Local Plan", description: "Browser-local beats changed in this workspace." }} arcs={[]} placements={[]} localBeats={plan.beats} provisionalNodes={[]} lens="story" query={query} onSelect={setSelection} onAddBeat={addBeat} unassigned />}
+            {filterMode === "changed" && provisionalNodes.length > 0 && <AuthoringPanel title="Idea Studio provisional placements" subtitle={`${provisionalNodes.length} linked local card${provisionalNodes.length === 1 ? "" : "s"}`} help="These cards remain on their chosen timeline or story-arc lanes so their visual order keeps its scope."><button type="button" className={`${BUTTON_CLASSES.violet} ${BUTTON_SIZES.sm}`} onClick={() => setFilterMode("all")}>Show on timeline lanes</button></AuthoringPanel>}
+            {filterMode === "changed" && plan.beats.length === 0 && provisionalNodes.length === 0 && <EmptyState title="No changed story beats">The current timeline matches saved content. Add a local planning beat or place an Idea Studio draft provisionally to see it here.</EmptyState>}
+            {filterMode === "all" && <>
+            {visibleTimelines.map((timeline) => {
+              const timelineArcs = arcs.filter((arc) => text(arc.timeline_id) === text(timeline.id) && (!arcFocus || text(arc.id) === arcFocus));
+              return <TimelineBand key={text(timeline.id)} timeline={timeline} arcs={timelineArcs} placements={placements} localBeats={plan.beats} provisionalNodes={provisionalNodes} lens={lens} query={query} onSelect={setSelection} onAddBeat={addBeat} />;
+            })}
+            {showUnassigned && (!arcFocus || unassignedArcs.some((arc) => text(arc.id) === arcFocus)) && <TimelineBand timeline={{ id: "", name: "Unassigned Story Space", description: "Content without a modeled timeline or arc." }} arcs={unassignedArcs.filter((arc) => !arcFocus || text(arc.id) === arcFocus)} placements={placements} localBeats={plan.beats} provisionalNodes={provisionalNodes} lens={lens} query={query} onSelect={setSelection} onAddBeat={addBeat} unassigned />}
+            {lens === "runtime" && <EventChainSection events={eventChains} query={query} onSelect={(id) => setSelection({ kind: "event", id })} />}
+            {lens === "state" && <RelationshipSection title="State & Dependency Context" relationships={dependencyEdges} />}
+            {lens === "issues" && <IssueSection warnings={warnings} dependencyHealth={record(record(packet.health).dependency)} />}
+            {orphanedProvisionalDrafts.length > 0 && <StatusNotice tone="warning">{orphanedProvisionalDrafts.length} provisional Idea Studio placement{orphanedProvisionalDrafts.length === 1 ? "" : "s"} point to a timeline or arc that no longer exists. Open the linked draft from Idea Studio and choose a new placement.</StatusNotice>}
+            {!timelines.length && !arcs.length && placements.length === 0 && plan.beats.length === 0 && provisionalNodes.length === 0 && <EmptyState title="The story space is empty." className="text-center">Create timelines and story arcs, or drag library content into Unassigned Story Space to begin a browser-local plan.</EmptyState>}
+            </>}
+          </main>
+
+          {selectedProvisionalIdea && <ProvisionalIdeaContextDock idea={selectedProvisionalIdea} />}
+          {selection && !selectedProvisionalIdea && <ContextDock
+            selection={selection}
+            localBeat={selectedLocalBeat}
+            placement={selectedPlacement}
+            event={selectedEvent}
+            libraryEntry={selectedLibrary}
+            libraryKind={selection?.libraryKind || ""}
+            relationships={[...relationships, ...dependencyEdges]}
+            warnings={warnings}
+            canonicalBeats={canonicalBeats}
+            canonicalLinks={canonicalLinks}
+            canonicalLinkEdit={canonicalLinkEdit}
+            onBeginCanonicalLinkEdit={(linkId) => {
+              const original = canonicalLinks.find((link) => text(link.id) === linkId);
+              const draft = original ? placementDraftFromCanonicalLink(original) : null;
+              if (original && draft) setCanonicalLinkEdit({ original, draft });
+            }}
+            onCanonicalLinkEditChange={(draft) => setCanonicalLinkEdit((current) => current ? { ...current, draft } : null)}
+            onCancelCanonicalLinkEdit={() => setCanonicalLinkEdit(null)}
+            onUpdateBeat={updateBeat}
+            onDeleteBeat={(beatId) => { setPlan((current) => ({ beats: current.beats.filter((beat) => beat.id !== beatId) })); setSelection(null); }}
+            onRemoveAttachment={(beatId, attachment) => updateBeat(beatId, { attachments: selectedLocalBeat?.attachments.filter((row) => row !== attachment) || [] })}
+          />}
+        </div>
         {filterMode !== "issues" && <TimelineNavigator
           timelines={timelines}
           arcs={arcs}
@@ -484,74 +663,6 @@ export default function StoryTimelinePage() {
           onLeftScope={setCompareLeft}
           onRightScope={setCompareRight}
         />}
-
-        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_330px]">
-          {filterMode === "issues" ? <aside className="space-y-4"><IssueSection warnings={warnings} dependencyHealth={record(record(packet.health).dependency)} /></aside> : <aside className="space-y-4">
-            <AuthoringPanel
-              id="timeline-library"
-              title="Content Library"
-              subtitle="Drag content onto an arc lane to sketch a local beat, or onto an existing local beat to attach it."
-              help="Library cards reference saved records. Dragging them creates or updates browser-local planning beats until you review and commit the plan."
-              collapsible
-              storageKey="soa.story-timeline.content-library.collapsed"
-              collapsedSummary={`${libraryRows.length} visible ${libraryKind.replace(/_/g, " ")}`}
-            >
-              <select className={`${inputClass} mt-3`} value={libraryKind} onChange={(event) => setLibraryKind(event.target.value)}>
-                {["locations", "characters", "quests", "events", "dialogues", "encounters", "lore_entries", "items", "factions"].map((kind) => <option key={kind} value={kind}>{kind.replace(/_/g, " ")}</option>)}
-              </select>
-              <div className="mt-3 max-h-[52rem] space-y-2 overflow-auto">
-                {libraryRows.map((entry) => {
-                  const kind = singular(libraryKind);
-                  const attachment = { kind, entry_id: text(entry.id), label: label(entry), role: attachmentRole(kind) };
-                  return <LibraryCard key={text(entry.id)} kind={kind} entry={entry} onSelect={() => setSelection({ kind: "library", id: text(entry.id), libraryKind })} onAttach={selectedLocalBeat ? () => attachToBeat(selectedLocalBeat.id, attachment) : undefined} />;
-                })}
-                {!libraryRows.length && <EmptyState variant="compact" title={`No matching ${libraryKind.replace(/_/g, " ")}.`}>Adjust the search text or switch library type to find content to place on the board.</EmptyState>}
-              </div>
-            </AuthoringPanel>
-            <UnplacedSummary unplaced={record(packet.unplaced)} />
-          </aside>}
-
-          <main className="min-w-0 space-y-4" data-testid="story-timeline-canvas">
-            {filterMode === "issues" && <EmptyState variant="compact" title="Issue-only view">The board is filtered to warnings and dependency issues. Switch to Show All to continue arranging content.</EmptyState>}
-            {filterMode === "changed" && <TimelineBand timeline={{ id: "", name: "Changed Local Plan", description: "Browser-local beats changed in this workspace." }} arcs={[]} placements={[]} localBeats={plan.beats} lens="story" query={query} onSelect={setSelection} onAddBeat={addBeat} unassigned />}
-            {filterMode === "changed" && plan.beats.length === 0 && <EmptyState title="No changed story beats">The current timeline matches saved content. Add a local planning beat to see it here.</EmptyState>}
-            {filterMode === "all" && <>
-            {visibleTimelines.map((timeline) => {
-              const timelineArcs = arcs.filter((arc) => text(arc.timeline_id) === text(timeline.id) && (!arcFocus || text(arc.id) === arcFocus));
-              return <TimelineBand key={text(timeline.id)} timeline={timeline} arcs={timelineArcs} placements={placements} localBeats={plan.beats} lens={lens} query={query} onSelect={setSelection} onAddBeat={addBeat} />;
-            })}
-            {showUnassigned && (!arcFocus || unassignedArcs.some((arc) => text(arc.id) === arcFocus)) && <TimelineBand timeline={{ id: "", name: "Unassigned Story Space", description: "Content without a modeled timeline or arc." }} arcs={unassignedArcs.filter((arc) => !arcFocus || text(arc.id) === arcFocus)} placements={placements} localBeats={plan.beats} lens={lens} query={query} onSelect={setSelection} onAddBeat={addBeat} unassigned />}
-            {lens === "runtime" && <EventChainSection events={eventChains} query={query} onSelect={(id) => setSelection({ kind: "event", id })} />}
-            {lens === "state" && <RelationshipSection title="State & Dependency Context" relationships={dependencyEdges} />}
-            {lens === "issues" && <IssueSection warnings={warnings} dependencyHealth={record(record(packet.health).dependency)} />}
-            {!timelines.length && !arcs.length && placements.length === 0 && plan.beats.length === 0 && <EmptyState title="The story space is empty." className="text-center">Create timelines and story arcs, or drag library content into Unassigned Story Space to begin a browser-local plan.</EmptyState>}
-            </>}
-          </main>
-
-          <ContextDock
-            selection={selection}
-            localBeat={selectedLocalBeat}
-            placement={selectedPlacement}
-            event={selectedEvent}
-            libraryEntry={selectedLibrary}
-            libraryKind={selection?.libraryKind || ""}
-            relationships={[...relationships, ...dependencyEdges]}
-            warnings={warnings}
-            canonicalBeats={canonicalBeats}
-            canonicalLinks={canonicalLinks}
-            canonicalLinkEdit={canonicalLinkEdit}
-            onBeginCanonicalLinkEdit={(linkId) => {
-              const original = canonicalLinks.find((link) => text(link.id) === linkId);
-              const draft = original ? placementDraftFromCanonicalLink(original) : null;
-              if (original && draft) setCanonicalLinkEdit({ original, draft });
-            }}
-            onCanonicalLinkEditChange={(draft) => setCanonicalLinkEdit((current) => current ? { ...current, draft } : null)}
-            onCancelCanonicalLinkEdit={() => setCanonicalLinkEdit(null)}
-            onUpdateBeat={updateBeat}
-            onDeleteBeat={(beatId) => { setPlan((current) => ({ beats: current.beats.filter((beat) => beat.id !== beatId) })); setSelection(null); }}
-            onRemoveAttachment={(beatId, attachment) => updateBeat(beatId, { attachments: selectedLocalBeat?.attachments.filter((row) => row !== attachment) || [] })}
-          />
-        </div>
           </div>
       </AuthoringPageShell>
     </DndContext>
@@ -621,6 +732,10 @@ function TimelineNavigator({ timelines, arcs, placements, localBeats, entityOccu
     subtitle="Jump by arc, then inspect repeated entity appearances and state changes without scrolling through every card."
     help="Use this as the wide overview. Timeline and arc buttons change the visible board; entity occurrence buttons focus the first matching appearance for the selected track."
     testId="story-navigator"
+    collapsible
+    defaultCollapsed
+    storageKey="soa.story-timeline.navigator.collapsed"
+    collapsedSummary={timelineFocus || arcFocus || focusedEntityId ? "A story focus is active" : "Jump between arcs and recurring characters"}
   >
     <div className="flex flex-wrap items-start justify-end gap-3">
       <button type="button" className="rounded border px-3 py-1 text-xs font-semibold" onClick={() => { onFocus(""); onEntityFocus(""); }}>Show All</button>
@@ -717,6 +832,7 @@ function ScopedPathComparison({ timelines, arcs, placements, localBeats, leftSco
     subtitle="Compare two authored lane snapshots without declaring either one a canonical player path."
     help="Each side preserves only the order modeled inside its selected arc, timeline-level lane, or unassigned scope. Matching labels are highlighted; cross-lane order is never inferred or saved."
     collapsible
+    defaultCollapsed
     storageKey="soa.story-timeline.path-comparison.collapsed"
     collapsedSummary={leftScope && rightScope ? `${shared} shared beat label(s)` : "Choose two scoped lanes"}
     testId="story-timeline-path-comparison"
@@ -739,7 +855,7 @@ function LibraryCard({ kind, entry, onSelect, onAttach }: { kind: string; entry:
   </article>;
 }
 
-function TimelineBand({ timeline, arcs, placements, localBeats, lens, query, onSelect, onAddBeat, unassigned = false }: { timeline: EntryRecord; arcs: EntryRecord[]; placements: EntryRecord[]; localBeats: LocalBeat[]; lens: Lens; query: string; onSelect: (selection: Selection) => void; onAddBeat: (arcId: string) => void; unassigned?: boolean }) {
+function TimelineBand({ timeline, arcs, placements, localBeats, provisionalNodes, lens, query, onSelect, onAddBeat, unassigned = false }: { timeline: EntryRecord; arcs: EntryRecord[]; placements: EntryRecord[]; localBeats: LocalBeat[]; provisionalNodes: ProvisionalTimelineNode[]; lens: Lens; query: string; onSelect: (selection: Selection) => void; onAddBeat: (arcId: string) => void; unassigned?: boolean }) {
   const timelineId = text(timeline.id);
   const timelinePlacements = placements
     .filter((placement) => !text(placement.story_arc_id) && text(placement.timeline_id) === timelineId)
@@ -747,23 +863,37 @@ function TimelineBand({ timeline, arcs, placements, localBeats, lens, query, onS
     .sort((left, right) => Number(left.order) - Number(right.order));
   const unassignedPlacements = placements.filter((placement) => !text(placement.story_arc_id) && !text(placement.timeline_id));
   const unassignedBeats = localBeats.filter((beat) => !beat.story_arc_id);
+  const timelineProvisional = provisionalNodes.filter((node) =>
+    node.target.kind === "timeline" && node.target.canonicalId === timelineId,
+  );
+  const arcIds = new Set(arcs.map((arc) => text(arc.id)));
+  const arcContentCount = placements.filter((placement) => arcIds.has(text(placement.story_arc_id))).length
+    + localBeats.filter((beat) => arcIds.has(beat.story_arc_id)).length
+    + provisionalNodes.filter((node) => node.target.kind === "story_arc" && arcIds.has(node.target.canonicalId)).length;
+  const bandContentCount = unassigned
+    ? unassignedPlacements.length + unassignedBeats.length
+    : timelinePlacements.length + timelineProvisional.length + arcContentCount;
   return <AuthoringPanel
     title={label(timeline)}
     subtitle={text(timeline.description, "Arc order inside a timeline is not modeled; lanes are shown without implying sequence.")}
     help={unassigned ? "Use this planning space for content that does not have a saved timeline or arc yet." : "This band groups saved arcs and placements for one timeline. Arc lanes are for navigation and planning; they do not imply global order beyond saved placement data."}
     actions={!unassigned && <Link className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} to={entityRoute("timeline", timelineId)}>Inspect Timeline Record</Link>}
     testId={`timeline-band-${timelineId || "unassigned"}`}
+    collapsible
+    defaultCollapsed={bandContentCount === 0}
+    collapsedSummary={bandContentCount > 0 ? `${bandContentCount} story moment${bandContentCount === 1 ? "" : "s"}` : "Empty — open when you are ready to shape this timeline"}
   >
     <div className="space-y-3">
       {!unassigned && timelinePlacements.length > 0 && <ScopedRow title="Timeline-Level Adventure Beats" note="Canonical in this timeline, outside a specific arc." cards={timelinePlacements.map((placement) => <PlacementCard key={text(placement.id)} placement={placement} onSelect={() => onSelect({ kind: "placement", id: text(placement.id) })} />)} empty="" />}
-      {arcs.map((arc) => <ArcLane key={text(arc.id)} arc={arc} placements={placements.filter((placement) => text(placement.story_arc_id) === text(arc.id))} localBeats={localBeats.filter((beat) => beat.story_arc_id === text(arc.id))} lens={lens} query={query} onSelect={onSelect} onAddBeat={() => onAddBeat(text(arc.id))} />)}
-      {unassigned && <ArcLane arc={{ id: "", title: "Unassigned Lane", summary: "Local planning and character beats without an arc." }} placements={unassignedPlacements} localBeats={unassignedBeats} lens={lens} query={query} onSelect={onSelect} onAddBeat={() => onAddBeat("")} unassigned />}
+      {!unassigned && <TimelineProvisionalLane timelineId={timelineId} ideas={timelineProvisional} lens={lens} query={query} onSelect={onSelect} />}
+      {arcs.map((arc) => <ArcLane key={text(arc.id)} arc={arc} placements={placements.filter((placement) => text(placement.story_arc_id) === text(arc.id))} localBeats={localBeats.filter((beat) => beat.story_arc_id === text(arc.id))} provisionalNodes={provisionalNodes.filter((node) => node.target.kind === "story_arc" && node.target.canonicalId === text(arc.id))} lens={lens} query={query} onSelect={onSelect} onAddBeat={() => onAddBeat(text(arc.id))} />)}
+      {unassigned && <ArcLane arc={{ id: "", title: "Unassigned Lane", summary: "Local planning and character beats without an arc." }} placements={unassignedPlacements} localBeats={unassignedBeats} provisionalNodes={[]} lens={lens} query={query} onSelect={onSelect} onAddBeat={() => onAddBeat("")} unassigned />}
       {!arcs.length && !unassigned && <EmptyState title="This timeline has no story arcs.">Create arcs to split the timeline into workable lanes, or keep drafting in unassigned story space.</EmptyState>}
     </div>
   </AuthoringPanel>;
 }
 
-function ArcLane({ arc, placements, localBeats, lens, query, onSelect, onAddBeat, unassigned = false }: { arc: EntryRecord; placements: EntryRecord[]; localBeats: LocalBeat[]; lens: Lens; query: string; onSelect: (selection: Selection) => void; onAddBeat: () => void; unassigned?: boolean }) {
+function ArcLane({ arc, placements, localBeats, provisionalNodes, lens, query, onSelect, onAddBeat, unassigned = false }: { arc: EntryRecord; placements: EntryRecord[]; localBeats: LocalBeat[]; provisionalNodes: ProvisionalTimelineNode[]; lens: Lens; query: string; onSelect: (selection: Selection) => void; onAddBeat: () => void; unassigned?: boolean }) {
   const arcId = text(arc.id);
   const drop = useDroppable({ id: `lane:${arcId || "unassigned"}` });
   const canonical = placements.filter((placement) => placementMatchesLens(placement, lens) && (!query || text(placement.label).toLowerCase().includes(query)));
@@ -771,6 +901,7 @@ function ArcLane({ arc, placements, localBeats, lens, query, onSelect, onAddBeat
   const characterBeats = canonical.filter((placement) => text(placement.kind) === "character_story_beat").sort((a, b) => text(a.lane_id).localeCompare(text(b.lane_id)) || Number(a.order) - Number(b.order));
   const adventureBeats = canonical.filter((placement) => text(placement.kind) === "adventure_beat").sort((a, b) => Number(a.order) - Number(b.order));
   const visibleLocal = localBeats.filter((beat) => localBeatMatchesLens(beat, lens) && (!query || beat.title.toLowerCase().includes(query) || beat.attachments.some((attachment) => attachment.label.toLowerCase().includes(query)))).sort((a, b) => a.order - b.order);
+  const visibleProvisional = provisionalNodes.filter((idea) => provisionalIdeaMatchesLens(idea, lens) && (!query || idea.title.toLowerCase().includes(query) || idea.detail.toLowerCase().includes(query) || idea.flowTitle.toLowerCase().includes(query))).sort((a, b) => a.order - b.order);
   return <article ref={drop.setNodeRef} className={`rounded-lg border p-3 transition ${drop.isOver ? "border-fuchsia-500 bg-fuchsia-50/60 dark:bg-fuchsia-950/30" : "border-slate-200 dark:border-slate-800"}`} data-testid={`story-arc-lane-${arcId || "unassigned"}`}>
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div><div className="text-[10px] font-semibold uppercase text-slate-500">{unassigned ? "Unassigned" : text(arc.type, "Story Arc")}</div><h3 className="font-semibold">{label(arc)}</h3><p className="max-w-3xl text-xs text-slate-500">{text(arc.summary)}</p></div>
@@ -779,12 +910,38 @@ function ArcLane({ arc, placements, localBeats, lens, query, onSelect, onAddBeat
     <ScopedRow title="Adventure Beat Order" note="Canonical story intent inside this arc." cards={adventureBeats.map((placement) => <PlacementCard key={text(placement.id)} placement={placement} onSelect={() => onSelect({ kind: "placement", id: text(placement.id) })} />)} empty="No canonical adventure beats visible in this lens." />
     <ScopedRow title="Arc Quest Order" note="Canonical only inside this arc." cards={quests.map((placement) => <PlacementCard key={text(placement.id)} placement={placement} onSelect={() => onSelect({ kind: "placement", id: text(placement.id) })} />)} empty="No ordered quests visible in this lens." />
     <ScopedRow title="Character Presence Lanes" note="Canonical only within each character's beat order." cards={characterBeats.map((placement) => <PlacementCard key={text(placement.id)} placement={placement} onSelect={() => onSelect({ kind: "placement", id: text(placement.id) })} />)} empty="No character beats visible in this lens." />
+    <ScopedRow title="Idea Studio Provisional Order" note="Linked local cards. Drag to reorder them here; details stay in Idea Studio." cards={visibleProvisional.map((idea) => <ProvisionalIdeaCard key={idea.id} idea={idea} onSelect={() => onSelect({ kind: "provisional-idea", id: idea.id })} />)} empty="Place an Idea Studio draft on this arc to see its ordered ideas here." />
     <ScopedRow title="Local Planning Beats" note="Browser-local sketches. Drag content here or move beats between lanes." cards={visibleLocal.map((beat) => <LocalBeatCard key={beat.id} beat={beat} lens={lens} onSelect={() => onSelect({ kind: "local-beat", id: beat.id })} />)} empty="Drop library content onto this lane to sketch a beat." />
   </article>;
 }
 
+function TimelineProvisionalLane({ timelineId, ideas, lens, query, onSelect }: { timelineId: string; ideas: ProvisionalTimelineNode[]; lens: Lens; query: string; onSelect: (selection: Selection) => void }) {
+  const drop = useDroppable({ id: `timeline-lane:${timelineId}` });
+  const visible = ideas.filter((idea) => provisionalIdeaMatchesLens(idea, lens) && (!query || idea.title.toLowerCase().includes(query) || idea.detail.toLowerCase().includes(query) || idea.flowTitle.toLowerCase().includes(query))).sort((a, b) => a.order - b.order);
+  return <div ref={drop.setNodeRef} className={`rounded-lg border p-2 transition ${drop.isOver ? "border-fuchsia-500 bg-fuchsia-50/60 dark:bg-fuchsia-950/30" : "border-transparent"}`}>
+    <ScopedRow title="Idea Studio Provisional Order" note="Timeline-level linked local cards. Drag to reorder; details stay in Idea Studio." cards={visible.map((idea) => <ProvisionalIdeaCard key={idea.id} idea={idea} onSelect={() => onSelect({ kind: "provisional-idea", id: idea.id })} />)} empty="Place an Idea Studio draft on this timeline to see its ordered ideas here." />
+  </div>;
+}
+
 function ScopedRow({ title, note, cards, empty }: { title: string; note: string; cards: ReactNode[]; empty: string }) {
   return <div className="mt-3"><div className="mb-1 flex flex-wrap items-baseline justify-between gap-2"><div className="text-[11px] font-semibold uppercase text-slate-500">{title}</div><div className="text-[10px] text-slate-400">{note}</div></div><div className="flex min-h-24 gap-2 overflow-x-auto rounded-md border border-dashed border-slate-200 p-2 dark:border-slate-800">{cards.length ? cards : <EmptyState variant="compact" className="self-center min-w-64">{empty}</EmptyState>}</div></div>;
+}
+
+function ProvisionalIdeaCard({ idea, onSelect }: { idea: ProvisionalTimelineNode; onSelect: () => void }) {
+  const dropId = `provisional:${idea.draftId}:${idea.sourceKind}:${idea.sourceId}`;
+  const drop = useDroppable({ id: dropId });
+  const drag = useDraggable({ id: `drag-${dropId}`, data: { dragType: "provisional-idea", draftId: idea.draftId, itemKey: idea.key } });
+  return <article ref={drop.setNodeRef} className={`w-56 shrink-0 rounded-md border-2 border-dashed border-violet-400 bg-violet-50/70 p-2 text-xs dark:border-violet-700 dark:bg-violet-950/30 ${drop.isOver ? "ring-2 ring-fuchsia-500" : ""}`} data-testid={`provisional-idea-${idea.draftId}-${idea.sourceId}`}>
+    <button ref={drag.setNodeRef} type="button" className={`block w-full cursor-grab text-left ${drag.isDragging ? "opacity-40" : ""}`} {...drag.attributes} {...drag.listeners}>
+      <span className="block text-[10px] font-semibold uppercase text-violet-700 dark:text-violet-300">Provisional idea #{idea.order + 1}</span>
+      <span className="mt-1 block font-semibold">{idea.title}</span>
+    </button>
+    <button type="button" className="mt-1 block w-full text-left text-[10px] text-slate-500" onClick={onSelect}>{idea.detail || `From ${idea.flowTitle}`}</button>
+    <div className="mt-2 flex flex-wrap items-center gap-1">
+      <span className="rounded-full bg-white px-2 py-1 text-[9px] dark:bg-slate-900">{idea.kind.replace(/_/g, " ")}</span>
+      {idea.explicitPlaceholder && <span className="rounded-full border border-dashed border-amber-400 bg-amber-50 px-2 py-1 text-[9px] text-amber-800 dark:bg-amber-950 dark:text-amber-200">placeholder</span>}
+    </div>
+  </article>;
 }
 
 function PlacementCard({ placement, onSelect }: { placement: EntryRecord; onSelect: () => void }) {
@@ -826,12 +983,30 @@ function IssueSection({ warnings, dependencyHealth }: { warnings: EntryRecord[];
 }
 
 function UnplacedSummary({ unplaced }: { unplaced: EntryRecord }) {
-  return <AuthoringPanel title="Unplaced Content" subtitle="Counts derived from current supported placement relationships." help="Use this as a backlog signal. Unplaced content is not automatically wrong, but high counts mean the timeline has less context to navigate."><div className="mt-3 space-y-1 text-xs">{Object.entries(unplaced).map(([key, value]) => <div key={key} className="flex justify-between rounded border px-2 py-1"><span>{key.replace(/_/g, " ")}</span><strong>{Array.isArray(value) ? value.length : 0}</strong></div>)}</div></AuthoringPanel>;
+  return <AuthoringPanel title="Unplaced Content" subtitle="Counts derived from current supported placement relationships." help="Use this as a backlog signal. Unplaced content is not automatically wrong, but high counts mean the timeline has less context to navigate." collapsible defaultCollapsed collapsedSummary="Open the backlog when placing new material"><div className="mt-3 space-y-1 text-xs">{Object.entries(unplaced).map(([key, value]) => <div key={key} className="flex justify-between rounded border px-2 py-1"><span>{key.replace(/_/g, " ")}</span><strong>{Array.isArray(value) ? value.length : 0}</strong></div>)}</div></AuthoringPanel>;
+}
+
+function ProvisionalIdeaContextDock({ idea }: { idea: ProvisionalTimelineNode }) {
+  return <aside id="timeline-context" className="h-fit" data-testid="story-timeline-provisional-context">
+    <AuthoringPanel
+      title="Idea Studio Provisional Card"
+      subtitle={`${idea.flowTitle} · item ${idea.order + 1}`}
+      help="This card is a live browser-local view of an Idea Studio draft. Reorder it on this lane; use Idea Studio for notes, relationships, shaping, and project links."
+      actions={<Link className={`${BUTTON_CLASSES.violet} ${BUTTON_SIZES.xs}`} to={`/author/creation-flow?draft=${encodeURIComponent(idea.draftId)}`}>Open in Idea Studio</Link>}
+    >
+      <div className="mt-3 rounded-md border-2 border-dashed border-violet-300 bg-violet-50 p-3 text-sm dark:border-violet-800 dark:bg-violet-950/30">
+        <div className="text-[10px] font-semibold uppercase text-violet-700 dark:text-violet-300">{idea.explicitPlaceholder ? "Explicit placeholder" : idea.kind.replace(/_/g, " ")}</div>
+        <div className="mt-1 font-semibold">{idea.title}</div>
+        {idea.detail && <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">{idea.detail}</p>}
+      </div>
+      <p className="mt-3 text-xs text-slate-500">Placed on {idea.target.label || idea.target.canonicalId}. This provisional card is never included in the Story Timeline canonical save bundle.</p>
+    </AuthoringPanel>
+  </aside>;
 }
 
 function ContextDock({ selection, localBeat, placement, event, libraryEntry, libraryKind, relationships, warnings, canonicalBeats, canonicalLinks, canonicalLinkEdit, onBeginCanonicalLinkEdit, onCanonicalLinkEditChange, onCancelCanonicalLinkEdit, onUpdateBeat, onDeleteBeat, onRemoveAttachment }: { selection: Selection; localBeat?: LocalBeat; placement?: EntryRecord; event?: EntryRecord; libraryEntry?: EntryRecord; libraryKind: string; relationships: EntryRecord[]; warnings: EntryRecord[]; canonicalBeats: EntryRecord[]; canonicalLinks: EntryRecord[]; canonicalLinkEdit: CanonicalLinkEdit | null; onBeginCanonicalLinkEdit: (linkId: string) => void; onCanonicalLinkEditChange: (draft: StoryPlacementDraft) => void; onCancelCanonicalLinkEdit: () => void; onUpdateBeat: (beatId: string, patch: Partial<LocalBeat>) => void; onDeleteBeat: (beatId: string) => void; onRemoveAttachment: (beatId: string, attachment: LocalAttachment) => void }) {
   if (!selection) return <aside id="timeline-context" className="h-fit"><AuthoringPanel title="Context Dock" subtitle="Select a placement, event, library item, or local planning beat to inspect it." help="The dock keeps details beside the board so you do not have to leave the timeline while drafting."><EmptyState variant="compact" title="Nothing selected.">Select a board card, library item, or local planning beat. Drop library content directly onto a local beat to attach it.</EmptyState></AuthoringPanel></aside>;
-  if (localBeat) return <aside id="timeline-context" className="h-fit" data-testid="story-timeline-context-dock"><AuthoringPanel title="Local Planning Beat" help="This beat is browser-local until you review and commit the plan. Use typed attachments to connect saved records to the planned story beat." actions={<button type="button" className="text-xs font-semibold text-red-700" onClick={() => onDeleteBeat(localBeat.id)}>Delete</button>}><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Title<input className={`${inputClass} mt-1`} value={localBeat.title} onChange={(eventValue) => onUpdateBeat(localBeat.id, { title: eventValue.target.value })} /></label><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Beat Type<select className={`${inputClass} mt-1`} value={localBeat.beat_type} onChange={(eventValue) => onUpdateBeat(localBeat.id, { beat_type: eventValue.target.value })}>{["Hook", "Introduction", "Discovery", "Decision", "Conflict", "Revelation", "Reversal", "Climax", "Recovery", "Payoff", "Other"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Intent / Summary<textarea className={`${inputClass} mt-1 min-h-28`} value={localBeat.summary} onChange={(eventValue) => onUpdateBeat(localBeat.id, { summary: eventValue.target.value })} /></label><div className="mt-4"><div className="text-xs font-semibold uppercase text-slate-500">Typed Attachments</div><div className="mt-2 space-y-2">{localBeat.attachments.map((attachment) => <div key={`${attachment.kind}:${attachment.entry_id}`} className="rounded border p-2 text-xs"><div className="flex items-center justify-between gap-2"><div><div className="text-[10px] font-semibold uppercase text-slate-500">{attachment.role.replace(/_/g, " ")} / {attachment.kind.replace(/_/g, " ")}</div><div className="font-semibold">{attachment.label}</div></div><button type="button" className="text-red-700" onClick={() => onRemoveAttachment(localBeat.id, attachment)}>Remove</button></div>{entityRoute(attachment.kind, attachment.entry_id) && <Link className="mt-1 inline-block text-blue-700 dark:text-blue-300" to={entityRoute(attachment.kind, attachment.entry_id)}>Inspect Attached Record</Link>}</div>)}{!localBeat.attachments.length && <EmptyState variant="compact" title="No attached content yet.">Drag library content onto this beat to connect saved records to the plan.</EmptyState>}</div></div><p className="mt-4 rounded-md border border-fuchsia-200 bg-fuchsia-50 p-2 text-xs text-fuchsia-800 dark:border-fuchsia-900 dark:bg-fuchsia-950 dark:text-fuchsia-200">This beat remains browser-local until its preview is reviewed and committed.</p></AuthoringPanel></aside>;
+  if (localBeat) return <aside id="timeline-context" className="h-fit" data-testid="story-timeline-context-dock"><AuthoringPanel title="Local Planning Beat" help="This beat is browser-local until you review and commit the plan. Use typed attachments to connect saved records to the planned story beat." actions={<button type="button" className="text-xs font-semibold text-red-700" onClick={() => onDeleteBeat(localBeat.id)}>Delete</button>}><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Title<input className={`${inputClass} mt-1`} value={localBeat.title} onChange={(eventValue) => onUpdateBeat(localBeat.id, { title: eventValue.target.value })} /></label><BeatTypeField value={localBeat.beat_type} onChange={(beat_type) => onUpdateBeat(localBeat.id, { beat_type })} /><label className="mt-3 block text-xs font-semibold uppercase text-slate-500">Intent / Summary<textarea className={`${inputClass} mt-1 min-h-28`} value={localBeat.summary} onChange={(eventValue) => onUpdateBeat(localBeat.id, { summary: eventValue.target.value })} /></label><div className="mt-4"><div className="text-xs font-semibold uppercase text-slate-500">Typed Attachments</div><div className="mt-2 space-y-2">{localBeat.attachments.map((attachment) => <div key={`${attachment.kind}:${attachment.entry_id}`} className="rounded border p-2 text-xs"><div className="flex items-center justify-between gap-2"><div><div className="text-[10px] font-semibold uppercase text-slate-500">{attachment.role.replace(/_/g, " ")} / {attachment.kind.replace(/_/g, " ")}</div><div className="font-semibold">{attachment.label}</div></div><button type="button" className="text-red-700" onClick={() => onRemoveAttachment(localBeat.id, attachment)}>Remove</button></div>{entityRoute(attachment.kind, attachment.entry_id) && <Link className="mt-1 inline-block text-blue-700 dark:text-blue-300" to={entityRoute(attachment.kind, attachment.entry_id)}>Inspect Attached Record</Link>}</div>)}{!localBeat.attachments.length && <EmptyState variant="compact" title="No attached content yet.">Drag library content onto this beat to connect saved records to the plan.</EmptyState>}</div></div><p className="mt-4 rounded-md border border-fuchsia-200 bg-fuchsia-50 p-2 text-xs text-fuchsia-800 dark:border-fuchsia-900 dark:bg-fuchsia-950 dark:text-fuchsia-200">This beat remains browser-local until its preview is reviewed and committed.</p></AuthoringPanel></aside>;
 
   const selectedId = text(placement?.entry_id, text(event?.event_id, text(libraryEntry?.id)));
   const selectedKind = text(placement?.kind, event ? "event" : singular(libraryKind));

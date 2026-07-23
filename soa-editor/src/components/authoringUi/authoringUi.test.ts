@@ -77,7 +77,7 @@ describe("authoringUi field policies", () => {
 
   it("renders a consistent health summary with issue counts", () => {
     const markup = renderToStaticMarkup(createElement(AuthoringHealthSummary, { blockers: 2, warnings: 1, dirty: true }));
-    expect(markup).toContain("Unsaved");
+    expect(markup).toContain("Draft saved locally");
     expect(markup).toContain("2 blockers");
     expect(markup).toContain("1 warning");
     expect(markup).toContain("Authoring status");

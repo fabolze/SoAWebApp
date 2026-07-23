@@ -590,7 +590,7 @@ export default function AbilitySpellcraftLabPage() {
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <AuthoringPageShell>
         <div className="space-y-4">
-          <Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} warnings={issues.warnings} advanced={advanced} setAdvanced={setAdvanced} onSave={() => void preview()} onReset={reset} />
+          <Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} warnings={issues.warnings} advanced={advanced} setAdvanced={setAdvanced} onSave={() => void preview()} onReset={reset} isNew={isNew} />
           {(notice || restored) && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{restored ? "Restored unsaved Ability Spellcraft draft. " : ""}{notice}</div>}
           <AbilitySelector packet={packet} onClone={startVariantDraft} />
           {advanced ? (
@@ -663,10 +663,10 @@ export default function AbilitySpellcraftLabPage() {
   );
 }
 
-function Header({ packet, dirty, saving, blockers, warnings, advanced, setAdvanced, onSave, onReset }: { packet: AbilityPacket; dirty: boolean; saving: boolean; blockers: string[]; warnings: string[]; advanced: boolean; setAdvanced: (value: boolean) => void; onSave: () => void; onReset: () => void }) {
+function Header({ packet, dirty, saving, blockers, warnings, advanced, setAdvanced, onSave, onReset, isNew }: { packet: AbilityPacket; dirty: boolean; saving: boolean; blockers: string[]; warnings: string[]; advanced: boolean; setAdvanced: (value: boolean) => void; onSave: () => void; onReset: () => void; isNew: boolean }) {
   return <Panel id="ability-header" title={displayText(packet.ability.name, "Ability Spellcraft Lab")} subtitle={`${strings(packet.ability.effects).length} effects / ${rows(packet.ability.scaling).length} scaling stats / ${packet.assigned_combat_profile_ids.length} combat profiles`} help="Use this workspace to build an ability's trigger, reach, payload, scaling, cost, combat assignments, and unlock rule as one reviewed bundle.">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <AuthoringHealthSummary dirty={dirty} saving={saving} blockers={blockers.length} warnings={warnings.length} />
+      <AuthoringHealthSummary dirty={dirty} saving={saving} blockers={blockers.length} warnings={warnings.length} isNew={isNew} />
       <div className="flex gap-2"><button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm}`} onClick={() => setAdvanced(!advanced)}>{advanced ? "Return To Spellcraft" : "Advanced Details"}</button><button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={onReset}>Reset Draft</button><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || blockers.length > 0 || !dirty} onClick={onSave}>{saving ? "Reviewing..." : "Review Ability Bundle"}</button></div>
     </div>
   </Panel>;

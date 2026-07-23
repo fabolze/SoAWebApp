@@ -211,6 +211,7 @@ Story Timeline usage:
 - Use **Entity Occurrences** to switch between locations, characters, important items, quests, and factions, then see repeated appearances or state changes without scrolling across every lane.
 - Use the lens buttons to reduce visual noise: Story, Cast, Locations, Quests, Runtime, State, and Issues.
 - Drag library content onto an arc lane to create a browser-local planning beat, or onto an existing local beat to attach it.
+- In Quick Capture or Idea Studio, choose **Place on <timeline or arc> as provisional** to mirror the draft's ordered ideas and standalone placeholders as dashed local cards. Reorder those cards on Story Timeline; open Idea Studio for the full notes, relationships, shaping, and project links.
 - Click **Review & Commit Plan** to validate the local plan, then **Commit Plan** to create canonical `adventure_beats` and `adventure_beat_links`.
 - Occurrence labels can show lifecycle semantics from typed beat links, including `change_type`, `state_label`, `continuity_group_id`, and `importance`.
 

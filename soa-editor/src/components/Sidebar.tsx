@@ -1,25 +1,9 @@
-import { NavLink } from "react-router-dom";
-import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  type DragEndEvent,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useMemo, useState, type ElementType } from "react";
+import { NavLink } from "react-router-dom";
 import {
   AcademicCapIcon,
   ArchiveBoxIcon,
   BanknotesIcon,
-  Bars3Icon,
   BeakerIcon,
   BookOpenIcon,
   BuildingStorefrontIcon,
@@ -29,15 +13,15 @@ import {
   ChevronDoubleRightIcon,
   ChevronRightIcon,
   ClipboardDocumentListIcon,
-  Cog6ToothIcon,
   ClockIcon,
+  Cog6ToothIcon,
   CpuChipIcon,
-  PlayIcon,
   CubeIcon,
   DocumentTextIcon,
   FlagIcon,
   HomeIcon,
   MapIcon,
+  PlayIcon,
   PuzzlePieceIcon,
   SparklesIcon,
   Squares2X2Icon,
@@ -46,7 +30,6 @@ import {
 } from "@heroicons/react/24/outline";
 import { useDirtyState } from "./useDirtyState";
 import DarkModeToggle from "./DarkModeToggle";
-import { AUTHORING_MODES } from "../config/authoringModes";
 
 type SidebarItem = {
   to: string;
@@ -56,186 +39,81 @@ type SidebarItem = {
 
 type SidebarGroup = {
   label: string;
+  description?: string;
   items: SidebarItem[];
 };
 
-function SortableSidebarItem({
-  item,
-  collapsed,
-  hidden,
-  groupLabel,
-  onNavigateRequest,
-}: {
-  item: SidebarItem;
-  collapsed: boolean;
-  hidden: boolean;
-  groupLabel: string;
-  onNavigateRequest: () => boolean;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: item.to,
-    data: { type: "item", group: groupLabel },
-  });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  const Icon = item.icon;
-
-  return (
-    <li ref={setNodeRef} style={style} className={`group relative ${hidden ? "hidden" : ""}`} {...attributes}>
-      <div className="flex items-center gap-2">
-        <div
-          {...listeners}
-          className="cursor-grab p-1 focus:outline-none touch-action-none"
-          aria-label={`Drag item ${item.label}`}
-        >
-          <Bars3Icon className="w-4 h-4 text-slate-400" />
-        </div>
-        <NavLink
-          to={item.to}
-          onClick={(e) => {
-            if (!onNavigateRequest()) e.preventDefault();
-          }}
-          className={({ isActive }) =>
-            `flex items-center ${collapsed ? "justify-center" : "gap-3"} py-2 px-2 rounded-md transition-colors duration-200 ${
-              isActive ? "bg-primary text-white" : "hover:bg-slate-700"
-            } font-medium ${isDragging ? "pointer-events-none" : ""}`
-          }
-          title={item.label}
-          end={item.to === "/"}
-        >
-          <Icon className="w-5 h-5 text-current transition-colors duration-200" />
-          {!collapsed && <span className="text-xs font-medium">{item.label}</span>}
-        </NavLink>
-      </div>
-      {collapsed && (
-        <span className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-200">
-          {item.label}
-        </span>
-      )}
-    </li>
-  );
-}
-
-function SortableSidebarGroup({
-  group,
-  collapsed,
-  collapsedGroups,
-  filter,
-  onToggleGroup,
-  onNavigateRequest,
-}: {
-  group: SidebarGroup;
-  collapsed: boolean;
-  collapsedGroups: Record<string, boolean>;
-  filter: string;
-  onToggleGroup: (label: string) => void;
-  onNavigateRequest: () => boolean;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: group.label,
-    data: { type: "group" },
-  });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  const hiddenSet = useMemo(() => {
-    return new Set(
-      group.items
-        .filter(
-          (item) => !item.label.toLowerCase().includes(filter.toLowerCase()) || collapsedGroups[group.label]
-        )
-        .map((item) => item.to)
-    );
-  }, [group.items, filter, collapsedGroups, group.label]);
-
-  return (
-    <div ref={setNodeRef} style={style} className="mb-6">
-      {!collapsed && (
-        <div className="flex items-center justify-between px-2 mb-2 text-xs uppercase tracking-wider text-slate-400 font-semibold">
-          <button onClick={() => onToggleGroup(group.label)} className="flex items-center gap-1 focus:outline-none">
-            <ChevronRightIcon
-              className={`w-3 h-3 transition-transform ${collapsedGroups[group.label] ? "" : "rotate-90"}`}
-            />
-            {group.label}
-          </button>
-          <div
-            {...attributes}
-            {...listeners}
-            className="cursor-grab p-1 focus:outline-none"
-            aria-label={`Drag group ${group.label}`}
-          >
-            <Bars3Icon className="w-3 h-3 text-slate-400" />
-          </div>
-        </div>
-      )}
-      <SortableContext items={group.items.map((i) => i.to)} strategy={verticalListSortingStrategy}>
-        <ul className="space-y-1">
-          {group.items.map((item) => (
-            <SortableSidebarItem
-              key={item.to}
-              item={item}
-              collapsed={collapsed}
-              hidden={hiddenSet.has(item.to)}
-              groupLabel={group.label}
-              onNavigateRequest={onNavigateRequest}
-            />
-          ))}
-        </ul>
-      </SortableContext>
-    </div>
-  );
-}
-
-const DEFAULT_GROUPS: SidebarGroup[] = [
+const NAV_GROUPS: SidebarGroup[] = [
   {
-    label: "System",
+    label: "Start",
+    description: "Begin or resume creative work",
     items: [
-      { to: "/", label: "Home", icon: HomeIcon },
-      { to: "/playtest", label: "Playtest: Shadows of Shanoir", icon: PlayIcon },
-      { to: "/simulation", label: "Simulation Sandbox", icon: CpuChipIcon },
-      { to: "/settings", label: "Settings", icon: Cog6ToothIcon },
+      { to: "/", label: "Creative Home", icon: HomeIcon },
+      { to: "/author/creation-flow", label: "Capture An Idea", icon: SparklesIcon },
     ],
   },
   {
-    label: "Authoring Modes",
-    items: AUTHORING_MODES.map(({ route, label, icon }) => ({ to: route, label, icon })),
+    label: "Story",
+    items: [
+      { to: "/author/dialogues", label: "Write Dialogue", icon: ChatBubbleLeftRightIcon },
+      { to: "/author/quests", label: "Build A Quest", icon: DocumentTextIcon },
+      { to: "/author/story-timeline", label: "Shape The Story", icon: ClockIcon },
+      { to: "/author/progression-flow", label: "Plan Progression", icon: Squares2X2Icon },
+      { to: "/author/dependencies", label: "Check Dependencies", icon: PuzzlePieceIcon },
+    ],
+  },
+  {
+    label: "World & Cast",
+    items: [
+      { to: "/author/world", label: "Build The World", icon: MapIcon },
+      { to: "/author/locations/map", label: "Explore The Atlas", icon: MapIcon },
+      { to: "/author/characters/new", label: "Create A Character", icon: UsersIcon },
+      { to: "/author/encounters", label: "Stage An Encounter", icon: ClipboardDocumentListIcon },
+    ],
   },
   {
     label: "Gameplay",
+    items: [
+      { to: "/author/items/new", label: "Create An Item", icon: CubeIcon },
+      { to: "/author/items/new/ecosystem", label: "Design Item Journey", icon: Squares2X2Icon },
+      { to: "/author/shops/new", label: "Build A Shop", icon: BuildingStorefrontIcon },
+      { to: "/author/abilities", label: "Craft An Ability", icon: SparklesIcon },
+      { to: "/author/creatures", label: "Create A Creature", icon: UserGroupIcon },
+    ],
+  },
+  {
+    label: "Play & Review",
+    items: [
+      { to: "/playtest", label: "Playtest: Shadows of Shanoir", icon: PlayIcon },
+      { to: "/simulation", label: "Simulation Sandbox", icon: CpuChipIcon },
+      { to: "/settings", label: "Project Settings", icon: Cog6ToothIcon },
+    ],
+  },
+  {
+    label: "Data & Tools",
+    description: "Complete technical editors",
     items: [
       { to: "/abilities", label: "Abilities", icon: SparklesIcon },
       { to: "/effects", label: "Effects", icon: BeakerIcon },
       { to: "/statuses", label: "Statuses", icon: BeakerIcon },
       { to: "/attributes", label: "Attributes", icon: ChartBarIcon },
+      { to: "/stats", label: "Stats", icon: ChartBarIcon },
       { to: "/characterclasses", label: "Character Classes", icon: AcademicCapIcon },
       { to: "/talent-trees", label: "Talent Trees", icon: Squares2X2Icon },
       { to: "/talent-nodes", label: "Talent Nodes", icon: PuzzlePieceIcon },
       { to: "/talent-node-links", label: "Talent Node Links", icon: ClipboardDocumentListIcon },
       { to: "/items", label: "Items", icon: CubeIcon },
       { to: "/currencies", label: "Currencies", icon: BanknotesIcon },
-      { to: "/stats", label: "Stats", icon: ChartBarIcon },
       { to: "/shops", label: "Shops", icon: BuildingStorefrontIcon },
-      { to: "/shops-inventory", label: "Shops Inventory", icon: ClipboardDocumentListIcon },
+      { to: "/shops-inventory", label: "Shop Inventory", icon: ClipboardDocumentListIcon },
       { to: "/requirements", label: "Requirements", icon: PuzzlePieceIcon },
-    ],
-  },
-  {
-    label: "World",
-    items: [
       { to: "/locations", label: "Locations", icon: MapIcon },
       { to: "/location-routes", label: "Location Routes", icon: MapIcon },
       { to: "/location-pois", label: "Location POIs", icon: MapIcon },
       { to: "/location-encounter-tables", label: "Encounter Tables", icon: ClipboardDocumentListIcon },
       { to: "/route-event-bindings", label: "Route Events", icon: ClipboardDocumentListIcon },
       { to: "/travel-tuning", label: "Travel Tuning", icon: ChartBarIcon },
-      { to: "/location-creative-briefs", label: "Creative Briefs", icon: SparklesIcon },
+      { to: "/location-creative-briefs", label: "Creative Briefs", icon: BookOpenIcon },
       { to: "/factions", label: "Factions", icon: UserGroupIcon },
       { to: "/lore-entries", label: "Lore Entries", icon: BookOpenIcon },
       { to: "/characters", label: "Characters", icon: UsersIcon },
@@ -244,11 +122,6 @@ const DEFAULT_GROUPS: SidebarGroup[] = [
       { to: "/character-story-profiles", label: "Character Story Profiles", icon: BookOpenIcon },
       { to: "/character-relationships", label: "Character Relationships", icon: UserGroupIcon },
       { to: "/character-story-beats", label: "Character Story Beats", icon: ClockIcon },
-    ],
-  },
-  {
-    label: "Narrative",
-    items: [
       { to: "/adventure-beats", label: "Adventure Beats", icon: ClockIcon },
       { to: "/adventure-beat-links", label: "Adventure Beat Links", icon: ClipboardDocumentListIcon },
       { to: "/dialogue-nodes", label: "Dialogue Nodes", icon: ChatBubbleLeftRightIcon },
@@ -265,6 +138,69 @@ const DEFAULT_GROUPS: SidebarGroup[] = [
 ];
 
 const STORAGE_KEY = "soa.sidebar";
+const COLLAPSED_PINNED = new Set([
+  "/",
+  "/author/creation-flow",
+  "/author/dialogues",
+  "/author/world",
+  "/author/story-timeline",
+  "/playtest",
+]);
+
+function initialCollapsedGroups(): Record<string, boolean> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") as {
+      collapsedGroups?: Record<string, boolean>;
+    } | null;
+    return {
+      "Data & Tools": true,
+      ...(parsed?.collapsedGroups || {}),
+    };
+  } catch {
+    return { "Data & Tools": true };
+  }
+}
+
+function SidebarLink({
+  item,
+  collapsed,
+  onNavigateRequest,
+}: {
+  item: SidebarItem;
+  collapsed: boolean;
+  onNavigateRequest: () => boolean;
+}) {
+  const Icon = item.icon;
+  return (
+    <li className="group relative">
+      <NavLink
+        to={item.to}
+        onClick={(event) => {
+          if (!onNavigateRequest()) event.preventDefault();
+        }}
+        className={({ isActive }) =>
+          `flex min-h-9 items-center rounded-lg px-2.5 py-2 transition ${
+            collapsed ? "justify-center" : "gap-3"
+          } ${
+            isActive
+              ? "bg-violet-500/20 text-violet-100 ring-1 ring-inset ring-violet-400/30"
+              : "text-slate-300 hover:bg-white/[0.08] hover:text-white"
+          }`
+        }
+        title={item.label}
+        end={item.to === "/"}
+      >
+        <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+        {!collapsed && <span className="truncate text-xs font-medium">{item.label}</span>}
+      </NavLink>
+      {collapsed && (
+        <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-950 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition group-hover:opacity-100">
+          {item.label}
+        </span>
+      )}
+    </li>
+  );
+}
 
 export default function Sidebar({
   collapsed,
@@ -274,152 +210,93 @@ export default function Sidebar({
   onToggleCollapse: () => void;
 }) {
   const [filter, setFilter] = useState("");
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  const [menuGroups, setMenuGroups] = useState<SidebarGroup[]>(DEFAULT_GROUPS);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(initialCollapsedGroups);
   const { confirmNavigate } = useDirtyState();
+  const normalizedFilter = filter.trim().toLowerCase();
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) {
-        setMenuGroups(DEFAULT_GROUPS);
-        setCollapsedGroups({});
-        return;
-      }
-
-      const parsed = JSON.parse(stored);
-      const defaultLabels = DEFAULT_GROUPS.map((g) => g.label);
-      const storedGroupOrder: string[] = Array.isArray(parsed?.groupOrder) ? parsed.groupOrder : [];
-      const mergedGroupOrder = [
-        ...storedGroupOrder,
-        ...defaultLabels.filter((label) => !storedGroupOrder.includes(label)),
-      ];
-
-      const reordered = mergedGroupOrder
-        .map((label) => DEFAULT_GROUPS.find((group) => group.label === label))
-        .filter((group): group is SidebarGroup => !!group)
-        .map((defaultGroup) => {
-          const defaultIds = defaultGroup.items.map((i) => i.to);
-          const storedOrder = Array.isArray(parsed?.itemOrder?.[defaultGroup.label])
-            ? parsed.itemOrder[defaultGroup.label]
-            : [];
-          const mergedItemOrder = [...storedOrder, ...defaultIds.filter((id) => !storedOrder.includes(id))];
-          const sortedItems = mergedItemOrder
-            .map((id: string) => defaultGroup.items.find((item) => item.to === id))
-            .filter((item): item is SidebarItem => !!item);
-          return { ...defaultGroup, items: sortedItems };
-        });
-
-      setMenuGroups(reordered.length > 0 ? reordered : DEFAULT_GROUPS);
-      setCollapsedGroups(
-        parsed?.collapsedGroups && typeof parsed.collapsedGroups === "object" ? parsed.collapsedGroups : {}
-      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ collapsedGroups }));
     } catch {
-      setMenuGroups(DEFAULT_GROUPS);
-      setCollapsedGroups({});
+      // Navigation remains usable without local preferences.
     }
-  }, []);
+  }, [collapsedGroups]);
 
-  useEffect(() => {
-    try {
-      const state = {
-        groupOrder: menuGroups.map((g) => g.label),
-        itemOrder: Object.fromEntries(menuGroups.map((g) => [g.label, g.items.map((i) => i.to)])),
-        collapsedGroups,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // Ignore persistence failures in local mode.
-    }
-  }, [menuGroups, collapsedGroups]);
-
-  const toggleGroup = (label: string) => {
-    setCollapsedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
-  };
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const activeType = active.data.current?.type;
-    if (activeType === "group") {
-      setMenuGroups((prev) => {
-        const oldIdx = prev.findIndex((group) => group.label === active.id);
-        const newIdx = prev.findIndex((group) => group.label === over.id);
-        if (oldIdx === -1 || newIdx === -1) return prev;
-        return arrayMove(prev, oldIdx, newIdx);
-      });
-      return;
-    }
-
-    if (activeType === "item") {
-      const activeGroup = active.data.current?.group;
-      const overGroup = over.data.current?.group;
-      if (!activeGroup || activeGroup !== overGroup) return;
-
-      setMenuGroups((prev) => {
-        const groupIdx = prev.findIndex((group) => group.label === activeGroup);
-        if (groupIdx === -1) return prev;
-
-        const items = prev[groupIdx].items;
-        const oldIdx = items.findIndex((item) => item.to === active.id);
-        const newIdx = items.findIndex((item) => item.to === over.id);
-        if (oldIdx === -1 || newIdx === -1) return prev;
-
-        const next = [...prev];
-        next[groupIdx] = { ...next[groupIdx], items: arrayMove(items, oldIdx, newIdx) };
-        return next;
-      });
-    }
-  };
+  const visibleGroups = useMemo(() => NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) =>
+      (!collapsed || COLLAPSED_PINNED.has(item.to))
+      && (!normalizedFilter || `${item.label} ${group.label}`.toLowerCase().includes(normalizedFilter))
+    ),
+  })).filter((group) => group.items.length > 0), [collapsed, normalizedFilter]);
 
   return (
-    <nav
-      className={`flex flex-col h-screen ${collapsed ? "w-16" : "w-64"} bg-slate-800 text-white border-r border-slate-700 shadow-md transition-all duration-300 dark:bg-slate-950 dark:border-slate-800`}
-    >
-      <div
-        className={`flex items-center gap-2 px-4 py-4 mb-2 border-b border-slate-700 ${collapsed ? "justify-center" : ""}`}
-      >
-        <img src="/vite.svg" alt="SoA" className="w-8 h-8" />
-        {!collapsed && <span className="text-xl font-bold text-primary tracking-tight">SoA Editor</span>}
+    <nav className={`flex h-screen shrink-0 flex-col border-r border-slate-800 bg-[radial-gradient(circle_at_top,_#312e81_0,_#111827_38%,_#0f172a_100%)] text-white shadow-xl transition-all duration-300 ${collapsed ? "w-16" : "w-64"}`}>
+      <div className={`flex items-center gap-3 border-b border-white/10 px-3 py-4 ${collapsed ? "justify-center" : ""}`}>
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-violet-400 to-fuchsia-500 text-[11px] font-black tracking-tight text-white shadow-lg shadow-violet-950/40">
+          SoA
+        </div>
+        {!collapsed && (
+          <div className="min-w-0">
+            <div className="truncate text-sm font-bold tracking-wide">Shadows of Altrail</div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-violet-200/70">Creative Studio</div>
+          </div>
+        )}
       </div>
-      <button
-        className="bg-slate-700 text-white rounded-md p-2 hover:bg-primary hover:text-white transition self-end mx-2 mb-2"
-        onClick={onToggleCollapse}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        {collapsed ? <ChevronDoubleRightIcon className="w-5 h-5" /> : <ChevronDoubleLeftIcon className="w-5 h-5" />}
-      </button>
-      <div className={`mx-2 mb-3 flex ${collapsed ? "justify-center" : "justify-start"}`}>
+
+      <div className={`flex items-center gap-2 px-2 py-3 ${collapsed ? "flex-col" : "justify-between"}`}>
         <DarkModeToggle compact={collapsed} />
+        <button
+          type="button"
+          className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
+          onClick={onToggleCollapse}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? <ChevronDoubleRightIcon className="h-4 w-4" /> : <ChevronDoubleLeftIcon className="h-4 w-4" />}
+        </button>
       </div>
+
       {!collapsed && (
-        <input
-          type="text"
-          className="mb-4 w-full px-3 py-2 rounded-md border border-slate-600 text-slate-900 dark:text-white bg-white dark:bg-slate-900 dark:border-slate-700"
-          placeholder="Filter..."
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
+        <div className="px-2 pb-3">
+          <input
+            type="search"
+            className="w-full rounded-lg border border-white/10 bg-white/[0.07] px-3 py-2 text-xs text-white outline-none placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20"
+            placeholder="Find a creative space…"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+          />
+        </div>
       )}
-      <div className="flex-1 overflow-y-auto">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={menuGroups.map((g) => g.label)} strategy={verticalListSortingStrategy}>
-            {menuGroups.map((group) => (
-              <SortableSidebarGroup
-                key={group.label}
-                group={group}
-                collapsed={collapsed}
-                collapsedGroups={collapsedGroups}
-                filter={filter}
-                onToggleGroup={toggleGroup}
-                onNavigateRequest={confirmNavigate}
-              />
-            ))}
-          </SortableContext>
-        </DndContext>
+
+      <div className="flex-1 overflow-y-auto px-2 pb-4">
+        {visibleGroups.map((group) => {
+          const groupCollapsed = !normalizedFilter && Boolean(collapsedGroups[group.label]);
+          return (
+            <section key={group.label} className={collapsed ? "mb-2" : "mb-4"}>
+              {!collapsed && (
+                <button
+                  type="button"
+                  className="mb-1 flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 hover:text-slate-200"
+                  onClick={() => setCollapsedGroups((current) => ({ ...current, [group.label]: !current[group.label] }))}
+                  aria-expanded={!groupCollapsed}
+                >
+                  <span>
+                    {group.label}
+                    {group.description && <span className="sr-only"> — {group.description}</span>}
+                  </span>
+                  <ChevronRightIcon className={`h-3 w-3 transition ${groupCollapsed ? "" : "rotate-90"}`} aria-hidden="true" />
+                </button>
+              )}
+              {!groupCollapsed && (
+                <ul className="space-y-1">
+                  {group.items.map((item) => (
+                    <SidebarLink key={item.to} item={item} collapsed={collapsed} onNavigateRequest={confirmNavigate} />
+                  ))}
+                </ul>
+              )}
+            </section>
+          );
+        })}
       </div>
     </nav>
   );

@@ -34,6 +34,12 @@ import DialogueImportDialog from "../dialogues/dlg/DialogueImportDialog";
 import { readSnapshots, saveSnapshot, type LocalSnapshot } from "../dialogues/history";
 
 type CenterView = "script" | "flow" | "rehearsal" | "impact";
+const CENTER_VIEW_LABELS: Record<CenterView, string> = {
+  script: "Write",
+  flow: "Branches",
+  rehearsal: "Play",
+  impact: "Consequences",
+};
 type Lens = "choices" | "consequences" | "locks" | "speakers" | "reachability" | "world";
 type InspectorTab = "edit" | "beat" | "health" | "context";
 type Point = { x: number; y: number };
@@ -375,7 +381,7 @@ export default function DialogueFlowPage() {
   const [setupOpen, setSetupOpen] = useState(isNew);
   const [libraryOpen, setLibraryOpen] = useState(true);
   const [inspectorOpen, setInspectorOpen] = useState(true);
-  const [focusMode, setFocusMode] = useState(false);
+  const [focusMode, setFocusMode] = useState(isNew);
   const [libraryQuery, setLibraryQuery] = useState("");
   const [nodeQuery, setNodeQuery] = useState("");
   const [importOpen, setImportOpen] = useState(false);
@@ -427,6 +433,8 @@ export default function DialogueFlowPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true); setLoadError(""); setNotice(""); setDeletions([]); setBeatUnlinks([]); setReview(null);
+    setFocusMode(isNew);
+    if (isNew) setView("script");
     Promise.all([
       apiFetch("/api/dialogues").then((response) => response.json()),
       isNew ? Promise.resolve(null) : apiFetch(`/api/ui/dialogues/${encodeURIComponent(id)}`).then(async (response) => {
@@ -715,12 +723,12 @@ export default function DialogueFlowPage() {
       <AuthoringPanel
         id="dialogue-header"
         title={label(packet.dialogue)}
-        subtitle={`${activeNodes.length} lines / ${packet.story_beats.length} beats / ${health.blockers.length} blockers / ${health.warnings.length} warnings / ${dirty ? localSavedAt ? "Saved locally" : "Unsaved locally" : "Committed to project"}`}
+        subtitle={`${activeNodes.length} lines / ${packet.story_beats.length} beats / ${isNew && !dirty ? "Not started" : dirty ? localSavedAt ? "Draft saved locally" : "Saving locally" : "Saved to project"}`}
         help="Use this workspace to write a dialogue graph, rehearse choices, connect story beats, and review the saved bundle. Editing here drafts dialogue lines and beat links until you preview and commit."
-        actions={<div className="flex flex-wrap gap-2"><button className={inactive} onClick={undo} aria-label="Undo dialogue change">Undo</button><button className={inactive} onClick={redo} aria-label="Redo dialogue change">Redo</button><button className={inactive} onClick={() => setCommandOpen(true)}>Commands <kbd>Ctrl K</kbd></button><button className={inactive} onClick={() => setFocusMode((value) => !value)}>{focusMode ? "Exit focus" : "Focus mode"}</button><button className={inactive} onClick={() => setSetupOpen((value) => !value)}>Scene setup</button><button className={inactive} onClick={() => setImportOpen(true)} disabled={activeNodes.length > 0} title={activeNodes.length ? "V1 import is limited to empty dialogues." : "Import DLG/1"}>Import DLG/1</button><Link className={inactive} to="/dialogues">Generic Editor</Link><button className={inactive} disabled={!dirty || saving} onClick={reset}>Reset Draft</button><button className={active} disabled={saving || saveBlocked || !dirty} onClick={() => void preview()}>{saving ? "Reviewing..." : "Review Dialogue Bundle"}</button></div>}
+        actions={<div className="flex flex-wrap items-start gap-2"><button className={inactive} onClick={undo} aria-label="Undo dialogue change">Undo</button><button className={inactive} onClick={redo} aria-label="Redo dialogue change">Redo</button><button className={inactive} onClick={() => { const next = !focusMode; setFocusMode(next); if (next) setView("script"); }}>{focusMode ? "Exit focus" : "Focus mode"}</button><button className={active} disabled={saving || saveBlocked || !dirty} onClick={() => void preview()}>{saving ? "Checking…" : "Review & save"}</button><details className="relative"><summary className={`${inactive} cursor-pointer list-none`}>More</summary><div className="absolute right-0 z-30 mt-2 grid min-w-52 gap-1 rounded-lg border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900"><button className={inactive} onClick={() => setCommandOpen(true)}>Commands <kbd>Ctrl K</kbd></button><button className={inactive} onClick={() => { setSetupOpen(true); setFocusMode(false); }}>Scene setup</button><button className={inactive} onClick={() => setImportOpen(true)} disabled={activeNodes.length > 0} title={activeNodes.length ? "Import is available for an empty dialogue." : "Import dialogue text"}>Import dialogue</button><Link className={inactive} to="/dialogues">Data editor</Link><button className={inactive} disabled={!dirty || saving} onClick={reset}>Discard local changes</button></div></details></div>}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><div className="text-xs font-semibold uppercase text-violet-600">Dialogue Scene Room</div><h1 className="sr-only">{label(packet.dialogue)}</h1><AuthoringHealthSummary blockers={health.blockers.length} warnings={health.warnings.length} dirty={dirty} saving={saving} /></div>
+          <div><div className="text-xs font-semibold uppercase text-violet-600">Dialogue Scene Room</div><h1 className="sr-only">{label(packet.dialogue)}</h1><AuthoringHealthSummary blockers={health.blockers.length} warnings={health.warnings.length} dirty={dirty} saving={saving} isNew={isNew} /></div>
         </div>
         {notice && <Notice>{notice}</Notice>}
         {deletions.length > 0 && <div className="mt-3 flex items-center justify-between rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950"><span>{deletions.length} line(s) queued for deletion.</span><button className={inactive} onClick={() => setDeletions([])}>Undo Line Deletions</button></div>}
@@ -731,6 +739,8 @@ export default function DialogueFlowPage() {
           <div id="dialogue-beats" className="scroll-mt-24"><BeatTrack packet={packet} selectedBeatId={selectedBeatId} setSelectedBeatId={(beatId) => { setSelectedBeatId(beatId); setTab("beat"); }} onCreate={createBeat} /></div>
           {!isNew && currentId && <StoryPlacementPanel entityKind="dialogue" entityId={currentId} entityLabel={label(packet.dialogue)} entity={{ ...packet.dialogue, nodes: packet.nodes }} enableCrossEntityConsequenceActions />}
           {!isNew && currentId && <ScopedGateSection targetSchema="dialogues" targetId={currentId} targetLabel={label(packet.dialogue)} requirementId={text(packet.dialogue.requirements_id)} title="Dialogue Access Gate" subtitle="Create or reuse the player-state requirement that makes this scene available." tag="dialogue-gate" onRequirementCommitted={syncCommittedGate} />}</div>}
+
+      {focusMode && <section className="rounded-xl border border-violet-200 bg-gradient-to-r from-violet-50 to-white p-4 dark:border-violet-900 dark:from-violet-950/40 dark:to-slate-900"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-xs font-semibold uppercase tracking-wide text-violet-600">Writing focus</div><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Keep the scene’s intention in sight, then write it line by line.</p></div><button className={inactive} onClick={() => { setSetupOpen(true); setFocusMode(false); }}>Scene details</button></div><div className="mt-3 grid gap-3 md:grid-cols-2"><Field label="Scene title" value={packet.dialogue.title} onChange={(title) => updateDialogue({ title, slug: text(packet.dialogue.slug) || generateSlug(title) })} /><Field label="What must change in this conversation?" value={packet.dialogue.description} onChange={(description) => updateDialogue({ description })} /></div>{activeNodes.length === 0 && <button className={`${active} mt-4`} onClick={addFirstLine}>Write the first line</button>}</section>}
 
       <div id="dialogue-workbench" className={`grid scroll-mt-24 gap-4 ${!focusMode && libraryOpen && inspectorOpen ? "xl:grid-cols-[minmax(210px,280px)_minmax(0,1fr)_minmax(300px,390px)]" : !focusMode && (libraryOpen || inspectorOpen) ? "xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]" : "grid-cols-1"}`}>
         {!focusMode && libraryOpen && <Panel
@@ -747,12 +757,12 @@ export default function DialogueFlowPage() {
         <section id="dialogue-canvas" className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 scroll-mt-24">
           <div className="border-b border-slate-200 p-3 dark:border-slate-800">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex gap-1">{(["script", "flow", "rehearsal", "impact"] as CenterView[]).map((item) => <button key={item} className={view === item ? active : inactive} onClick={() => setView(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>
-              <div className="flex gap-1">{!libraryOpen && !focusMode && <button className={inactive} onClick={() => setLibraryOpen(true)}>Library</button>}{!inspectorOpen && !focusMode && <button className={inactive} onClick={() => setInspectorOpen(true)}>Inspector</button>}{activeNodes.length === 0 && <button className={active} onClick={addFirstLine}>Add first line</button>}</div>
+              <div className="flex gap-1">{focusMode ? <span className="rounded-md bg-violet-100 px-3 py-2 text-xs font-semibold text-violet-800 dark:bg-violet-950 dark:text-violet-200">Script</span> : (["script", "flow", "rehearsal", "impact"] as CenterView[]).map((item) => <button key={item} className={view === item ? active : inactive} onClick={() => setView(item)}>{CENTER_VIEW_LABELS[item]}</button>)}</div>
+              <div className="flex gap-1">{!libraryOpen && !focusMode && <button className={inactive} onClick={() => setLibraryOpen(true)}>Library</button>}{!inspectorOpen && !focusMode && <button className={inactive} onClick={() => setInspectorOpen(true)}>Inspector</button>}{activeNodes.length === 0 && !focusMode && <button className={active} onClick={addFirstLine}>Add first line</button>}</div>
               {view === "flow" && <button className={inactive} onClick={() => { const next = autoLayout(activeNodes); setPositions(next); localStorage.setItem(layoutKey(currentId), JSON.stringify(next)); }}>Auto Layout</button>}
             </div>
             {view === "flow" && <div className="mt-2 flex flex-wrap gap-1">{(["choices", "consequences", "locks", "speakers", "reachability", "world"] as Lens[]).map((item) => <button key={item} className={lens === item ? active : inactive} onClick={() => setLens(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>}
-            <div className="relative mt-2"><input aria-label="Search dialogue nodes" className={inputClass} placeholder="Find a speaker, line, or node slug…" value={nodeQuery} onChange={(event) => setNodeQuery(event.target.value)} />{nodeQuery && <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded border bg-white p-1 shadow-lg dark:bg-slate-950">{activeNodes.filter((node) => stable([node.speaker, node.text, node.slug]).toLowerCase().includes(nodeQuery.toLowerCase())).slice(0, 20).map((node) => <button type="button" key={text(node.id)} className="block w-full rounded p-2 text-left text-xs hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { setSelectedNodeId(text(node.id)); setSelectedChoice(null); setNodeQuery(""); if (view === "script") window.setTimeout(() => document.getElementById(`script-line-${text(node.id)}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0); }}>{speakerLabel(node, packet.characters)}: {text(node.text, "Empty line")}</button>)}</div>}</div>
+            {!focusMode && <div className="relative mt-2"><input aria-label="Search dialogue nodes" className={inputClass} placeholder="Find a speaker, line, or node slug…" value={nodeQuery} onChange={(event) => setNodeQuery(event.target.value)} />{nodeQuery && <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded border bg-white p-1 shadow-lg dark:bg-slate-950">{activeNodes.filter((node) => stable([node.speaker, node.text, node.slug]).toLowerCase().includes(nodeQuery.toLowerCase())).slice(0, 20).map((node) => <button type="button" key={text(node.id)} className="block w-full rounded p-2 text-left text-xs hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { setSelectedNodeId(text(node.id)); setSelectedChoice(null); setNodeQuery(""); if (view === "script") window.setTimeout(() => document.getElementById(`script-line-${text(node.id)}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0); }}>{speakerLabel(node, packet.characters)}: {text(node.text, "Empty line")}</button>)}</div>}</div>}
             {selectedNode && <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-violet-200 bg-violet-50 px-3 py-2 text-xs dark:bg-violet-950/30"><b>{label(selectedCharacter, text(selectedNode.speaker, "Speaker"))}</b>{text(selectedVoice?.want) && <span>Wants: {text(selectedVoice?.want)}</span>}{text(selectedVoice?.voice_notes) && <span>Voice: {text(selectedVoice?.voice_notes)}</span>}{text(selectedRelationship?.summary) && <span>Relationship: {text(selectedRelationship?.summary)}</span>}<span className="ml-auto">{text(selectedNode.requirements_id) ? "1 requirement in" : "No line requirement"} · {strings(selectedNode.set_flags).length + rows(selectedNode.choices).flatMap((choice) => strings(choice.set_flags)).length} flags out</span></div>}
           </div>
           {view === "script" && <DialogueScriptView nodes={activeNodes} startId={text(packet.dialogue.starting_node_id)} characters={packet.characters} selectedNodeId={selectedNodeId} onSelect={(nodeId) => { setSelectedNodeId(nodeId); setSelectedChoice(null); }} onChange={updateNode} onAdd={(nodeId) => addLinkedNode(nodeId, true)} onAddChoice={addChoiceNode} onDelete={(nodeId) => { const node = packet.nodes.find((entry) => text(entry.id) === nodeId); if (node?.__new) mutatePacket((current) => ({ ...current, nodes: current.nodes.filter((entry) => text(entry.id) !== nodeId) }), `delete:${nodeId}`); else setDeletions((current) => [...new Set([...current, nodeId])]); }} onSetStart={(nodeId) => updateDialogue({ starting_node_id: nodeId })} onMove={moveLine} onDuplicateBranch={duplicateBranch} />}
@@ -834,7 +844,7 @@ export default function DialogueFlowPage() {
       mutatePacket((current) => ({ ...current, dialogue: { ...current.dialogue, ...candidate.dialogue }, nodes: candidate.nodes.map((node) => ({ ...node, choices: rows(node.choices).map((choice) => normalizeChoice(choice)) })) }), "dlg-import");
       setPositions(autoLayout(candidate.nodes)); setSelectedNodeId(text(candidate.dialogue.starting_node_id)); setView("script"); setImportOpen(false); setNotice("DLG/1 candidate staged as a local draft. Review, rehearse, and preview before committing.");
     }} />}
-    {review && <BundleReview result={review} title="Dialogue Scene Bundle Review" description="Dialogue, lines, and story beats will commit atomically." variant="modal" commitLabel="Commit Bundle" saving={saving} error={reviewError} warningAcknowledgement="required" onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={(acceptedWarningIds) => void commit(acceptedWarningIds)} />}
+    {review && <BundleReview result={review} title="Save dialogue to project" description="Review the scene, lines, choices, and story connections that will be saved." variant="modal" commitLabel="Save dialogue" saving={saving} error={reviewError} warningAcknowledgement="required" onCancel={() => { setReview(null); setPreviewMutation(null); setReviewError(""); }} onCommit={(acceptedWarningIds) => void commit(acceptedWarningIds)} />}
   </AuthoringPageShell>;
 }
 

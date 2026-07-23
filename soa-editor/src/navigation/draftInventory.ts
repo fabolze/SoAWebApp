@@ -8,6 +8,11 @@ export interface DraftInventoryItem {
   ts: number;
 }
 
+export interface DraftRemovalBackup {
+  item: DraftInventoryItem;
+  values: Array<{ key: string; value: string }>;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -34,7 +39,9 @@ function parseStored(key: string): Record<string, unknown> | null {
 
 function schemaDraft(key: string, schemaName: string, id: string): DraftInventoryItem | null {
   const parsed = parseStored(key);
+  if (!parsed) return null;
   const data = isRecord(parsed?.data) ? parsed.data : undefined;
+  if (!data) return null;
   return {
     key,
     title: labelFromEntry(data, id || "New draft"),
@@ -46,6 +53,7 @@ function schemaDraft(key: string, schemaName: string, id: string): DraftInventor
 
 function packetDraft(key: string, kind: string, route: string, packetKey: string, idKey = "id"): DraftInventoryItem | null {
   const parsed = parseStored(key);
+  if (!parsed) return null;
   const packet = isRecord(parsed?.packet) ? parsed.packet : isRecord(parsed) ? parsed : {};
   const primary = isRecord(packet[packetKey]) ? packet[packetKey] as Record<string, unknown> : undefined;
   const id = text(primary?.[idKey], "new");
@@ -60,6 +68,7 @@ function packetDraft(key: string, kind: string, route: string, packetKey: string
 
 function itemEcosystemDraft(key: string): DraftInventoryItem | null {
   const parsed = parseStored(key);
+  if (!parsed) return null;
   const item = isRecord(parsed?.item) ? parsed.item : undefined;
   const id = text(item?.id, key.replace("soa.item-ecosystem.", "") || "new");
   return {
@@ -73,7 +82,9 @@ function itemEcosystemDraft(key: string): DraftInventoryItem | null {
 
 function dialogueFlowDraft(key: string): DraftInventoryItem | null {
   const parsed = parseStored(key);
+  if (!parsed) return null;
   const dialogue = isRecord(parsed?.dialogue) ? parsed.dialogue : undefined;
+  if (!dialogue) return null;
   const id = text(dialogue?.id, key.replace("soa.draft.dialogue_flow.", "") || "new");
   return {
     key,
@@ -84,9 +95,42 @@ function dialogueFlowDraft(key: string): DraftInventoryItem | null {
   };
 }
 
+function characterStudioDraft(key: string): DraftInventoryItem | null {
+  const parsed = parseStored(key);
+  const packet = isRecord(parsed?.packet) ? parsed.packet : undefined;
+  const character = isRecord(packet?.character) ? packet.character : undefined;
+  if (!parsed || !character) return null;
+  const keyParts = key.split(".");
+  const mode = keyParts[3] || "individual";
+  const id = text(character.id, keyParts.slice(4).join(".") || "new");
+  return {
+    key,
+    title: labelFromEntry(character, "Character draft"),
+    subtitle: `${mode.replace(/_/g, " ")} character studio draft`,
+    route: id === "new" ? "/author/characters/new" : `/author/characters/${encodeURIComponent(id)}`,
+    ts: Number(parsed.ts) || 0,
+  };
+}
+
+function questJourneyDraft(key: string): DraftInventoryItem | null {
+  const parsed = parseStored(key);
+  const quest = isRecord(parsed?.quest) ? parsed.quest : undefined;
+  if (!parsed || !quest) return null;
+  const id = text(quest.id, key.replace("soa.quest-journey.", "") || "new");
+  const objectives = Array.isArray(quest.objectives) ? quest.objectives.length : 0;
+  return {
+    key,
+    title: labelFromEntry(quest, "Quest draft"),
+    subtitle: `quest journey · ${objectives} objective${objectives === 1 ? "" : "s"}`,
+    route: key.endsWith(".new") ? "/author/quests/new" : `/author/quests/${encodeURIComponent(id)}`,
+    ts: Number(parsed.ts) || 0,
+  };
+}
+
 function storyTimelinePlan(key: string): DraftInventoryItem | null {
   const parsed = parseStored(key);
   const beats = Array.isArray(parsed?.beats) ? parsed.beats.length : 0;
+  if (!parsed || beats === 0) return null;
   return {
     key,
     title: "Story Timeline local plan",
@@ -102,13 +146,46 @@ function creationFlowDraft(key: string): DraftInventoryItem | null {
   const firstFrame = returnStack.find(isRecord);
   const steps = Array.isArray(parsed?.steps) ? parsed.steps.length : 0;
   const placeholders = Array.isArray(parsed?.placeholders) ? parsed.placeholders.length : 0;
+  const hasNotes = Array.isArray(parsed?.localNotes) && parsed.localNotes.some((note) => isRecord(note) && text(note.text));
+  if (!parsed || (steps === 0 && placeholders === 0 && !hasNotes)) return null;
   return {
     key,
     title: text(parsed?.title, "Creation Flow draft"),
-    subtitle: `creation flow · ${steps} steps · ${placeholders} placeholders · local only`,
-    route: text(firstFrame?.workspace, "/author/world"),
+    subtitle: `creation flow · ${steps} step${steps === 1 ? "" : "s"} · ${placeholders} unresolved idea${placeholders === 1 ? "" : "s"}`,
+    route: creationFlowReturnRoute(firstFrame),
     ts: Number(parsed?.updatedAt) || Number(parsed?.createdAt) || 0,
   };
+}
+
+export function creationFlowReturnRoute(frame: Record<string, unknown> | undefined): string {
+  const workspace = text(frame?.workspace);
+  const context = isRecord(frame?.context) ? frame.context : undefined;
+  const contextKind = text(context?.kind);
+  const contextId = text(context?.canonicalId, text(context?.draftId));
+  const selectedId = text(frame?.selectedId, contextId);
+  const encoded = encodeURIComponent(selectedId);
+  const contextual = (base: string) => encoded ? `${base}?selected=${encoded}` : base;
+
+  switch (workspace) {
+    case "creation-flow":
+      return "/author/creation-flow";
+    case "world-builder":
+      return contextual("/author/world");
+    case "dialogue-flow":
+      return contextKind === "dialogue" && contextId
+        ? `/author/dialogues/${encodeURIComponent(contextId)}`
+        : "/author/dialogues";
+    case "encounter-stage":
+      return contextId ? `/author/encounters/${encodeURIComponent(contextId)}` : "/author/encounters";
+    case "quest-journey":
+      return contextId ? `/author/quests/${encodeURIComponent(contextId)}` : "/author/quests";
+    case "events":
+      return contextual("/events");
+    case "location-pois":
+      return contextual("/location-pois");
+    default:
+      return "/author/creation-flow";
+  }
 }
 
 export function readDraftInventory(): DraftInventoryItem[] {
@@ -123,6 +200,10 @@ export function readDraftInventory(): DraftInventoryItem[] {
       item = creationFlowDraft(key);
     } else if (key.startsWith("soa.draft.dialogue_flow.") && key !== "soa.draft.dialogue_flow.new") {
       item = dialogueFlowDraft(key);
+    } else if (key.startsWith("soa.draft.character_studio.")) {
+      item = characterStudioDraft(key);
+    } else if (key.startsWith("soa.quest-journey.")) {
+      item = questJourneyDraft(key);
     } else if (schemaMatch && schemaMatch[2] !== "last") {
       item = schemaDraft(key, schemaMatch[1], schemaMatch[2]);
     } else if (key.startsWith("soa.encounter-stage.")) {
@@ -142,17 +223,28 @@ export function readDraftInventory(): DraftInventoryItem[] {
   return items.sort((left, right) => right.ts - left.ts || left.title.localeCompare(right.title));
 }
 
-export function removeDraftInventoryItem(item: DraftInventoryItem) {
-  localStorage.removeItem(item.key);
+export function removeDraftInventoryItem(item: DraftInventoryItem): DraftRemovalBackup {
+  const keys = [item.key];
   if (item.key.startsWith("soa.creation-flow.draft.")) {
     const id = item.key.slice("soa.creation-flow.draft.".length);
-    localStorage.removeItem(`soa.creation-flow.snapshots.${id}`);
+    keys.push(`soa.creation-flow.snapshots.${id}`);
   }
   const schemaMatch = item.key.match(/^soa\.draft\.([^.]+)\.(.+)$/);
   if (schemaMatch) {
     const lastKey = `soa.draft.last.${schemaMatch[1]}`;
-    if (localStorage.getItem(lastKey) === item.key) localStorage.removeItem(lastKey);
+    if (localStorage.getItem(lastKey) === item.key) keys.push(lastKey);
   }
+  const values = keys.flatMap((key) => {
+    const value = localStorage.getItem(key);
+    return value === null ? [] : [{ key, value }];
+  });
+  keys.forEach((key) => localStorage.removeItem(key));
+  return { item, values };
+}
+
+export function restoreDraftInventoryItem(backup: DraftRemovalBackup) {
+  backup.values.forEach(({ key, value }) => localStorage.setItem(key, value));
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("soa:creation-flow-drafts-changed"));
 }
 
 export function recommendedNextActions(schemaName: string, id: string): Array<{ label: string; route: string }> {

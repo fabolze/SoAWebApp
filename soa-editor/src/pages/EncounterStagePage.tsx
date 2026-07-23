@@ -337,10 +337,10 @@ export default function EncounterStagePage() {
     <AuthoringPageShell>
       <div className="w-full space-y-4">
         <main className="space-y-4">
-        <div id="encounter-header" className="scroll-mt-24"><Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} warnings={issues.warnings} onSave={() => void save()} onReset={reset} /></div>
+        <div id="encounter-header" className="scroll-mt-24"><Header packet={packet} dirty={dirty} saving={saving} blockers={issues.blockers} warnings={issues.warnings} onSave={() => void save()} onReset={reset} isNew={isNew} /></div>
         {(notice || restored) && <StatusNotice>{restored ? "Restored unsaved Encounter Stage draft. " : ""}{notice}</StatusNotice>}
         <div id="encounter-selector" className="scroll-mt-24"><EncounterSelector packet={packet} /></div>
-        <div id="encounter-compose" className="grid scroll-mt-24 gap-4 2xl:grid-cols-[1fr_360px]">
+        <div id="encounter-compose" className={`grid scroll-mt-24 gap-4 ${isNew ? "" : "2xl:grid-cols-[1fr_360px]"}`}>
           <div className="space-y-4">
             <IdentityPanel packet={packet} setPacket={setPacket} updateEncounter={updateEncounter} showInlineGate={isNew} />
             {!isNew && <ScopedGateBuilder
@@ -392,8 +392,8 @@ export default function EncounterStagePage() {
           </div>
           <div id="encounter-context" className="space-y-4 scroll-mt-24">
             <HealthPanel issues={issues} />
-            <Dossier packet={packet} selectedCharacter={selectedCharacter} />
-            <WorldContext packet={packet} />
+            {selectedCharacter && <Dossier packet={packet} selectedCharacter={selectedCharacter} />}
+            {!isNew && <WorldContext packet={packet} />}
           </div>
         </div>
         <div className="sticky bottom-3 flex justify-end gap-2 rounded-md border border-slate-200 bg-white/95 p-3 shadow dark:border-slate-800 dark:bg-slate-900/95">
@@ -415,10 +415,10 @@ export default function EncounterStagePage() {
   );
 }
 
-function Header({ packet, dirty, saving, blockers, warnings, onSave, onReset }: { packet: EncounterPacket; dirty: boolean; saving: boolean; blockers: string[]; warnings: string[]; onSave: () => void; onReset: () => void }) {
+function Header({ packet, dirty, saving, blockers, warnings, onSave, onReset, isNew }: { packet: EncounterPacket; dirty: boolean; saving: boolean; blockers: string[]; warnings: string[]; onSave: () => void; onReset: () => void; isNew: boolean }) {
   return <Panel title={displayText(packet.encounter.name, "Encounter Stage")} subtitle={`${displayText(packet.encounter.encounter_type, "Encounter")} / ${rows(packet.encounter.participants).length} participants / ${packet.placements.length} placements`} help="Use this workspace to build the encounter, participants, rewards, placement, story timing, and consequences as one reviewed bundle. Save writes the encounter bundle after blockers are resolved.">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div><AuthoringHealthSummary blockers={blockers.length} warnings={warnings.length} dirty={dirty} saving={saving} /><div className="mt-1 text-xs text-slate-500">{dirty ? "Changes stay in this draft until the bundle is saved." : "Bundle matches the last saved encounter."}</div></div>
+      <div><AuthoringHealthSummary blockers={isNew ? 0 : blockers.length} warnings={isNew ? 0 : warnings.length} dirty={dirty} saving={saving} isNew={isNew} /><div className="mt-1 text-xs text-slate-500">{dirty ? "Draft saved locally. Project checks wait until review." : isNew ? "Start with the dramatic purpose of the encounter." : "Saved to project."}</div></div>
       <div className="flex gap-2"><button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={onReset}>Reset Draft</button><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || blockers.length > 0} onClick={onSave}>{saving ? "Saving..." : "Save Encounter Bundle"}</button></div>
     </div>
   </Panel>;
@@ -448,17 +448,18 @@ function IdentityPanel({ packet, setPacket, updateEncounter, showInlineGate }: {
     const requirement = { id, slug: generateSlug(`${displayText(encounter.name, "encounter")}-gate`), required_flags: [], forbidden_flags: [], min_faction_reputation: [], tags: [] };
     setPacket((current) => ({ ...current, encounter: { ...current.encounter, requirements_id: id }, requirement, requirement_usages: [] }));
   };
-  return <Panel title="Identity And Unlock Requirement" subtitle="Define the encounter and its reusable entry requirement." help="Use this section for the encounter's identity and optional unlock requirement. The requirement controls whether the encounter is available; it does not place the encounter in the world or timeline.">
-    <div className="grid gap-3 md:grid-cols-2">
-      <Field label="Name" value={encounter.name} onChange={(name) => updateEncounter({ name, slug: displayText(encounter.slug) || generateSlug(name) })} />
-      <Field label="Slug" value={encounter.slug} onChange={(slug) => updateEncounter({ slug })} />
-      <label className="block"><Caption>Encounter Type</Caption><select className={inputClass} value={displayText(encounter.encounter_type)} onChange={(event) => updateEncounter({ encounter_type: event.target.value })}>{["Combat", "Dialogue", "Event"].map((value) => <option key={value}>{value}</option>)}</select></label>
-      <label className="block"><Caption>Unlock Requirement</Caption><select className={inputClass} value={displayText(encounter.requirements_id)} onChange={(event) => selectRequirement(event.target.value)}><option value="">No unlock requirement</option>{packet.requirements.map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.id))}</option>)}</select></label>
-      <label className="block md:col-span-2"><Caption>Description</Caption><textarea className={`${inputClass} min-h-24`} value={editableText(encounter.description)} onChange={(event) => updateEncounter({ description: event.target.value })} /></label>
-      <div className="md:col-span-2"><EditableTagList tags={encounter.tags} onChange={(tags) => updateEncounter({ tags })} /></div>
+  return <Panel title="Dramatic Purpose" subtitle="Decide why this moment matters before tuning its machinery." help="Name the encounter, state what should change for the player, and choose its dramatic form. Unlock requirements and identifiers are available when the premise is ready.">
+    <div className="space-y-3">
+      <Field label="What does the player call this moment?" value={encounter.name} onChange={(name) => updateEncounter({ name, slug: displayText(encounter.slug) || generateSlug(name) })} />
+      <label className="block"><Caption>What pressure, choice, or revelation should this create?</Caption><textarea className={`${inputClass} min-h-28`} value={editableText(encounter.description)} onChange={(event) => updateEncounter({ description: event.target.value })} placeholder="Describe the intended tension and what should feel different afterward…" /></label>
+      <label className="block"><Caption>How does the moment play?</Caption><select className={inputClass} value={displayText(encounter.encounter_type)} onChange={(event) => updateEncounter({ encounter_type: event.target.value })}>{["Combat", "Dialogue", "Event"].map((value) => <option key={value}>{value}</option>)}</select></label>
+      <details className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+        <summary className="cursor-pointer text-sm font-semibold">Availability & project details</summary>
+        <div className="mt-3 grid gap-3 md:grid-cols-2"><Field label="Internal slug" value={encounter.slug} onChange={(slug) => updateEncounter({ slug })} /><label className="block"><Caption>Unlock Requirement</Caption><select className={inputClass} value={displayText(encounter.requirements_id)} onChange={(event) => selectRequirement(event.target.value)}><option value="">No unlock requirement</option>{packet.requirements.map((entry) => <option key={displayText(entry.id)} value={displayText(entry.id)}>{rowLabel(entry, displayText(entry.id))}</option>)}</select></label><div className="md:col-span-2"><EditableTagList tags={encounter.tags} onChange={(tags) => updateEncounter({ tags })} /></div></div>
+        {showInlineGate && !packet.requirement && <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm} mt-3`} onClick={createRequirement}>Create Encounter Requirement</button>}
+        {showInlineGate && packet.requirement && <RequirementEditor packet={packet} setPacket={setPacket} />}
+      </details>
     </div>
-    {showInlineGate && !packet.requirement && <button className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.sm} mt-3`} onClick={createRequirement}>Create Encounter Requirement</button>}
-    {showInlineGate && packet.requirement && <RequirementEditor packet={packet} setPacket={setPacket} />}
   </Panel>;
 }
 
@@ -663,10 +664,11 @@ function RewardPanel({ packet, updateEncounter }: { packet: EncounterPacket; upd
   const currencies = useReferenceOptions("currencies", packet.currencies);
   const factions = useReferenceOptions("factions", packet.factions);
   const update = (patch: EntryRecord) => updateEncounter({ rewards: { ...rewards, ...patch } });
-  return <Panel title="Rewards" subtitle="Shape the payoff and progression consequences." help="Rewards are saved on the encounter. Use flags here when completing the encounter should change player state; use story consequences for effects on other records.">
+  const hasReward = Number(rewards.xp) > 0 || strings(rewards.flags_set).length > 0 || rows(rewards.items).length > 0 || rows(rewards.currencies).length > 0 || rows(rewards.reputation).length > 0;
+  return <AuthoringPanel title="Rewards" subtitle="Shape the payoff and progression consequences." help="Rewards are saved on the encounter. Use flags here when completing the encounter should change player state; use story consequences for effects on other records." collapsible defaultCollapsed={!hasReward} collapsedSummary={hasReward ? "Payoff authored" : "Decide the payoff after the encounter has shape"}>
     <div className="grid gap-3 md:grid-cols-2"><NumberField label="XP" value={rewards.xp} onChange={(xp) => update({ xp })} /><MultiSelect label="Flags Set" values={strings(rewards.flags_set)} options={flags} onChange={(flags_set) => update({ flags_set })} /></div>
     <div className="grid gap-3 xl:grid-cols-3"><RewardRows title="Item Rewards" rows={rows(rewards.items)} options={items} referenceKey="item_id" numberKey="quantity" onChange={(items) => update({ items })} /><RewardRows title="Currency Rewards" rows={rows(rewards.currencies)} options={currencies} referenceKey="currency_id" numberKey="amount" onChange={(currencies) => update({ currencies })} /><RewardRows title="Reputation Rewards" rows={rows(rewards.reputation)} options={factions} referenceKey="faction_id" numberKey="amount" onChange={(reputation) => update({ reputation })} /></div>
-  </Panel>;
+  </AuthoringPanel>;
 }
 
 function RewardRows({ title, rows: value, options, referenceKey, numberKey, onChange }: { title: string; rows: EntryRecord[]; options: EntryRecord[]; referenceKey: string; numberKey: string; onChange: (rows: EntryRecord[]) => void }) {
@@ -685,7 +687,7 @@ function AftermathPanel({ rows: aftermathRows, loading, error }: { rows: Encount
     participants: aftermathRows.filter((row) => row.group === "participants"),
     story: aftermathRows.filter((row) => row.group === "story"),
   };
-  return <Panel title="Encounter Aftermath" subtitle="Preview what changes because this encounter happens. Draft rewards are local; story consequences are saved placements." help="Use this to check payoff, participant impact, and saved story consequences before committing. Empty groups are normal while drafting.">
+  return <AuthoringPanel title="Encounter Aftermath" subtitle="Preview what changes because this encounter happens. Draft rewards are local; story consequences are saved placements." help="Use this to check payoff, participant impact, and saved story consequences before committing. Empty groups are normal while drafting." collapsible defaultCollapsed={aftermathRows.length === 0} collapsedSummary={aftermathRows.length ? `${aftermathRows.length} visible consequence${aftermathRows.length === 1 ? "" : "s"}` : "Revisit after the encounter has consequences"}>
     {loading && <div className="mb-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">Loading story consequences...</div>}
     {error && <Issue tone="amber">{error}</Issue>}
     <div className="grid gap-3 lg:grid-cols-3">
@@ -704,7 +706,7 @@ function AftermathPanel({ rows: aftermathRows, loading, error }: { rows: Encount
         </div>
       ))}
     </div>
-  </Panel>;
+  </AuthoringPanel>;
 }
 
 function PlacementPanel({ packet, setPacket }: { packet: EncounterPacket; setPacket: React.Dispatch<React.SetStateAction<EncounterPacket>> }) {
@@ -712,14 +714,14 @@ function PlacementPanel({ packet, setPacket }: { packet: EncounterPacket; setPac
   const placed = new Set(packet.placements.map((placement) => placement.table_id));
   const add = (tableId: string) => setPacket((current) => ({ ...current, placements: [...current.placements, { table_id: tableId, entry: { encounter_id: current.encounter.id, weight: 1, spawn_group: "", min_count: 1, max_count: 1, spawn_notes: "" } }] }));
   const update = (index: number, patch: EntryRecord) => setPacket((current) => ({ ...current, placements: current.placements.map((placement, rowIndex) => rowIndex === index ? { ...placement, entry: { ...placement.entry, ...patch } } : placement) }));
-  return <Panel title="World Placement" subtitle="Place this encounter into existing location encounter tables." help="World placement controls where this encounter can appear in location encounter tables. It does not set story order; use Story Placement for timeline context.">
+  return <AuthoringPanel title="World Placement" subtitle="Place this encounter into existing location encounter tables." help="World placement controls where this encounter can appear in location encounter tables. It does not set story order; use Story Placement for timeline context." collapsible defaultCollapsed={packet.placements.length === 0} collapsedSummary={packet.placements.length ? `${packet.placements.length} placement${packet.placements.length === 1 ? "" : "s"}` : "Place it after the dramatic shape is clear"}>
     <div className="space-y-3">{packet.placements.map((placement, index) => {
       const table = encounterTables.find((entry) => displayText(entry.id) === placement.table_id);
       const location = isRecord(table?.location) ? table.location : {};
       return <div key={placement.table_id} className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950"><div className="mb-2 flex justify-between gap-2"><div><div className="text-sm font-semibold">{rowLabel(table || {}, placement.table_id)}</div><div className="text-xs text-slate-500">{rowLabel(location, displayText(table?.location_id))}</div></div><button className="text-xs font-semibold text-red-600" onClick={() => setPacket((current) => ({ ...current, placements: current.placements.filter((_, rowIndex) => rowIndex !== index) }))}>Remove</button></div><div className="grid gap-2 md:grid-cols-4"><NumberField label="Weight" value={placement.entry.weight} onChange={(weight) => update(index, { weight })} /><NumberField label="Min Count" value={placement.entry.min_count} onChange={(min_count) => update(index, { min_count })} /><NumberField label="Max Count" value={placement.entry.max_count} onChange={(max_count) => update(index, { max_count })} /><Field label="Spawn Group" value={placement.entry.spawn_group} onChange={(spawn_group) => update(index, { spawn_group })} /><label className="block md:col-span-4"><Caption>Spawn Notes</Caption><textarea className={`${inputClass} min-h-16`} value={editableText(placement.entry.spawn_notes)} onChange={(event) => update(index, { spawn_notes: event.target.value })} /></label></div></div>;
     })}</div>
     <select className={`${inputClass} mt-3`} value="" onChange={(event) => event.target.value && add(event.target.value)}><option value="">Add existing encounter table...</option>{encounterTables.filter((table) => !placed.has(displayText(table.id))).map((table) => <option key={displayText(table.id)} value={displayText(table.id)}>{rowLabel(table, displayText(table.id))}</option>)}</select><ReferenceManageLink reference="location_encounter_tables" onCreated={add} />
-  </Panel>;
+  </AuthoringPanel>;
 }
 
 function SimulationComparison({ packet }: { packet: EncounterPacket }) {
@@ -741,18 +743,18 @@ function SimulationComparison({ packet }: { packet: EncounterPacket }) {
     const median = values.length ? values[Math.floor(values.length / 2)] : 0;
     return { current, peers, poorReward: median > 0 && current.metrics.value < median * 0.6 };
   }, [datasets, packet, scenarioId]);
-  return <Panel title="Simulation And Comparison" subtitle="Compare the current draft against same-type encounters using the existing simulation." help="Use this as a balance check. It compares draft power, value, and influence against nearby same-type encounters; it does not save tuning changes by itself.">
+  return <AuthoringPanel title="Simulation And Comparison" subtitle="Compare the current draft against same-type encounters using the existing simulation." help="Use this as a balance check. It compares draft power, value, and influence against nearby same-type encounters; it does not save tuning changes by itself." collapsible defaultCollapsed collapsedSummary="Tune after the cast and payoff are established">
     <label className="block max-w-sm"><Caption>Scenario</Caption><select className={inputClass} value={scenarioId} onChange={(event) => setScenarioId(event.target.value)}>{SIMULATION_SCENARIOS.map((scenario) => <option key={scenario.id} value={scenario.id}>{scenario.label}</option>)}</select></label>
     {!result ? <div className="mt-3 text-sm text-slate-500">Loading simulation datasets...</div> : <><div className="mt-3 grid gap-2 sm:grid-cols-3"><Metric label="Power" value={result.current.metrics.power} /><Metric label="Value" value={result.current.metrics.value} /><Metric label="Influence" value={result.current.metrics.influence} /></div>{result.current.warnings.map((warning) => <div key={warning} className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">{warning}</div>)}{result.poorReward && <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">Reward value is below 60% of the comparison-peer median.</div>}<div className="mt-3 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-xs uppercase text-slate-500"><th className="p-2">Peer</th><th>Nearby</th><th>Power</th><th>Value</th><th>Influence</th></tr></thead><tbody>{result.peers.map((peer) => <tr key={displayText(peer.entry.id)} className="border-t border-slate-200 dark:border-slate-800"><td className="p-2 font-semibold">{rowLabel(peer.entry, displayText(peer.entry.id))}</td><td>{peer.sharesLocation ? "Same location" : "-"}</td><td>{peer.metrics.power.toFixed(0)}</td><td>{peer.metrics.value.toFixed(0)}</td><td>{peer.metrics.influence.toFixed(0)}</td></tr>)}</tbody></table></div></>}
-  </Panel>;
+  </AuthoringPanel>;
 }
 
 function HealthPanel({ issues }: { issues: { blockers: string[]; warnings: string[] } }) {
-  return <Panel title="Encounter Health" subtitle={`${issues.blockers.length} blockers / ${issues.warnings.length} warnings`} help="Blockers prevent a safe save. Warnings can be acceptable while drafting, but should be reviewed before committing the encounter bundle.">
+  return <AuthoringPanel title="Questions For Review" subtitle={`${issues.blockers.length + issues.warnings.length} item${issues.blockers.length + issues.warnings.length === 1 ? "" : "s"} to revisit before saving`} help="These checks stay out of the creative path while drafting. Open them when you are ready to review project integrity." collapsible defaultCollapsed collapsedSummary={issues.blockers.length + issues.warnings.length ? `${issues.blockers.length + issues.warnings.length} question${issues.blockers.length + issues.warnings.length === 1 ? "" : "s"} can wait for review` : "No open review questions"}>
     {issues.blockers.map((issue) => <Issue key={issue} tone="red">{issue}</Issue>)}
     {issues.warnings.map((issue) => <Issue key={issue} tone="amber">{issue}</Issue>)}
     {issues.blockers.length + issues.warnings.length === 0 && <EmptyState variant="compact" title="No encounter health issues.">The browser checks did not find blockers or warnings. Save still relies on backend validation.</EmptyState>}
-  </Panel>;
+  </AuthoringPanel>;
 }
 
 function Dossier({ packet, selectedCharacter }: { packet: EncounterPacket; selectedCharacter: string }) {

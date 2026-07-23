@@ -6,7 +6,7 @@ export type CreationFlowShape = "sequence" | "constellation" | "hybrid";
 export type CreationFlowRefKind =
   | "dialogue" | "dialogue_node" | "dialogue_choice" | "encounter"
   | "quest" | "quest_objective" | "event" | "shop" | "location"
-  | "location_poi" | "location_route" | "story_beat" | "item"
+  | "location_poi" | "location_route" | "timeline" | "story_arc" | "story_beat" | "item"
   | "character" | "faction" | "lore_entry" | "creature" | "effect"
   | "status" | "currency" | "stat" | "requirement" | "flow_step" | "custom";
 
@@ -115,6 +115,14 @@ export interface CreationFlowReturnFrame {
   localViewState?: Record<string, unknown>;
 }
 
+export interface CreationFlowProvisionalPlacement {
+  target: CreationFlowRef & {
+    kind: "timeline" | "story_arc";
+    canonicalId: string;
+  };
+  itemOrder: string[];
+}
+
 export interface CreationFlowDraft {
   format: typeof CREATION_FLOW_FORMAT;
   id: string;
@@ -129,6 +137,7 @@ export interface CreationFlowDraft {
   relations: CreationFlowRelation[];
   placeholders: CreationFlowPlaceholder[];
   localNotes: CreationFlowLocalNote[];
+  provisionalPlacement?: CreationFlowProvisionalPlacement;
   artifactIds: Record<string, string>;
   createdAt: number;
   updatedAt: number;
@@ -139,6 +148,18 @@ export interface CreationFlowIssue {
   message: string;
   stepId?: string;
   placeholderId?: string;
+}
+
+export interface CreationFlowProvisionalItem {
+  key: string;
+  draftId: string;
+  sourceId: string;
+  sourceKind: "step" | "placeholder";
+  order: number;
+  title: string;
+  detail: string;
+  kind: string;
+  explicitPlaceholder: boolean;
 }
 
 export type CreationFlowLibraryLens = "all" | "story" | "state" | "reward" | "runtime" | "issues";
@@ -207,6 +228,22 @@ function normalizeRef(value: unknown): CreationFlowRef | undefined {
     ...(stringValue(value.canonicalId) ? { canonicalId: stringValue(value.canonicalId) } : {}),
     ...(stringValue(value.draftId) ? { draftId: stringValue(value.draftId) } : {}),
     ...(stringValue(value.label) ? { label: stringValue(value.label) } : {}),
+  };
+}
+
+function normalizeProvisionalPlacement(value: unknown): CreationFlowProvisionalPlacement | undefined {
+  if (!isRecord(value)) return undefined;
+  const target = normalizeRef(value.target);
+  if (!target?.canonicalId || (target.kind !== "timeline" && target.kind !== "story_arc")) return undefined;
+  return {
+    target: {
+      ...target,
+      kind: target.kind,
+      canonicalId: target.canonicalId,
+    },
+    itemOrder: Array.isArray(value.itemOrder)
+      ? value.itemOrder.filter((item): item is string => typeof item === "string")
+      : [],
   };
 }
 
@@ -310,6 +347,7 @@ export function normalizeCreationFlowDraft(value: unknown, now = Date.now()): Cr
     steps, transitions, relations,
     placeholders: (Array.isArray(value.placeholders) ? value.placeholders : []).filter(isRecord).map((placeholder) => ({ id: stringValue(placeholder.id) || generateUlid(), kind: stringValue(placeholder.kind, "custom"), label: stringValue(placeholder.label, "Untitled idea"), ...(stringValue(placeholder.direction) ? { direction: stringValue(placeholder.direction) } : {}), ...(stringValue(placeholder.owningWorkspace) ? { owningWorkspace: stringValue(placeholder.owningWorkspace) } : {}), ...(stringValue(placeholder.promotedCanonicalId) ? { promotedCanonicalId: stringValue(placeholder.promotedCanonicalId) } : {}) })),
     localNotes: (Array.isArray(value.localNotes) ? value.localNotes : []).filter(isRecord).map((note) => ({ id: stringValue(note.id) || generateUlid(), text: stringValue(note.text), mentions: (Array.isArray(note.mentions) ? note.mentions : []).filter(isRecord).map((mention) => ({ id: stringValue(mention.id) || generateUlid(), placeholderId: stringValue(mention.placeholderId), start: numberValue(mention.start, 0), end: numberValue(mention.end, 0), text: stringValue(mention.text) })) })),
+    ...(normalizeProvisionalPlacement(value.provisionalPlacement) ? { provisionalPlacement: normalizeProvisionalPlacement(value.provisionalPlacement) } : {}),
     artifactIds: isRecord(value.artifactIds) ? Object.fromEntries(Object.entries(value.artifactIds).filter((entry): entry is [string, string] => typeof entry[1] === "string")) : {},
     createdAt, updatedAt: numberValue(value.updatedAt, createdAt),
   };
@@ -333,6 +371,104 @@ function rebuildLinearTransitions(draft: CreationFlowDraft, steps: CreationFlowS
     trigger: "complete", sortOrder: order,
   }));
   return [...explicitTransitions, ...linearTransitions];
+}
+
+function naturalProvisionalItemKeys(draft: CreationFlowDraft): string[] {
+  const representedPlaceholders = new Set(draft.steps.flatMap((step) =>
+    typeof step.payload?.ideaPlaceholderId === "string" ? [step.payload.ideaPlaceholderId] : [],
+  ));
+  return [
+    ...draft.steps.map((step) => `step:${step.id}`),
+    ...draft.placeholders
+      .filter((placeholder) => !representedPlaceholders.has(placeholder.id))
+      .map((placeholder) => `placeholder:${placeholder.id}`),
+  ];
+}
+
+export function creationFlowProvisionalItemKeys(draft: CreationFlowDraft): string[] {
+  const natural = naturalProvisionalItemKeys(draft);
+  const valid = new Set(natural);
+  const seen = new Set<string>();
+  const placed = (draft.provisionalPlacement?.itemOrder ?? []).filter((key) => {
+    if (!valid.has(key) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return [...placed, ...natural.filter((key) => !seen.has(key))];
+}
+
+export function creationFlowProvisionalItems(draft: CreationFlowDraft): CreationFlowProvisionalItem[] {
+  const stepById = new Map(draft.steps.map((step) => [step.id, step]));
+  const placeholderById = new Map(draft.placeholders.map((placeholder) => [placeholder.id, placeholder]));
+  return creationFlowProvisionalItemKeys(draft).flatMap((key, order): CreationFlowProvisionalItem[] => {
+    const [sourceKind, sourceId] = key.split(":", 2) as ["step" | "placeholder", string];
+    if (sourceKind === "step") {
+      const step = stepById.get(sourceId);
+      if (!step) return [];
+      const placeholderId = typeof step.payload?.ideaPlaceholderId === "string"
+        ? step.payload.ideaPlaceholderId
+        : step.target?.draftId;
+      const placeholder = placeholderId ? placeholderById.get(placeholderId) : undefined;
+      return [{
+        key, draftId: draft.id, sourceId, sourceKind, order,
+        title: step.text || step.target?.label || "Untitled idea",
+        detail: placeholder?.direction || step.target?.label || "",
+        kind: placeholder?.kind || step.target?.kind || step.kind,
+        explicitPlaceholder: Boolean(placeholder || step.targetResolution === "placeholder"),
+      }];
+    }
+    const placeholder = placeholderById.get(sourceId);
+    if (!placeholder) return [];
+    return [{
+      key, draftId: draft.id, sourceId, sourceKind, order,
+      title: placeholder.label,
+      detail: placeholder.direction || "",
+      kind: placeholder.kind,
+      explicitPlaceholder: true,
+    }];
+  });
+}
+
+export function setCreationFlowProvisionalPlacement(
+  draft: CreationFlowDraft,
+  target?: CreationFlowProvisionalPlacement["target"],
+  now = Date.now(),
+): CreationFlowDraft {
+  return touchCreationFlowDraft(draft, {
+    provisionalPlacement: target ? {
+      target,
+      itemOrder: creationFlowProvisionalItemKeys(draft),
+    } : undefined,
+  }, now);
+}
+
+export function reorderCreationFlowProvisionalItems(
+  draft: CreationFlowDraft,
+  movingKey: string,
+  beforeKey?: string,
+  now = Date.now(),
+): CreationFlowDraft {
+  if (!draft.provisionalPlacement) return draft;
+  const itemOrder = creationFlowProvisionalItemKeys(draft);
+  const movingIndex = itemOrder.indexOf(movingKey);
+  if (movingIndex < 0) return draft;
+  const nextOrder = itemOrder.filter((key) => key !== movingKey);
+  const beforeIndex = beforeKey ? nextOrder.indexOf(beforeKey) : -1;
+  nextOrder.splice(beforeIndex >= 0 ? beforeIndex : nextOrder.length, 0, movingKey);
+  const stepOrder = new Map(nextOrder.filter((key) => key.startsWith("step:")).map((key, index) => [key.slice(5), index]));
+  const placeholderOrder = new Map(nextOrder.filter((key) => key.startsWith("placeholder:")).map((key, index) => [key.slice(12), index]));
+  const steps = [...draft.steps].sort((left, right) =>
+    (stepOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (stepOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+  );
+  const placeholders = [...draft.placeholders].sort((left, right) =>
+    (placeholderOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (placeholderOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+  );
+  return touchCreationFlowDraft(draft, {
+    steps,
+    placeholders,
+    transitions: rebuildLinearTransitions(draft, steps),
+    provisionalPlacement: { ...draft.provisionalPlacement, itemOrder: nextOrder },
+  }, now);
 }
 
 export function changeCreationFlowShape(draft: CreationFlowDraft, shape: CreationFlowShape, now = Date.now()): CreationFlowDraft {

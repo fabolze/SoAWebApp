@@ -1,5 +1,4 @@
 import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
-import { AUTHORING_MODES } from "../src/config/authoringModes";
 
 const emptyWorld = {
   locations: [],
@@ -63,6 +62,8 @@ async function mockApi(
       references: {
         character: { schema_name: "characters", entries: [{ id: "char-1", label: "Guide" }] },
         item: { schema_name: "items", entries: [{ id: "item-1", label: "Signal Key" }] },
+        timeline: { schema_name: "timelines", entries: [{ id: "timeline-1", label: "Adventure Timeline" }] },
+        story_arc: { schema_name: "story_arcs", entries: [{ id: "arc-1", label: "The First City", timeline_id: "timeline-1" }] },
       },
       capabilities: { compilable_step_kinds: [], story_only_step_kinds: ["note"], blocked_step_kinds: [], guarantees: [] },
     });
@@ -129,27 +130,28 @@ test("character studio exposes an understandable creation path and editable stor
 test("roadmap authoring routes render without replacing rich item authoring", async ({ page }) => {
   await mockApi(page);
   await page.goto("/author/creation-flow");
-  await expect(page.getByRole("heading", { name: "Creation Flow" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Idea Studio" })).toBeVisible();
   await page.goto("/author/quests");
   await expect(page.getByRole("heading", { name: "Quest Journey Board" })).toBeVisible();
   await page.goto("/author/dependencies");
   await expect(page.getByRole("heading", { name: "Adventure Dependency Map" })).toBeVisible();
   await expect(page.getByTestId("dependency-graph-panel")).toBeVisible();
   await page.goto("/author/story-timeline");
-  await expect(page.getByRole("heading", { name: "Story Timeline & Adventure Board" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Shape the Story" })).toBeVisible();
 });
 
 test("standalone Creation Flow starts and resumes a browser-local sequence", async ({ page }) => {
   await mockApi(page);
   await page.goto("/author/creation-flow");
-  await page.getByRole("button", { name: "New sequence" }).click();
+  await page.getByRole("button", { name: "Start with an idea" }).click();
   const composer = page.getByRole("dialog", { name: "Then composer" });
   await composer.getByLabel("Capture next idea").fill("The gate opens");
-  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByRole("button", { name: "Add idea", exact: true }).click();
   await composer.getByRole("button", { name: "Insert after" }).click();
   await composer.getByLabel("Step 2 text").fill("The warning bells ring");
   await composer.locator("article").nth(1).getByRole("button", { name: "Duplicate" }).click();
   await expect(composer.getByLabel("Step 3 text")).toHaveValue("The warning bells ring");
+  await composer.getByText("Draft history & recovery", { exact: true }).click();
   await composer.getByRole("button", { name: "Undo" }).click();
   await expect(composer.getByLabel("Step 3 text")).toHaveCount(0);
   await composer.getByRole("button", { name: "Redo" }).click();
@@ -456,6 +458,7 @@ test("quest journey board commits objective flags through the consequence compos
 test("story timeline sketches and restores local planning beats through drag and drop", async ({ page }) => {
   await mockStoryTimelineApi(page);
   await page.goto("/author/story-timeline");
+  await page.locator("#timeline-library").getByRole("button", { name: "Expand Content Library" }).click();
 
   await expect(page.getByTestId("timeline-band-timeline-1")).toBeVisible();
   await expect(page.getByTestId("canonical-placement-arc-quest:arc-1:quest-1")).toContainText("Arrival");
@@ -475,8 +478,45 @@ test("story timeline sketches and restores local planning beats through drag and
 
   await page.reload();
   await expect(page.locator('[data-testid^="local-planning-beat-"]').first()).toContainText("First City");
-  await page.getByRole("button", { name: "Clear Local Plan" }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Delete local plan" }).click();
   await expect(page.locator('[data-testid^="local-planning-beat-"]')).toHaveCount(0);
+});
+
+test("Idea Studio projects ordered ideas and explicit placeholders onto Story Timeline provisionally", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/author/creation-flow");
+  await page.getByRole("button", { name: "Start with an idea" }).click();
+  const composer = page.getByRole("dialog", { name: "Then composer" });
+  await composer.getByLabel("Capture next idea").fill("The gate opens");
+  await composer.getByRole("button", { name: "Add idea", exact: true }).click();
+  await composer.getByLabel("Capture next idea").fill("The bells answer");
+  await composer.getByRole("button", { name: "Add idea", exact: true }).click();
+  await composer.getByRole("button", { name: "3. Connect" }).click();
+  await composer.getByLabel("Idea label").fill("Unknown guide");
+  await composer.getByLabel("Idea kind").selectOption("character");
+  await composer.getByLabel("Idea direction").fill("Identity unresolved");
+  await composer.getByRole("button", { name: "Add idea card" }).click();
+  await composer.getByLabel("Provisional Story Timeline placement").selectOption("story_arc:arc-1");
+  await composer.getByRole("button", { name: "Place on The First City as provisional" }).click();
+  await expect(composer.getByText("Placed provisionally on The First City.")).toBeVisible();
+  await composer.getByRole("button", { name: "Close" }).click();
+
+  await page.goto("/author/story-timeline");
+  const cards = page.locator('[data-testid^="provisional-idea-"]');
+  await expect(cards).toHaveCount(3);
+  await expect(cards.nth(0)).toContainText("The gate opens");
+  await expect(cards.nth(1)).toContainText("The bells answer");
+  await expect(cards.nth(2)).toContainText("Unknown guide");
+  await expect(cards.nth(2)).toContainText("placeholder");
+  await expect(page.getByRole("button", { name: "Review & save" })).toBeDisabled();
+
+  await dragWithPointer(page, cards.nth(1).getByRole("button").first(), cards.nth(0));
+  await expect(cards.nth(0)).toContainText("The bells answer");
+  await cards.nth(2).getByRole("button").nth(1).click();
+  await expect(page.getByTestId("story-timeline-provisional-context")).toContainText("Identity unresolved");
+  await page.getByTestId("story-timeline-provisional-context").getByRole("link", { name: "Open in Idea Studio" }).click();
+  await expect(page.getByRole("dialog", { name: "Then composer" })).toBeVisible();
 });
 
 test("story timeline previews and commits local beats as one canonical bundle", async ({ page }) => {
@@ -486,12 +526,13 @@ test("story timeline previews and commits local beats as one canonical bundle", 
     await fulfillJson(route, { result: { review: { created: [], changed: [], deleted: [] }, warnings: [], blockers: [] }, packet: storyTimelinePacket });
   });
   await page.goto("/author/story-timeline");
+  await page.locator("#timeline-library").getByRole("button", { name: "Expand Content Library" }).click();
 
   await dragWithPointer(page, page.getByRole("button", { name: "Drag to timeline" }).first(), page.getByTestId("story-arc-lane-arc-1"));
   await page.getByLabel("Beat Type").selectOption("Introduction");
-  await page.getByRole("button", { name: "Review & Commit Plan" }).click();
+  await page.getByRole("button", { name: "Review & save" }).click();
   await expect(page.getByTestId("story-timeline-plan-review")).toContainText("2 created");
-  await page.getByTestId("story-timeline-plan-review").getByRole("button", { name: "Commit Plan", exact: true }).click();
+  await page.getByTestId("story-timeline-plan-review").getByRole("button", { name: "Save plan", exact: true }).click();
 
   await expect.poll(() => saved).not.toBeNull();
   const beats = saved?.adventure_beats as Array<Record<string, unknown>>;
@@ -506,6 +547,7 @@ test("story timeline previews and commits local beats as one canonical bundle", 
 test("story timeline deep links select tracks and focus matching entity occurrences", async ({ page }) => {
   test.slow();
   await mockStoryTimelineApi(page);
+  await page.addInitScript(() => localStorage.setItem("soa.story-timeline.navigator.collapsed", "0"));
   const trackLabels = {
     location: "Locations",
     character: "Characters",
@@ -540,25 +582,21 @@ test("story timeline deep links select tracks and focus matching entity occurren
   }
 
   await page.goto("/author/story-timeline?track=character&entity=does-not-exist");
-  await expect(page.getByRole("heading", { name: "Story Timeline & Adventure Board" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Shape the Story" })).toBeVisible();
   await expect(page.getByTestId("story-timeline-canvas")).toBeVisible();
   await expect(page.getByTestId("story-navigator").locator('[data-focused="true"]')).toHaveCount(0);
 });
 
-test("home and sidebar expose every specialized authoring workspace", async ({ page }) => {
+test("home and sidebar prioritize the core creative workflows", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
 
-  const homeGroup = page.locator("main section").filter({ hasText: "Authoring Modes" });
-  await expect(homeGroup).toBeVisible();
-  for (const mode of AUTHORING_MODES) {
-    await expect(homeGroup.getByRole("link", { name: mode.label })).toHaveAttribute("href", mode.route);
-  }
-
-  const sidebarGroup = page.locator("nav").getByText("Authoring Modes").locator("..").locator("..");
-  for (const mode of AUTHORING_MODES) {
-    await expect(sidebarGroup.getByTitle(mode.label)).toHaveAttribute("href", mode.route);
-  }
+  await expect(page.getByRole("heading", { name: "What do you want to create today?" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Capture an idea/ })).toHaveAttribute("href", "/author/creation-flow");
+  await expect(page.getByRole("link", { name: /Write a scene/ })).toHaveAttribute("href", "/author/dialogues/new");
+  await expect(page.getByRole("link", { name: /Shape the story/ })).toHaveAttribute("href", "/author/story-timeline");
+  await expect(page.locator("nav").getByRole("link", { name: "Capture An Idea" })).toHaveAttribute("href", "/author/creation-flow");
+  await expect(page.locator("nav").getByRole("link", { name: "Write Dialogue" })).toHaveAttribute("href", "/author/dialogues");
 });
 
 test("item ecosystem edits acquisition sources and saves one atomic bundle", async ({ page }) => {
@@ -1677,20 +1715,20 @@ test("dialogue flow sketches, connects, and saves a complete bundle", async ({ p
 test("dialogue ending captures and restores a browser-local Then flow", async ({ page }) => {
   await mockDialogueApi(page);
   await page.goto("/author/dialogues/dialogue-1");
-  await page.getByRole("button", { name: "Script" }).click();
+  await page.getByRole("button", { name: "Write" }).click();
   await page.locator("#script-line-node-2 textarea").focus();
   await page.getByRole("button", { name: "Then…" }).click();
 
   const composer = page.getByRole("dialog", { name: "Then composer" });
-  await expect(composer.getByText(/Capture locally, resolve existing targets/)).toBeVisible();
+  await expect(composer.getByText(/Write first. Shape each idea/)).toBeVisible();
   await composer.getByLabel("Capture next idea").fill("Open Mara's shop now");
-  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByRole("button", { name: "Add idea", exact: true }).click();
   await composer.getByLabel("Meaning").selectOption("open_shop");
   await expect(composer.getByText("unresolved", { exact: true })).toBeVisible();
   await composer.getByRole("button", { name: "Close" }).click();
 
   await page.reload();
-  await page.getByRole("button", { name: "Script" }).click();
+  await page.getByRole("button", { name: "Write" }).click();
   await page.locator("#script-line-node-2 textarea").focus();
   await page.getByRole("button", { name: "Then…" }).click();
   await expect(page.getByRole("dialog", { name: "Then composer" }).getByLabel("Step 1 text")).toHaveValue("Open Mara's shop now");
@@ -1700,18 +1738,18 @@ test("dialogue ending captures and restores a browser-local Then flow", async ({
 test("Creation Flow preserves a typed condition and canonical variant selection", async ({ page }) => {
   await mockDialogueApi(page);
   await page.goto("/author/dialogues/dialogue-1");
-  await page.getByRole("button", { name: "Script" }).click();
+  await page.getByRole("button", { name: "Write" }).click();
   await page.locator("#script-line-node-2 textarea").focus();
   await page.getByRole("button", { name: /Then/ }).click();
 
   let composer = page.getByRole("dialog", { name: "Then composer" });
   await composer.getByLabel("Capture next idea").fill("Show the damaged city");
-  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByRole("button", { name: "Add idea", exact: true }).click();
   await composer.getByLabel("Meaning").selectOption("activate_location_variant");
   await composer.getByLabel("Step 1 canonical target").selectOption("location:location-1");
   await composer.getByLabel("Step 1 variant identity").selectOption("damaged");
   await composer.getByLabel("Capture next idea").fill("Continue through the gate");
-  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByRole("button", { name: "Add idea", exact: true }).click();
   await composer.getByLabel("Branch from").selectOption({ label: "Show the damaged city" });
   await composer.getByLabel("Branch to").selectOption({ label: "Continue through the gate" });
   await composer.getByLabel("Branch requirement").selectOption("req-1");
@@ -1721,10 +1759,11 @@ test("Creation Flow preserves a typed condition and canonical variant selection"
   await composer.getByRole("button", { name: "Close" }).click();
 
   await page.reload();
-  await page.getByRole("button", { name: "Script" }).click();
+  await page.getByRole("button", { name: "Write" }).click();
   await page.locator("#script-line-node-2 textarea").focus();
   await page.getByRole("button", { name: /Then/ }).click();
   composer = page.getByRole("dialog", { name: "Then composer" });
+  await composer.getByLabel("Step 1 text").focus();
   await expect(composer.getByLabel("Step 1 variant identity")).toHaveValue("damaged");
   await expect(composer.getByText(/Only when allowed/)).toBeVisible();
 });
@@ -1756,25 +1795,25 @@ test("dialogue Then flow resolves a canonical target, previews, and commits with
     await fulfillJson(route, compilerResult(payload.draft as Record<string, unknown>, true));
   });
   await page.goto("/author/dialogues/dialogue-1");
-  await page.getByRole("button", { name: "Script" }).click();
+  await page.getByRole("button", { name: "Write" }).click();
   await page.locator("#script-line-node-2 textarea").focus();
   await page.getByRole("button", { name: "Then…" }).click();
 
   const composer = page.getByRole("dialog", { name: "Then composer" });
   await composer.getByLabel("Capture next idea").fill("Continue the gate conversation");
-  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByRole("button", { name: "Add idea", exact: true }).click();
   await composer.getByLabel("Meaning").selectOption("dialogue");
   await composer.getByLabel("Step 1 canonical target").selectOption("dialogue:dialogue-1");
-  await composer.getByRole("button", { name: "Preview canonical bundle" }).click();
+  await composer.getByRole("button", { name: "Check & save to project" }).click();
 
-  const review = page.getByRole("dialog", { name: "Creation Flow Bundle Review" });
+  const review = page.getByRole("dialog", { name: "Save flow to project" });
   await expect(review.getByText("1 created")).toBeVisible();
   await expect(review.getByText("via Only when allowed")).toBeVisible();
-  await review.getByRole("button", { name: "Commit Creation Flow" }).click();
+  await review.getByRole("button", { name: "Save to project" }).click();
   await expect.poll(() => previewed).not.toBeNull();
   await expect.poll(() => committed).not.toBeNull();
   expect(committed?.preview_hash).toBe("preview-hash-1");
-  await expect(composer.getByText("Committed with provenance.")).toBeVisible();
+  await expect(composer.getByText("Saved to the project.")).toBeVisible();
 });
 
 test("dialogue flow places a dialogue state consequence through a semantic preset", async ({ page }) => {
@@ -1882,7 +1921,7 @@ test("dialogue flow restores drafts and unlocks gated choices in playthrough", a
   await expect(page.getByText("Restored unsaved dialogue flow draft.")).toBeVisible();
   await expect(page.getByLabel("Dialogue Text", { exact: true })).toHaveValue("Unsaved changed line");
 
-  await page.getByRole("button", { name: "Rehearsal", exact: true }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect(page.getByRole("button", { name: "Enter" })).toBeDisabled();
   await page.getByText("Temporary Player State").click();
   await page.getByText("Temporary Player State").locator("..").getByLabel("Flags Set").selectOption(["flag-1"]);
@@ -1897,7 +1936,8 @@ test("dialogue flow reset clears the persisted draft", async ({ page }) => {
   await page.getByTestId("dialogue-node-node-1").click();
   await page.getByLabel("Dialogue Text", { exact: true }).fill("Discard this line");
   await page.waitForTimeout(450);
-  await page.getByRole("button", { name: "Reset" }).click();
+  await page.getByText("More", { exact: true }).click();
+  await page.getByRole("button", { name: "Discard local changes" }).click();
   await page.reload();
   await expect(page.getByLabel("Dialogue Text", { exact: true })).toHaveValue("Choose.");
   await expect(page.getByText("Restored unsaved dialogue flow draft.")).not.toBeVisible();
@@ -1930,9 +1970,9 @@ test("dialogue story beat grouping, rehearsal, and impact views are interactive"
   await page.getByTestId("dialogue-node-node-1").click();
   await expect(page.getByLabel("Local Story Beat Group")).toHaveValue("beat-1");
 
-  await page.getByRole("button", { name: "Rehearsal" }).click();
+  await page.getByRole("button", { name: "Play" }).click();
   await expect(page.getByText("Choose.").last()).toBeVisible();
-  await page.getByRole("button", { name: "Impact" }).click();
+  await page.getByRole("button", { name: "Consequences" }).click();
   await expect(page.getByRole("heading", { name: "World Echo" })).toBeVisible();
 });
 
@@ -2019,7 +2059,7 @@ test("encounter victory opens a scoped Creation Flow and preserves encounter con
   const composer = page.getByRole("dialog", { name: "Then composer" });
   await expect(composer.getByRole("heading", { name: "Road Ambush — victory" })).toBeVisible();
   await composer.getByLabel("Capture next idea").fill("Make the road safe");
-  await composer.getByRole("button", { name: "Add", exact: true }).click();
+  await composer.getByRole("button", { name: "Add idea", exact: true }).click();
   await composer.getByRole("button", { name: "Close" }).click();
   await expect(page.getByRole("heading", { name: "Road Ambush" })).toBeVisible();
 });

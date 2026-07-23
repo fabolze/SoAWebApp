@@ -1,12 +1,77 @@
 import { useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { ArrowRightIcon, SparklesIcon } from "@heroicons/react/24/outline";
 import RecoverySyncBanner from './RecoverySyncBanner';
 import Sidebar from './Sidebar';
 import CommandPalette, { type CommandPaletteItem } from "./command/CommandPalette";
+import ThenComposer from "./authoring/ThenComposer";
 import { useDirtyState } from "./useDirtyState";
-import { readDraftInventory, removeDraftInventoryItem, type DraftInventoryItem } from "../navigation/draftInventory";
+import type { CreationFlowDraft, CreationFlowRefKind, CreationFlowReturnFrame } from "../authoring/creationFlow";
+import {
+  readDraftInventory,
+  removeDraftInventoryItem,
+  restoreDraftInventoryItem,
+  type DraftInventoryItem,
+  type DraftRemovalBackup,
+} from "../navigation/draftInventory";
 import { navigateToWorkspace, workspaceActions } from "../navigation/workspaceActions";
 import { BUTTON_CLASSES, BUTTON_SIZES } from "../styles/uiTokens";
+
+function quickCaptureContext(pathname: string, search: string): {
+  origin: NonNullable<CreationFlowDraft["origin"]>;
+  originLabel: string;
+  returnFrame: CreationFlowReturnFrame;
+} {
+  const segments = pathname.split("/").filter(Boolean);
+  const section = segments[1] || segments[0] || "workspace";
+  const entityId = segments[2] && segments[2] !== "new" ? decodeURIComponent(segments[2]) : "";
+  const selectedId = new URLSearchParams(search).get("selected") || entityId;
+  const kindBySection: Partial<Record<string, CreationFlowRefKind>> = {
+    characters: "character",
+    dialogues: "dialogue",
+    encounters: "encounter",
+    quests: "quest",
+    locations: "location",
+    creatures: "creature",
+    items: "item",
+    world: "location",
+  };
+  const workspaceBySection: Record<string, string> = {
+    dialogues: "dialogue-flow",
+    encounters: "encounter-stage",
+    quests: "quest-journey",
+    world: "world-builder",
+  };
+  const labelBySection: Record<string, string> = {
+    characters: "Character Studio",
+    dialogues: "Dialogue Scene Room",
+    encounters: "Encounter Stage",
+    quests: "Quest Journey",
+    locations: "Location Studio",
+    creatures: "Creature Workshop",
+    items: "Item Workshop",
+    world: "World Builder",
+    "story-timeline": "Story Timeline",
+    "creation-flow": "Idea Studio",
+  };
+  const kind = kindBySection[section] ?? "custom";
+  const label = labelBySection[section] ?? section.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const ref = {
+    kind,
+    ...(selectedId ? { canonicalId: selectedId } : { draftId: `${pathname}${search}` }),
+    label,
+  };
+  return {
+    origin: { ref },
+    originLabel: `Quick idea from ${label}`,
+    returnFrame: {
+      workspace: workspaceBySection[section] ?? section,
+      context: ref,
+      ...(selectedId ? { selectedId } : {}),
+      localViewState: { pathname, search },
+    },
+  };
+}
 
 export default function Layout({ collapsed, onToggleCollapse }: { collapsed: boolean; onToggleCollapse: () => void }) {
   const navigate = useNavigate();
@@ -14,7 +79,10 @@ export default function Layout({ collapsed, onToggleCollapse }: { collapsed: boo
   const { isDirty, confirmNavigate } = useDirtyState();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [draftDrawerOpen, setDraftDrawerOpen] = useState(false);
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [drafts, setDrafts] = useState<DraftInventoryItem[]>([]);
+  const [deletedDraft, setDeletedDraft] = useState<DraftRemovalBackup | null>(null);
+  const quickCapture = useMemo(() => quickCaptureContext(location.pathname, location.search), [location.pathname, location.search]);
 
   const refreshDrafts = () => setDrafts(readDraftInventory());
 
@@ -74,7 +142,14 @@ export default function Layout({ collapsed, onToggleCollapse }: { collapsed: boo
   };
 
   const discardDraft = (draft: DraftInventoryItem) => {
-    removeDraftInventoryItem(draft);
+    setDeletedDraft(removeDraftInventoryItem(draft));
+    refreshDrafts();
+  };
+
+  const undoDiscard = () => {
+    if (!deletedDraft) return;
+    restoreDraftInventoryItem(deletedDraft);
+    setDeletedDraft(null);
     refreshDrafts();
   };
 
@@ -82,10 +157,30 @@ export default function Layout({ collapsed, onToggleCollapse }: { collapsed: boo
     <div className="flex min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <Sidebar collapsed={collapsed} onToggleCollapse={onToggleCollapse} />
       <main className="relative flex-1 overflow-y-auto">
-        <div className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-2 text-xs backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+        <div className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-violet-100 bg-white/95 px-4 py-2 text-xs shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
           <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              className={`${BUTTON_CLASSES.violet} ${BUTTON_SIZES.xs}`}
+              onClick={() => setQuickCaptureOpen(true)}
+            >
+              <SparklesIcon className="h-4 w-4" aria-hidden="true" />
+              Quick capture
+            </button>
+            {drafts[0] && (
+              <button
+                type="button"
+                className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs} hidden sm:inline-flex`}
+                onClick={() => openDraft(drafts[0])}
+                title={drafts[0].title}
+              >
+                Continue
+                <ArrowRightIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
             <button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => setPaletteOpen(true)}>
-              Search Workspaces
+              Find
+              <kbd className="ml-1 text-[10px] opacity-60">Ctrl K</kbd>
             </button>
             {isDirty && <span className="rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">Unsaved work</span>}
           </div>
@@ -95,6 +190,14 @@ export default function Layout({ collapsed, onToggleCollapse }: { collapsed: boo
         </div>
         <RecoverySyncBanner />
         <Outlet />
+        <ThenComposer
+          open={quickCaptureOpen}
+          mode="then"
+          origin={quickCapture.origin}
+          originLabel={quickCapture.originLabel}
+          returnFrame={quickCapture.returnFrame}
+          onClose={() => { setQuickCaptureOpen(false); refreshDrafts(); }}
+        />
         <CommandPalette
           open={paletteOpen}
           title="Workspace Switcher"
@@ -109,6 +212,7 @@ export default function Layout({ collapsed, onToggleCollapse }: { collapsed: boo
             onDiscard={discardDraft}
           />
         )}
+        {deletedDraft && <div role="status" className="fixed bottom-5 left-1/2 z-[130] flex -translate-x-1/2 items-center gap-3 rounded-xl bg-slate-950 px-4 py-3 text-sm text-white shadow-2xl dark:bg-white dark:text-slate-950"><span>Removed “{deletedDraft.item.title}” from local drafts.</span><button type="button" className="font-semibold text-violet-300 underline underline-offset-2 dark:text-violet-700" onClick={undoDiscard}>Undo</button><button type="button" aria-label="Dismiss draft removal message" className="opacity-70 hover:opacity-100" onClick={() => setDeletedDraft(null)}>×</button></div>}
       </main>
     </div>
   );
@@ -143,7 +247,7 @@ function DraftDrawer({
               <div className="mt-1 text-[11px] text-slate-400">{draft.ts ? new Date(draft.ts).toLocaleString() : "No timestamp"}</div>
               <div className="mt-3 flex gap-2">
                 <button type="button" className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.xs}`} onClick={() => onOpen(draft)}>Open</button>
-                <button type="button" className={`${BUTTON_CLASSES.outline} ${BUTTON_SIZES.xs}`} onClick={() => onDiscard(draft)}>Reset</button>
+                <button type="button" className={`${BUTTON_CLASSES.danger} ${BUTTON_SIZES.xs}`} onClick={() => onDiscard(draft)}>Delete draft</button>
               </div>
             </article>
           ))}

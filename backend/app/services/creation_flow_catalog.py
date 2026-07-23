@@ -17,6 +17,8 @@ from backend.app.models.m_requirements import Requirement
 from backend.app.models.m_shops import Shop
 from backend.app.models.m_stats import Stat
 from backend.app.models.m_statuses import Status
+from backend.app.models.m_story_arcs import StoryArc
+from backend.app.models.m_timelines import Timeline
 from backend.app.services.bundle_operations import compact_snapshot
 
 
@@ -34,6 +36,8 @@ REFERENCE_MODELS = {
     "location": ("locations", Location),
     "location_poi": ("location_pois", LocationPoi),
     "location_route": ("location_routes", LocationRoute),
+    "timeline": ("timelines", Timeline),
+    "story_arc": ("story_arcs", StoryArc),
     "story_beat": ("adventure_beats", AdventureBeat),
     "item": ("items", Item),
     "character": ("characters", Character),

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   addCreationFlowStep, changeCreationFlowShape, createCreationFlowDraft, createCreationFlowStep, creationFlowIssues,
-  creationFlowMatchesLibraryFilters, creationFlowMatchesLibraryLens, deriveStepSupport, duplicateCreationFlowStep, getStableArtifactId, insertCreationFlowStep,
+  creationFlowMatchesLibraryFilters, creationFlowMatchesLibraryLens, creationFlowProvisionalItems, deriveStepSupport, duplicateCreationFlowStep, getStableArtifactId, insertCreationFlowStep,
   moveCreationFlowStep, normalizeCreationFlowDraft, patchCreationFlowStep,
-  reconcileCreationFlowMentions, removeCreationFlowPlaceholder, removeCreationFlowStep,
+  reconcileCreationFlowMentions, removeCreationFlowPlaceholder, removeCreationFlowStep, reorderCreationFlowProvisionalItems,
   resolveCreationFlowPlaceholder,
+  setCreationFlowProvisionalPlacement,
 } from "./creationFlow";
 import {
   draftsForOrigin, exportCreationFlowDraft, importCreationFlowDraft, listCreationFlowDrafts,
@@ -156,6 +157,35 @@ describe("Creation Flow draft", () => {
     const second = getStableArtifactId(first.draft, "step:shop:event");
     expect(second.id).toBe(first.id);
     expect(creationFlowIssues(base).some((issue) => issue.stepId === base.steps[0].id && issue.severity === "warning")).toBe(true);
+  });
+
+  it("places ordered ideas and standalone placeholders provisionally without duplicating linked identities", () => {
+    const first = createCreationFlowStep("Arrive at the ruined gate", "scripted_moment");
+    const linked = createCreationFlowStep("Idea: Unknown guide", "note", { kind: "character", draftId: "guide", label: "Unknown guide" });
+    linked.payload = { ideaPlaceholderId: "guide" };
+    let draft = normalizeCreationFlowDraft({
+      ...createCreationFlowDraft({ title: "Gate opening" }),
+      steps: [first, linked],
+      placeholders: [
+        { id: "guide", kind: "character", label: "Unknown guide", direction: "May betray the party" },
+        { id: "relic", kind: "item", label: "Sealed relic", direction: "Purpose undecided" },
+      ],
+    });
+    draft = setCreationFlowProvisionalPlacement(draft, { kind: "story_arc", canonicalId: "arc-1", label: "Opening Arc" }, 100);
+
+    expect(creationFlowProvisionalItems(draft).map((item) => [item.key, item.title, item.explicitPlaceholder])).toEqual([
+      [`step:${first.id}`, "Arrive at the ruined gate", false],
+      [`step:${linked.id}`, "Idea: Unknown guide", true],
+      ["placeholder:relic", "Sealed relic", true],
+    ]);
+
+    draft = reorderCreationFlowProvisionalItems(draft, "placeholder:relic", `step:${first.id}`, 110);
+    expect(draft.provisionalPlacement).toMatchObject({
+      target: { kind: "story_arc", canonicalId: "arc-1", label: "Opening Arc" },
+      itemOrder: ["placeholder:relic", `step:${first.id}`, `step:${linked.id}`],
+    });
+    expect(creationFlowProvisionalItems(normalizeCreationFlowDraft(JSON.parse(JSON.stringify(draft)))).map((item) => item.key))
+      .toEqual(["placeholder:relic", `step:${first.id}`, `step:${linked.id}`]);
   });
 
   it("preserves typed gameplay actions and requires variant payload identity", () => {

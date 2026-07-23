@@ -82,6 +82,8 @@ def test_frontend_draft_schema_matches_live_mentions_actions_and_transitions():
     assert schema["$defs"]["mention"]["required"] == ["id", "placeholderId", "start", "end", "text"]
     assert schema["$defs"]["step"]["properties"]["gameplayAction"]["$ref"] == "#/$defs/gameplayAction"
     assert "label" in schema["$defs"]["transition"]["properties"]
+    assert schema["properties"]["provisionalPlacement"]["$ref"] == "#/$defs/provisionalPlacement"
+    assert schema["$defs"]["provisionalPlacement"]["properties"]["target"]["properties"]["kind"]["enum"] == ["timeline", "story_arc"]
 
 
 @pytest.mark.parametrize("name", [
@@ -118,6 +120,8 @@ def test_catalog_reports_references_and_authoritative_capabilities(creation_flow
     body = response.get_json()
     assert body["format"] == "SOA-CREATION-FLOW/1"
     assert body["references"]["dialogue"]["entries"][0]["id"] == "dialogue-1"
+    assert "timeline" in body["references"]
+    assert "story_arc" in body["references"]
     assert "make_available" in body["capabilities"]["compilable_step_kinds"]
     assert "open_shop" in body["capabilities"]["compilable_step_kinds"]
     assert body["references"]["dialogue_choice"]["entries"][0]["id"] == "choice-trade"

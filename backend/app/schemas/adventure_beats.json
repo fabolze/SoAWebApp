@@ -9,6 +9,7 @@
     "summary": {"type": "string", "ui": {"widget": "textarea"}},
     "beat_type": {
       "type": "string",
+      "description": "The beat's primary narrative function. Use Other for transitions or placeholders whose function is not known yet.",
       "enum": ["Hook", "Introduction", "Discovery", "Decision", "Conflict", "Revelation", "Reversal", "Climax", "Recovery", "Payoff", "Other"]
     },
     "timeline_id": {"type": "string", "ui": {"widget": "reference", "reference": "timelines", "label": "Timeline"}},

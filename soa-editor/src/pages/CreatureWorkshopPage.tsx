@@ -381,7 +381,7 @@ export default function CreatureWorkshopPage() {
           help="Use this workspace to author a creature's identity, combat kit, encounter appearances, and habitat placement as one reviewed bundle. Nothing writes to the project until you commit the review."
           actions={<div className="flex gap-2"><button className={`${BUTTON_CLASSES.secondary} ${BUTTON_SIZES.sm}`} disabled={!dirty || saving} onClick={reset}>Reset Draft</button><button className={`${BUTTON_CLASSES.primary} ${BUTTON_SIZES.sm}`} disabled={saving || localHealth.blockers.length > 0 || !dirty} onClick={() => void preview()}>{saving ? "Reviewing..." : "Review Creature Bundle"}</button></div>}
         >
-          <AuthoringHealthSummary dirty={dirty} saving={saving} blockers={localHealth.blockers.length} warnings={localHealth.warnings.length} />
+          <AuthoringHealthSummary dirty={dirty} saving={saving} blockers={localHealth.blockers.length} warnings={localHealth.warnings.length} isNew={isNew} />
         </Panel>
         {notice && <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">{notice}</div>}
         <BundleReview

@@ -190,7 +190,7 @@ export default function ItemEcosystemPage() {
         </>
       }
     >
-        <AuthoringHealthSummary blockers={blockers.length} warnings={clientWarnings.length} dirty={dirty} saving={saving} />
+        <AuthoringHealthSummary blockers={blockers.length} warnings={clientWarnings.length} dirty={dirty} saving={saving} isNew={isNew} />
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Place, compare, validate, and save every acquisition reference for this item.</p>
         {notice && <StatusNotice className="mt-3" tone={blockers.length ? "warning" : "info"}>{notice}</StatusNotice>}
         <div className="mt-3 grid gap-3 sm:grid-cols-4">

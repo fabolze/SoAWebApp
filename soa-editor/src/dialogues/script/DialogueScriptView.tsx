@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { EntryRecord } from "../../types/editorQol";
 
 const rows = (value: unknown): EntryRecord[] => Array.isArray(value) ? value.filter((item): item is EntryRecord => Boolean(item) && typeof item === "object" && !Array.isArray(item)) : [];
@@ -30,7 +30,15 @@ export default function DialogueScriptView({ nodes, startId, characters, selecte
   const recentSpeakers = [...new Set(nodes.map((node) => text(node.speaker)).filter(Boolean).reverse())];
   const speakers = [...new Set([...recentSpeakers, ...characters.map((character) => text(character.name, text(character.title, text(character.slug))))].filter(Boolean))];
   const editors = useRef(new Map<string, HTMLTextAreaElement>());
+  const choiceEditors = useRef(new Map<string, HTMLInputElement>());
+  const [choiceDrafts, setChoiceDrafts] = useState<Record<string, string>>({});
   const focusNext = (id: string) => window.setTimeout(() => editors.current.get(id)?.focus());
+  const addChoice = (id: string) => {
+    const choice = (choiceDrafts[id] ?? "").trim();
+    if (!choice) return;
+    onAddChoice(id, choice);
+    setChoiceDrafts((current) => ({ ...current, [id]: "" }));
+  };
   return <div className="mx-auto max-w-4xl space-y-3 p-4" aria-label="Dialogue script editor">
     <datalist id="dialogue-speakers">{speakers.map((speaker) => <option key={speaker} value={speaker} />)}</datalist>
     {ordered.map(({ node, depth }, rowIndex) => {
@@ -41,18 +49,18 @@ export default function DialogueScriptView({ nodes, startId, characters, selecte
           <input aria-label="Speaker" list="dialogue-speakers" className="min-w-40 flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950" value={text(node.speaker)} onChange={(event) => onChange(id, { speaker: event.target.value, speaker_character_id: null })} />
           {id === startId && <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-semibold text-emerald-800">Start</span>}
           {Boolean(node.is_terminal) && <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700">Ending</span>}
-          <button type="button" className="text-xs text-violet-700" onClick={() => onSetStart(id)}>Set as start</button>
+          {selected && <><button type="button" className="text-xs text-violet-700" onClick={() => onSetStart(id)}>Set as start</button>
           <button type="button" className="text-xs text-slate-600" aria-label="Move line up" disabled={rowIndex === 0} onClick={() => onMove(id, -1)}>↑</button><button type="button" className="text-xs text-slate-600" aria-label="Move line down" disabled={rowIndex === ordered.length - 1} onClick={() => onMove(id, 1)}>↓</button>
-          <button type="button" className="text-xs text-red-700" onClick={() => onDelete(id)}>Remove</button>
+          <button type="button" className="text-xs text-red-700" onClick={() => onDelete(id)}>Remove</button></>}
         </div>
         <textarea ref={(element) => { if (element) editors.current.set(id, element); else editors.current.delete(id); }} aria-label={`Line spoken by ${text(node.speaker, "speaker")}`} className="mt-2 min-h-24 w-full resize-y rounded border border-slate-300 bg-white p-2 text-sm dark:border-slate-700 dark:bg-slate-950" value={text(node.text)} onChange={(event) => onChange(id, { text: event.target.value })} onKeyDown={(event) => {
           if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); onAdd(id); }
-          if (event.altKey && event.key === "Enter") { event.preventDefault(); const choice = window.prompt("Player choice label"); if (choice?.trim()) onAddChoice(id, choice.trim()); }
+          if (event.altKey && event.key === "Enter") { event.preventDefault(); choiceEditors.current.get(id)?.focus(); }
           if (event.key === "ArrowDown" && event.altKey) { event.preventDefault(); const next = ordered[rowIndex + 1]; if (next) { onSelect(text(next.node.id)); focusNext(text(next.node.id)); } }
         }} />
-        <div className="mt-2 flex flex-wrap gap-1">{text(node.requirements_id) && <span className="rounded bg-amber-100 px-2 py-1 text-[10px]">Requirement</span>}{Array.isArray(node.set_flags) && node.set_flags.length > 0 && <span className="rounded bg-fuchsia-100 px-2 py-1 text-[10px]">{node.set_flags.length} flags out</span>}</div>
-        {choices.map((choice, index) => { const target = text(choice.next_node_id); const actions = rows(choice.actions); return <div key={text(choice.id, String(index))} className="mt-2 flex items-center gap-2 border-l-2 border-blue-300 pl-3 text-sm"><span className="text-blue-700">{text(choice.choice_text, "Continue")}</span><span aria-hidden="true">→</span>{target ? <button type="button" className="min-w-0 flex-1 truncate text-left text-slate-500 underline" onClick={() => { onSelect(target); focusNext(target); }}>{text(nodes.find((item) => text(item.id) === target)?.text, "Empty line")}</button> : <span className="min-w-0 flex-1 truncate text-slate-500">{actions.map((action) => text(action.action_type).replace(/_/g, " ")).join(" then ") || "Unresolved"}</span>}<button type="button" disabled={!target} className="text-xs text-violet-700 disabled:opacity-40" onClick={() => onDuplicateBranch(id, index)}>Duplicate branch</button></div>; })}
-        <div className="mt-3 flex gap-2"><button type="button" className="rounded border border-slate-300 px-2 py-1 text-xs" onClick={() => onAdd(id)}>Continue as… <kbd>Ctrl↵</kbd></button><button type="button" className="rounded border border-slate-300 px-2 py-1 text-xs" onClick={() => { const choice = window.prompt("Player choice label"); if (choice?.trim()) onAddChoice(id, choice.trim()); }}>Add choice <kbd>Alt↵</kbd></button><label className="ml-auto flex items-center gap-1 text-xs"><input type="checkbox" checked={Boolean(node.is_terminal)} disabled={choices.length > 0} onChange={(event) => onChange(id, { is_terminal: event.target.checked })} /> Ending</label></div>
+        {selected && <div className="mt-2 flex flex-wrap gap-1">{text(node.requirements_id) && <span className="rounded bg-amber-100 px-2 py-1 text-[10px]">Requirement</span>}{Array.isArray(node.set_flags) && node.set_flags.length > 0 && <span className="rounded bg-fuchsia-100 px-2 py-1 text-[10px]">{node.set_flags.length} flags out</span>}</div>}
+        {choices.map((choice, index) => { const target = text(choice.next_node_id); const actions = rows(choice.actions); return <div key={text(choice.id, String(index))} className="mt-2 flex items-center gap-2 border-l-2 border-blue-300 pl-3 text-sm"><span className="text-blue-700">{text(choice.choice_text, "Continue")}</span><span aria-hidden="true">→</span>{target ? <button type="button" className="min-w-0 flex-1 truncate text-left text-slate-500 underline" onClick={() => { onSelect(target); focusNext(target); }}>{text(nodes.find((item) => text(item.id) === target)?.text, "Empty line")}</button> : <span className="min-w-0 flex-1 truncate text-slate-500">{actions.map((action) => text(action.action_type).replace(/_/g, " ")).join(" then ") || "Unresolved"}</span>}{selected && <button type="button" disabled={!target} className="text-xs text-violet-700 disabled:opacity-40" onClick={() => onDuplicateBranch(id, index)}>Duplicate branch</button>}</div>; })}
+        {selected && <div className="mt-3 space-y-2 border-t border-violet-200 pt-3 dark:border-violet-900"><div className="flex flex-wrap gap-2"><button type="button" className="rounded border border-violet-300 bg-white px-3 py-2 text-xs font-medium text-violet-800 dark:bg-slate-900 dark:text-violet-200" onClick={() => onAdd(id)}>Continue with another line <kbd>Ctrl↵</kbd></button><label className="ml-auto flex items-center gap-1 text-xs"><input type="checkbox" checked={Boolean(node.is_terminal)} disabled={choices.length > 0} onChange={(event) => onChange(id, { is_terminal: event.target.checked })} /> This ends the conversation</label></div><div className="flex gap-2"><input ref={(element) => { if (element) choiceEditors.current.set(id, element); else choiceEditors.current.delete(id); }} aria-label={`Player choice after ${text(node.speaker, "speaker")}`} className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" value={choiceDrafts[id] ?? ""} onChange={(event) => setChoiceDrafts((current) => ({ ...current, [id]: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addChoice(id); } }} placeholder="What can the player say?" /><button type="button" className="rounded bg-violet-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40" disabled={!(choiceDrafts[id] ?? "").trim()} onClick={() => addChoice(id)}>Add choice</button></div></div>}
       </article>;
     })}
     {!ordered.length && <div className="rounded border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">Add the first line or import a DLG/1 draft to begin.</div>}
