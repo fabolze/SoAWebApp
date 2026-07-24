@@ -32,6 +32,7 @@ from backend.app.routes.r_currencies import bp as currencies_bp
 from backend.app.routes.r_factions import bp as factions_bp
 from backend.app.routes.r_flags import bp as flags_bp
 from backend.app.routes.r_items import bp as items_bp
+from backend.app.routes.r_equipment_sets import bp as equipment_sets_bp
 from backend.app.routes.r_location_routes import bp as location_routes_bp
 from backend.app.routes.r_locations import bp as locations_bp
 from backend.app.routes.r_location_pois import bp as location_pois_bp
@@ -125,6 +126,7 @@ def create_app(startup_recovery: bool = True) -> Flask:
         factions_bp,
         flags_bp,
         items_bp,
+        equipment_sets_bp,
         location_routes_bp,
         locations_bp,
         location_pois_bp,
@@ -178,5 +180,4 @@ def create_app(startup_recovery: bool = True) -> Flask:
         run_startup_recovery(app)
 
     return app
-
 

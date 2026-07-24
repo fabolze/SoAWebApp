@@ -649,7 +649,8 @@ function ItemAuthoringSurface(props: AuthoringSurfaceProps) {
   const damageTypeOptions = getOptions(schema.properties?.damage_type);
   const rangeTypeOptions = getOptions(schema.properties?.weapon_range_type);
   const slotOptions = getOptions(schema.properties?.equipment_slot);
-  const showEquipment = ["Weapon", "Armor", "Accessory", "SetPiece", "Tool"].includes(displayText(data.type));
+  const showEquipment = ["Weapon", "Armor", "Accessory", "Tool"].includes(displayText(data.type));
+  const supportsEquipmentSet = ["Weapon", "Armor", "Accessory"].includes(displayText(data.type));
   const showWeapon = displayText(data.type) === "Weapon";
   const effectCount = countValues(data.effects);
   const statCount = countValues(data.stat_modifiers);
@@ -682,11 +683,28 @@ function ItemAuthoringSurface(props: AuthoringSurfaceProps) {
             <InlineField schema={schema} data={data} fieldKey="slug" label="Slug" onChange={onChange} />
           </InlineFieldGrid>
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
-            <SelectBadgeGroup label="Item Type" value={data.type} options={typeOptions} onChange={(value) => onChange({ ...data, type: value })} />
+            <SelectBadgeGroup label="Item Type" value={data.type} options={typeOptions} onChange={(value) => onChange({
+              ...data,
+              type: value,
+              ...(!["Weapon", "Armor", "Accessory"].includes(value) ? { equipment_set_id: "" } : {}),
+            })} />
             <div className="mt-3">
               <SelectBadgeGroup label="Rarity" value={data.rarity} options={rarityOptions} onChange={(value) => onChange({ ...data, rarity: value })} />
             </div>
           </div>
+          {supportsEquipmentSet && (
+            <div className="rounded-md border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
+              <ReferenceChipPicker
+                label="Equipment Set"
+                value={data.equipment_set_id}
+                reference="equipment_sets"
+                onChange={(value) => onChange({ ...data, equipment_set_id: value })}
+              />
+              <p className="mt-2 text-xs text-emerald-800/80 dark:text-emerald-200/80">
+                Set membership is independent of item type, so this item keeps all of its weapon, armor, or accessory mechanics.
+              </p>
+            </div>
+          )}
           <InlineField schema={schema} data={data} fieldKey="icon_path" label="Icon Path" onChange={onChange} />
           <InlineField schema={schema} data={data} fieldKey="description" label="Description" kind="textarea" onChange={onChange} />
           <EditableTagList tags={data.tags} onChange={(tags) => onChange({ ...data, tags })} />

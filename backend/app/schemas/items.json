@@ -37,7 +37,6 @@
         "Material",
         "Upgrade",
         "Quest",
-        "SetPiece",
         "Misc"
       ],
       "ui": {
@@ -52,7 +51,6 @@
           "Material",
           "Upgrade",
           "Quest",
-          "SetPiece",
           "Misc"
         ]
       },
@@ -98,6 +96,22 @@
         "label": "Base Currency"
       }
     },
+    "equipment_set_id": {
+      "type": "string",
+      "description": "Optional equipment set this weapon, armor, or accessory belongs to.",
+      "ui": {
+        "widget": "reference",
+        "reference": "equipment_sets",
+        "label": "Equipment Set",
+        "visible_if": {
+          "type": [
+            "Weapon",
+            "Armor",
+            "Accessory"
+          ]
+        }
+      }
+    },
     "equipment_slot": {
       "type": "string",
       "enum": [
@@ -125,7 +139,6 @@
             "Weapon",
             "Armor",
             "Accessory",
-            "SetPiece",
             "Tool"
           ]
         }

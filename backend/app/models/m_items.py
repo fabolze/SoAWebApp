@@ -18,7 +18,6 @@ class ItemType(enum.Enum):
     Material = "Material"
     Upgrade = "Upgrade"
     Quest = "Quest"
-    SetPiece = "SetPiece"
     Misc = "Misc"
 
 
@@ -99,6 +98,22 @@ class ModifierValueType(enum.Enum):
     Multiplier = "Multiplier"
 
 
+class EquipmentSet(Base):
+    """A named collection of equipment with bonuses unlocked by piece count."""
+
+    __tablename__ = "equipment_sets"
+
+    id = Column(String, primary_key=True, default=generate_ulid)
+    slug = Column(String, unique=True, nullable=False)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    bonuses = Column(JSON)
+    icon_path = Column(String)
+    tags = Column(JSON)
+
+    items = relationship("Item", back_populates="equipment_set")
+
+
 class Item(Base):
     __tablename__ = 'items'
 
@@ -111,6 +126,11 @@ class Item(Base):
 
     base_price = Column(Float, nullable=False, default=0.0)
     base_currency_id = Column(String, ForeignKey('currencies.id'))
+    equipment_set_id = Column(
+        String,
+        ForeignKey("equipment_sets.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     equipment_slot = Column(Enum(EquipmentSlot))
     weapon_type = Column(Enum(WeaponType))
@@ -129,6 +149,7 @@ class Item(Base):
     requirements_id = Column(String, ForeignKey('requirements.id'))
     base_currency = relationship("Currency")
     requirements = relationship("Requirement")
+    equipment_set = relationship("EquipmentSet", back_populates="items")
 
     stat_modifiers = relationship(
         "ItemStatModifier",

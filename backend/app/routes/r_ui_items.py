@@ -72,6 +72,35 @@ def _effect(effect: Effect) -> Dict[str, Any]:
     }
 
 
+def _equipment_set(item: Item) -> Optional[Dict[str, Any]]:
+    equipment_set = item.equipment_set
+    if not equipment_set:
+        return None
+    return {
+        "id": equipment_set.id,
+        "slug": equipment_set.slug,
+        "name": equipment_set.name,
+        "description": equipment_set.description,
+        "bonuses": equipment_set.bonuses or [],
+        "icon_path": equipment_set.icon_path,
+        "tags": equipment_set.tags or [],
+        "piece_count": len(equipment_set.items),
+        "pieces": [
+            {
+                "id": piece.id,
+                "slug": piece.slug,
+                "name": piece.name,
+                "type": _enum_value(piece.type),
+                "equipment_slot": _enum_value(piece.equipment_slot),
+            }
+            for piece in sorted(
+                equipment_set.items,
+                key=lambda piece: ((piece.name or "").lower(), piece.id or ""),
+            )
+        ],
+    }
+
+
 def _stat_modifier(modifier: Any) -> Dict[str, Any]:
     return {
         "id": modifier.id,
@@ -171,6 +200,8 @@ def get_item_view(item_id: str):
             "description": item.description,
             "base_price": item.base_price,
             "base_currency": _currency(item.base_currency),
+            "equipment_set_id": item.equipment_set_id,
+            "equipment_set": _equipment_set(item),
             "equipment_slot": _enum_value(item.equipment_slot),
             "weapon_type": _enum_value(item.weapon_type),
             "damage_type": _enum_value(item.damage_type),

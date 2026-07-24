@@ -328,14 +328,15 @@ export function ReferenceChipPicker({
 }) {
   const [options, setOptions] = useState<EntryRecord[]>([]);
   const current = displayText(value);
+  const dataset = findDatasetBySchema(reference);
   const loadOptions = useMemo(() => () => {
-    apiFetch(`/api/${reference}`)
+    apiFetch(`/api/${dataset?.apiPath || reference}`)
       .then((res) => res.json())
       .then((payload) => {
         if (Array.isArray(payload)) setOptions(payload.filter(isRecord));
       })
       .catch(() => setOptions([]));
-  }, [reference]);
+  }, [dataset?.apiPath, reference]);
 
   useEffect(() => {
     loadOptions();
@@ -456,8 +457,9 @@ export function useReferenceOptions(reference: string, initialOptions: EntryReco
       return;
     }
     let cancelled = false;
+    const apiPath = findDatasetBySchema(reference)?.apiPath || reference;
     const load = () => {
-      apiFetch(`/api/${reference}`)
+      apiFetch(`/api/${apiPath}`)
         .then((res) => res.json())
         .then((payload) => {
           if (!cancelled && Array.isArray(payload)) {

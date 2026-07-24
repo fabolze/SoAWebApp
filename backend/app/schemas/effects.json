@@ -295,10 +295,10 @@
     },
     "set_bonus_group": {
       "type": "string",
-      "description": "Set group identifier for tracking combined effects",
+      "description": "Deprecated legacy grouping field. Author set membership and piece-count thresholds through Equipment Sets.",
       "ui": {
-        "widget": "text",
-        "label": "Set Bonus Group"
+        "widget": "hidden",
+        "label": "Legacy Set Bonus Group"
       }
     },
     "icon_path": {

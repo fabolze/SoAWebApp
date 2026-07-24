@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback, type ReactNode } fro
 import { generateSlug } from '../utils/generateId';
 import { useEditorStack, ParentSummary } from './EditorStackContext';
 import { apiFetch } from '../lib/api';
+import { findDatasetBySchema } from '../config/editorDatasets';
 import FieldLabel from './schemaForm/FieldLabel';
 import ArrayObjectField from './schemaForm/ArrayObjectField';
 import StringFieldRenderer from './schemaForm/StringFieldRenderer';
@@ -43,6 +44,10 @@ interface SchemaFormProps {
   changedFieldKeys?: string[];
   includedFieldKeys?: string[];
   compactControls?: boolean;
+}
+
+function referenceApiPath(refType: string): string {
+  return findDatasetBySchema(refType)?.apiPath || refType;
 }
 
 function isVisibleByRule(ui: SchemaFieldUiConfig, sourceData: EntryData): boolean {
@@ -122,7 +127,7 @@ export default function SchemaForm({ schema, schemaName = '', data, onChange, re
       return;
     }
     if (!referenceOptions[refType]) {
-      apiFetch(`/api/${refType}`)
+      apiFetch(`/api/${referenceApiPath(refType)}`)
         .then((res) => res.json())
         .then((list) => {
           setReferenceOptions((prev) => ({ ...prev, [refType]: list }));
@@ -138,7 +143,7 @@ export default function SchemaForm({ schema, schemaName = '', data, onChange, re
       parentFetchReferenceOptions(refType);
       return;
     }
-    apiFetch(`/api/${refType}`)
+    apiFetch(`/api/${referenceApiPath(refType)}`)
       .then((res) => res.json())
       .then((list) => {
         setReferenceOptions((prev) => ({ ...prev, [refType]: list }));
@@ -151,7 +156,7 @@ export default function SchemaForm({ schema, schemaName = '', data, onChange, re
   // --- Reference autocomplete fetcher ---
   const fetchReferenceAutocomplete = useCallback(
     async (refType: string, search: string) => {
-      const url = `/api/${refType}?search=${encodeURIComponent(search)}`;
+      const url = `/api/${referenceApiPath(refType)}?search=${encodeURIComponent(search)}`;
       const res = await apiFetch(url);
       return res.json();
     },
@@ -163,7 +168,7 @@ export default function SchemaForm({ schema, schemaName = '', data, onChange, re
       const normalizedId = String(id || '').trim();
       if (!normalizedId) return null;
       try {
-        const res = await apiFetch(`/api/${refType}/${encodeURIComponent(normalizedId)}`);
+        const res = await apiFetch(`/api/${referenceApiPath(refType)}/${encodeURIComponent(normalizedId)}`);
         if (!res.ok) return null;
         return res.json();
       } catch {
@@ -355,9 +360,10 @@ export default function SchemaForm({ schema, schemaName = '', data, onChange, re
     onSelect: (id: string, createdData: EntryData) => void
   ) => {
     if (!editorStack?.openEditor) return;
+    const dataset = findDatasetBySchema(refType);
     const result = await editorStack.openEditor({
-      schemaName: resolveSchemaName(refType),
-      apiPath: refType,
+      schemaName: dataset?.schemaName || resolveSchemaName(refType),
+      apiPath: dataset?.apiPath || refType,
       parentSummary,
     });
     if (result?.id) {

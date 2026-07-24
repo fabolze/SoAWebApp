@@ -83,6 +83,29 @@ export interface ItemShopSource {
   tags: string[];
 }
 
+export interface EquipmentSetView {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+  bonuses: Array<{
+    required_pieces: number;
+    name?: string;
+    description?: string;
+    effect_ids: string[];
+  }>;
+  icon_path?: string | null;
+  tags: string[];
+  piece_count: number;
+  pieces: Array<{
+    id: string;
+    slug: string;
+    name: string;
+    type: string;
+    equipment_slot?: string | null;
+  }>;
+}
+
 export interface ItemInspectorViewModel {
   id: string;
   slug: string;
@@ -92,6 +115,8 @@ export interface ItemInspectorViewModel {
   description?: string | null;
   base_price: number;
   base_currency?: ItemCurrencyView | null;
+  equipment_set_id?: string | null;
+  equipment_set?: EquipmentSetView | null;
   equipment_slot?: string | null;
   weapon_type?: string | null;
   damage_type?: string | null;

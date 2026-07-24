@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Equipment Set",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "ui": {
+        "widget": "hidden"
+      },
+      "description": "Stable unique identifier for this equipment set."
+    },
+    "slug": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "ID/Slug"
+      },
+      "description": "Readable identifier used by runtime data and references."
+    },
+    "name": {
+      "type": "string",
+      "ui": {
+        "widget": "text",
+        "label": "Set Name"
+      },
+      "description": "Player-facing name shared by all pieces in the set."
+    },
+    "description": {
+      "type": "string",
+      "ui": {
+        "widget": "textarea",
+        "label": "Description"
+      },
+      "description": "Theme, fantasy, and intended build identity of the set."
+    },
+    "bonuses": {
+      "type": "array",
+      "description": "Bonuses activated when at least the specified number of pieces are equipped.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "required_pieces": {
+            "type": "integer",
+            "minimum": 1,
+            "ui": {
+              "widget": "number",
+              "label": "Pieces Required"
+            },
+            "description": "Number of simultaneously equipped pieces required to activate this bonus."
+          },
+          "name": {
+            "type": "string",
+            "ui": {
+              "widget": "text",
+              "label": "Bonus Name"
+            }
+          },
+          "description": {
+            "type": "string",
+            "ui": {
+              "widget": "textarea",
+              "label": "Bonus Description"
+            }
+          },
+          "effect_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "ui": {
+              "label": "Granted Effects",
+              "reference": "effects"
+            },
+            "description": "Effects activated while this piece-count threshold is met."
+          }
+        },
+        "required": [
+          "required_pieces"
+        ]
+      },
+      "ui": {
+        "label": "Piece-count Bonuses"
+      }
+    },
+    "icon_path": {
+      "type": "string",
+      "ui": {
+        "widget": "filepicker",
+        "label": "Set Icon"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "ui": {
+        "widget": "tags",
+        "label": "Tags"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "slug",
+    "name"
+  ]
+}

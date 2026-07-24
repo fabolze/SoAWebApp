@@ -65,7 +65,7 @@ Core:
 Progression:
 - ECharacterRole: Tank, Damage, Healer, Support, Hybrid
 - ETalentNodeType: Passive, Active, Keystone, Utility
-- EItemType: Weapon, Armor, Accessory, Consumable, Tool, Material, Upgrade, Quest, SetPiece, Misc
+- EItemType: Weapon, Armor, Accessory, Consumable, Tool, Material, Upgrade, Quest, Misc
 - EItemRarity: Common, Uncommon, Rare, Epic, Legendary
 - EEquipmentSlot: head, chest, legs, feet, hands, belt, ring, amulet, back, main_hand, off_hand, two_hand, accessory, mount, pet
 - EWeaponType: Greatsword, Longsword, Shortsword, Dagger, Rapier, Axe, Greataxe, Hammer, Mace, Spear, Polearm, Halberd, Staff, Wand, Tome, Bow, Crossbow, Firearm, Thrown, Unarmed, Shield, Focus, Instrument
@@ -204,11 +204,27 @@ Struct FTalentNodeLink:
 - to_node_id (String) - ULID des Ziel-Nodes.
 - min_rank_required (Integer).
 
+Struct FEquipmentSetBonusData:
+- required_pieces (Integer) - Number of equipped pieces needed to activate the threshold.
+- name (String) - Player-facing bonus name.
+- description (Text).
+- effect_ids (Array<String>) - Effects granted while the threshold is active.
+
+Struct FEquipmentSetData:
+- id (String) - ULID.
+- slug (String).
+- name (String).
+- description (Text).
+- bonuses (Array<FEquipmentSetBonusData>) - Evaluate all thresholds whose required_pieces value is met.
+- icon_path (String).
+- tags (Array<String>).
+
 Struct FItemData:
 - id (String) - ULID.
 - slug (String).
 - name (String).
 - type (Enum/String) - EItemType.
+- equipment_set_id (String) - Optional EquipmentSet row ID for Weapon, Armor, or Accessory items.
 - rarity (Enum/String) - EItemRarity.
 - description (Text).
 - base_price (Float).
@@ -563,7 +579,7 @@ Struct FEffectData:
 - apply_chance (Float) - Prozentchance fuer Status-Applikation (0-100).
 - trigger_condition (Enum/String) - EEffectTriggerCondition.
 - stackable (Boolean).
-- set_bonus_group (String).
+- set_bonus_group (String) - Legacy compatibility only; new set thresholds live in FEquipmentSetData.bonuses.
 - icon_path (String).
 - related_items (Array<String>) - Item-ULIDs.
 - tags (Array<String>).

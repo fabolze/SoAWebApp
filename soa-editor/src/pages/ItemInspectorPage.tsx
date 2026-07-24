@@ -119,6 +119,7 @@ export default function ItemInspectorPage() {
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase opacity-80">
                   <span>{item.type}</span>
                   {item.rarity && <span>{item.rarity}</span>}
+                  {item.equipment_set && <span>{item.equipment_set.name} set</span>}
                   <span className="font-mono normal-case">{item.slug}</span>
                 </div>
                 <h1 className="mt-1 truncate text-3xl font-semibold" title={item.name}>{item.name}</h1>
@@ -193,6 +194,39 @@ export default function ItemInspectorPage() {
             </div>
           </Panel>
         </div>
+
+        {item.equipment_set && (
+          <Panel title={`${item.equipment_set.name} Equipment Set`}>
+            {item.equipment_set.description && <p className="text-sm text-slate-600 dark:text-slate-300">{item.equipment_set.description}</p>}
+            <div className="mt-3 grid gap-3 lg:grid-cols-[0.9fr_1.1fr]">
+              <div>
+                <h3 className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Pieces ({item.equipment_set.piece_count})</h3>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {item.equipment_set.pieces.map((piece) => (
+                    <div key={piece.id} className={`rounded-md border px-3 py-2 text-sm ${piece.id === item.id ? "border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950" : "border-slate-200 dark:border-slate-800"}`}>
+                      <div className="font-semibold">{piece.name}</div>
+                      <div className="mt-1 text-xs text-slate-500">{piece.type}{piece.equipment_slot ? ` · ${piece.equipment_slot}` : ""}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Activation Bonuses</h3>
+                <div className="mt-2 grid gap-2">
+                  {item.equipment_set.bonuses.map((bonus) => (
+                    <div key={bonus.required_pieces} className="rounded-md border border-emerald-200 bg-emerald-50/60 px-3 py-2 dark:border-emerald-900 dark:bg-emerald-950/30">
+                      <div className="text-sm font-semibold">{bonus.required_pieces}-piece{bonus.name ? ` · ${bonus.name}` : ""}</div>
+                      {bonus.description && <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{bonus.description}</p>}
+                      {bonus.effect_ids.length > 0 && <div className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">Effects: {bonus.effect_ids.join(", ")}</div>}
+                    </div>
+                  ))}
+                  {item.equipment_set.bonuses.length === 0 && <EmptyText title="No set bonuses" text="Define piece-count bonuses in the Equipment Sets editor." />}
+                </div>
+              </div>
+            </div>
+            <Link className="mt-3 inline-flex text-sm font-medium text-blue-700 dark:text-blue-300" to={`/equipment-sets?selected=${encodeURIComponent(item.equipment_set.id)}`}>Edit equipment set</Link>
+          </Panel>
+        )}
 
         <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr]">
           <Panel title="Sources">

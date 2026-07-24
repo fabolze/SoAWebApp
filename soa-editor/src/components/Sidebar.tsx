@@ -103,6 +103,7 @@ const NAV_GROUPS: SidebarGroup[] = [
       { to: "/talent-nodes", label: "Talent Nodes", icon: PuzzlePieceIcon },
       { to: "/talent-node-links", label: "Talent Node Links", icon: ClipboardDocumentListIcon },
       { to: "/items", label: "Items", icon: CubeIcon },
+      { to: "/equipment-sets", label: "Equipment Sets", icon: Squares2X2Icon },
       { to: "/currencies", label: "Currencies", icon: BanknotesIcon },
       { to: "/shops", label: "Shops", icon: BuildingStorefrontIcon },
       { to: "/shops-inventory", label: "Shop Inventory", icon: ClipboardDocumentListIcon },

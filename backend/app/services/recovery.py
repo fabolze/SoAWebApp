@@ -45,6 +45,7 @@ RECOVERY_IMPORT_ORDER = [
     "character_relationships",
     "combat_profiles",
     "interaction_profiles",
+    "equipment_sets",
     "items",
     "item_stat_modifiers",
     "item_attribute_modifiers",

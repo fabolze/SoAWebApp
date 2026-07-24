@@ -80,7 +80,11 @@ def load_schema_columns(table_name: str) -> List[str]:
 def serialize_items_for_table(table_name: str, model_class: Any, rows: Iterable[Any]) -> List[Dict[str, Any]]:
     route = ROUTE_REGISTRY.get(table_name)
     if route:
-        serializer = getattr(route, "serialize_item", None) or route.serialize_model
+        serializer = (
+            getattr(route, "serialize_for_export", None)
+            or getattr(route, "serialize_item", None)
+            or route.serialize_model
+        )
         return [serializer(row) for row in rows]
     # Fallback: raw column data
     columns = list(model_class.__table__.columns)

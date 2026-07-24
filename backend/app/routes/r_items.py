@@ -2,6 +2,7 @@ from flask import request, jsonify
 from backend.app.routes.base_route import BaseRoute
 from backend.app.models.m_items import (
     Item,
+    EquipmentSet,
     ItemType,
     Rarity,
     EquipmentSlot,
@@ -37,6 +38,25 @@ class ItemRoute(BaseRoute):
         return data["id"]
 
     def process_input_data(self, db_session: Session, item: Item, data: Dict[str, Any]) -> None:
+        # Compatibility for records/CSVs created while SetPiece was an item type.
+        # Set membership is now independent of the item's mechanical category.
+        if str(data.get("type") or "").strip().lower() == "setpiece":
+            weapon_fields = (
+                data.get("weapon_type"),
+                data.get("damage_type"),
+                data.get("weapon_range_type"),
+                data.get("weapon_range"),
+            )
+            slot = str(data.get("equipment_slot") or "").strip().lower()
+            if any(value not in (None, "") for value in weapon_fields) or slot in {
+                "main_hand", "off_hand", "two_hand"
+            }:
+                data["type"] = ItemType.Weapon.value
+            elif slot in {"ring", "amulet", "accessory"}:
+                data["type"] = ItemType.Accessory.value
+            else:
+                data["type"] = ItemType.Armor.value
+
         # Validate enums
         self.validate_enums(data, {
             "type": ItemType,
@@ -50,7 +70,8 @@ class ItemRoute(BaseRoute):
         # Validate relationships
         self.validate_relationships(db_session, data, {
             "requirements_id": Requirement,
-            "base_currency_id": Currency
+            "base_currency_id": Currency,
+            "equipment_set_id": EquipmentSet,
         })
 
         # Effects validation if provided
@@ -65,6 +86,15 @@ class ItemRoute(BaseRoute):
         item.type = data["type"]  # Already converted to enum
         item.base_price = float(data["base_price"])
         item.base_currency_id = data.get("base_currency_id")
+        item.equipment_set_id = data.get("equipment_set_id")
+        if item.equipment_set_id and item.type not in {
+            ItemType.Weapon,
+            ItemType.Armor,
+            ItemType.Accessory,
+        }:
+            raise ValueError(
+                "equipment_set_id is only valid for Weapon, Armor, or Accessory items"
+            )
 
         # Optional enum fields (already validated)
         item.rarity = data.get("rarity")
@@ -192,6 +222,7 @@ class ItemRoute(BaseRoute):
             "description": item.description,
             "base_price": item.base_price,
             "base_currency_id": item.base_currency_id,
+            "equipment_set_id": item.equipment_set_id,
             "equipment_slot": item.equipment_slot.value if item.equipment_slot else None,
             "weapon_type": item.weapon_type.value if item.weapon_type else None,
             "damage_type": item.damage_type.value if item.damage_type else None,

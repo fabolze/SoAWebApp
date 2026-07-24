@@ -198,6 +198,52 @@ def _upgrade_sqlite_schema(active_engine) -> None:
                         connection.execute(text(f"ALTER TABLE effects ADD COLUMN {column_name} {column_type}"))
                 connection.execute(text("UPDATE effects SET status_operation = 'Apply' WHERE status_operation IS NULL"))
 
+            if "items" in table_names:
+                item_columns = {
+                    column["name"] for column in inspector.get_columns("items")
+                }
+                if "equipment_set_id" not in item_columns:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE items ADD COLUMN equipment_set_id "
+                            "VARCHAR REFERENCES equipment_sets(id) ON DELETE SET NULL"
+                        )
+                    )
+                # The former SetPiece category conflated mechanical type with set
+                # membership. Preserve the most specific category inferable from
+                # its equipment fields; membership remains unassigned until an
+                # author selects a named set.
+                weapon_predicates = []
+                for column_name in (
+                    "weapon_type",
+                    "damage_type",
+                    "weapon_range_type",
+                    "weapon_range",
+                ):
+                    if column_name in item_columns:
+                        weapon_predicates.append(f"{column_name} IS NOT NULL")
+                if "equipment_slot" in item_columns:
+                    weapon_predicates.append(
+                        "equipment_slot IN ('main_hand', 'off_hand', 'two_hand')"
+                    )
+                weapon_condition = " OR ".join(weapon_predicates) or "0"
+                accessory_condition = (
+                    "equipment_slot IN ('ring', 'amulet', 'accessory')"
+                    if "equipment_slot" in item_columns
+                    else "0"
+                )
+                connection.execute(text(f"""
+                    UPDATE items
+                    SET type = CASE
+                        WHEN {weapon_condition}
+                            THEN 'Weapon'
+                        WHEN {accessory_condition}
+                            THEN 'Accessory'
+                        ELSE 'Armor'
+                    END
+                    WHERE lower(type) = 'setpiece'
+                """))
+
             if "statuses" in table_names:
                 status_columns = {column["name"] for column in inspector.get_columns("statuses")}
                 additive_status_columns = {

@@ -18,6 +18,7 @@ import CurrenciesEditorPage from "./pages/CurrenciesEditor";
 import DialogueNodesEditorPage from "./pages/DialogueNodesEditor";
 import DialoguesEditorPage from "./pages/DialoguesEditor";
 import EffectsEditorPage from "./pages/EffectsEditor";
+import EquipmentSetsEditorPage from "./pages/EquipmentSetsEditor";
 import EncountersEditorPage from "./pages/EncountersEditor";
 import EventsEditorPage from "./pages/EventsEditor";
 import FactionsEditorPage from "./pages/FactionsEditor";
@@ -115,6 +116,7 @@ export default function AppRoot() {
               <Route path="factions" element={<FactionsEditorPage />} />
               <Route path="flags" element={<FlagsEditorPage />} />
               <Route path="items" element={<ItemsEditorPage />} />
+              <Route path="equipment-sets" element={<EquipmentSetsEditorPage />} />
               <Route path="inspect/items/:id" element={<ItemInspectorPage />} />
               <Route path="author/items/new" element={<ItemAuthoringPage />} />
               <Route path="author/items/new/ecosystem" element={<ItemEcosystemPage />} />

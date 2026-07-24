@@ -6,7 +6,7 @@ from backend.app.models.m_combat_profiles import CombatProfile
 from backend.app.models.m_currencies import Currency
 from backend.app.models.m_encounters import Encounter
 from backend.app.models.m_events import Event
-from backend.app.models.m_items import Item
+from backend.app.models.m_items import EquipmentSet, Item
 from backend.app.models.m_location_pois import LocationPoi
 from backend.app.models.m_quests import Quest
 from backend.app.models.m_requirements import Requirement
@@ -215,6 +215,11 @@ def _analysis(db_session, item, sources):
         if _enum_value(peer.rarity) == _enum_value(item.rarity):
             score += 1
             reasons.append(f"same {_enum_value(item.rarity)} rarity")
+        if item.equipment_set_id and peer.equipment_set_id == item.equipment_set_id:
+            score += 6
+            reasons.append(
+                f"same {item.equipment_set.name if item.equipment_set else 'equipment'} set"
+            )
         for field, label in (("equipment_slot", "equipment slot"), ("weapon_type", "weapon family"), ("damage_type", "damage type")):
             current = _enum_value(getattr(item, field, None))
             if current and current == _enum_value(getattr(peer, field, None)):
@@ -287,6 +292,15 @@ def _catalogs(db_session):
         ],
         "locations": [_compact(row) for row in db_session.query(Location).all()],
         "currencies": [_compact(row) for row in db_session.query(Currency).all()],
+        "equipment_sets": [
+            {
+                **_compact(row),
+                "description": row.description,
+                "bonuses": row.bonuses or [],
+                "piece_count": len(row.items),
+            }
+            for row in db_session.query(EquipmentSet).order_by(EquipmentSet.name).all()
+        ],
         "requirements": [requirement_route.serialize_item(row) for row in db_session.query(Requirement).all()],
     }
 
